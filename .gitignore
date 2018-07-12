@@ -1,3 +1,7 @@
+# Compiled binaries and deployment files
+/bin/
+/deploy/docker/csi-snapshotter
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
