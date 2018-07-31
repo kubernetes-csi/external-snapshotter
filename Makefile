@@ -1,4 +1,4 @@
-# Copyright 2017 The Kubernetes Authors.
+# Copyright 2018 The Kubernetes Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,8 +14,10 @@
 
 .PHONY: all csi-snapshotter clean test
 
-IMAGE_NAME=quay.io/k8scsi/csi-snapshotter
-IMAGE_VERSION=v0.3.0
+REGISTRY_NAME=quay.io/k8scsi
+IMAGE_NAME=csi-snapshotter
+IMAGE_VERSION=canary
+IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
 
 ifdef V
 TESTARGS = -v -args -alsologtostderr -v 5
@@ -34,10 +36,10 @@ clean:
 	-rm -rf bin
 
 container: csi-snapshotter
-	docker build -t $(IMAGE_NAME):$(IMAGE_VERSION) .
+	docker build -t $(IMAGE_TAG) .
 
 push: container
-	docker push $(IMAGE_NAME):$(IMAGE_VERSION)
+	docker push $(IMAGE_TAG)
 
 test:
 	go test `go list ./... | grep -v 'vendor'` $(TESTARGS)
