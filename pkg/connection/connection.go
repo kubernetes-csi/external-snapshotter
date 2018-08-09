@@ -47,7 +47,7 @@ type CSIConnection interface {
 	SupportsControllerListSnapshots(ctx context.Context) (bool, error)
 
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string) (driverName string, snapshotId string, timestamp int64, status *csi.SnapshotStatus, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, status *csi.SnapshotStatus, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string) (err error)
@@ -189,7 +189,7 @@ func (c *csiConnection) SupportsControllerListSnapshots(ctx context.Context) (bo
 	return false, nil
 }
 
-func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
+func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
 	glog.V(5).Infof("CSI CreateSnapshot: %s", snapshot.Name)
 	if volume.Spec.CSI == nil {
 		return "", "", 0, nil, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
@@ -206,7 +206,7 @@ func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string,
 		SourceVolumeId:        volume.Spec.CSI.VolumeHandle,
 		Name:                  snapshotName,
 		Parameters:            parameters,
-		CreateSnapshotSecrets: nil,
+		CreateSnapshotSecrets: snapshotterCredentials,
 	}
 
 	rsp, err := client.CreateSnapshot(ctx, &req)

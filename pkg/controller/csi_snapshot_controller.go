@@ -77,6 +77,9 @@ const pvcKind = "PersistentVolumeClaim"
 
 const IsDefaultSnapshotClassAnnotation = "snapshot.storage.kubernetes.io/is-default-class"
 
+const snapshotterSecretNameKey = "csiSnapshotterSecretName"
+const snapshotterSecretNamespaceKey = "csiSnapshotterSecretNamespace"
+
 // syncContent deals with one key off the queue.  It returns false when it's time to quit.
 func (ctrl *CSISnapshotController) syncContent(content *crdv1.VolumeSnapshotContent) error {
 	glog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
@@ -476,7 +479,20 @@ func (ctrl *CSISnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		return nil, err
 	}
 
-	driverName, snapshotID, timestamp, csiSnapshotStatus, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters)
+	// Create VolumeSnapshotContent name
+	contentName := GetSnapshotContentNameForSnapshot(snapshot)
+
+	// Resolve snapshotting secret credentials.
+	snapshotterSecretRef, err := GetSecretReference(snapshotterSecretNameKey, snapshotterSecretNamespaceKey, class.Parameters, contentName, nil)
+	if err != nil {
+		return nil, err
+	}
+	snapshotterCredentials, err := GetCredentials(ctrl.client, snapshotterSecretRef)
+	if err != nil {
+		return nil, err
+	}
+
+	driverName, snapshotID, timestamp, csiSnapshotStatus, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to take snapshot of the volume, %s: %q", volume.Name, err)
 	}
@@ -489,7 +505,6 @@ func (ctrl *CSISnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	}
 
 	// Create VolumeSnapshotContent in the database
-	contentName := GetSnapshotContentNameForSnapshot(snapshot)
 	volumeRef, err := ref.GetReference(scheme.Scheme, volume)
 
 	snapshotContent := &crdv1.VolumeSnapshotContent{

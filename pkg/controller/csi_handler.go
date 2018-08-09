@@ -30,7 +30,7 @@ import (
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
 type Handler interface {
-	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string) (string, string, int64, *csi.SnapshotStatus, error)
+	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, error)
 }
@@ -57,7 +57,7 @@ func NewCSIHandler(
 	}
 }
 
-func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
+func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
@@ -66,7 +66,7 @@ func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume
 	if err != nil {
 		return "", "", 0, nil, err
 	}
-	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, snapshot, volume, parameters)
+	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, snapshot, volume, parameters, snapshotterCredentials)
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent) error {
