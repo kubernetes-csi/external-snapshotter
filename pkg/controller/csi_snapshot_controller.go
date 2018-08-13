@@ -483,7 +483,7 @@ func (ctrl *CSISnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	contentName := GetSnapshotContentNameForSnapshot(snapshot)
 
 	// Resolve snapshotting secret credentials.
-	snapshotterSecretRef, err := GetSecretReference(snapshotterSecretNameKey, snapshotterSecretNamespaceKey, class.Parameters, contentName, nil)
+	snapshotterSecretRef, err := GetSecretReference(snapshotterSecretNameKey, snapshotterSecretNamespaceKey, class.Parameters, contentName, snapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -577,7 +577,25 @@ func (ctrl *CSISnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 func (ctrl *CSISnapshotController) DeleteSnapshotContentOperation(content *crdv1.VolumeSnapshotContent) error {
 	glog.V(4).Infof("deleteSnapshotOperation [%s] started", content.Name)
 
-	err := ctrl.handler.DeleteSnapshot(content)
+	// get secrets if VolumeSnapshotClass specifies it
+	var snapshotterCredentials map[string]string
+	snapshotClassName := content.Spec.VolumeSnapshotClassName
+	if len(snapshotClassName) != 0 {
+		if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(snapshotClassName, metav1.GetOptions{}); err == nil {
+			// Resolve snapshotting secret credentials.
+			// No VolumeSnapshot is provided when resolving delete secret names, since the VolumeSnapshot may or may not exist at delete time.
+			snapshotterSecretRef, err := GetSecretReference(snapshotterSecretNameKey, snapshotterSecretNamespaceKey, snapshotClass.Parameters, content.Name, nil)
+			if err != nil {
+				return err
+			}
+			snapshotterCredentials, err = GetCredentials(ctrl.client, snapshotterSecretRef)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	err := ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
 	if err != nil {
 		return fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
 	}
