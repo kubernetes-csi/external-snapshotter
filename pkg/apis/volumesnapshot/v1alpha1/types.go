@@ -80,6 +80,9 @@ type VolumeSnapshotSpec struct {
 	// be used if it is available.
 	// +optional
 	VolumeSnapshotClassName string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
+
+	// Size represents the size of the VolumeSnapshot
+	Size core_v1.ResourceList
 }
 
 // VolumeSnapshotStatus is the status of the VolumeSnapshot
@@ -194,6 +197,11 @@ type VolumeSnapshotContentSpec struct {
 	// taken from. It becomes non-nil when VolumeSnapshot and VolumeSnapshotContent are bound.
 	// +optional
 	PersistentVolumeRef *core_v1.ObjectReference `json:"persistentVolumeRef" protobuf:"bytes,3,opt,name=persistentVolumeRef"`
+
+	// Name of the VolumeSnapshotClass used by the VolumeSnapshot. If not specified, a default snapshot class will
+	// be used if it is available.
+	// +optional
+	VolumeSnapshotClassName string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
 }
 
 // VolumeSnapshotSource represents the actual location and type of the snapshot. Only one of its members may be specified.
@@ -221,4 +229,7 @@ type CSIVolumeSnapshotSource struct {
 	// the  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
 	// This field is REQUIRED.
 	CreatedAt int64 `json:"createdAt,omitempty" protobuf:"varint,3,opt,name=createdAt"`
+
+	// Size represents the size of the VolumeSnapshot
+	Size core_v1.ResourceList
 }
