@@ -47,7 +47,7 @@ const (
 
 // Command line flags
 var (
-	snapshotter                     = flag.String("snapshotter", "", "Name of the snapshotter. The snapshotter will only create snapshot data for snapshot that request a StorageClass with a snapshotter field set equal to this name.")
+	snapshotter                     = flag.String("snapshotter", "", "Name of the snapshotter. The snapshotter will only create snapshot content for snapshot that requests a VolumeSnapshotClass with a snapshotter field set equal to this name.")
 	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	resync                          = flag.Duration("resync", 10*time.Second, "Resync interval of the controller.")
 	connectionTimeout               = flag.Duration("connection-timeout", 1*time.Minute, "Timeout for waiting for CSI driver socket.")
@@ -56,7 +56,7 @@ var (
 	createSnapshotContentInterval   = flag.Duration("createSnapshotContentInterval", 10*time.Second, "Interval between retries when we create a snapshot data object for a snapshot.")
 	resyncPeriod                    = flag.Duration("resyncPeriod", 60*time.Second, "The period that should be used to re-sync the snapshot.")
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
-	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot")
+	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
 )
 
 func main() {
@@ -105,9 +105,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Find driver name.
+	// Pass a context with a timeout
 	ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
 	defer cancel()
+
+	// Find driver name
+	if snapshotter == nil {
+		*snapshotter, err = csiConn.GetDriverName(ctx)
+		if err != nil {
+			glog.Error(err.Error())
+			os.Exit(1)
+		}
+	}
+	glog.V(2).Infof("CSI driver name: %q", *snapshotter)
 
 	// Check it's ready
 	if err = waitForDriverReady(csiConn, *connectionTimeout); err != nil {
@@ -122,11 +132,11 @@ func main() {
 		os.Exit(1)
 	}
 	if !supportsCreateSnapshot {
-		glog.Error("CSI driver does not support ControllerCreateSnapshot")
+		glog.Errorf("CSI driver %s does not support ControllerCreateSnapshot", *snapshotter)
 		os.Exit(1)
 	}
 
-	glog.V(2).Infof("Start NewCSISnapshotController with snapshotter %s", *snapshotter)
+	glog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] resync [%+v] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotter, *kubeconfig, *resync, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
 
 	ctrl := controller.NewCSISnapshotController(
 		snapClient,
