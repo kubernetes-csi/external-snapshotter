@@ -159,56 +159,57 @@ func GetSecretReference(nameKey, namespaceKey string, snapshotClassParams map[st
 
 	ref := &v1.SecretReference{}
 
-	{
-		// Secret namespace template can make use of the VolumeSnapshotContent name or the VolumeSnapshot namespace.
-		// Note that neither of those things are under the control of the VolumeSnapshot user.
-		namespaceParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
-		if snapshot != nil {
-			namespaceParams["volumesnapshot.namespace"] = snapshot.Namespace
-		}
-
-		resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
-		if err != nil {
-			return nil, fmt.Errorf("error resolving %s value %q: %v", namespaceKey, namespaceTemplate, err)
-		}
-		if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
-			if namespaceTemplate != resolvedNamespace {
-				return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid namespace name", namespaceKey, namespaceTemplate, resolvedNamespace)
-			}
-			return nil, fmt.Errorf("%s parameter %q is not a valid namespace name", namespaceKey, namespaceTemplate)
-		}
-		ref.Namespace = resolvedNamespace
+	// Secret namespace template can make use of the VolumeSnapshotContent name or the VolumeSnapshot namespace.
+	// Note that neither of those things are under the control of the VolumeSnapshot user.
+	namespaceParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
+	// snapshot may be nil when resolving create/delete snapshot secret names because the
+	// snapshot may or may not exist at delete time
+	if snapshot != nil {
+		namespaceParams["volumesnapshot.namespace"] = snapshot.Namespace
 	}
 
-	{
-		// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace,
-		// or a VolumeSnapshot annotation.
-		// Note that VolumeSnapshot name and annotations are under the VolumeSnapshot user's control.
-		nameParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
-		if snapshot != nil {
-			nameParams["volumesnapshot.name"] = snapshot.Name
-			nameParams["volumesnapshot.namespace"] = snapshot.Namespace
-			for k, v := range snapshot.Annotations {
-				nameParams["volumesnapshot.annotations['"+k+"']"] = v
-			}
-		}
-		resolvedName, err := resolveTemplate(nameTemplate, nameParams)
-		if err != nil {
-			return nil, fmt.Errorf("error resolving %s value %q: %v", nameKey, nameTemplate, err)
-		}
-		if len(validation.IsDNS1123Subdomain(resolvedName)) > 0 {
-			if nameTemplate != resolvedName {
-				return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid secret name", nameKey, nameTemplate, resolvedName)
-			}
-			return nil, fmt.Errorf("%s parameter %q is not a valid secret name", nameKey, nameTemplate)
-		}
-		ref.Name = resolvedName
+	resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving %s value %q: %v", namespaceKey, namespaceTemplate, err)
 	}
+	glog.V(4).Infof("GetSecretReference namespaceTemplate %s, namespaceParams: %+v, resolved %s", namespaceTemplate, namespaceParams, resolvedNamespace)
+
+	if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
+		if namespaceTemplate != resolvedNamespace {
+			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid namespace name", namespaceKey, namespaceTemplate, resolvedNamespace)
+		}
+		return nil, fmt.Errorf("%s parameter %q is not a valid namespace name", namespaceKey, namespaceTemplate)
+	}
+	ref.Namespace = resolvedNamespace
+
+	// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace,
+	// or a VolumeSnapshot annotation.
+	// Note that VolumeSnapshot name and annotations are under the VolumeSnapshot user's control.
+	nameParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
+	if snapshot != nil {
+		nameParams["volumesnapshot.name"] = snapshot.Name
+		nameParams["volumesnapshot.namespace"] = snapshot.Namespace
+		for k, v := range snapshot.Annotations {
+			nameParams["volumesnapshot.annotations['"+k+"']"] = v
+		}
+	}
+	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving %s value %q: %v", nameKey, nameTemplate, err)
+	}
+	if len(validation.IsDNS1123Subdomain(resolvedName)) > 0 {
+		if nameTemplate != resolvedName {
+			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid secret name", nameKey, nameTemplate, resolvedName)
+		}
+		return nil, fmt.Errorf("%s parameter %q is not a valid secret name", nameKey, nameTemplate)
+	}
+	ref.Name = resolvedName
 
 	glog.V(4).Infof("GetSecretReference validated Secret: %+v", ref)
 	return ref, nil
 }
 
+// resolveTemplate resolves the template by checking if the value is missing for a key
 func resolveTemplate(template string, params map[string]string) (string, error) {
 	missingParams := sets.NewString()
 	resolved := os.Expand(template, func(k string) string {
@@ -224,6 +225,7 @@ func resolveTemplate(template string, params map[string]string) (string, error) 
 	return resolved, nil
 }
 
+// GetCredentials retrieves credentials stored in v1.SecretReference
 func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[string]string, error) {
 	if ref == nil {
 		return nil, nil

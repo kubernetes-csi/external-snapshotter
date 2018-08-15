@@ -15,7 +15,6 @@ package main
 
 import (
 	"reflect"
-	"time"
 
 	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
@@ -25,7 +24,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/rest"
 )
 
@@ -121,19 +119,4 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 	}
 
 	return nil
-}
-
-// WaitForSnapshotResource waits for the snapshot resource
-func WaitForSnapshotResource(snapshotClient *rest.RESTClient) error {
-	return wait.Poll(100*time.Millisecond, 60*time.Second, func() (bool, error) {
-		_, err := snapshotClient.Get().
-			Resource(crdv1.VolumeSnapshotContentResourcePlural).DoRaw()
-		if err == nil {
-			return true, nil
-		}
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		}
-		return false, err
-	})
 }

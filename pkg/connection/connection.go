@@ -50,7 +50,7 @@ type CSIConnection interface {
 	CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, status *csi.SnapshotStatus, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
-	DeleteSnapshot(ctx context.Context, snapshotID string) (err error)
+	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
 
 	// GetSnapshotStatus lists snapshot from a volume
 	GetSnapshotStatus(ctx context.Context, snapshotID string) (*csi.SnapshotStatus, int64, error)
@@ -218,12 +218,12 @@ func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string,
 	return driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, rsp.Snapshot.Status, nil
 }
 
-func (c *csiConnection) DeleteSnapshot(ctx context.Context, snapshotID string) (err error) {
+func (c *csiConnection) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error) {
 	client := csi.NewControllerClient(c.conn)
 
 	req := csi.DeleteSnapshotRequest{
 		SnapshotId:            snapshotID,
-		DeleteSnapshotSecrets: nil,
+		DeleteSnapshotSecrets: snapshotterCredentials,
 	}
 
 	if _, err := client.DeleteSnapshot(ctx, &req); err != nil {

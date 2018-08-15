@@ -31,7 +31,7 @@ import (
 // Handler is responsible for handling VolumeSnapshot events from informer.
 type Handler interface {
 	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error)
-	DeleteSnapshot(content *crdv1.VolumeSnapshotContent) error
+	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, error)
 }
 
@@ -69,14 +69,14 @@ func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume
 	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, snapshot, volume, parameters, snapshotterCredentials)
 }
 
-func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent) error {
+func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {
 	if content.Spec.CSI == nil {
 		return fmt.Errorf("CSISnapshot not defined in spec")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	err := handler.csiConnection.DeleteSnapshot(ctx, content.Spec.CSI.SnapshotHandle)
+	err := handler.csiConnection.DeleteSnapshot(ctx, content.Spec.CSI.SnapshotHandle, snapshotterCredentials)
 	if err != nil {
 		return fmt.Errorf("failed to delete snapshot data %s: %q", content.Name, err)
 	}

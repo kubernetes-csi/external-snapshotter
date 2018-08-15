@@ -39,7 +39,7 @@ import (
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 )
 
-type CSISnapshotController struct {
+type csiSnapshotController struct {
 	clientset       clientset.Interface
 	client          kubernetes.Interface
 	snapshotterName string
@@ -66,7 +66,7 @@ type CSISnapshotController struct {
 	resyncPeriod                    time.Duration
 }
 
-// NewCSISnapshotController returns a new *CSISnapshotController
+// NewCSISnapshotController returns a new *csiSnapshotController
 func NewCSISnapshotController(
 	clientset clientset.Interface,
 	client kubernetes.Interface,
@@ -81,13 +81,13 @@ func NewCSISnapshotController(
 	resyncPeriod time.Duration,
 	snapshotNamePrefix string,
 	snapshotNameUUIDLength int,
-) *CSISnapshotController {
+) *csiSnapshotController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.Core().Events(v1.NamespaceAll)})
 	var eventRecorder record.EventRecorder
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", snapshotterName)})
 
-	ctrl := &CSISnapshotController{
+	ctrl := &csiSnapshotController{
 		clientset:                       clientset,
 		client:                          client,
 		snapshotterName:                 snapshotterName,
@@ -131,7 +131,7 @@ func NewCSISnapshotController(
 	return ctrl
 }
 
-func (ctrl *CSISnapshotController) Run(workers int, stopCh <-chan struct{}) {
+func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
 	defer ctrl.snapshotQueue.ShutDown()
 	defer ctrl.contentQueue.ShutDown()
 
@@ -154,7 +154,7 @@ func (ctrl *CSISnapshotController) Run(workers int, stopCh <-chan struct{}) {
 }
 
 // enqueueSnapshotWork adds snapshot to given work queue.
-func (ctrl *CSISnapshotController) enqueueSnapshotWork(obj interface{}) {
+func (ctrl *csiSnapshotController) enqueueSnapshotWork(obj interface{}) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -171,7 +171,7 @@ func (ctrl *CSISnapshotController) enqueueSnapshotWork(obj interface{}) {
 }
 
 // enqueueContentWork adds snapshot data to given work queue.
-func (ctrl *CSISnapshotController) enqueueContentWork(obj interface{}) {
+func (ctrl *csiSnapshotController) enqueueContentWork(obj interface{}) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -189,7 +189,7 @@ func (ctrl *CSISnapshotController) enqueueContentWork(obj interface{}) {
 
 // snapshotWorker processes items from snapshotQueue. It must run only once,
 // syncSnapshot is not assured to be reentrant.
-func (ctrl *CSISnapshotController) snapshotWorker() {
+func (ctrl *csiSnapshotController) snapshotWorker() {
 	workFunc := func() bool {
 		keyObj, quit := ctrl.snapshotQueue.Get()
 		if quit {
@@ -252,7 +252,7 @@ func (ctrl *CSISnapshotController) snapshotWorker() {
 
 // contentWorker processes items from contentQueue. It must run only once,
 // syncContent is not assured to be reentrant.
-func (ctrl *CSISnapshotController) contentWorker() {
+func (ctrl *csiSnapshotController) contentWorker() {
 	workFunc := func() bool {
 		keyObj, quit := ctrl.contentQueue.Get()
 		if quit {
@@ -311,7 +311,7 @@ func (ctrl *CSISnapshotController) contentWorker() {
 
 // shouldProcessSnapshot detect if snapshotter in the VolumeSnapshotClass is the same as the snapshotter
 // in external controller.
-func (ctrl *CSISnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
+func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
 	class, err := ctrl.GetClassFromVolumeSnapshot(snapshot)
 	if err != nil {
 		return false
@@ -326,7 +326,7 @@ func (ctrl *CSISnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeS
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
 // "snapshot updated" and "periodic sync" events.
-func (ctrl *CSISnapshotController) updateSnapshot(vs *crdv1.VolumeSnapshot) {
+func (ctrl *csiSnapshotController) updateSnapshot(vs *crdv1.VolumeSnapshot) {
 	// Store the new vs version in the cache and do not process it if this is
 	// an old version.
 	glog.V(5).Infof("updateSnapshot %q", snapshotKey(vs))
@@ -351,7 +351,7 @@ func (ctrl *CSISnapshotController) updateSnapshot(vs *crdv1.VolumeSnapshot) {
 
 // updateContent runs in worker thread and handles "content added",
 // "content updated" and "periodic sync" events.
-func (ctrl *CSISnapshotController) updateContent(content *crdv1.VolumeSnapshotContent) {
+func (ctrl *csiSnapshotController) updateContent(content *crdv1.VolumeSnapshotContent) {
 	// Store the new vs version in the cache and do not process it if this is
 	// an old version.
 	new, err := ctrl.storeContentUpdate(content)
@@ -374,7 +374,7 @@ func (ctrl *CSISnapshotController) updateContent(content *crdv1.VolumeSnapshotCo
 }
 
 // deleteSnapshot runs in worker thread and handles "snapshot deleted" event.
-func (ctrl *CSISnapshotController) deleteSnapshot(vs *crdv1.VolumeSnapshot) {
+func (ctrl *csiSnapshotController) deleteSnapshot(vs *crdv1.VolumeSnapshot) {
 	_ = ctrl.snapshotStore.Delete(vs)
 	glog.V(4).Infof("vs %q deleted", snapshotKey(vs))
 
@@ -391,7 +391,7 @@ func (ctrl *CSISnapshotController) deleteSnapshot(vs *crdv1.VolumeSnapshot) {
 }
 
 // deleteContent runs in worker thread and handles "snapshot deleted" event.
-func (ctrl *CSISnapshotController) deleteContent(content *crdv1.VolumeSnapshotContent) {
+func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotContent) {
 	_ = ctrl.contentStore.Delete(content)
 	glog.V(4).Infof("content %q deleted", content.Name)
 
@@ -410,7 +410,7 @@ func (ctrl *CSISnapshotController) deleteContent(content *crdv1.VolumeSnapshotCo
 // initializeCaches fills all controller caches with initial data from etcd in
 // order to have the caches already filled when first addSnapshot/addContent to
 // perform initial synchronization of the controller.
-func (ctrl *CSISnapshotController) initializeCaches(snapshotLister storagelisters.VolumeSnapshotLister, contentLister storagelisters.VolumeSnapshotContentLister) {
+func (ctrl *csiSnapshotController) initializeCaches(snapshotLister storagelisters.VolumeSnapshotLister, contentLister storagelisters.VolumeSnapshotContentLister) {
 	vsList, err := snapshotLister.List(labels.Everything())
 	if err != nil {
 		glog.Errorf("CSISnapshotController can't initialize caches: %v", err)
