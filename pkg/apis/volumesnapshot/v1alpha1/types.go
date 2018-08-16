@@ -81,9 +81,9 @@ type VolumeSnapshotSpec struct {
 	// +optional
 	VolumeSnapshotClassName string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
 
-	// A description of the volume snapshot's resources and size.
+	// The complete size of the volume snapshot
 	// +optional
-	Size core_v1.ResourceList `json:"size,omitempty" protobuf:"bytes,4,rep,name=size,casttype=ResourceList,castkey=ResourceName"`
+	Size int64 `json:"size,omitempty" protobuf:"varint,4,opt,name=size"`
 }
 
 // VolumeSnapshotStatus is the status of the VolumeSnapshot
@@ -234,7 +234,7 @@ type CSIVolumeSnapshotSource struct {
 	// +optional
 	CreatedAt int64 `json:"createdAt,omitempty" protobuf:"varint,3,opt,name=createdAt"`
 
-	// A description of the volume snapshot's resources and size.
+	// The complete size of the volume snapshot
 	// +optional
-	Size core_v1.ResourceList `json:"size,omitempty" protobuf:"bytes,4,rep,name=size,casttype=ResourceList,castkey=ResourceName"`
+	Size int64 `json:"size,omitempty" protobuf:"varint,4,opt,name=size"`
 }
