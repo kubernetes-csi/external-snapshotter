@@ -25,7 +25,6 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"github.com/golang/glog"
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"k8s.io/api/core/v1"
@@ -47,7 +46,7 @@ type CSIConnection interface {
 	SupportsControllerListSnapshots(ctx context.Context) (bool, error)
 
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, status *csi.SnapshotStatus, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, status *csi.SnapshotStatus, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
@@ -189,8 +188,8 @@ func (c *csiConnection) SupportsControllerListSnapshots(ctx context.Context) (bo
 	return false, nil
 }
 
-func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
-	glog.V(5).Infof("CSI CreateSnapshot: %s", snapshot.Name)
+func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
+	glog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
 	if volume.Spec.CSI == nil {
 		return "", "", 0, nil, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
 	}
@@ -214,7 +213,7 @@ func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string,
 		return "", "", 0, nil, err
 	}
 
-	glog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%s] status [%s]", snapshot.Name, driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, *rsp.Snapshot.Status)
+	glog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%s] status [%s]", snapshotName, driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, *rsp.Snapshot.Status)
 	return driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, rsp.Snapshot.Status, nil
 }
 
@@ -258,7 +257,6 @@ func (c *csiConnection) Close() error {
 
 func logGRPC(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
 	glog.V(5).Infof("GRPC call: %s", method)
-	glog.V(5).Infof("GRPC request: %+v", req)
 	err := invoker(ctx, method, req, reply, cc, opts...)
 	glog.V(5).Infof("GRPC response: %+v", reply)
 	glog.V(5).Infof("GRPC error: %v", err)

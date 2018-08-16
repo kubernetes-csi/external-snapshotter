@@ -28,6 +28,7 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -264,12 +265,22 @@ func (ctrl *csiSnapshotController) contentWorker() {
 
 		_, name, err := cache.SplitMetaNamespaceKey(key)
 		if err != nil {
-			glog.V(4).Infof("error getting name of snapshotData %q to get snapshotData from informer: %v", key, err)
+			glog.V(4).Infof("error getting name of snapshotContent %q to get snapshotContent from informer: %v", key, err)
 			return false
 		}
 		content, err := ctrl.contentLister.Get(name)
 		if err == nil {
-			// The volume still exists in informer cache, the event must have
+			// Skip update if content is for another CSI driver
+			snapshotClassName := content.Spec.VolumeSnapshotClassName
+			if len(snapshotClassName) != 0 {
+				if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(snapshotClassName, metav1.GetOptions{}); err == nil {
+					if snapshotClass.Snapshotter != ctrl.snapshotterName {
+						return false
+					}
+				}
+			}
+
+			// The content still exists in informer cache, the event must have
 			// been add/update/sync
 			ctrl.updateContent(content)
 			return false
@@ -400,11 +411,11 @@ func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotCo
 		glog.V(5).Infof("deleteContent[%q]: content not bound", content.Name)
 		return
 	}
-	// sync the vs when its vs is deleted.  Explicitly sync'ing the
-	// vs here in response to content deletion prevents the vs from
+	// sync the snapshot when its content is deleted.  Explicitly sync'ing the
+	// snapshot here in response to content deletion prevents the snapshot from
 	// waiting until the next sync period for its Release.
-	glog.V(5).Infof("deleteContent[%q]: scheduling sync of vs %s", content.Name, snapshotName)
-	ctrl.contentQueue.Add(snapshotName)
+	glog.V(5).Infof("deleteContent[%q]: scheduling sync of snapshot %s", content.Name, snapshotName)
+	ctrl.snapshotQueue.Add(snapshotName)
 }
 
 // initializeCaches fills all controller caches with initial data from etcd in

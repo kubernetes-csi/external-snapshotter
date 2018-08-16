@@ -49,12 +49,11 @@ const (
 var (
 	snapshotter                     = flag.String("snapshotter", "", "Name of the snapshotter. The snapshotter will only create snapshot content for snapshot that requests a VolumeSnapshotClass with a snapshotter field set equal to this name.")
 	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
-	resync                          = flag.Duration("resync", 10*time.Second, "Resync interval of the controller.")
 	connectionTimeout               = flag.Duration("connection-timeout", 1*time.Minute, "Timeout for waiting for CSI driver socket.")
 	csiAddress                      = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
-	createSnapshotContentRetryCount = flag.Int("createSnapshotContentRetryCount", 5, "Number of retries when we create a snapshot data object for a snapshot.")
-	createSnapshotContentInterval   = flag.Duration("createSnapshotContentInterval", 10*time.Second, "Interval between retries when we create a snapshot data object for a snapshot.")
-	resyncPeriod                    = flag.Duration("resyncPeriod", 60*time.Second, "The period that should be used to re-sync the snapshot.")
+	createSnapshotContentRetryCount = flag.Int("create-snapshotcontent-retrycount", 5, "Number of retries when we create a snapshot data object for a snapshot.")
+	createSnapshotContentInterval   = flag.Duration("create-snapshotcontent-interval", 10*time.Second, "Interval between retries when we create a snapshot data object for a snapshot.")
+	resyncPeriod                    = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
 )
@@ -82,7 +81,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	factory := informers.NewSharedInformerFactory(snapClient, *resync)
+	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
 
 	// Create CRD resource
 	aeclientset, err := apiextensionsclient.NewForConfig(config)
@@ -110,7 +109,7 @@ func main() {
 	defer cancel()
 
 	// Find driver name
-	if snapshotter == nil {
+	if *snapshotter == "" {
 		*snapshotter, err = csiConn.GetDriverName(ctx)
 		if err != nil {
 			glog.Error(err.Error())
@@ -136,7 +135,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	glog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] resync [%+v] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotter, *kubeconfig, *resync, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
+	if len(*snapshotNamePrefix) == 0 {
+		glog.Error("Snapshot name prefix cannot be of length 0")
+		os.Exit(1)
+	}
+
+	glog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotter, *kubeconfig, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
 
 	ctrl := controller.NewCSISnapshotController(
 		snapClient,

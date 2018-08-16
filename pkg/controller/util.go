@@ -29,22 +29,14 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"os"
 	"strconv"
-	"strings"
 )
 
 var (
 	keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 )
 
-// GetNameAndNameSpaceFromSnapshotName retrieves the namespace and
-// the short name of a snapshot from its full name
-func GetNameAndNameSpaceFromSnapshotName(name string) (string, string, error) {
-	strs := strings.Split(name, "/")
-	if len(strs) != 2 {
-		return "", "", fmt.Errorf("invalid snapshot name")
-	}
-	return strs[0], strs[1], nil
-}
+const snapshotterSecretNameKey = "csiSnapshotterSecretName"
+const snapshotterSecretNamespaceKey = "csiSnapshotterSecretNamespace"
 
 func snapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
@@ -110,10 +102,10 @@ func storeObjectUpdate(store cache.Store, obj interface{}, className string) (bo
 	return true, nil
 }
 
-// GetSnapshotContentNameForSnapshot returns SnapshotData.Name for the create VolumeSnapshotContent.
+// GetSnapshotContentNameForSnapshot returns SnapshotContent.Name for the create VolumeSnapshotContent.
 // The name must be unique.
 func GetSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) string {
-	return "snapdata-" + string(snapshot.UID)
+	return "snapcontent-" + string(snapshot.UID)
 }
 
 // IsDefaultAnnotation returns a boolean if
@@ -145,16 +137,16 @@ func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
 // - the name or namespace parameter contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func GetSecretReference(nameKey, namespaceKey string, snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, hasName := snapshotClassParams[nameKey]
-	namespaceTemplate, hasNamespace := snapshotClassParams[namespaceKey]
+func GetSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+	nameTemplate, hasName := snapshotClassParams[snapshotterSecretNameKey]
+	namespaceTemplate, hasNamespace := snapshotClassParams[snapshotterSecretNamespaceKey]
 
 	if !hasName && !hasNamespace {
 		return nil, nil
 	}
 
 	if len(nameTemplate) == 0 || len(namespaceTemplate) == 0 {
-		return nil, fmt.Errorf("%s and %s parameters must be specified together", nameKey, namespaceKey)
+		return nil, fmt.Errorf("%s and %s parameters must be specified together", snapshotterSecretNameKey, snapshotterSecretNamespaceKey)
 	}
 
 	ref := &v1.SecretReference{}
@@ -170,15 +162,15 @@ func GetSecretReference(nameKey, namespaceKey string, snapshotClassParams map[st
 
 	resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving %s value %q: %v", namespaceKey, namespaceTemplate, err)
+		return nil, fmt.Errorf("error resolving %s value %q: %v", snapshotterSecretNamespaceKey, namespaceTemplate, err)
 	}
 	glog.V(4).Infof("GetSecretReference namespaceTemplate %s, namespaceParams: %+v, resolved %s", namespaceTemplate, namespaceParams, resolvedNamespace)
 
 	if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
 		if namespaceTemplate != resolvedNamespace {
-			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid namespace name", namespaceKey, namespaceTemplate, resolvedNamespace)
+			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid namespace name", snapshotterSecretNamespaceKey, namespaceTemplate, resolvedNamespace)
 		}
-		return nil, fmt.Errorf("%s parameter %q is not a valid namespace name", namespaceKey, namespaceTemplate)
+		return nil, fmt.Errorf("%s parameter %q is not a valid namespace name", snapshotterSecretNamespaceKey, namespaceTemplate)
 	}
 	ref.Namespace = resolvedNamespace
 
@@ -195,13 +187,13 @@ func GetSecretReference(nameKey, namespaceKey string, snapshotClassParams map[st
 	}
 	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving %s value %q: %v", nameKey, nameTemplate, err)
+		return nil, fmt.Errorf("error resolving %s value %q: %v", snapshotterSecretNameKey, nameTemplate, err)
 	}
 	if len(validation.IsDNS1123Subdomain(resolvedName)) > 0 {
 		if nameTemplate != resolvedName {
-			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid secret name", nameKey, nameTemplate, resolvedName)
+			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid secret name", snapshotterSecretNameKey, nameTemplate, resolvedName)
 		}
-		return nil, fmt.Errorf("%s parameter %q is not a valid secret name", nameKey, nameTemplate)
+		return nil, fmt.Errorf("%s parameter %q is not a valid secret name", snapshotterSecretNameKey, nameTemplate)
 	}
 	ref.Name = resolvedName
 

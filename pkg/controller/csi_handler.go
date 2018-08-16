@@ -66,7 +66,7 @@ func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume
 	if err != nil {
 		return "", "", 0, nil, err
 	}
-	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, snapshot, volume, parameters, snapshotterCredentials)
+	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, volume, parameters, snapshotterCredentials)
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {
@@ -101,9 +101,6 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (string, error) {
 	// create persistent name based on a volumeNamePrefix and volumeNameUUIDLength
 	// of PVC's UID
-	if len(prefix) == 0 {
-		return "", fmt.Errorf("Snapshot name prefix cannot be of length 0")
-	}
 	if len(snapshotUID) == 0 {
 		return "", fmt.Errorf("Corrupted snapshot object, it is missing UID")
 	}
