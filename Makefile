@@ -18,6 +18,7 @@ REGISTRY_NAME=quay.io/k8scsi
 IMAGE_NAME=csi-snapshotter
 IMAGE_VERSION=canary
 IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
+IMAGE_TAG=gcr.io/jing-k8s-dev/csi/snapshotter:v0.2.0
 
 ifdef V
 TESTARGS = -v -args -alsologtostderr -v 5
@@ -39,8 +40,8 @@ container: csi-snapshotter
 	docker build -t $(IMAGE_TAG) .
 
 push: container
-	docker push $(IMAGE_TAG)
-
+	#docker push $(IMAGE_TAG)
+	gcloud docker -- push $(IMAGE_TAG)
 test:
 	go test `go list ./... | grep -v 'vendor'` $(TESTARGS)
 	go vet `go list ./... | grep -v vendor`
