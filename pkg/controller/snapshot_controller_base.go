@@ -57,7 +57,7 @@ type csiSnapshotController struct {
 
 	snapshotStore cache.Store
 	contentStore  cache.Store
-	classStore 	  cache.Store
+	classStore    cache.Store
 
 	handler Handler
 	// Map of scheduled/running operations.
