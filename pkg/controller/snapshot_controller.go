@@ -510,7 +510,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 				CSI: &crdv1.CSIVolumeSnapshotSource{
 					Driver:         driverName,
 					SnapshotHandle: snapshotID,
-					CreatedAt:      timestamp,
+					CreationTime:   &timestamp,
 				},
 			},
 			VolumeSnapshotClassName: class.Name,
