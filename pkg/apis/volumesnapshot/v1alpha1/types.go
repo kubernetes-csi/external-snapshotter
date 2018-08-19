@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	core_v1 "k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1beta1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -80,10 +81,6 @@ type VolumeSnapshotSpec struct {
 	// be used if it is available.
 	// +optional
 	VolumeSnapshotClassName string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
-
-	// The complete size of the volume snapshot
-	// +optional
-	Size int64 `json:"size,omitempty" protobuf:"varint,4,opt,name=size"`
 }
 
 // VolumeSnapshotStatus is the status of the VolumeSnapshot
@@ -93,18 +90,22 @@ type VolumeSnapshotStatus struct {
 	// +optional
 	CreationTime *metav1.Time `json:"createdAt" protobuf:"bytes,1,opt,name=createdAt"`
 
+	// The size of the snapshot. When restoring volume from the snapshot, the volume size
+	// should be equal to or larger than its snapshot size.
+	Size *resource.Quantity `json:"size" protobuf:"bytes,2,opt,name=size"`
+
 	// Ready is set to true only if the snapshot is ready to use (e.g., finish uploading if
 	// there is an uploading phase) and also VolumeSnapshot and its VolumeSnapshotContent
 	// bind correctly with each other. If any of the above condition is not true, Ready is
 	// set to false
 	// +optional
-	Ready bool `json:"ready" protobuf:"varint,2,opt,name=ready"`
+	Ready bool `json:"ready" protobuf:"varint,3,opt,name=ready"`
 
 	// The last error encountered during create snapshot operation, if any.
 	// This field must only be set by the entity completing the create snapshot
 	// operation, i.e. the external-snapshotter.
 	// +optional
-	Error *storage.VolumeError
+	Error *storage.VolumeError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeError"`
 }
 
 // TypedLocalObjectReference contains enough information to let you locate the typed referenced object inside the same namespace.
@@ -232,9 +233,9 @@ type CSIVolumeSnapshotSource struct {
 	// the  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
 	// This field is required in the CSI spec but optional here to support static binding.
 	// +optional
-	CreatedAt int64 `json:"createdAt,omitempty" protobuf:"varint,3,opt,name=createdAt"`
+	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,3,opt,name=creationTime"`
 
-	// The complete size of the volume snapshot
-	// +optional
-	Size int64 `json:"size,omitempty" protobuf:"varint,4,opt,name=size"`
+	// The size of the snapshot. When restoring volume from the snapshot, the volume size
+	// should be equal or larger than its snapshot size.
+	Size *resource.Quantity `json:"size" protobuf:"bytes,4,opt,name=size"`
 }
