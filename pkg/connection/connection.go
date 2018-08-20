@@ -46,7 +46,7 @@ type CSIConnection interface {
 	SupportsControllerListSnapshots(ctx context.Context) (bool, error)
 
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, status *csi.SnapshotStatus, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, size int64, status *csi.SnapshotStatus, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
@@ -188,17 +188,17 @@ func (c *csiConnection) SupportsControllerListSnapshots(ctx context.Context) (bo
 	return false, nil
 }
 
-func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, *csi.SnapshotStatus, error) {
+func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, *csi.SnapshotStatus, error) {
 	glog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
 	if volume.Spec.CSI == nil {
-		return "", "", 0, nil, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
+		return "", "", 0, 0, nil, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
 	}
 
 	client := csi.NewControllerClient(c.conn)
 
 	driverName, err := c.GetDriverName(ctx)
 	if err != nil {
-		return "", "", 0, nil, err
+		return "", "", 0, 0, nil, err
 	}
 
 	req := csi.CreateSnapshotRequest{
@@ -210,11 +210,11 @@ func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string,
 
 	rsp, err := client.CreateSnapshot(ctx, &req)
 	if err != nil {
-		return "", "", 0, nil, err
+		return "", "", 0, 0, nil, err
 	}
 
-	glog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%s] status [%s]", snapshotName, driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, *rsp.Snapshot.Status)
-	return driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, rsp.Snapshot.Status, nil
+	glog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%d] size [%d] status [%s]", snapshotName, driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, rsp.Snapshot.SizeBytes, *rsp.Snapshot.Status)
+	return driverName, rsp.Snapshot.Id, rsp.Snapshot.CreatedAt, rsp.Snapshot.SizeBytes, rsp.Snapshot.Status, nil
 }
 
 func (c *csiConnection) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error) {
