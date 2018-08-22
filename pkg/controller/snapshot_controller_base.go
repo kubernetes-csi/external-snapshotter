@@ -325,12 +325,26 @@ func (ctrl *csiSnapshotController) contentWorker() {
 // shouldProcessSnapshot detect if snapshotter in the VolumeSnapshotClass is the same as the snapshotter
 // in external controller.
 func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
-	class, err := ctrl.GetClassFromVolumeSnapshot(snapshot)
-	if err != nil {
-		glog.V(2).Infof("fail to get snapshot class for snapshot %s: %v", snapshotKey(snapshot), err)
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot with error %v", err))
-		return false
+	className := snapshot.Spec.VolumeSnapshotClassName
+	glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, className)
+	var class *crdv1.VolumeSnapshotClass
+	var err error
+	if len(className) > 0 {
+		class, err = ctrl.GetSnapshotClass(className)
+		if err != nil {
+			glog.Errorf("shouldProcessSnapshot failed to getSnapshotClass %s", err)
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
+			return false
+		}
+	} else {
+		class, snapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
+		if err != nil {
+			glog.Errorf("shouldProcessSnapshot failed to setDefaultClass %s", err)
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
+			return false
+		}
 	}
+
 	glog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
 	if class.Snapshotter != ctrl.snapshotterName {
 		glog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)
