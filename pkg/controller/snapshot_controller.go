@@ -512,7 +512,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 					Driver:         driverName,
 					SnapshotHandle: snapshotID,
 					CreationTime:   &timestamp,
-					Size:           resource.NewQuantity(size, resource.BinarySI),
+					RestoreSize:    resource.NewQuantity(size, resource.BinarySI),
 				},
 			},
 			VolumeSnapshotClassName: class.Name,
@@ -668,7 +668,7 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 	}
 	if change {
 		if size != nil {
-			status.Size = size
+			status.RestoreSize = size
 		}
 		snapshotClone.Status = status
 		newSnapshotObj, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
