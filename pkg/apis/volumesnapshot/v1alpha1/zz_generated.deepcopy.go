@@ -34,8 +34,8 @@ func (in *CSIVolumeSnapshotSource) DeepCopyInto(out *CSIVolumeSnapshotSource) {
 		*out = new(int64)
 		**out = **in
 	}
-	if in.Size != nil {
-		in, out := &in.Size, &out.Size
+	if in.RestoreSize != nil {
+		in, out := &in.RestoreSize, &out.RestoreSize
 		x := (*in).DeepCopy()
 		*out = &x
 	}
@@ -331,8 +331,8 @@ func (in *VolumeSnapshotStatus) DeepCopyInto(out *VolumeSnapshotStatus) {
 		in, out := &in.CreationTime, &out.CreationTime
 		*out = (*in).DeepCopy()
 	}
-	if in.Size != nil {
-		in, out := &in.Size, &out.Size
+	if in.RestoreSize != nil {
+		in, out := &in.RestoreSize, &out.RestoreSize
 		x := (*in).DeepCopy()
 		*out = &x
 	}
