@@ -28,7 +28,6 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -275,7 +274,7 @@ func (ctrl *csiSnapshotController) contentWorker() {
 			// Skip update if content is for another CSI driver
 			snapshotClassName := content.Spec.VolumeSnapshotClassName
 			if snapshotClassName != nil {
-				if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(*snapshotClassName, metav1.GetOptions{}); err == nil {
+				if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
 					if snapshotClass.Snapshotter != ctrl.snapshotterName {
 						return false
 					}
@@ -326,10 +325,10 @@ func (ctrl *csiSnapshotController) contentWorker() {
 // in external controller.
 func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
 	className := snapshot.Spec.VolumeSnapshotClassName
-	glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 	var class *crdv1.VolumeSnapshotClass
 	var err error
 	if className != nil {
+		glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 		class, err = ctrl.GetSnapshotClass(*className)
 		if err != nil {
 			glog.Errorf("shouldProcessSnapshot failed to getSnapshotClass %s", err)
@@ -337,6 +336,7 @@ func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeS
 			return false
 		}
 	} else {
+		glog.V(5).Infof("shouldProcessSnapshot [%s]: SetDefaultSnapshotClass", snapshot.Name)
 		class, snapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
 		if err != nil {
 			glog.Errorf("shouldProcessSnapshot failed to setDefaultClass %s", err)
