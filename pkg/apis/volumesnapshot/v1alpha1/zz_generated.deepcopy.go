@@ -236,6 +236,11 @@ func (in *VolumeSnapshotContentSpec) DeepCopyInto(out *VolumeSnapshotContentSpec
 		*out = new(v1.ObjectReference)
 		**out = **in
 	}
+	if in.VolumeSnapshotClassName != nil {
+		in, out := &in.VolumeSnapshotClassName, &out.VolumeSnapshotClassName
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
@@ -309,6 +314,11 @@ func (in *VolumeSnapshotSpec) DeepCopyInto(out *VolumeSnapshotSpec) {
 	if in.Source != nil {
 		in, out := &in.Source, &out.Source
 		*out = new(TypedLocalObjectReference)
+		**out = **in
+	}
+	if in.VolumeSnapshotClassName != nil {
+		in, out := &in.VolumeSnapshotClassName, &out.VolumeSnapshotClassName
+		*out = new(string)
 		**out = **in
 	}
 	return
