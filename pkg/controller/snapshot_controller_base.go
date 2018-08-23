@@ -274,8 +274,8 @@ func (ctrl *csiSnapshotController) contentWorker() {
 		if err == nil {
 			// Skip update if content is for another CSI driver
 			snapshotClassName := content.Spec.VolumeSnapshotClassName
-			if len(snapshotClassName) != 0 {
-				if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(snapshotClassName, metav1.GetOptions{}); err == nil {
+			if snapshotClassName != nil {
+				if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(*snapshotClassName, metav1.GetOptions{}); err == nil {
 					if snapshotClass.Snapshotter != ctrl.snapshotterName {
 						return false
 					}
@@ -326,11 +326,11 @@ func (ctrl *csiSnapshotController) contentWorker() {
 // in external controller.
 func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
 	className := snapshot.Spec.VolumeSnapshotClassName
-	glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, className)
+	glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 	var class *crdv1.VolumeSnapshotClass
 	var err error
-	if len(className) > 0 {
-		class, err = ctrl.GetSnapshotClass(className)
+	if className != nil {
+		class, err = ctrl.GetSnapshotClass(*className)
 		if err != nil {
 			glog.Errorf("shouldProcessSnapshot failed to getSnapshotClass %s", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))

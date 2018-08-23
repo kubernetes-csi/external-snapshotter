@@ -248,6 +248,22 @@ func (ctrl *csiSnapshotController) getMatchSnapshotContent(snapshot *crdv1.Volum
 			content.Spec.VolumeSnapshotRef.Name == snapshot.Name &&
 			content.Spec.VolumeSnapshotRef.Namespace == snapshot.Namespace &&
 			content.Spec.VolumeSnapshotRef.UID == snapshot.UID {
+			if content.Spec.VolumeSnapshotClassName != nil &&
+				snapshot.Spec.VolumeSnapshotClassName != nil &&
+				*(content.Spec.VolumeSnapshotClassName) != *(snapshot.Spec.VolumeSnapshotClassName) {
+				glog.Errorf("volumeSnapshotClassName do not match. No VolumeSnapshotContent for VolumeSnapshot %s found", snapshotKey(snapshot))
+				return nil
+			}
+			if content.Spec.VolumeSnapshotClassName != nil &&
+				snapshot.Spec.VolumeSnapshotClassName == nil {
+				glog.Errorf("volumeSnapshot does not have VolumeSnapshotClassName. No VolumeSnapshotContent for VolumeSnapshot %s found", snapshotKey(snapshot))
+				return nil
+			}
+			if content.Spec.VolumeSnapshotClassName == nil &&
+				snapshot.Spec.VolumeSnapshotClassName != nil {
+				glog.Errorf("volumeSnapshotContent does not have VolumeSnapshotClassName. No VolumeSnapshotContent for VolumeSnapshot %s found", snapshotKey(snapshot))
+				return nil
+			}
 			found = true
 			snapshotContentObj = content
 			break
@@ -407,7 +423,8 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 	} else if content.Spec.VolumeSnapshotRef.UID == "" {
 		contentClone := content.DeepCopy()
 		contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
-		contentClone.Spec.VolumeSnapshotClassName = snapshot.Spec.VolumeSnapshotClassName
+		className := *(snapshot.Spec.VolumeSnapshotClassName)
+		contentClone.Spec.VolumeSnapshotClassName = &className
 		newContent, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
 		if err != nil {
 			glog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
@@ -449,11 +466,11 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	}
 
 	className := snapshot.Spec.VolumeSnapshotClassName
-	glog.V(5).Infof("createSnapshotOperation [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, className)
+	glog.V(5).Infof("createSnapshotOperation [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 	var class *crdv1.VolumeSnapshotClass
 	var err error
-	if len(className) > 0 {
-		class, err = ctrl.GetSnapshotClass(className)
+	if className != nil {
+		class, err = ctrl.GetSnapshotClass(*className)
 		if err != nil {
 			glog.Errorf("createSnapshotOperation failed to getClassFromVolumeSnapshot %s", err)
 			return nil, err
@@ -526,7 +543,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 					RestoreSize:    resource.NewQuantity(size, resource.BinarySI),
 				},
 			},
-			VolumeSnapshotClassName: class.Name,
+			VolumeSnapshotClassName: &(class.Name),
 		},
 	}
 	// Try to create the VolumeSnapshotContent object several times
@@ -578,8 +595,8 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
 	snapshotClassName := content.Spec.VolumeSnapshotClassName
-	if len(snapshotClassName) != 0 {
-		if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(snapshotClassName, metav1.GetOptions{}); err == nil {
+	if snapshotClassName != nil {
+		if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(*snapshotClassName, metav1.GetOptions{}); err == nil {
 			// Resolve snapshotting secret credentials.
 			// No VolumeSnapshot is provided when resolving delete secret names, since the VolumeSnapshot may or may not exist at delete time.
 			snapshotterSecretRef, err := GetSecretReference(snapshotClass.Parameters, content.Name, nil)
@@ -790,9 +807,9 @@ func (ctrl *csiSnapshotController) SetDefaultSnapshotClass(snapshot *crdv1.Volum
 		glog.V(4).Infof("get DefaultClass %d defaults found", len(defaultClasses))
 		return nil, nil, fmt.Errorf("%d default snapshot classes were found", len(defaultClasses))
 	}
-	glog.V(5).Infof("setDefaultSnapshotClass [%s]: default VolumeSnapshotClassName [%s]", snapshot.Name, defaultClasses[0])
+	glog.V(5).Infof("setDefaultSnapshotClass [%s]: default VolumeSnapshotClassName [%s]", snapshot.Name, defaultClasses[0].Name)
 	snapshotClone := snapshot.DeepCopy()
-	snapshotClone.Spec.VolumeSnapshotClassName = defaultClasses[0].Name
+	snapshotClone.Spec.VolumeSnapshotClassName = &(defaultClasses[0].Name)
 	newSnapshot, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 	if err != nil {
 		glog.V(4).Infof("updating VolumeSnapshot[%s] default class failed %v", snapshotKey(snapshot), err)
