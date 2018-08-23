@@ -28,7 +28,6 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -274,8 +273,8 @@ func (ctrl *csiSnapshotController) contentWorker() {
 		if err == nil {
 			// Skip update if content is for another CSI driver
 			snapshotClassName := content.Spec.VolumeSnapshotClassName
-			if len(snapshotClassName) != 0 {
-				if snapshotClass, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotClasses().Get(snapshotClassName, metav1.GetOptions{}); err == nil {
+			if snapshotClassName != nil {
+				if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
 					if snapshotClass.Snapshotter != ctrl.snapshotterName {
 						return false
 					}
@@ -325,12 +324,27 @@ func (ctrl *csiSnapshotController) contentWorker() {
 // shouldProcessSnapshot detect if snapshotter in the VolumeSnapshotClass is the same as the snapshotter
 // in external controller.
 func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
-	class, err := ctrl.GetClassFromVolumeSnapshot(snapshot)
-	if err != nil {
-		glog.V(2).Infof("fail to get snapshot class for snapshot %s: %v", snapshotKey(snapshot), err)
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot with error %v", err))
-		return false
+	className := snapshot.Spec.VolumeSnapshotClassName
+	var class *crdv1.VolumeSnapshotClass
+	var err error
+	if className != nil {
+		glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
+		class, err = ctrl.GetSnapshotClass(*className)
+		if err != nil {
+			glog.Errorf("shouldProcessSnapshot failed to getSnapshotClass %s", err)
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
+			return false
+		}
+	} else {
+		glog.V(5).Infof("shouldProcessSnapshot [%s]: SetDefaultSnapshotClass", snapshot.Name)
+		class, snapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
+		if err != nil {
+			glog.Errorf("shouldProcessSnapshot failed to setDefaultClass %s", err)
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
+			return false
+		}
 	}
+
 	glog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
 	if class.Snapshotter != ctrl.snapshotterName {
 		glog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)

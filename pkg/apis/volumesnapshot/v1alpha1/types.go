@@ -80,7 +80,7 @@ type VolumeSnapshotSpec struct {
 	// Name of the VolumeSnapshotClass used by the VolumeSnapshot. If not specified, a default snapshot class will
 	// be used if it is available.
 	// +optional
-	VolumeSnapshotClassName string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
+	VolumeSnapshotClassName *string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
 }
 
 // VolumeSnapshotStatus is the status of the VolumeSnapshot
@@ -92,7 +92,7 @@ type VolumeSnapshotStatus struct {
 
 	// When restoring volume from the snapshot, the volume size should be equal to or
 	// larger than the RestoreSize if it is specified. If RestoreSize is set to nil, it means
-	// that the storage plugin does not have this information avaialble.
+	// that the storage plugin does not have this information available.
 	// +optional
 	RestoreSize *resource.Quantity `json:"restoreSize" protobuf:"bytes,2,opt,name=restoreSize"`
 
@@ -205,7 +205,7 @@ type VolumeSnapshotContentSpec struct {
 	// Name of the VolumeSnapshotClass used by the VolumeSnapshot. If not specified, a default snapshot class will
 	// be used if it is available.
 	// +optional
-	VolumeSnapshotClassName string `json:"snapshotClassName" protobuf:"bytes,4,opt,name=snapshotClassName"`
+	VolumeSnapshotClassName *string `json:"snapshotClassName" protobuf:"bytes,4,opt,name=snapshotClassName"`
 }
 
 // VolumeSnapshotSource represents the actual location and type of the snapshot. Only one of its members may be specified.
@@ -239,7 +239,7 @@ type CSIVolumeSnapshotSource struct {
 
 	// When restoring volume from the snapshot, the volume size should be equal to or
 	// larger than the RestoreSize if it is specified. If RestoreSize is set to nil, it means
-	// that the storage plugin does not have this information avaialble.
+	// that the storage plugin does not have this information available.
 	// +optional
 	RestoreSize *resource.Quantity `json:"restoreSize" protobuf:"bytes,4,opt,name=restoreSize"`
 }
