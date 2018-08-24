@@ -330,6 +330,7 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 	className := snapshot.Spec.VolumeSnapshotClassName
 	var class *crdv1.VolumeSnapshotClass
 	var err error
+	newSnapshot := snapshot
 	if className != nil {
 		glog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 		class, err = ctrl.GetSnapshotClass(*className)
@@ -340,7 +341,7 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 		}
 	} else {
 		glog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: SetDefaultSnapshotClass", snapshot.Name)
-		class, snapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
+		class, newSnapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
 		if err != nil {
 			glog.Errorf("checkAndUpdateSnapshotClass failed to setDefaultClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
@@ -351,9 +352,9 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 	glog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
 	if class.Snapshotter != ctrl.snapshotterName {
 		glog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)
-		return nil, err
+		return nil, fmt.Errorf("VolumeSnapshotClass does not match with the snapshotter for controller")
 	}
-	return snapshot, nil
+	return newSnapshot, nil
 }
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
