@@ -204,16 +204,17 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 		namespace, name, err := cache.SplitMetaNamespaceKey(key)
 		glog.V(5).Infof("snapshotWorker: snapshot namespace [%s] name [%s]", namespace, name)
 		if err != nil {
-			glog.V(4).Infof("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
+			glog.Errorf("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
 			return false
 		}
 		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
 		if err == nil {
 			// The volume snapshot still exists in informer cache, the event must have
 			// been add/update/sync
-			if ctrl.shouldProcessSnapshot(snapshot) {
-				glog.V(4).Infof("should process snapshot")
-				ctrl.updateSnapshot(snapshot)
+			newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
+			if err == nil {
+				glog.V(5).Infof("passed checkAndUpdateSnapshotClass for snapshot %q", key)
+				ctrl.updateSnapshot(newSnapshot)
 			}
 			return false
 		}
@@ -238,8 +239,9 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 			glog.Errorf("expected vs, got %+v", vsObj)
 			return false
 		}
-		if ctrl.shouldProcessSnapshot(snapshot) {
-			ctrl.deleteSnapshot(snapshot)
+		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
+		if err == nil {
+			ctrl.deleteSnapshot(newSnapshot)
 		}
 		return false
 	}
@@ -321,36 +323,37 @@ func (ctrl *csiSnapshotController) contentWorker() {
 	}
 }
 
-// shouldProcessSnapshot detect if snapshotter in the VolumeSnapshotClass is the same as the snapshotter
-// in external controller.
-func (ctrl *csiSnapshotController) shouldProcessSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
+// checkAndUpdateSnapshotClass gets the VolumeSnapshotClass from VolumeSnapshot. If it is not set,
+// gets it from default VolumeSnapshotClass and sets it. It also detects if snapshotter in the
+// VolumeSnapshotClass is the same as the snapshotter in external controller.
+func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
 	className := snapshot.Spec.VolumeSnapshotClassName
 	var class *crdv1.VolumeSnapshotClass
 	var err error
 	if className != nil {
-		glog.V(5).Infof("shouldProcessSnapshot [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
+		glog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 		class, err = ctrl.GetSnapshotClass(*className)
 		if err != nil {
-			glog.Errorf("shouldProcessSnapshot failed to getSnapshotClass %s", err)
+			glog.Errorf("checkAndUpdateSnapshotClass failed to getSnapshotClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
-			return false
+			return nil, err
 		}
 	} else {
-		glog.V(5).Infof("shouldProcessSnapshot [%s]: SetDefaultSnapshotClass", snapshot.Name)
+		glog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: SetDefaultSnapshotClass", snapshot.Name)
 		class, snapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
 		if err != nil {
-			glog.Errorf("shouldProcessSnapshot failed to setDefaultClass %s", err)
+			glog.Errorf("checkAndUpdateSnapshotClass failed to setDefaultClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
-			return false
+			return nil, err
 		}
 	}
 
 	glog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
 	if class.Snapshotter != ctrl.snapshotterName {
 		glog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)
-		return false
+		return nil, err
 	}
-	return true
+	return snapshot, nil
 }
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
