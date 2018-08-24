@@ -360,15 +360,14 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 		return nil
 	}
 	snapshotClone := snapshot.DeepCopy()
-	if snapshot.Status.Error == nil {
-		statusError := &storage.VolumeError{
-			Time: metav1.Time{
-				Time: time.Now(),
-			},
-			Message: message,
-		}
-		snapshotClone.Status.Error = statusError
+	statusError := &storage.VolumeError{
+		Time: metav1.Time{
+			Time: time.Now(),
+		},
+		Message: message,
 	}
+	snapshotClone.Status.Error = statusError
+
 	snapshotClone.Status.Ready = false
 	newSnapshot, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 	if err != nil {
