@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"os"
 	"strconv"
+	"time"
 )
 
 var (
@@ -233,4 +234,9 @@ func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[stri
 		credentials[key] = string(value)
 	}
 	return credentials, nil
+}
+
+// Returns 0 for resyncPeriod in case resyncing is not needed.
+func NoResyncPeriodFunc() time.Duration {
+	return 0
 }
