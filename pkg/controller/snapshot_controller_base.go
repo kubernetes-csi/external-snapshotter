@@ -84,6 +84,7 @@ func NewCSISnapshotController(
 	snapshotNameUUIDLength int,
 ) *csiSnapshotController {
 	broadcaster := record.NewBroadcaster()
+	broadcaster.StartLogging(glog.Infof)
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.Core().Events(v1.NamespaceAll)})
 	var eventRecorder record.EventRecorder
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", snapshotterName)})
