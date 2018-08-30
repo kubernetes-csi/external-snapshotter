@@ -71,7 +71,7 @@ type VolumeSnapshotSpec struct {
 	// In Alpha version, only PersistentVolumeClaim is supported as the source.
 	// If not specified, user can create VolumeSnapshotContent and bind it with VolumeSnapshot manually.
 	// +optional
-	Source *TypedLocalObjectReference `json:"source" protobuf:"bytes,1,opt,name=source"`
+	Source *core_v1.TypedLocalObjectReference `json:"source" protobuf:"bytes,1,opt,name=source"`
 
 	// SnapshotContentName binds the VolumeSnapshot object with the VolumeSnapshotContent
 	// +optional
