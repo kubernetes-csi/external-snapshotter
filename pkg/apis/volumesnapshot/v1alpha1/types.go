@@ -110,17 +110,6 @@ type VolumeSnapshotStatus struct {
 	Error *storage.VolumeError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeError"`
 }
 
-// TypedLocalObjectReference contains enough information to let you locate the typed referenced object inside the same namespace.
-// TODO: After TypedLocalObjectReference is merged into the in-tree core API, this will be replaced.
-type TypedLocalObjectReference struct {
-	// Name of the referent.
-	// +optional
-	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
-	// Kind of the referent.
-	// +optional
-	Kind string `json:"kind,omitempty" protobuf:"bytes,2,opt,name=kind"`
-}
-
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
