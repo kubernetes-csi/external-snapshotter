@@ -313,7 +313,7 @@ func (in *VolumeSnapshotSpec) DeepCopyInto(out *VolumeSnapshotSpec) {
 	*out = *in
 	if in.Source != nil {
 		in, out := &in.Source, &out.Source
-		*out = new(TypedLocalObjectReference)
+		*out = new(v1.TypedLocalObjectReference)
 		**out = **in
 	}
 	if in.VolumeSnapshotClassName != nil {
