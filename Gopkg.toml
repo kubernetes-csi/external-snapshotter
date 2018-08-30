@@ -33,19 +33,16 @@ required = [
 [[constraint]]
   name = "k8s.io/api"
   #version = "kubernetes-1.11.0"
-  #revision = "d97ece0f36578b3af1c9ce275d184d711aa29baf"
   branch = "master"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
   #version = "kubernetes-1.11.0"
-  #revision = "d97ece0f36578b3af1c9ce275d184d711aa29baf"
   branch = "master"
 
 [[constraint]]
   name = "k8s.io/client-go"
   #version = "kubernetes-1.11.0"
-  #revision = "d97ece0f36578b3af1c9ce275d184d711aa29baf"
   branch = "master"
 
 [[override]]
@@ -55,5 +52,4 @@ required = [
 [[constraint]]
   name = "k8s.io/code-generator"
   #version = "kubernetes-1.11.0"
-  #revision = "d97ece0f36578b3af1c9ce275d184d711aa29baf"
   branch = "master"
