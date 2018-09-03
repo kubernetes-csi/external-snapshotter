@@ -127,10 +127,11 @@ func TestGetPluginInfo(t *testing.T) {
 
 func TestSupportsControllerCreateSnapshot(t *testing.T) {
 	tests := []struct {
-		name        string
-		output      *csi.ControllerGetCapabilitiesResponse
-		injectError bool
-		expectError bool
+		name         string
+		output       *csi.ControllerGetCapabilitiesResponse
+		injectError  bool
+		expectError  bool
+		expectResult bool
 	}{
 		{
 			name: "success",
@@ -152,13 +153,15 @@ func TestSupportsControllerCreateSnapshot(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: true,
 		},
 		{
-			name:        "gRPC error",
-			output:      nil,
-			injectError: true,
-			expectError: true,
+			name:         "gRPC error",
+			output:       nil,
+			injectError:  true,
+			expectError:  true,
+			expectResult: false,
 		},
 		{
 			name: "no create snapshot",
@@ -173,7 +176,8 @@ func TestSupportsControllerCreateSnapshot(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: false,
 		},
 		{
 			name: "empty capability",
@@ -184,14 +188,16 @@ func TestSupportsControllerCreateSnapshot(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: false,
 		},
 		{
 			name: "no capabilities",
 			output: &csi.ControllerGetCapabilitiesResponse{
 				Capabilities: []*csi.ControllerServiceCapability{},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: false,
 		},
 	}
 
@@ -216,22 +222,26 @@ func TestSupportsControllerCreateSnapshot(t *testing.T) {
 		// Setup expectation
 		controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), in).Return(out, injectedErr).Times(1)
 
-		_, err = csiConn.SupportsControllerCreateSnapshot(context.Background())
+		ok, err := csiConn.SupportsControllerCreateSnapshot(context.Background())
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
 		if !test.expectError && err != nil {
 			t.Errorf("test %q: got error: %v", test.name, err)
 		}
+		if err == nil && test.expectResult != ok {
+			t.Errorf("test fail expected result %t but got %t\n", test.expectResult, ok)
+		}
 	}
 }
 
 func TestSupportsControllerListSnapshots(t *testing.T) {
 	tests := []struct {
-		name        string
-		output      *csi.ControllerGetCapabilitiesResponse
-		injectError bool
-		expectError bool
+		name         string
+		output       *csi.ControllerGetCapabilitiesResponse
+		injectError  bool
+		expectError  bool
+		expectResult bool
 	}{
 		{
 			name: "success",
@@ -260,13 +270,38 @@ func TestSupportsControllerListSnapshots(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: true,
 		},
 		{
-			name:        "gRPC error",
-			output:      nil,
-			injectError: true,
-			expectError: true,
+			name: "have create_delete_snapshot but no list snapshot ",
+			output: &csi.ControllerGetCapabilitiesResponse{
+				Capabilities: []*csi.ControllerServiceCapability{
+					{
+						Type: &csi.ControllerServiceCapability_Rpc{
+							Rpc: &csi.ControllerServiceCapability_RPC{
+								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
+							},
+						},
+					},
+					{
+						Type: &csi.ControllerServiceCapability_Rpc{
+							Rpc: &csi.ControllerServiceCapability_RPC{
+								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+							},
+						},
+					},
+				},
+			},
+			expectError:  false,
+			expectResult: false,
+		},
+		{
+			name:         "gRPC error",
+			output:       nil,
+			injectError:  true,
+			expectError:  true,
+			expectResult: false,
 		},
 		{
 			name: "no list snapshot",
@@ -281,7 +316,8 @@ func TestSupportsControllerListSnapshots(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: false,
 		},
 		{
 			name: "empty capability",
@@ -292,14 +328,16 @@ func TestSupportsControllerListSnapshots(t *testing.T) {
 					},
 				},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: false,
 		},
 		{
 			name: "no capabilities",
 			output: &csi.ControllerGetCapabilitiesResponse{
 				Capabilities: []*csi.ControllerServiceCapability{},
 			},
-			expectError: false,
+			expectError:  false,
+			expectResult: false,
 		},
 	}
 
@@ -324,12 +362,15 @@ func TestSupportsControllerListSnapshots(t *testing.T) {
 		// Setup expectation
 		controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), in).Return(out, injectedErr).Times(1)
 
-		_, err = csiConn.SupportsControllerListSnapshots(context.Background())
+		ok, err := csiConn.SupportsControllerListSnapshots(context.Background())
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
 		if !test.expectError && err != nil {
 			t.Errorf("test %q: got error: %v", test.name, err)
+		}
+		if err == nil && test.expectResult != ok {
+			t.Errorf("test fail expected result %t but got %t\n", test.expectResult, ok)
 		}
 	}
 }

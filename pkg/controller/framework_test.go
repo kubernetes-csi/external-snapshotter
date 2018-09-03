@@ -195,14 +195,14 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		// check the content does not exist
 		_, found := r.contents[content.Name]
 		if found {
-			return true, nil, fmt.Errorf("Cannot create content %s: content already exists", content.Name)
+			return true, nil, fmt.Errorf("cannot create content %s: content already exists", content.Name)
 		}
 
 		// Store the updated object to appropriate places.
 		r.contents[content.Name] = content
 		r.changedObjects = append(r.changedObjects, content)
 		r.changedSinceLastSync++
-		glog.V(4).Infof("created content %s", content.Name)
+		glog.V(5).Infof("created content %s", content.Name)
 		return true, content, nil
 
 	case action.Matches("update", "volumesnapshotcontents"):
@@ -221,7 +221,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			content = content.DeepCopy()
 			content.ResourceVersion = strconv.Itoa(storedVer + 1)
 		} else {
-			return true, nil, fmt.Errorf("Cannot update content %s: content not found", content.Name)
+			return true, nil, fmt.Errorf("cannot update content %s: content not found", content.Name)
 		}
 
 		// Store the updated object to appropriate places.
@@ -247,7 +247,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			snapshot = snapshot.DeepCopy()
 			snapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
 		} else {
-			return true, nil, fmt.Errorf("Cannot update snapshot %s: snapshot not found", snapshot.Name)
+			return true, nil, fmt.Errorf("cannot update snapshot %s: snapshot not found", snapshot.Name)
 		}
 
 		// Store the updated object to appropriate places.
@@ -265,7 +265,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			return true, content, nil
 		} else {
 			glog.V(4).Infof("GetVolume: content %s not found", name)
-			return true, nil, fmt.Errorf("Cannot find content %s", name)
+			return true, nil, fmt.Errorf("cannot find content %s", name)
 		}
 
 	case action.Matches("get", "volumesnapshots"):
@@ -276,7 +276,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			return true, snapshot, nil
 		} else {
 			glog.V(4).Infof("GetSnapshot: content %s not found", name)
-			return true, nil, fmt.Errorf("Cannot find snapshot %s", name)
+			return true, nil, fmt.Errorf("cannot find snapshot %s", name)
 		}
 
 	case action.Matches("delete", "volumesnapshotcontents"):
@@ -288,7 +288,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			r.changedSinceLastSync++
 			return true, nil, nil
 		} else {
-			return true, nil, fmt.Errorf("Cannot delete content %s: not found", name)
+			return true, nil, fmt.Errorf("cannot delete content %s: not found", name)
 		}
 
 	case action.Matches("delete", "volumesnapshots"):
@@ -300,7 +300,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			r.changedSinceLastSync++
 			return true, nil, nil
 		} else {
-			return true, nil, fmt.Errorf("Cannot delete snapshot %s: not found", name)
+			return true, nil, fmt.Errorf("cannot delete snapshot %s: not found", name)
 		}
 
 	case action.Matches("get", "persistentvolumes"):
@@ -311,7 +311,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			return true, volume, nil
 		} else {
 			glog.V(4).Infof("GetVolume: volume %s not found", name)
-			return true, nil, fmt.Errorf("Cannot find volume %s", name)
+			return true, nil, fmt.Errorf("cannot find volume %s", name)
 		}
 
 	case action.Matches("get", "persistentvolumeclaims"):
@@ -322,7 +322,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			return true, claim, nil
 		} else {
 			glog.V(4).Infof("GetClaim: claim %s not found", name)
-			return true, nil, fmt.Errorf("Cannot find claim %s", name)
+			return true, nil, fmt.Errorf("cannot find claim %s", name)
 		}
 
 	case action.Matches("get", "storageclasses"):
@@ -333,7 +333,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			return true, storageClass, nil
 		} else {
 			glog.V(4).Infof("GetStorageClass: storageClass %s not found", name)
-			return true, nil, fmt.Errorf("Cannot find storageClass %s", name)
+			return true, nil, fmt.Errorf("cannot find storageClass %s", name)
 		}
 
 	case action.Matches("get", "secrets"):
@@ -344,7 +344,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			return true, secret, nil
 		} else {
 			glog.V(4).Infof("GetSecret: secret %s not found", name)
-			return true, nil, fmt.Errorf("Cannot find secret %s", name)
+			return true, nil, fmt.Errorf("cannot find secret %s", name)
 		}
 	}
 
