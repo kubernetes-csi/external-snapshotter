@@ -658,6 +658,7 @@ func TestDeleteSnapshot(t *testing.T) {
 func TestGetSnapshotStatus(t *testing.T) {
 	defaultID := "testid"
 	createdAt := time.Now().UnixNano()
+	size := int64(1000)
 
 	defaultRequest := &csi.ListSnapshotsRequest{
 		SnapshotId: defaultID,
@@ -668,7 +669,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 			{
 				Snapshot: &csi.Snapshot{
 					Id:             defaultID,
-					SizeBytes:      1000,
+					SizeBytes:      size,
 					SourceVolumeId: "volumeid",
 					CreatedAt:      createdAt,
 					Status: &csi.SnapshotStatus{
@@ -689,6 +690,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 		expectError    bool
 		expectStatus   *csi.SnapshotStatus
 		expectCreateAt int64
+		expectSize     int64
 	}{
 		{
 			name:        "success",
@@ -701,6 +703,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 				Details: "success",
 			},
 			expectCreateAt: createdAt,
+			expectSize:     size,
 		},
 		{
 			name:        "gRPC transient error",
@@ -741,7 +744,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 			controllerServer.EXPECT().ListSnapshots(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		status, createTime, err := csiConn.GetSnapshotStatus(context.Background(), test.snapshotID)
+		status, createTime, size, err := csiConn.GetSnapshotStatus(context.Background(), test.snapshotID)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -753,6 +756,9 @@ func TestGetSnapshotStatus(t *testing.T) {
 		}
 		if test.expectCreateAt != createTime {
 			t.Errorf("test %q: expected createTime: %v, got: %v", test.name, test.expectCreateAt, createTime)
+		}
+		if test.expectSize != size {
+			t.Errorf("test %q: expected size: %v, got: %v", test.name, test.expectSize, createTime)
 		}
 	}
 }

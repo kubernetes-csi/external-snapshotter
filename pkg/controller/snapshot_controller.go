@@ -425,12 +425,12 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 }
 
 func (ctrl *csiSnapshotController) checkandUpdateSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
-	status, _, err := ctrl.handler.GetSnapshotStatus(content)
+	status, _, size, err := ctrl.handler.GetSnapshotStatus(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check snapshot status %s with error %v", snapshot.Name, err)
 	}
-
-	newSnapshot, err := ctrl.updateSnapshotStatus(snapshot, status, time.Now(), nil, IsSnapshotBound(snapshot, content))
+	timestamp := time.Now().UnixNano()
+	newSnapshot, err := ctrl.updateSnapshotStatus(snapshot, status, timestamp, size, IsSnapshotBound(snapshot, content))
 	if err != nil {
 		return nil, err
 	}
@@ -494,7 +494,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	// Update snapshot status with timestamp
 	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
 		glog.V(5).Infof("createSnapshot [%s]: trying to update snapshot creation timestamp", snapshotKey(snapshot))
-		newSnapshot, err = ctrl.updateSnapshotStatus(snapshot, csiSnapshotStatus, time.Unix(0, timestamp), resource.NewQuantity(size, resource.BinarySI), false)
+		newSnapshot, err = ctrl.updateSnapshotStatus(snapshot, csiSnapshotStatus, timestamp, size, false)
 		if err == nil {
 			break
 		}
@@ -642,12 +642,12 @@ func (ctrl *csiSnapshotController) bindandUpdateVolumeSnapshot(snapshotContent *
 }
 
 // UpdateSnapshotStatus converts snapshot status to crdv1.VolumeSnapshotCondition
-func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, csistatus *csi.SnapshotStatus, timestamp time.Time, size *resource.Quantity, bound bool) (*crdv1.VolumeSnapshot, error) {
-	glog.V(5).Infof("updating VolumeSnapshot[]%s, set status %v, timestamp %v", snapshotKey(snapshot), csistatus, timestamp)
+func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, csistatus *csi.SnapshotStatus, createdAt, size int64, bound bool) (*crdv1.VolumeSnapshot, error) {
+	glog.V(5).Infof("updating VolumeSnapshot[]%s, set status %v, timestamp %v", snapshotKey(snapshot), csistatus, createdAt)
 	status := snapshot.Status
 	change := false
 	timeAt := &metav1.Time{
-		Time: timestamp,
+		Time: time.Unix(0, createdAt),
 	}
 
 	snapshotClone := snapshot.DeepCopy()
@@ -680,8 +680,8 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 		}
 	}
 	if change {
-		if size != nil {
-			status.RestoreSize = size
+		if size > 0 {
+			status.RestoreSize = resource.NewQuantity(size, resource.BinarySI)
 		}
 		snapshotClone.Status = status
 		newSnapshotObj, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
