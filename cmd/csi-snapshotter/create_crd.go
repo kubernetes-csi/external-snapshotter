@@ -22,36 +22,7 @@ import (
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/serializer"
-	"k8s.io/client-go/rest"
 )
-
-const (
-	// SnapshotPVCAnnotation is "snapshot.alpha.kubernetes.io/snapshot"
-	SnapshotPVCAnnotation = "volumesnapshot.csi.k8s.io/snapshot"
-)
-
-// NewClient creates a new RESTClient
-func NewClient(cfg *rest.Config) (*rest.RESTClient, *runtime.Scheme, error) {
-	scheme := runtime.NewScheme()
-	if err := crdv1.AddToScheme(scheme); err != nil {
-		return nil, nil, err
-	}
-
-	config := *cfg
-	config.GroupVersion = &crdv1.SchemeGroupVersion
-	config.APIPath = "/apis"
-	config.ContentType = runtime.ContentTypeJSON
-	config.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: serializer.NewCodecFactory(scheme)}
-
-	client, err := rest.RESTClientFor(&config)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return client, scheme, nil
-}
 
 // CreateCRD creates CustomResourceDefinition
 func CreateCRD(clientset apiextensionsclient.Interface) error {
