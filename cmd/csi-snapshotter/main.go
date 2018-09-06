@@ -58,6 +58,8 @@ var (
 	resyncPeriod                    = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
+	enableLeaderElection            = flag.Bool("leader-election", false, "Enable leader election.")
+	leaderElectionNamespace         = flag.String("leader-election-namespace", "", "Namespace where this snapshotter runs.")
 	showVersion                     = flag.Bool("version", false, "Show version.")
 )
 
@@ -154,6 +156,17 @@ func main() {
 	if len(*snapshotNamePrefix) == 0 {
 		glog.Error("Snapshot name prefix cannot be of length 0")
 		os.Exit(1)
+	}
+
+	if *enableLeaderElection {
+		// Leader election was requested.
+		if leaderElectionNamespace == nil || *leaderElectionNamespace == "" {
+			glog.Error("-leader-election-namespace must not be empty")
+			os.Exit(1)
+		}
+		// Name of config map with leader election lock
+		lockName := "external-snapshotter-leader-" + *snapshotter
+		WaitForLeader(kubeClient, *leaderElectionNamespace, lockName)
 	}
 
 	glog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotter, *kubeconfig, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
