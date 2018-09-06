@@ -299,10 +299,6 @@ func (ctrl *csiSnapshotController) storeContentUpdate(content interface{}) (bool
 	return storeObjectUpdate(ctrl.contentStore, content, "content")
 }
 
-func (ctrl *csiSnapshotController) storeClassUpdate(content interface{}) (bool, error) {
-	return storeObjectUpdate(ctrl.classStore, content, "class")
-}
-
 // createSnapshot starts new asynchronous operation to create snapshot
 func (ctrl *csiSnapshotController) createSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	glog.V(5).Infof("createSnapshot[%s]: started", snapshotKey(snapshot))
@@ -744,22 +740,12 @@ func (ctrl *csiSnapshotController) getStorageClassFromVolumeSnapshot(snapshot *c
 func (ctrl *csiSnapshotController) GetSnapshotClass(className string) (*crdv1.VolumeSnapshotClass, error) {
 	glog.V(5).Infof("getSnapshotClass: VolumeSnapshotClassName [%s]", className)
 
-	obj, found, err := ctrl.classStore.GetByKey(className)
-	if found {
-		class, ok := obj.(*crdv1.VolumeSnapshotClass)
-		if ok {
-			return class, nil
-		}
-	}
 	class, err := ctrl.classLister.Get(className)
 	if err != nil {
 		glog.Errorf("failed to retrieve snapshot class %s from the API server: %q", className, err)
 		return nil, fmt.Errorf("failed to retrieve snapshot class %s from the API server: %q", className, err)
 	}
-	_, updateErr := ctrl.storeClassUpdate(class)
-	if updateErr != nil {
-		glog.V(4).Infof("getSnapshotClass [%s]: cannot update internal cache: %v", class.Name, updateErr)
-	}
+
 	return class, nil
 }
 
@@ -804,10 +790,7 @@ func (ctrl *csiSnapshotController) SetDefaultSnapshotClass(snapshot *crdv1.Volum
 		// We will get an "snapshot update" event soon, this is not a big error
 		glog.V(4).Infof("setDefaultSnapshotClass [%s]: cannot update internal cache: %v", snapshotKey(snapshot), updateErr)
 	}
-	_, updateErr = ctrl.storeClassUpdate(defaultClasses[0])
-	if updateErr != nil {
-		glog.V(4).Infof("setDefaultSnapshotClass [%s]: cannot update internal cache: %v", defaultClasses[0].Name, updateErr)
-	}
+
 	return defaultClasses[0], newSnapshot, nil
 }
 
