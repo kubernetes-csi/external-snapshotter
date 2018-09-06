@@ -88,7 +88,7 @@ type VolumeSnapshotStatus struct {
 	// CreationTime is the time the snapshot was successfully created. If it is set,
 	// it means the snapshot was created; Otherwise the snapshot was not created.
 	// +optional
-	CreationTime *metav1.Time `json:"createdAt" protobuf:"bytes,1,opt,name=createdAt"`
+	CreationTime *metav1.Time `json:"creationTime" protobuf:"bytes,1,opt,name=creationTime"`
 
 	// When restoring volume from the snapshot, the volume size should be equal to or
 	// larger than the RestoreSize if it is specified. If RestoreSize is set to nil, it means
@@ -171,7 +171,7 @@ type VolumeSnapshotContent struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	// Spec represents the desired state of the snapshot data
+	// Spec represents the desired state of the snapshot content
 	Spec VolumeSnapshotContentSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`
 }
 
@@ -187,7 +187,7 @@ type VolumeSnapshotContentList struct {
 	Items []VolumeSnapshotContent `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
-// VolumeSnapshotContentSpec is the spec of the volume snapshot data
+// VolumeSnapshotContentSpec is the spec of the volume snapshot content
 type VolumeSnapshotContentSpec struct {
 	// Source represents the location and type of the volume snapshot
 	VolumeSnapshotSource `json:",inline" protobuf:"bytes,1,opt,name=volumeSnapshotSource"`
