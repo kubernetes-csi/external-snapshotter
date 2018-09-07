@@ -1042,7 +1042,6 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 		// Inject classes into controller via a custom lister.
 		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 		for _, class := range snapshotClasses {
-			ctrl.classStore.Add(class)
 			indexer.Add(class)
 		}
 		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)

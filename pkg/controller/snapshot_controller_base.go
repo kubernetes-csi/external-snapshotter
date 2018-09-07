@@ -56,7 +56,6 @@ type csiSnapshotController struct {
 
 	snapshotStore cache.Store
 	contentStore  cache.Store
-	classStore    cache.Store
 
 	handler Handler
 	// Map of scheduled/running operations.
@@ -100,7 +99,6 @@ func NewCSISnapshotController(
 		resyncPeriod:                    resyncPeriod,
 		snapshotStore:                   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		contentStore:                    cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		classStore:                      cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-snapshot"),
 		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-content"),
 	}
