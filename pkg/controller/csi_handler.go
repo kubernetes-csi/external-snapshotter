@@ -32,7 +32,7 @@ import (
 type Handler interface {
 	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, *csi.SnapshotStatus, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
-	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, error)
+	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, int64, error)
 }
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
@@ -84,18 +84,19 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 	return nil
 }
 
-func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, error) {
+func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, int64, error) {
 	if content.Spec.CSI == nil {
-		return nil, 0, fmt.Errorf("CSISnapshot not defined in spec")
+		return nil, 0, 0, fmt.Errorf("CSISnapshot not defined in spec")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	csiSnapshotStatus, timestamp, err := handler.csiConnection.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
+	csiSnapshotStatus, timestamp, size, err := handler.csiConnection.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list snapshot data %s: %q", content.Name, err)
+		return nil, 0, 0, fmt.Errorf("failed to list snapshot data %s: %q", content.Name, err)
 	}
-	return csiSnapshotStatus, timestamp, nil
+	return csiSnapshotStatus, timestamp, size, nil
+
 }
 
 func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (string, error) {

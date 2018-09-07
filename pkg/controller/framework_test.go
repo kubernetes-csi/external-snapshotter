@@ -1092,6 +1092,7 @@ type listCall struct {
 	// information to return
 	status     *csi.SnapshotStatus
 	createTime int64
+	size       int64
 	err        error
 }
 
@@ -1202,10 +1203,10 @@ func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID strin
 	return call.err
 }
 
-func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (*csi.SnapshotStatus, int64, error) {
+func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (*csi.SnapshotStatus, int64, int64, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return nil, 0, fmt.Errorf("unexpected call")
+		return nil, 0, 0, fmt.Errorf("unexpected call")
 	}
 	call := f.listCalls[f.listCallCounter]
 	f.listCallCounter++
@@ -1217,10 +1218,10 @@ func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID st
 	}
 
 	if err != nil {
-		return nil, 0, fmt.Errorf("unexpected call")
+		return nil, 0, 0, fmt.Errorf("unexpected call")
 	}
 
-	return call.status, call.createTime, call.err
+	return call.status, call.createTime, call.size, call.err
 }
 
 func (f *fakeCSIConnection) Close() error {
