@@ -26,6 +26,7 @@ import (
 
 	"github.com/golang/glog"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/pkg/controller"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
@@ -96,6 +98,9 @@ func main() {
 		glog.Error(err.Error())
 		os.Exit(1)
 	}
+
+	// Add Snapshot types to the defualt Kubernetes so events can be logged for them
+	snapshotscheme.AddToScheme(scheme.Scheme)
 
 	// Connect to CSI.
 	csiConn, err := connection.New(*csiAddress, *connectionTimeout)
