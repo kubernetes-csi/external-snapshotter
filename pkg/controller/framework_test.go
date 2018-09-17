@@ -743,7 +743,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 }
 
 // newContent returns a new content with given attributes
-func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *resource.Quantity, creationTime *int64) *crdv1.VolumeSnapshotContent {
+func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *int64, creationTime *int64) *crdv1.VolumeSnapshotContent {
 	content := crdv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -780,7 +780,7 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 	return &content
 }
 
-func newContentArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *resource.Quantity, creationTime *int64) []*crdv1.VolumeSnapshotContent {
+func newContentArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *int64, creationTime *int64) []*crdv1.VolumeSnapshotContent {
 	return []*crdv1.VolumeSnapshotContent{
 		newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, size, creationTime),
 	}

@@ -114,10 +114,8 @@ type VolumeSnapshotStatus struct {
 // TODO: After TypedLocalObjectReference is merged into the in-tree core API, this will be replaced.
 type TypedLocalObjectReference struct {
 	// Name of the referent.
-	// +optional
 	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
 	// Kind of the referent.
-	// +optional
 	Kind string `json:"kind,omitempty" protobuf:"bytes,2,opt,name=kind"`
 }
 
@@ -241,5 +239,5 @@ type CSIVolumeSnapshotSource struct {
 	// larger than the RestoreSize if it is specified. If RestoreSize is set to nil, it means
 	// that the storage plugin does not have this information available.
 	// +optional
-	RestoreSize *resource.Quantity `json:"restoreSize" protobuf:"bytes,4,opt,name=restoreSize"`
+	RestoreSize *int64 `json:"restoreSize,omitempty" protobuf:"bytes,4,opt,name=restoreSize"`
 }
