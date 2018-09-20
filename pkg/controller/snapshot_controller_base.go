@@ -271,20 +271,12 @@ func (ctrl *csiSnapshotController) contentWorker() {
 			return false
 		}
 		content, err := ctrl.contentLister.Get(name)
+		// The content still exists in informer cache, the event must have
+		// been add/update/sync
 		if err == nil {
-			// Skip update if content is for another CSI driver
-			snapshotClassName := content.Spec.VolumeSnapshotClassName
-			if snapshotClassName != nil {
-				if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
-					if snapshotClass.Snapshotter != ctrl.snapshotterName {
-						return false
-					}
-				}
+			if ctrl.isDriverMatch(content) {
+				ctrl.updateContent(content)
 			}
-
-			// The content still exists in informer cache, the event must have
-			// been add/update/sync
-			ctrl.updateContent(content)
 			return false
 		}
 		if !errors.IsNotFound(err) {
@@ -320,6 +312,27 @@ func (ctrl *csiSnapshotController) contentWorker() {
 			return
 		}
 	}
+}
+
+// verify whether the driver specified in VolumeSnapshotContent matches the controller's driver name
+func (ctrl *csiSnapshotController) isDriverMatch(content *crdv1.VolumeSnapshotContent) bool {
+	if content.Spec.VolumeSnapshotSource.CSI == nil {
+		// Skip this snapshot content if it not a CSI snapshot
+		return false
+	}
+	if content.Spec.VolumeSnapshotSource.CSI.Driver != ctrl.snapshotterName {
+		// Skip this snapshot content if the driver does not match
+		return false
+	}
+	snapshotClassName := content.Spec.VolumeSnapshotClassName
+	if snapshotClassName != nil {
+		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
+			if snapshotClass.Snapshotter != ctrl.snapshotterName {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // checkAndUpdateSnapshotClass gets the VolumeSnapshotClass from VolumeSnapshot. If it is not set,

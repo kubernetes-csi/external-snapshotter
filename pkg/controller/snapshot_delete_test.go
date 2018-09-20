@@ -118,7 +118,7 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 func TestDeleteSync(t *testing.T) {
 	tests := []controllerTest{
 		{
-			name:                "1-1 - successful delete with empty snapshot class",
+			name:                "1-1 - content with empty snapshot class is deleted if it is bound to a non-exist snapshot and also has a snapshot uid specified",
 			initialContents:     newContentArray("content1-1", classEmpty, "sid1-1", "vuid1-1", "volume1-1", "snapuid1-1", "snap1-1", nil, nil),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
@@ -126,6 +126,17 @@ func TestDeleteSync(t *testing.T) {
 			expectedEvents:      noevents,
 			errors:              noerrors,
 			expectedDeleteCalls: []deleteCall{{"sid1-1", nil, nil}},
+			test:                testSyncContent,
+		},
+		{
+			name:                "2-1 - content with empty snapshot class will not be deleted if it is bound to a non-exist snapshot but it does not have a snapshot uid specified",
+			initialContents:     newContentArray("content2-1", classEmpty, "sid2-1", "vuid2-1", "volume2-1", "", "snap2-1", nil, nil),
+			expectedContents:    newContentArray("content2-1", classEmpty, "sid2-1", "vuid2-1", "volume2-1", "", "snap2-1", nil, nil),
+			initialSnapshots:    nosnapshots,
+			expectedSnapshots:   nosnapshots,
+			expectedEvents:      noevents,
+			errors:              noerrors,
+			expectedDeleteCalls: []deleteCall{{"sid2-1", nil, nil}},
 			test:                testSyncContent,
 		},
 		{
@@ -221,6 +232,40 @@ func TestDeleteSync(t *testing.T) {
 				delete(reactor.contents, "content1-8")
 				reactor.lock.Unlock()
 			}),
+		},
+		{
+			name:              "1-9 - content will not be deleted if it is bound to a snapshot correctly, snapshot uid is specified",
+			initialContents:   newContentArray("content1-9", validSecretClass, "sid1-9", "vuid1-9", "volume1-9", "snapuid1-9", "snap1-9", nil, nil),
+			expectedContents:  newContentArray("content1-9", validSecretClass, "sid1-9", "vuid1-9", "volume1-9", "snapuid1-9", "snap1-9", nil, nil),
+			initialSnapshots:  newSnapshotArray("snap1-9", validSecretClass, "content1-9", "snapuid1-9", "claim1-9", false, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap1-9", validSecretClass, "content1-9", "snapuid1-9", "claim1-9", false, nil, nil, nil),
+			expectedEvents:    noevents,
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			test:              testSyncContent,
+		},
+		{
+			name:                "1-10 - should delete content which is bound to a snapshot incorrectly",
+			initialContents:     newContentArray("content1-10", validSecretClass, "sid1-10", "vuid1-10", "volume1-10", "snapuid1-10-x", "snap1-10", nil, nil),
+			expectedContents:    nocontents,
+			initialSnapshots:    newSnapshotArray("snap1-10", validSecretClass, "content1-10", "snapuid1-10", "claim1-10", false, nil, nil, nil),
+			expectedSnapshots:   newSnapshotArray("snap1-10", validSecretClass, "content1-10", "snapuid1-10", "claim1-10", false, nil, nil, nil),
+			expectedEvents:      noevents,
+			initialSecrets:      []*v1.Secret{secret()},
+			errors:              noerrors,
+			expectedDeleteCalls: []deleteCall{{"sid1-10", map[string]string{"foo": "bar"}, nil}},
+			test:                testSyncContent,
+		},
+		{
+			name:              "1-11 - content will not be deleted if it is bound to a snapshot correctly, snapsht uid is not specified",
+			initialContents:   newContentArray("content1-11", validSecretClass, "sid1-11", "vuid1-11", "volume1-11", "", "snap1-11", nil, nil),
+			expectedContents:  newContentArray("content1-11", validSecretClass, "sid1-11", "vuid1-11", "volume1-11", "", "snap1-11", nil, nil),
+			initialSnapshots:  newSnapshotArray("snap1-11", validSecretClass, "content1-11", "snapuid1-11", "claim1-11", false, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap1-11", validSecretClass, "content1-11", "snapuid1-11", "claim1-11", false, nil, nil, nil),
+			expectedEvents:    noevents,
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			test:              testSyncContent,
 		},
 	}
 	runSyncTests(t, tests, snapshotClasses)
