@@ -34,6 +34,7 @@ import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
@@ -48,6 +49,7 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
 	kubefake "k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/kubernetes/scheme"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -786,6 +788,14 @@ func newContentArray(name, className, snapshotHandle, volumeUID, volumeName, bou
 	}
 }
 
+func newContentWithUnmatchDriverArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *int64, creationTime *int64) []*crdv1.VolumeSnapshotContent {
+	content := newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, size, creationTime)
+	content.Spec.VolumeSnapshotSource.CSI.Driver = "fake"
+	return []*crdv1.VolumeSnapshotContent{
+		content,
+	}
+}
+
 func newSnapshot(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *storagev1beta1.VolumeError, creationTime *metav1.Time, size *resource.Quantity) *crdv1.VolumeSnapshot {
 	snapshot := crdv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1005,6 +1015,7 @@ func evaluateTestResults(ctrl *csiSnapshotController, reactor *snapshotReactor, 
 //    controllerTest.testCall *once*.
 // 3. Compare resulting contents and snapshots with expected contents and snapshots.
 func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
+	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
 		glog.V(4).Infof("starting test %q", test.name)
 
@@ -1023,8 +1034,10 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 			reactor.snapshots[snapshot.Name] = snapshot
 		}
 		for _, content := range test.initialContents {
-			ctrl.contentStore.Add(content)
-			reactor.contents[content.Name] = content
+			if ctrl.isDriverMatch(test.initialContents[0]) {
+				ctrl.contentStore.Add(content)
+				reactor.contents[content.Name] = content
+			}
 		}
 		for _, claim := range test.initialClaims {
 			reactor.claims[claim.Name] = claim

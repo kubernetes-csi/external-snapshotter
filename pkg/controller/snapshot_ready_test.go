@@ -232,6 +232,26 @@ func TestSync(t *testing.T) {
 			errors:            noerrors,
 			test:              testSyncSnapshot,
 		},
+		{
+			name:              "3-5 - snapshot bound to content in which the driver does not match",
+			initialContents:   newContentWithUnmatchDriverArray("content3-5", validSecretClass, "sid3-5", "vuid3-5", "volume3-5", "", "snap3-5", nil, nil),
+			expectedContents:  nocontents,
+			initialSnapshots:  newSnapshotArray("snap3-5", validSecretClass, "content3-5", "snapuid3-5", "claim3-5", false, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap3-5", validSecretClass, "content3-5", "snapuid3-5", "claim3-5", false, newVolumeError("VolumeSnapshotContent is missing"), nil, nil),
+			expectedEvents:    []string{"Warning SnapshotContentMissing"},
+			errors:            noerrors,
+			test:              testSyncSnapshotError,
+		},
+		{
+			name:              "3-6 - snapshot bound to content in which the snapshot uid does not match",
+			initialContents:   newContentArray("content3-4", validSecretClass, "sid3-4", "vuid3-4", "volume3-4", "snapuid3-4-x", "snap3-6", nil, nil),
+			expectedContents:  newContentArray("content3-4", validSecretClass, "sid3-4", "vuid3-4", "volume3-4", "snapuid3-4-x", "snap3-6", nil, nil),
+			initialSnapshots:  newSnapshotArray("snap3-5", validSecretClass, "content3-5", "snapuid3-5", "claim3-5", false, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap3-5", validSecretClass, "content3-5", "snapuid3-5", "claim3-5", false, newVolumeError("VolumeSnapshotContent is missing"), nil, nil),
+			expectedEvents:    []string{"Warning SnapshotContentMissing"},
+			errors:            noerrors,
+			test:              testSyncSnapshotError,
+		},
 	}
 
 	runSyncTests(t, tests, snapshotClasses)
