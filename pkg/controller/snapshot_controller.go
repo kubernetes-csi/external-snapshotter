@@ -401,21 +401,22 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 		return fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotRef.UID != snapshot.UID {
 		return fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
-	} else if content.Spec.VolumeSnapshotRef.UID == "" {
-		contentClone := content.DeepCopy()
-		contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
-		className := *(snapshot.Spec.VolumeSnapshotClassName)
-		contentClone.Spec.VolumeSnapshotClassName = &className
-		newContent, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
-		if err != nil {
-			glog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
-			return err
-		}
-		_, err = ctrl.storeContentUpdate(newContent)
-		if err != nil {
-			glog.V(4).Infof("updating VolumeSnapshotContent[%s] error status: cannot update internal cache %v", newContent.Name, err)
-			return err
-		}
+	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
+		return nil
+	}
+	contentClone := content.DeepCopy()
+	contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
+	className := *(snapshot.Spec.VolumeSnapshotClassName)
+	contentClone.Spec.VolumeSnapshotClassName = &className
+	newContent, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	if err != nil {
+		glog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
+		return err
+	}
+	_, err = ctrl.storeContentUpdate(newContent)
+	if err != nil {
+		glog.V(4).Infof("updating VolumeSnapshotContent[%s] error status: cannot update internal cache %v", newContent.Name, err)
+		return err
 	}
 	return nil
 }
