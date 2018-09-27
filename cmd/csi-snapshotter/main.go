@@ -20,11 +20,13 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/pkg/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -36,6 +38,7 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/webhook"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 )
 
@@ -62,7 +65,9 @@ var (
 )
 
 var (
-	version = "unknown"
+	version          = "unknown"
+	serviceName      = flag.String("service-name", "snapshot-admission-webhook-svc", "The name of the admission webhook service.")
+	serviceNamespace = flag.String("service-namespace", "default", "The namespace of the admission webhook service.")
 )
 
 func main() {
@@ -156,6 +161,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := webhook.CreateConfiguration(kubeClient, *serviceName, *serviceNamespace); err != nil {
+		glog.Error("Failed to create configuration for Webhook, %v", err)
+		os.Exit(1)
+	}
+
 	glog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotter, *kubeconfig, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
 
 	ctrl := controller.NewCSISnapshotController(
@@ -177,6 +187,7 @@ func main() {
 	// run...
 	stopCh := make(chan struct{})
 	factory.Start(stopCh)
+	go startWebhooksHTTPs(kubeClient, snapClient)
 	go ctrl.Run(threads, stopCh)
 
 	// ...until SIGINT
@@ -213,4 +224,24 @@ func waitForDriverReady(csiConn connection.CSIConnection, timeout time.Duration)
 		}
 		time.Sleep(time.Second)
 	}
+}
+
+func startWebhooksHTTPs(kubeClientset kubernetes.Interface, snapClient clientset.Interface) error {
+	glog.V(2).Infof("Starting Snapshot webhooks HTTPS handler")
+	defer glog.V(2).Infof("Stopping Snapshot webhooks HTTPS handler")
+
+	mux := http.NewServeMux()
+	mux.Handle("/", http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			webhook.AdmitSnapshot(w, r, kubeClientset, snapClient)
+		}))
+	server := &http.Server{
+		Addr:      ":443",
+		TLSConfig: webhook.GetTLSConfig(),
+		Handler:   mux,
+	}
+	if err := server.ListenAndServeTLS("", ""); err != http.ErrServerClosed {
+		return errors.Wrap(err, "start webhook HTTPS handler")
+	}
+	return nil
 }
