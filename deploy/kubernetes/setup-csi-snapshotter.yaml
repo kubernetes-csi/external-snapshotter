@@ -95,7 +95,7 @@ spec:
       serviceAccount: csi-snapshotter
       containers:
         - name: csi-provisioner
-          image: xyang105/csi:csi-provisioner
+          image: quay.io/k8scsi/csi-provisioner:v0.4.0
           args:
             - "--provisioner=csi-hostpath"
             - "--csi-address=$(ADDRESS)"
@@ -103,24 +103,24 @@ spec:
           env:
             - name: ADDRESS
               value: /csi/csi.sock
-          imagePullPolicy: "IfNotPresent"
+          imagePullPolicy: Always
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
         - name: csi-snapshotter
-          image: xyang105/csi:csi-snapshotter
+          image: quay.io/k8scsi/csi-snapshotter:v0.4.0
           args:
             - "--csi-address=$(ADDRESS)"
             - "--connection-timeout=15s"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
-          imagePullPolicy: "IfNotPresent"
+          imagePullPolicy: Always
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
         - name: hostpath
-          image: xyang105/csi:csi-hostpath
+          image: quay.io/k8scsi/hostpathplugin:v0.4.0
           args:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -133,7 +133,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           securityContext:
             privileged: true
           volumeMounts:
