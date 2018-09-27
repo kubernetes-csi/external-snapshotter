@@ -58,11 +58,22 @@ var (
 	resyncPeriod                    = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
+	showVersion                     = flag.Bool("version", false, "Show version.")
+)
+
+var (
+	version = "unknown"
 )
 
 func main() {
 	flag.Set("logtostderr", "true")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println(os.Args[0], version)
+		os.Exit(0)
+	}
+	glog.Infof("Version: %s", version)
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := buildConfig(*kubeconfig)

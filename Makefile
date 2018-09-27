@@ -19,18 +19,19 @@ IMAGE_NAME=csi-snapshotter
 IMAGE_VERSION=canary
 IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
 
+REV=$(shell git describe --long --tags --match='v*' --dirty)
+
 ifdef V
 TESTARGS = -v -args -alsologtostderr -v 5
 else
 TESTARGS =
 endif
 
-
 all: csi-snapshotter
 
 csi-snapshotter:
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-extldflags "-static"' -o ./bin/csi-snapshotter ./cmd/csi-snapshotter
+	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-X main.version=$(REV) -extldflags "-static"' -o ./bin/csi-snapshotter ./cmd/csi-snapshotter
 
 clean:
 	-rm -rf bin
