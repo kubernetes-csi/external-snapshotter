@@ -430,7 +430,7 @@
   version = "v2.1.1"
 
 [[projects]]
-  digest = "1:ce7f9bcd1705ba049bbb23ac2736f6546c0d4fcca4f1e7793b3624691e3e4edb"
+  digest = "1:5f076f6f9c3ac4f2b99d79dc7974eabd3f51be35254aa0d8c4cf920fdb9c7ff8"
   name = "k8s.io/api"
   packages = [
     "admissionregistration/v1alpha1",
@@ -466,11 +466,11 @@
     "storage/v1beta1",
   ]
   pruneopts = ""
-  revision = "0527d9f2238346a310e6cf1e6afe2422f329cc3d"
-  version = "kubernetes-1.12.0-beta.1"
+  revision = "fd83cbc87e7632ccd8bbab63d2b673d4e0c631cc"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
-  digest = "1:fc72e958c0a0028b7e7e61d9e80df28dec65508a9176928b046c02f353805d42"
+  digest = "1:466583feeb1602ea9f19fef76e96b55c08c49ce88743a9d38c7726891ffe0436"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -480,11 +480,11 @@
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
   ]
   pruneopts = ""
-  revision = "e138199d57ae5108ebe5e18447f6b21c0efe9677"
-  version = "kubernetes-1.12.0-beta.1"
+  revision = "1748dfb29e8a4432b78514bc88a1b07937a9805a"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
-  digest = "1:a36b0af9cb67dd558016e48ff172c14e1c22766860fab00938f69eafd1fcac7b"
+  digest = "1:7aa037a4df5432be2820d164f378d7c22335e5cbba124e90e42114757ebd11ac"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/errors",
@@ -531,11 +531,11 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = ""
-  revision = "63dd81ab0848cd58da3257a806f599808708029c"
-  version = "kubernetes-1.12.0-beta.1"
+  revision = "6dd46049f39503a1fc8d65de4bd566829e95faff"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
-  digest = "1:1eb5aaeed2f468204d3bfe46fdd87b09f34fe7f1064baec21c5a60559747f952"
+  digest = "1:5d4153d12c3aed2c90a94262520d2498d5afa4d692554af55e65a7c5af0bc399"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -634,8 +634,8 @@
     "util/workqueue",
   ]
   pruneopts = ""
-  revision = "173ad5fde8e4ee8f92763f78c6ba37322f2125ab"
-  version = "kubernetes-1.12.0-beta.1"
+  revision = "1638f8970cefaa404ff3a62950f88b08292b2696"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
   digest = "1:e6fffdf0dfeb0d189a7c6d735e76e7564685d3b6513f8b19d3651191cb6b084b"
@@ -665,7 +665,7 @@
   ]
   pruneopts = ""
   revision = "3dcf91f64f638563e5106f21f50c31fa361c918d"
-  version = "kubernetes-1.12.0-beta.1"
+  version = "kubernetes-1.12.0"
 
 [[projects]]
   branch = "master"
