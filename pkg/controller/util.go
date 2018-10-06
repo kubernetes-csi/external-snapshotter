@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/kubernetes/pkg/util/slice"
 	"os"
 	"strconv"
 	"time"
@@ -38,6 +39,10 @@ var (
 
 const snapshotterSecretNameKey = "csiSnapshotterSecretName"
 const snapshotterSecretNamespaceKey = "csiSnapshotterSecretNamespace"
+
+// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
+const VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-protection"
+const VolumeSnapshotFinalizer = "snapshot.storage.kubernetes.io/volumesnapshot-protection"
 
 func snapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
@@ -245,4 +250,24 @@ func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[stri
 // Returns 0 for resyncPeriod in case resyncing is not needed.
 func NoResyncPeriodFunc() time.Duration {
 	return 0
+}
+
+// isContentDeletionCandidate checks if a volume snapshot content is a deletion candidate.
+func isContentDeletionCandidate(content *crdv1.VolumeSnapshotContent) bool {
+	return content.ObjectMeta.DeletionTimestamp != nil && slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
+}
+
+// needToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
+func needToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
+	return content.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
+}
+
+// isSnapshotDeletionCandidate checks if a volume snapshot is a deletion candidate.
+func isSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
+	return snapshot.ObjectMeta.DeletionTimestamp != nil && slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
+}
+
+// needToAddSnapshotFinalizer checks if a Finalizer needs to be added for the volume snapshot.
+func needToAddSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
 }
