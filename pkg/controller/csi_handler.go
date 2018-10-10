@@ -77,7 +77,7 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 
 	err := handler.csiConnection.DeleteSnapshot(ctx, content.Spec.CSI.SnapshotHandle, snapshotterCredentials)
 	if err != nil {
-		return fmt.Errorf("failed to delete snapshot data %s: %q", content.Name, err)
+		return fmt.Errorf("failed to delete snapshot content %s: %q", content.Name, err)
 	}
 
 	return nil
@@ -92,7 +92,7 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 
 	csiSnapshotStatus, timestamp, size, err := handler.csiConnection.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
 	if err != nil {
-		return false, 0, 0, fmt.Errorf("failed to list snapshot data %s: %q", content.Name, err)
+		return false, 0, 0, fmt.Errorf("failed to list snapshot content %s: %q", content.Name, err)
 	}
 	return csiSnapshotStatus, timestamp, size, nil
 
