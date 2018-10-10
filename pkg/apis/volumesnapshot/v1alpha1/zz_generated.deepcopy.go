@@ -92,6 +92,11 @@ func (in *VolumeSnapshotClass) DeepCopyInto(out *VolumeSnapshotClass) {
 			(*out)[key] = val
 		}
 	}
+	if in.DeletionPolicy != nil {
+		in, out := &in.DeletionPolicy, &out.DeletionPolicy
+		*out = new(DeletionPolicy)
+		**out = **in
+	}
 	return
 }
 
@@ -223,6 +228,11 @@ func (in *VolumeSnapshotContentSpec) DeepCopyInto(out *VolumeSnapshotContentSpec
 	if in.VolumeSnapshotClassName != nil {
 		in, out := &in.VolumeSnapshotClassName, &out.VolumeSnapshotClassName
 		*out = new(string)
+		**out = **in
+	}
+	if in.DeletionPolicy != nil {
+		in, out := &in.DeletionPolicy, &out.DeletionPolicy
+		*out = new(DeletionPolicy)
 		**out = **in
 	}
 	return
