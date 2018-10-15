@@ -16,7 +16,7 @@
 
 REGISTRY_NAME=quay.io/k8scsi
 IMAGE_NAME=csi-snapshotter
-IMAGE_VERSION=v0.4.0
+IMAGE_VERSION=v0.4.1
 IMAGE_TAG=$(REGISTRY_NAME)/$(IMAGE_NAME):$(IMAGE_VERSION)
 
 REV=$(shell git describe --long --tags --match='v*' --dirty)
