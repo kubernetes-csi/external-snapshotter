@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"time"
@@ -70,7 +71,7 @@ func WaitForLeader(clientset *kubernetes.Clientset, namespace string, lockName s
 		RenewDeadline: renewDeadline,
 		RetryPeriod:   retryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: func(stop <-chan struct{}) {
+			OnStartedLeading: func(ctx context.Context) {
 				glog.V(2).Info("Became leader, starting")
 				close(elected)
 			},
@@ -84,7 +85,7 @@ func WaitForLeader(clientset *kubernetes.Clientset, namespace string, lockName s
 		},
 	}
 
-	go leaderelection.RunOrDie(leaderConfig)
+	go leaderelection.RunOrDie(context.TODO(), leaderConfig)
 
 	// wait for being elected
 	<-elected
