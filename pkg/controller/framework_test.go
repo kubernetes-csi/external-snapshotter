@@ -806,7 +806,7 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			SelfLink:        "/apis/snapshot.storage.k8s.io/v1alpha1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
-			Source: &crdv1.TypedLocalObjectReference{
+			Source: &v1.TypedLocalObjectReference{
 				Name: claimName,
 				Kind: "PersistentVolumeClaim",
 			},

@@ -77,6 +77,7 @@ import (
 // In the future version, a retry policy will be added.
 
 const pvcKind = "PersistentVolumeClaim"
+const apiGroup = ""
 const controllerUpdateFailMsg = "snapshot controller failed to update"
 
 const IsDefaultSnapshotClassAnnotation = "snapshot.storage.kubernetes.io/is-default-class"
@@ -824,12 +825,18 @@ func (ctrl *csiSnapshotController) SetDefaultSnapshotClass(snapshot *crdv1.Volum
 
 // getClaimFromVolumeSnapshot is a helper function to get PVC from VolumeSnapshot.
 func (ctrl *csiSnapshotController) getClaimFromVolumeSnapshot(snapshot *crdv1.VolumeSnapshot) (*v1.PersistentVolumeClaim, error) {
-	if snapshot.Spec.Source == nil || snapshot.Spec.Source.Kind != pvcKind {
-		return nil, fmt.Errorf("The snapshot source is not the right type. Expected %s, Got %v", pvcKind, snapshot.Spec.Source)
+	if snapshot.Spec.Source == nil {
+		return nil, fmt.Errorf("the snapshot source is not specified.")
+	}
+	if snapshot.Spec.Source.Kind != pvcKind {
+		return nil, fmt.Errorf("the snapshot source is not the right type. Expected %s, Got %v", pvcKind, snapshot.Spec.Source.Kind)
 	}
 	pvcName := snapshot.Spec.Source.Name
 	if pvcName == "" {
 		return nil, fmt.Errorf("the PVC name is not specified in snapshot %s", snapshotKey(snapshot))
+	}
+	if snapshot.Spec.Source.APIGroup != nil && *(snapshot.Spec.Source.APIGroup) != apiGroup {
+		return nil, fmt.Errorf("the snapshot source does not have the right APIGroup. Expected empty string, Got %s", *(snapshot.Spec.Source.APIGroup))
 	}
 
 	pvc, err := ctrl.client.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(pvcName, metav1.GetOptions{})

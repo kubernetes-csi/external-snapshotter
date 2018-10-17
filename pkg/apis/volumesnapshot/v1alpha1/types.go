@@ -71,7 +71,7 @@ type VolumeSnapshotSpec struct {
 	// In Alpha version, only PersistentVolumeClaim is supported as the source.
 	// If not specified, user can create VolumeSnapshotContent and bind it with VolumeSnapshot manually.
 	// +optional
-	Source *TypedLocalObjectReference `json:"source" protobuf:"bytes,1,opt,name=source"`
+	Source *core_v1.TypedLocalObjectReference `json:"source" protobuf:"bytes,1,opt,name=source"`
 
 	// SnapshotContentName binds the VolumeSnapshot object with the VolumeSnapshotContent
 	// +optional
@@ -108,15 +108,6 @@ type VolumeSnapshotStatus struct {
 	// operation, i.e. the external-snapshotter.
 	// +optional
 	Error *storage.VolumeError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeError"`
-}
-
-// TypedLocalObjectReference contains enough information to let you locate the typed referenced object inside the same namespace.
-// TODO: After TypedLocalObjectReference is merged into the in-tree core API, this will be replaced.
-type TypedLocalObjectReference struct {
-	// Name of the referent.
-	Name string `json:"name,omitempty" protobuf:"bytes,1,opt,name=name"`
-	// Kind of the referent.
-	Kind string `json:"kind,omitempty" protobuf:"bytes,2,opt,name=kind"`
 }
 
 // +genclient
