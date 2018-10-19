@@ -238,10 +238,7 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 			glog.Errorf("expected vs, got %+v", vsObj)
 			return false
 		}
-		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
-		if err == nil {
-			ctrl.deleteSnapshot(newSnapshot)
-		}
+		ctrl.deleteSnapshot(snapshot)
 		return false
 	}
 
@@ -339,6 +336,10 @@ func (ctrl *csiSnapshotController) isDriverMatch(content *crdv1.VolumeSnapshotCo
 // gets it from default VolumeSnapshotClass and sets it. It also detects if snapshotter in the
 // VolumeSnapshotClass is the same as the snapshotter in external controller.
 func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
+	// if snapshot status is already ready, skip the snapshot class check since snapshot is already taken
+	if snapshot.Status.Ready {
+		return snapshot, nil
+	}
 	className := snapshot.Spec.VolumeSnapshotClassName
 	var class *crdv1.VolumeSnapshotClass
 	var err error
