@@ -147,7 +147,7 @@ func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) 
 	}
 }
 
-// syncReadySnapshot checks the snapshot which has been bound to snapshot content succesfully before.
+// syncReadySnapshot checks the snapshot which has been bound to snapshot content successfully before.
 // If there is any problem with the binding (e.g., snapshot points to a non-exist snapshot content), update the snapshot status and emit event.
 func (ctrl *csiSnapshotController) syncReadySnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	if snapshot.Spec.SnapshotContentName == "" {
@@ -268,7 +268,7 @@ func (ctrl *csiSnapshotController) getMatchSnapshotContent(snapshot *crdv1.Volum
 // deleteSnapshotContent starts delete action.
 func (ctrl *csiSnapshotController) deleteSnapshotContent(content *crdv1.VolumeSnapshotContent) {
 	operationName := fmt.Sprintf("delete-%s[%s]", content.Name, string(content.UID))
-	glog.V(5).Infof("Snapshotter is about to delete volume snapshot and the operation named %s", operationName)
+	glog.V(5).Infof("Snapshotter is about to delete volume snapshot content and the operation named %s", operationName)
 	ctrl.scheduleOperation(operationName, func() error {
 		return ctrl.deleteSnapshotContentOperation(content)
 	})
@@ -553,7 +553,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	}
 
 	if err != nil {
-		// Save failed. Now we have a storage asset outside of Kubernetes,
+		// Save failed. Now we have a snapshot asset outside of Kubernetes,
 		// but we don't have appropriate volumesnapshot content object for it.
 		// Emit some event here and controller should try to create the content in next sync period.
 		strerr := fmt.Sprintf("Error creating volume snapshot content object for snapshot %s: %v.", snapshotKey(snapshot), err)
@@ -771,8 +771,8 @@ func (ctrl *csiSnapshotController) GetSnapshotClass(className string) (*crdv1.Vo
 
 	class, err := ctrl.classLister.Get(className)
 	if err != nil {
-		glog.Errorf("failed to retrieve snapshot class %s from the API server: %q", className, err)
-		return nil, fmt.Errorf("failed to retrieve snapshot class %s from the API server: %q", className, err)
+		glog.Errorf("failed to retrieve snapshot class %s from the informer: %q", className, err)
+		return nil, fmt.Errorf("failed to retrieve snapshot class %s from the informer: %q", className, err)
 	}
 
 	return class, nil
