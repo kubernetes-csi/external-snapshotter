@@ -139,7 +139,7 @@ func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting CSI snapshotter")
 	defer glog.Infof("Shutting CSI snapshotter")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced) {
 		glog.Errorf("Cannot sync caches")
 		return
 	}
