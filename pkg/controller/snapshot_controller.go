@@ -380,7 +380,7 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 	snapshotClone.Status.Error = statusError
 
 	snapshotClone.Status.Ready = false
-	newSnapshot, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+	newSnapshot, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 	if err != nil {
 		glog.V(4).Infof("updating VolumeSnapshot[%s] error status failed %v", snapshotKey(snapshot), err)
 		return err
@@ -737,7 +737,7 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 			status.RestoreSize = resource.NewQuantity(size, resource.BinarySI)
 		}
 		snapshotClone.Status = status
-		newSnapshotObj, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+		newSnapshotObj, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 		if err != nil {
 			return nil, newControllerUpdateError(snapshotKey(snapshot), err.Error())
 		} else {
