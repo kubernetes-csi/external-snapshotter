@@ -41,10 +41,10 @@ $ csi-snapshotter -kubeconfig ~/.kube/config -v 5 -csi-address /run/csi/socket
 
 ### Running in a statefulset
 
-It is necessary to create a new service account and give it enough privileges to run the snapshotter. We provide one omnipotent yaml file that creates everything that's necessary, however it should be split into multiple files in production.
+It is necessary to create a new service account and give it enough privileges to run the snapshotter. We provide .yaml files that deploy for use together with the hostpath example driver. A real production deployment must customize them:
 
 ```
-$ kubectl create -f deploy/kubernetes/statefulset.yaml
+$ for i in $(find deploy/kubernetes -name '*.yaml'); do kubectl create -f $i; done
 ```
 
 ## Testing
