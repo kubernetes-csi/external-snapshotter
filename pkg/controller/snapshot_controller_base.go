@@ -293,7 +293,7 @@ func (ctrl *csiSnapshotController) contentWorker() {
 		}
 		if !found {
 			// The controller has already processed the delete event and
-			// deleted the volume from its cache
+			// deleted the content from its cache
 			glog.V(2).Infof("deletion of content %q was already processed", key)
 			return false
 		}
@@ -435,7 +435,7 @@ func (ctrl *csiSnapshotController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot
 	ctrl.contentQueue.Add(snapshotContentName)
 }
 
-// deleteContent runs in worker thread and handles "snapshot deleted" event.
+// deleteContent runs in worker thread and handles "content deleted" event.
 func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotContent) {
 	_ = ctrl.contentStore.Delete(content)
 	glog.V(4).Infof("content %q deleted", content.Name)
