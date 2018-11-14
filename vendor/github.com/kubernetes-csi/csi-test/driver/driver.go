@@ -14,20 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//go:generate mockgen -package=driver -destination=driver.mock.go github.com/container-storage-interface/spec/lib/go/csi/v0 IdentityServer,ControllerServer,NodeServer
+//go:generate mockgen -package=driver -destination=driver.mock.go github.com/container-storage-interface/spec/lib/go/csi IdentityServer,ControllerServer,NodeServer
 
 package driver
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"sync"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
@@ -102,7 +104,7 @@ func (c *CSIDriver) Start(l net.Listener) error {
 
 	// Create a new grpc server
 	c.server = grpc.NewServer(
-		grpc.UnaryInterceptor(c.authInterceptor),
+		grpc.UnaryInterceptor(c.callInterceptor),
 	)
 
 	// Register Mock servers
@@ -162,22 +164,49 @@ func (c *CSIDriver) SetDefaultCreds() {
 	}
 }
 
-func (c *CSIDriver) authInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+func (c *CSIDriver) callInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	err := c.authInterceptor(req)
+	if err != nil {
+		logGRPC(info.FullMethod, req, nil, err)
+		return nil, err
+	}
+	rsp, err := handler(ctx, req)
+	logGRPC(info.FullMethod, req, rsp, err)
+	return rsp, err
+}
+
+func (c *CSIDriver) authInterceptor(req interface{}) error {
 	if c.creds != nil {
 		authenticated, authErr := isAuthenticated(req, c.creds)
 		if !authenticated {
 			if authErr == ErrNoCredentials {
-				return nil, status.Error(codes.InvalidArgument, authErr.Error())
+				return status.Error(codes.InvalidArgument, authErr.Error())
 			}
 			if authErr == ErrAuthFailed {
-				return nil, status.Error(codes.Unauthenticated, authErr.Error())
+				return status.Error(codes.Unauthenticated, authErr.Error())
 			}
 		}
 	}
+	return nil
+}
 
-	h, err := handler(ctx, req)
-
-	return h, err
+func logGRPC(method string, request, reply interface{}, err error) {
+	// Log JSON with the request and response for easier parsing
+	logMessage := struct {
+		Method   string
+		Request  interface{}
+		Response interface{}
+		Error    string
+	}{
+		Method:   method,
+		Request:  request,
+		Response: reply,
+	}
+	if err != nil {
+		logMessage.Error = err.Error()
+	}
+	msg, _ := json.Marshal(logMessage)
+	fmt.Printf("gRPCCall: %s\n", msg)
 }
 
 func isAuthenticated(req interface{}, creds *CSICreds) (bool, error) {
@@ -204,35 +233,35 @@ func isAuthenticated(req interface{}, creds *CSICreds) (bool, error) {
 }
 
 func authenticateCreateVolume(req *csi.CreateVolumeRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetControllerCreateSecrets(), creds.CreateVolumeSecret)
+	return credsCheck(req.GetSecrets(), creds.CreateVolumeSecret)
 }
 
 func authenticateDeleteVolume(req *csi.DeleteVolumeRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetControllerDeleteSecrets(), creds.DeleteVolumeSecret)
+	return credsCheck(req.GetSecrets(), creds.DeleteVolumeSecret)
 }
 
 func authenticateControllerPublishVolume(req *csi.ControllerPublishVolumeRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetControllerPublishSecrets(), creds.ControllerPublishVolumeSecret)
+	return credsCheck(req.GetSecrets(), creds.ControllerPublishVolumeSecret)
 }
 
 func authenticateControllerUnpublishVolume(req *csi.ControllerUnpublishVolumeRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetControllerUnpublishSecrets(), creds.ControllerUnpublishVolumeSecret)
+	return credsCheck(req.GetSecrets(), creds.ControllerUnpublishVolumeSecret)
 }
 
 func authenticateNodeStageVolume(req *csi.NodeStageVolumeRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetNodeStageSecrets(), creds.NodeStageVolumeSecret)
+	return credsCheck(req.GetSecrets(), creds.NodeStageVolumeSecret)
 }
 
 func authenticateNodePublishVolume(req *csi.NodePublishVolumeRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetNodePublishSecrets(), creds.NodePublishVolumeSecret)
+	return credsCheck(req.GetSecrets(), creds.NodePublishVolumeSecret)
 }
 
 func authenticateCreateSnapshot(req *csi.CreateSnapshotRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetCreateSnapshotSecrets(), creds.CreateSnapshotSecret)
+	return credsCheck(req.GetSecrets(), creds.CreateSnapshotSecret)
 }
 
 func authenticateDeleteSnapshot(req *csi.DeleteSnapshotRequest, creds *CSICreds) (bool, error) {
-	return credsCheck(req.GetDeleteSnapshotSecrets(), creds.DeleteSnapshotSecret)
+	return credsCheck(req.GetSecrets(), creds.DeleteSnapshotSecret)
 }
 
 func credsCheck(secrets map[string]string, secretVal string) (bool, error) {

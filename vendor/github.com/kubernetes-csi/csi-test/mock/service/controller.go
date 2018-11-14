@@ -12,7 +12,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 const (
@@ -62,7 +62,7 @@ func (s *service) CreateVolume(
 	s.volsRWL.Lock()
 	defer s.volsRWL.Unlock()
 	s.vols = append(s.vols, v)
-	MockVolumes[v.Id] = Volume{
+	MockVolumes[v.GetVolumeId()] = Volume{
 		VolumeCSI:       v,
 		NodeID:          "",
 		ISStaged:        false,
@@ -108,6 +108,10 @@ func (s *service) ControllerPublishVolume(
 	req *csi.ControllerPublishVolumeRequest) (
 	*csi.ControllerPublishVolumeResponse, error) {
 
+	if s.config.DisableAttach {
+		return nil, status.Error(codes.Unimplemented, "ControllerPublish is not supported")
+	}
+
 	if len(req.VolumeId) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID cannot be empty")
 	}
@@ -136,10 +140,10 @@ func (s *service) ControllerPublishVolume(
 	devPathKey := path.Join(req.NodeId, "dev")
 
 	// Check to see if the volume is already published.
-	if device := v.Attributes[devPathKey]; device != "" {
+	if device := v.VolumeContext[devPathKey]; device != "" {
 		var volRo bool
 		var roVal string
-		if ro, ok := v.Attributes[ReadOnlyKey]; ok {
+		if ro, ok := v.VolumeContext[ReadOnlyKey]; ok {
 			roVal = ro
 		}
 
@@ -155,7 +159,7 @@ func (s *service) ControllerPublishVolume(
 		}
 
 		return &csi.ControllerPublishVolumeResponse{
-			PublishInfo: map[string]string{
+			PublishContext: map[string]string{
 				"device":   device,
 				"readonly": roVal,
 			},
@@ -171,12 +175,12 @@ func (s *service) ControllerPublishVolume(
 
 	// Publish the volume.
 	device := "/dev/mock"
-	v.Attributes[devPathKey] = device
-	v.Attributes[ReadOnlyKey] = roVal
+	v.VolumeContext[devPathKey] = device
+	v.VolumeContext[ReadOnlyKey] = roVal
 	s.vols[i] = v
 
 	return &csi.ControllerPublishVolumeResponse{
-		PublishInfo: map[string]string{
+		PublishContext: map[string]string{
 			"device":   device,
 			"readonly": roVal,
 		},
@@ -187,6 +191,10 @@ func (s *service) ControllerUnpublishVolume(
 	ctx context.Context,
 	req *csi.ControllerUnpublishVolumeRequest) (
 	*csi.ControllerUnpublishVolumeResponse, error) {
+
+	if s.config.DisableAttach {
+		return nil, status.Error(codes.Unimplemented, "ControllerPublish is not supported")
+	}
 
 	if len(req.VolumeId) == 0 {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID cannot be empty")
@@ -215,13 +223,13 @@ func (s *service) ControllerUnpublishVolume(
 	devPathKey := path.Join(nodeID, "dev")
 
 	// Check to see if the volume is already unpublished.
-	if v.Attributes[devPathKey] == "" {
+	if v.VolumeContext[devPathKey] == "" {
 		return &csi.ControllerUnpublishVolumeResponse{}, nil
 	}
 
 	// Unpublish the volume.
-	delete(v.Attributes, devPathKey)
-	delete(v.Attributes, ReadOnlyKey)
+	delete(v.VolumeContext, devPathKey)
+	delete(v.VolumeContext, ReadOnlyKey)
 	s.vols[i] = v
 
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
@@ -244,7 +252,11 @@ func (s *service) ValidateVolumeCapabilities(
 	}
 
 	return &csi.ValidateVolumeCapabilitiesResponse{
-		Supported: true,
+		Confirmed: &csi.ValidateVolumeCapabilitiesResponse_Confirmed{
+			VolumeContext:      req.GetVolumeContext(),
+			VolumeCapabilities: req.GetVolumeCapabilities(),
+			Parameters:         req.GetParameters(),
+		},
 	}, nil
 }
 
@@ -338,51 +350,56 @@ func (s *service) ControllerGetCapabilities(
 	req *csi.ControllerGetCapabilitiesRequest) (
 	*csi.ControllerGetCapabilitiesResponse, error) {
 
-	return &csi.ControllerGetCapabilitiesResponse{
-		Capabilities: []*csi.ControllerServiceCapability{
-			{
-				Type: &csi.ControllerServiceCapability_Rpc{
-					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-					},
-				},
-			},
-			{
-				Type: &csi.ControllerServiceCapability_Rpc{
-					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
-					},
-				},
-			},
-			{
-				Type: &csi.ControllerServiceCapability_Rpc{
-					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
-					},
-				},
-			},
-			{
-				Type: &csi.ControllerServiceCapability_Rpc{
-					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_GET_CAPACITY,
-					},
-				},
-			},
-			{
-				Type: &csi.ControllerServiceCapability_Rpc{
-					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
-					},
-				},
-			},
-			{
-				Type: &csi.ControllerServiceCapability_Rpc{
-					Rpc: &csi.ControllerServiceCapability_RPC{
-						Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
-					},
+	caps := []*csi.ControllerServiceCapability{
+		{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
 				},
 			},
 		},
+		{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_LIST_VOLUMES,
+				},
+			},
+		},
+		{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_GET_CAPACITY,
+				},
+			},
+		},
+		{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
+				},
+			},
+		},
+		{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
+				},
+			},
+		},
+	}
+
+	if !s.config.DisableAttach {
+		caps = append(caps, &csi.ControllerServiceCapability{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_PUBLISH_UNPUBLISH_VOLUME,
+				},
+			},
+		})
+	}
+
+	return &csi.ControllerGetCapabilitiesResponse{
+		Capabilities: caps,
 	}, nil
 }
 
@@ -497,7 +514,8 @@ func getAllSnapshots(s *service, req *csi.ListSnapshotsRequest) (*csi.ListSnapsh
 	// Copy the mock snapshots into a new slice in order to avoid
 	// locking the service's snapshot slice for the duration of the
 	// ListSnapshots RPC.
-	snapshots := s.snapshots.List(csi.SnapshotStatus_READY)
+	readyToUse := true
+	snapshots := s.snapshots.List(readyToUse)
 
 	var (
 		ulenSnapshots = int32(len(snapshots))

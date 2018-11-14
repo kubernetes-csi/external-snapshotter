@@ -38,7 +38,7 @@ container: $(APP)
 push: container
 	docker push $(IMAGE_NAME):$(IMAGE_VERSION)
 
-test:
+test: $(APP)
 	files=$$(find ./ -name '*.go' | grep -v '^./vendor' ); \
         if [ $$(gofmt -d $$files | wc -l) -ne 0 ]; then \
                 echo "formatting errors:"; \

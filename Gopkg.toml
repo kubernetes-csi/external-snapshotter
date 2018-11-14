@@ -12,19 +12,19 @@ required = [
 
 [[constraint]]
   name = "github.com/container-storage-interface/spec"
-  version = "~0.3.0" 
+  version = "1.0.0-rc2"
 
 [[override]]
   name = "github.com/golang/protobuf"
   version = "v1.1.0"
-  
+
 [[constraint]]
   branch = "master"
   name = "github.com/golang/glog"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/kubernetes-csi/csi-test"
+  version = "1.0.0-rc2"
 
 [[constraint]]
   name = "google.golang.org/grpc"

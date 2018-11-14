@@ -5,11 +5,12 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"time"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-test/mock/cache"
 	"golang.org/x/net/context"
+
+	"github.com/golang/protobuf/ptypes"
 )
 
 const (
@@ -23,6 +24,12 @@ const (
 // Manifest is the SP's manifest.
 var Manifest = map[string]string{
 	"url": "https://github.com/kubernetes-csi/csi-test/mock",
+}
+
+type Config struct {
+	DisableAttach bool
+	DriverName    string
+	AttachLimit   int64
 }
 
 // Service is the CSI Mock service provider.
@@ -40,6 +47,7 @@ type service struct {
 	volsNID      uint64
 	snapshots    cache.SnapshotCache
 	snapshotsNID uint64
+	config       Config
 }
 
 type Volume struct {
@@ -55,8 +63,11 @@ type Volume struct {
 var MockVolumes map[string]Volume
 
 // New returns a new Service.
-func New() Service {
-	s := &service{nodeID: Name}
+func New(config Config) Service {
+	s := &service{
+		nodeID: config.DriverName,
+		config: config,
+	}
 	s.snapshots = cache.NewSnapshotCache()
 	s.vols = []csi.Volume{
 		s.newVolume("Mock Volume 1", gib100),
@@ -83,8 +94,8 @@ const (
 
 func (s *service) newVolume(name string, capcity int64) csi.Volume {
 	return csi.Volume{
-		Id:            fmt.Sprintf("%d", atomic.AddUint64(&s.volsNID, 1)),
-		Attributes:    map[string]string{"name": name},
+		VolumeId:      fmt.Sprintf("%d", atomic.AddUint64(&s.volsNID, 1)),
+		VolumeContext: map[string]string{"name": name},
 		CapacityBytes: capcity,
 	}
 }
@@ -101,11 +112,11 @@ func (s *service) findVolNoLock(k, v string) (volIdx int, volInfo csi.Volume) {
 	for i, vi := range s.vols {
 		switch k {
 		case "id":
-			if strings.EqualFold(v, vi.Id) {
+			if strings.EqualFold(v, vi.GetVolumeId()) {
 				return i, vi
 			}
 		case "name":
-			if n, ok := vi.Attributes["name"]; ok && strings.EqualFold(v, n) {
+			if n, ok := vi.VolumeContext["name"]; ok && strings.EqualFold(v, n) {
 				return i, vi
 			}
 		}
@@ -121,17 +132,16 @@ func (s *service) findVolByName(
 }
 
 func (s *service) newSnapshot(name, sourceVolumeId string, parameters map[string]string) cache.Snapshot {
+
+	ptime := ptypes.TimestampNow()
 	return cache.Snapshot{
 		Name:       name,
 		Parameters: parameters,
 		SnapshotCSI: csi.Snapshot{
-			Id:             fmt.Sprintf("%d", atomic.AddUint64(&s.snapshotsNID, 1)),
-			CreatedAt:      time.Now().UnixNano(),
+			SnapshotId:     fmt.Sprintf("%d", atomic.AddUint64(&s.snapshotsNID, 1)),
+			CreationTime:   ptime,
 			SourceVolumeId: sourceVolumeId,
-			Status: &csi.SnapshotStatus{
-				Type:    csi.SnapshotStatus_READY,
-				Details: "snapshot ready",
-			},
+			ReadyToUse:     true,
 		},
 	}
 }

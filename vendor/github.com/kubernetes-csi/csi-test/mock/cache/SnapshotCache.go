@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 )
 
 type SnapshotCache interface {
@@ -12,7 +12,7 @@ type SnapshotCache interface {
 
 	Delete(i int)
 
-	List(status csi.SnapshotStatus_Type) []csi.Snapshot
+	List(ready bool) []csi.Snapshot
 
 	FindSnapshot(k, v string) (int, Snapshot)
 }
@@ -49,13 +49,13 @@ func (snap *snapshotCache) Delete(i int) {
 	snap.snapshots = snap.snapshots[:len(snap.snapshots)-1]
 }
 
-func (snap *snapshotCache) List(status csi.SnapshotStatus_Type) []csi.Snapshot {
+func (snap *snapshotCache) List(ready bool) []csi.Snapshot {
 	snap.snapshotsRWL.RLock()
 	defer snap.snapshotsRWL.RUnlock()
 
 	snapshots := make([]csi.Snapshot, 0)
 	for _, v := range snap.snapshots {
-		if v.SnapshotCSI.GetStatus() != nil && v.SnapshotCSI.GetStatus().Type == status {
+		if v.SnapshotCSI.GetReadyToUse() {
 			snapshots = append(snapshots, v.SnapshotCSI)
 		}
 	}
@@ -71,7 +71,7 @@ func (snap *snapshotCache) FindSnapshot(k, v string) (int, Snapshot) {
 	for i, vi := range snap.snapshots {
 		switch k {
 		case "id":
-			if strings.EqualFold(v, vi.SnapshotCSI.Id) {
+			if strings.EqualFold(v, vi.SnapshotCSI.GetSnapshotId()) {
 				return i, vi
 			}
 		case "sourceVolumeId":

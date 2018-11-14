@@ -3,7 +3,7 @@ package service
 import (
 	"golang.org/x/net/context"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes/wrappers"
 )
 
@@ -13,7 +13,7 @@ func (s *service) GetPluginInfo(
 	*csi.GetPluginInfoResponse, error) {
 
 	return &csi.GetPluginInfoResponse{
-		Name:          Name,
+		Name:          s.config.DriverName,
 		VendorVersion: VendorVersion,
 		Manifest:      Manifest,
 	}, nil
