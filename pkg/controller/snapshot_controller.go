@@ -21,7 +21,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
@@ -667,8 +666,8 @@ func (ctrl *csiSnapshotController) updateSnapshotContentSize(content *crdv1.Volu
 }
 
 // UpdateSnapshotStatus converts snapshot status to crdv1.VolumeSnapshotCondition
-func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, csistatus *csi.SnapshotStatus, createdAt, size int64, bound bool) (*crdv1.VolumeSnapshot, error) {
-	glog.V(5).Infof("updating VolumeSnapshot[]%s, set status %v, timestamp %v", snapshotKey(snapshot), csistatus, createdAt)
+func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, readyToUse bool, createdAt, size int64, bound bool) (*crdv1.VolumeSnapshot, error) {
+	glog.V(5).Infof("updating VolumeSnapshot[]%s, readyToUse %v, timestamp %v", snapshotKey(snapshot), readyToUse, createdAt)
 	status := snapshot.Status
 	change := false
 	timeAt := &metav1.Time{
@@ -676,6 +675,20 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 	}
 
 	snapshotClone := snapshot.DeepCopy()
+	if readyToUse {
+		if bound {
+			status.Ready = true
+			// Remove the error if checking snapshot is already bound and ready
+			status.Error = nil
+			change = true
+		}
+		if status.CreationTime == nil {
+			status.CreationTime = timeAt
+			change = true
+		}
+	}
+
+	/* TODO FIXME
 	switch csistatus.Type {
 	case csi.SnapshotStatus_READY:
 		if bound {
@@ -704,6 +717,7 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 			change = true
 		}
 	}
+	*/
 	if change {
 		if size > 0 {
 			status.RestoreSize = resource.NewQuantity(size, resource.BinarySI)
