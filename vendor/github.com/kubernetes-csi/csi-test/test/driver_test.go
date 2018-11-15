@@ -21,7 +21,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-test/utils"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"

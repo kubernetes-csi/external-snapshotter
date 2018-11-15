@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
 	"k8s.io/api/core/v1"
@@ -30,9 +29,9 @@ import (
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
 type Handler interface {
-	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, *csi.SnapshotStatus, error)
+	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
-	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, int64, error)
+	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (bool, int64, int64, error)
 }
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
@@ -57,14 +56,14 @@ func NewCSIHandler(
 	}
 }
 
-func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, *csi.SnapshotStatus, error) {
+func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
 	snapshotName, err := makeSnapshotName(handler.snapshotNamePrefix, string(snapshot.UID), handler.snapshotNameUUIDLength)
 	if err != nil {
-		return "", "", 0, 0, nil, err
+		return "", "", 0, 0, false, err
 	}
 	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, volume, parameters, snapshotterCredentials)
 }
@@ -84,16 +83,16 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 	return nil
 }
 
-func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (*csi.SnapshotStatus, int64, int64, error) {
+func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (bool, int64, int64, error) {
 	if content.Spec.CSI == nil {
-		return nil, 0, 0, fmt.Errorf("CSISnapshot not defined in spec")
+		return false, 0, 0, fmt.Errorf("CSISnapshot not defined in spec")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
 	csiSnapshotStatus, timestamp, size, err := handler.csiConnection.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("failed to list snapshot data %s: %q", content.Name, err)
+		return false, 0, 0, fmt.Errorf("failed to list snapshot data %s: %q", content.Name, err)
 	}
 	return csiSnapshotStatus, timestamp, size, nil
 

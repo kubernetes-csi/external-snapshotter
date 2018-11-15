@@ -21,10 +21,10 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
-	"time"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/kubernetes-csi/csi-test/driver"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -378,7 +378,11 @@ func TestSupportsControllerListSnapshots(t *testing.T) {
 func TestCreateSnapshot(t *testing.T) {
 	defaultName := "snapshot-test"
 	defaultID := "testid"
-	createTime := time.Now().UnixNano()
+	createTimestamp := ptypes.TimestampNow()
+	createTime, err := ptypes.Timestamp(createTimestamp)
+	if err != nil {
+		t.Fatalf("Failed to convert timestamp to time: %v", err)
+	}
 
 	createSecrets := map[string]string{"foo": "bar"}
 	defaultParameter := map[string]string{
@@ -401,21 +405,18 @@ func TestCreateSnapshot(t *testing.T) {
 	}
 
 	secretsRequest := &csi.CreateSnapshotRequest{
-		Name:                  defaultName,
-		SourceVolumeId:        csiVolume.Spec.CSI.VolumeHandle,
-		CreateSnapshotSecrets: createSecrets,
+		Name:           defaultName,
+		SourceVolumeId: csiVolume.Spec.CSI.VolumeHandle,
+		Secrets:        createSecrets,
 	}
 
 	defaultResponse := &csi.CreateSnapshotResponse{
 		Snapshot: &csi.Snapshot{
-			Id:             defaultID,
+			SnapshotId:     defaultID,
 			SizeBytes:      1000,
 			SourceVolumeId: csiVolume.Spec.CSI.VolumeHandle,
-			CreatedAt:      createTime,
-			Status: &csi.SnapshotStatus{
-				Type:    csi.SnapshotStatus_READY,
-				Details: "success",
-			},
+			CreationTime:   createTimestamp,
+			ReadyToUse:     true,
 		},
 	}
 
@@ -432,18 +433,15 @@ func TestCreateSnapshot(t *testing.T) {
 		snapshotId string
 		timestamp  int64
 		size       int64
-		status     *csi.SnapshotStatus
+		readyToUse bool
 	}
 
 	result := &snapshotResult{
 		size:       1000,
 		driverName: driverName,
 		snapshotId: defaultID,
-		timestamp:  createTime,
-		status: &csi.SnapshotStatus{
-			Type:    csi.SnapshotStatus_READY,
-			Details: "success",
-		},
+		timestamp:  createTime.UnixNano(),
+		readyToUse: true,
 	}
 
 	tests := []struct {
@@ -537,7 +535,7 @@ func TestCreateSnapshot(t *testing.T) {
 			controllerServer.EXPECT().CreateSnapshot(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		driverName, snapshotId, timestamp, size, status, err := csiConn.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
+		driverName, snapshotId, timestamp, size, readyToUse, err := csiConn.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -561,8 +559,8 @@ func TestCreateSnapshot(t *testing.T) {
 				t.Errorf("test %q: expected size: %v, got: %v", test.name, test.expectResult.size, size)
 			}
 
-			if !reflect.DeepEqual(status, test.expectResult.status) {
-				t.Errorf("test %q: expected status: %v, got: %v", test.name, test.expectResult.status, status)
+			if !reflect.DeepEqual(readyToUse, test.expectResult.readyToUse) {
+				t.Errorf("test %q: expected readyToUse: %v, got: %v", test.name, test.expectResult.readyToUse, readyToUse)
 			}
 		}
 	}
@@ -577,8 +575,8 @@ func TestDeleteSnapshot(t *testing.T) {
 	}
 
 	secretsRequest := &csi.DeleteSnapshotRequest{
-		SnapshotId:            defaultID,
-		DeleteSnapshotSecrets: secrets,
+		SnapshotId: defaultID,
+		Secrets:    secrets,
 	}
 
 	tests := []struct {
@@ -657,8 +655,12 @@ func TestDeleteSnapshot(t *testing.T) {
 
 func TestGetSnapshotStatus(t *testing.T) {
 	defaultID := "testid"
-	createdAt := time.Now().UnixNano()
 	size := int64(1000)
+	createTimestamp := ptypes.TimestampNow()
+	createTime, err := ptypes.Timestamp(createTimestamp)
+	if err != nil {
+		t.Fatalf("Failed to convert timestamp to time: %v", err)
+	}
 
 	defaultRequest := &csi.ListSnapshotsRequest{
 		SnapshotId: defaultID,
@@ -668,14 +670,11 @@ func TestGetSnapshotStatus(t *testing.T) {
 		Entries: []*csi.ListSnapshotsResponse_Entry{
 			{
 				Snapshot: &csi.Snapshot{
-					Id:             defaultID,
+					SnapshotId:     defaultID,
 					SizeBytes:      size,
 					SourceVolumeId: "volumeid",
-					CreatedAt:      createdAt,
-					Status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					CreationTime:   createTimestamp,
+					ReadyToUse:     true,
 				},
 			},
 		},
@@ -688,21 +687,18 @@ func TestGetSnapshotStatus(t *testing.T) {
 		output         *csi.ListSnapshotsResponse
 		injectError    codes.Code
 		expectError    bool
-		expectStatus   *csi.SnapshotStatus
+		expectReady    bool
 		expectCreateAt int64
 		expectSize     int64
 	}{
 		{
-			name:        "success",
-			snapshotID:  defaultID,
-			input:       defaultRequest,
-			output:      defaultResponse,
-			expectError: false,
-			expectStatus: &csi.SnapshotStatus{
-				Type:    csi.SnapshotStatus_READY,
-				Details: "success",
-			},
-			expectCreateAt: createdAt,
+			name:           "success",
+			snapshotID:     defaultID,
+			input:          defaultRequest,
+			output:         defaultResponse,
+			expectError:    false,
+			expectReady:    true,
+			expectCreateAt: createTime.UnixNano(),
 			expectSize:     size,
 		},
 		{
@@ -744,15 +740,15 @@ func TestGetSnapshotStatus(t *testing.T) {
 			controllerServer.EXPECT().ListSnapshots(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		status, createTime, size, err := csiConn.GetSnapshotStatus(context.Background(), test.snapshotID)
+		ready, createTime, size, err := csiConn.GetSnapshotStatus(context.Background(), test.snapshotID)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
 		if !test.expectError && err != nil {
 			t.Errorf("test %q: got error: %v", test.name, err)
 		}
-		if test.expectStatus != nil && !reflect.DeepEqual(test.expectStatus, status) {
-			t.Errorf("test %q: expected status: %v, got: %v", test.name, test.expectStatus, status)
+		if test.expectReady != ready {
+			t.Errorf("test %q: expected status: %v, got: %v", test.name, test.expectReady, ready)
 		}
 		if test.expectCreateAt != createTime {
 			t.Errorf("test %q: expected createTime: %v, got: %v", test.name, test.expectCreateAt, createTime)

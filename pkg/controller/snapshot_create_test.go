@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	"k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,10 +80,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid6-1",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
@@ -108,10 +104,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid6-2",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
@@ -137,10 +130,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid6-3",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
@@ -166,10 +156,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid6-4",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
@@ -193,10 +180,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid6-5",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
@@ -220,10 +204,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid6-6",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
@@ -338,10 +319,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid7-8",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: []reactorError{
@@ -372,10 +350,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 					size:       defaultSize,
 					snapshotId: "sid7-9",
 					timestamp:  timeNow,
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					readyToUse: true,
 				},
 			},
 			errors: []reactorError{

@@ -21,7 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/proto"
 	mock_driver "github.com/kubernetes-csi/csi-test/driver"
@@ -157,7 +157,7 @@ func TestGRPCAttach(t *testing.T) {
 
 	// Setup mock outout
 	out := &csi.ControllerPublishVolumeResponse{
-		PublishInfo: publishVolumeInfo,
+		PublishContext: publishVolumeInfo,
 	}
 
 	// Setup expectation
@@ -181,7 +181,7 @@ func TestGRPCAttach(t *testing.T) {
 		t.Errorf("Error: %s", err.Error())
 	}
 
-	info := r.GetPublishInfo()
+	info := r.GetPublishContext()
 	if !reflect.DeepEqual(info, publishVolumeInfo) {
 		t.Errorf("Invalid publish info: %v", info)
 	}

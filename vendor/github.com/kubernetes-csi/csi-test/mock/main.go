@@ -16,6 +16,7 @@ limitations under the License.
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -28,6 +29,12 @@ import (
 )
 
 func main() {
+	var config service.Config
+	flag.BoolVar(&config.DisableAttach, "disable-attach", false, "Disables RPC_PUBLISH_UNPUBLISH_VOLUME capability.")
+	flag.StringVar(&config.DriverName, "name", service.Name, "CSI driver name.")
+	flag.Int64Var(&config.AttachLimit, "attach-limit", 0, "number of attachable volumes on a node")
+	flag.Parse()
+
 	endpoint := os.Getenv("CSI_ENDPOINT")
 	if len(endpoint) == 0 {
 		fmt.Println("CSI_ENDPOINT must be defined and must be a path")
@@ -39,7 +46,7 @@ func main() {
 	}
 
 	// Create mock driver
-	s := service.New()
+	s := service.New(config)
 	servers := &driver.CSIDriverServers{
 		Controller: s,
 		Identity:   s,

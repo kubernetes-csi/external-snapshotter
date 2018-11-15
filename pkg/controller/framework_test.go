@@ -30,7 +30,6 @@ import (
 
 	"github.com/golang/glog"
 
-	"github.com/container-storage-interface/spec/lib/go/csi/v0"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
@@ -1103,7 +1102,7 @@ func secret() *v1.Secret {
 type listCall struct {
 	snapshotID string
 	// information to return
-	status     *csi.SnapshotStatus
+	readyToUse bool
 	createTime int64
 	size       int64
 	err        error
@@ -1126,7 +1125,7 @@ type createCall struct {
 	snapshotId string
 	timestamp  int64
 	size       int64
-	status     *csi.SnapshotStatus
+	readyToUse bool
 	err        error
 }
 
@@ -1154,10 +1153,10 @@ func (f *fakeCSIConnection) SupportsControllerListSnapshots(ctx context.Context)
 	return false, fmt.Errorf("Not implemented")
 }
 
-func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, *csi.SnapshotStatus, error) {
+func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
-		return "", "", 0, 0, nil, fmt.Errorf("unexpected call")
+		return "", "", 0, 0, false, fmt.Errorf("unexpected call")
 	}
 	call := f.createCalls[f.createCallCounter]
 	f.createCallCounter++
@@ -1184,10 +1183,10 @@ func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName str
 	}
 
 	if err != nil {
-		return "", "", 0, 0, nil, fmt.Errorf("unexpected call")
+		return "", "", 0, 0, false, fmt.Errorf("unexpected call")
 	}
 
-	return call.driverName, call.snapshotId, call.timestamp, call.size, call.status, call.err
+	return call.driverName, call.snapshotId, call.timestamp, call.size, call.readyToUse, call.err
 }
 
 func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
@@ -1216,10 +1215,10 @@ func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID strin
 	return call.err
 }
 
-func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (*csi.SnapshotStatus, int64, int64, error) {
+func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return nil, 0, 0, fmt.Errorf("unexpected call")
+		return false, 0, 0, fmt.Errorf("unexpected call")
 	}
 	call := f.listCalls[f.listCallCounter]
 	f.listCallCounter++
@@ -1231,10 +1230,10 @@ func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID st
 	}
 
 	if err != nil {
-		return nil, 0, 0, fmt.Errorf("unexpected call")
+		return false, 0, 0, fmt.Errorf("unexpected call")
 	}
 
-	return call.status, call.createTime, call.size, call.err
+	return call.readyToUse, call.createTime, call.size, call.err
 }
 
 func (f *fakeCSIConnection) Close() error {
