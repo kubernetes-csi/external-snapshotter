@@ -99,7 +99,7 @@ var redirects = map[string]string{
 	"/issues":     "https://github.com/golang/go/issues",
 	"/issues/new": "https://github.com/golang/go/issues/new",
 	"/play":       "http://play.golang.org",
-	"/design":     "https://github.com/golang/proposal/tree/master/design",
+	"/design":     "https://go.googlesource.com/proposal/+/master/design",
 
 	// In Go 1.2 the references page is part of /doc/.
 	"/ref": "/doc/#references",
@@ -191,9 +191,13 @@ func clHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	target := ""
-	// the first CL in rietveld is about 152046, so only treat the id as
-	// a rietveld CL if it is larger than 150000.
-	if n, err := strconv.Atoi(id); err == nil && n > 150000 {
+
+	if n, err := strconv.Atoi(id); err == nil && isRietveldCL(n) {
+		// TODO: Issue 28836: if this Rietveld CL happens to
+		// also be a Gerrit CL, render a disambiguation HTML
+		// page with two links instead. We'll need to make an
+		// RPC (to maintner?) to figure that out. For now just
+		// redirect to rietveld.
 		target = "https://codereview.appspot.com/" + id
 	} else {
 		target = "https://go-review.googlesource.com/" + id
@@ -245,6 +249,6 @@ func designHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	name := r.URL.Path[len(prefix):]
-	target := "https://github.com/golang/proposal/blob/master/design/" + name + ".md"
+	target := "https://go.googlesource.com/proposal/+/master/design/" + name + ".md"
 	http.Redirect(w, r, target, http.StatusFound)
 }

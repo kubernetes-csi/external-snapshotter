@@ -403,7 +403,7 @@ const (
 	inTrailer
 	outPayload
 	outHeader
-	outTrailer
+	// TODO: test outTrailer ?
 	connbegin
 	connend
 )
@@ -637,6 +637,9 @@ func checkEnd(t *testing.T, d *gotData, e *expectedData) {
 	}
 	if d.ctx == nil {
 		t.Fatalf("d.ctx = nil, want <non-nil>")
+	}
+	if st.BeginTime.IsZero() {
+		t.Fatalf("st.BeginTime = %v, want <non-zero>", st.BeginTime)
 	}
 	if st.EndTime.IsZero() {
 		t.Fatalf("st.EndTime = %v, want <non-zero>", st.EndTime)

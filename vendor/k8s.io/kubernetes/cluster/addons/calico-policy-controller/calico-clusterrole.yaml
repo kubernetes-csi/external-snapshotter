@@ -10,6 +10,7 @@ rules:
   - apiGroups: [""]
     resources:
       - namespaces
+      - serviceaccounts
     verbs:
       - get
       - list
@@ -36,6 +37,7 @@ rules:
       - get
       - list
       - watch
+      - patch
   - apiGroups: [""]
     resources:
       - nodes
@@ -51,17 +53,28 @@ rules:
       - get
       - list
       - watch
+  - apiGroups: ["networking.k8s.io"]
+    resources:
+      - networkpolicies
+    verbs:
+      - watch
+      - list
   - apiGroups: ["crd.projectcalico.org"]
     resources:
       - globalfelixconfigs
+      - felixconfigurations
+      - bgppeers
       - globalbgpconfigs
+      - bgpconfigurations
       - ippools
       - globalnetworkpolicies
+      - globalnetworksets
+      - networkpolicies
+      - clusterinformations
+      - hostendpoints
     verbs:
       - create
       - get
       - list
       - update
-      - patch
-      - delete
       - watch

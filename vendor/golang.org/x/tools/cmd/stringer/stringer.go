@@ -64,7 +64,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/build"
-	exact "go/constant"
+	"go/constant"
 	"go/format"
 	"go/parser"
 	"go/token"
@@ -87,7 +87,7 @@ var (
 
 // Usage is a replacement usage function for the flags package.
 func Usage() {
-	fmt.Fprintf(os.Stderr, "Usage of %s:\n", os.Args[0])
+	fmt.Fprintf(os.Stderr, "Usage of stringer:\n")
 	fmt.Fprintf(os.Stderr, "\tstringer [flags] -type T [directory]\n")
 	fmt.Fprintf(os.Stderr, "\tstringer [flags] -type T files... # Must be a single package\n")
 	fmt.Fprintf(os.Stderr, "For more information, see:\n")
@@ -390,7 +390,7 @@ type Value struct {
 	// by Value.String.
 	value  uint64 // Will be converted to int64 when needed.
 	signed bool   // Whether the constant is a signed type.
-	str    string // The string representation given by the "go/exact" package.
+	str    string // The string representation given by the "go/constant" package.
 }
 
 func (v *Value) String() string {
@@ -428,10 +428,24 @@ func (f *File) genDecl(node ast.Node) bool {
 	for _, spec := range decl.Specs {
 		vspec := spec.(*ast.ValueSpec) // Guaranteed to succeed as this is CONST.
 		if vspec.Type == nil && len(vspec.Values) > 0 {
-			// "X = 1". With no type but a value, the constant is untyped.
-			// Skip this vspec and reset the remembered type.
+			// "X = 1". With no type but a value. If the constant is untyped,
+			// skip this vspec and reset the remembered type.
 			typ = ""
-			continue
+
+			// If this is a simple type conversion, remember the type.
+			// We don't mind if this is actually a call; a qualified call won't
+			// be matched (that will be SelectorExpr, not Ident), and only unusual
+			// situations will result in a function call that appears to be
+			// a type conversion.
+			ce, ok := vspec.Values[0].(*ast.CallExpr)
+			if !ok {
+				continue
+			}
+			id, ok := ce.Fun.(*ast.Ident)
+			if !ok {
+				continue
+			}
+			typ = id.Name
 		}
 		if vspec.Type != nil {
 			// "X T". We have a type. Remember it.
@@ -464,11 +478,11 @@ func (f *File) genDecl(node ast.Node) bool {
 				log.Fatalf("can't handle non-integer constant type %s", typ)
 			}
 			value := obj.(*types.Const).Val() // Guaranteed to succeed as this is CONST.
-			if value.Kind() != exact.Int {
+			if value.Kind() != constant.Int {
 				log.Fatalf("can't happen: constant is not an integer %s", name)
 			}
-			i64, isInt := exact.Int64Val(value)
-			u64, isUint := exact.Uint64Val(value)
+			i64, isInt := constant.Int64Val(value)
+			u64, isUint := constant.Uint64Val(value)
 			if !isInt && !isUint {
 				log.Fatalf("internal error: value of %s is not an integer: %s", name, value.String())
 			}

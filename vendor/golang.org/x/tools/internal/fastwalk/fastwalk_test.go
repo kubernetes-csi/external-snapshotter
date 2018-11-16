@@ -98,6 +98,23 @@ func TestFastWalk_Basic(t *testing.T) {
 		})
 }
 
+func TestFastWalk_LongFileName(t *testing.T) {
+	longFileName := strings.Repeat("x", 255)
+
+	testFastWalk(t, map[string]string{
+		longFileName: "one",
+	},
+		func(path string, typ os.FileMode) error {
+			return nil
+		},
+		map[string]os.FileMode{
+			"":                     os.ModeDir,
+			"/src":                 os.ModeDir,
+			"/src/" + longFileName: 0,
+		},
+	)
+}
+
 func TestFastWalk_Symlink(t *testing.T) {
 	switch runtime.GOOS {
 	case "windows", "plan9":
@@ -143,6 +160,38 @@ func TestFastWalk_SkipDir(t *testing.T) {
 			"/src/foo/foo.go": 0,
 			"/src/skip":       os.ModeDir,
 		})
+}
+
+func TestFastWalk_SkipFiles(t *testing.T) {
+	// Directory iteration order is undefined, so there's no way to know
+	// which file to expect until the walk happens. Rather than mess
+	// with the test infrastructure, just mutate want.
+	var mu sync.Mutex
+	want := map[string]os.FileMode{
+		"":              os.ModeDir,
+		"/src":          os.ModeDir,
+		"/src/zzz":      os.ModeDir,
+		"/src/zzz/c.go": 0,
+	}
+
+	testFastWalk(t, map[string]string{
+		"a_skipfiles.go": "a",
+		"b_skipfiles.go": "b",
+		"zzz/c.go":       "c",
+	},
+		func(path string, typ os.FileMode) error {
+			if strings.HasSuffix(path, "_skipfiles.go") {
+				mu.Lock()
+				defer mu.Unlock()
+				want["/src/"+filepath.Base(path)] = 0
+				return fastwalk.SkipFiles
+			}
+			return nil
+		},
+		want)
+	if len(want) != 5 {
+		t.Errorf("saw too many files: wanted 5, got %v (%v)", len(want), want)
+	}
 }
 
 func TestFastWalk_TraverseSymlink(t *testing.T) {

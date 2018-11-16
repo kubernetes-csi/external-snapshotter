@@ -30,11 +30,11 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/cli-runtime/pkg/genericclioptions/resource"
 	"k8s.io/kubernetes/pkg/kubectl"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
-	"k8s.io/kubernetes/pkg/kubectl/genericclioptions"
-	"k8s.io/kubernetes/pkg/kubectl/genericclioptions/resource"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
 	"k8s.io/kubernetes/pkg/kubectl/validation"
 )
@@ -89,15 +89,8 @@ type ReplaceOptions struct {
 }
 
 func NewReplaceOptions(streams genericclioptions.IOStreams) *ReplaceOptions {
-	outputFormat := ""
-
 	return &ReplaceOptions{
-		// TODO(juanvallejo): figure out why we only support the "name" outputFormat in this command
-		// we only support "-o name" for this command, so only register the name printer
-		PrintFlags: &genericclioptions.PrintFlags{
-			OutputFormat:   &outputFormat,
-			NamePrintFlags: genericclioptions.NewNamePrintFlags("replaced"),
-		},
+		PrintFlags:  genericclioptions.NewPrintFlags("replaced"),
 		DeleteFlags: NewDeleteFlags("to use to replace the resource."),
 
 		IOStreams: streams,
@@ -324,7 +317,7 @@ func (o *ReplaceOptions) forceReplace() error {
 			glog.V(4).Infof("error recording current command: %v", err)
 		}
 
-		obj, err := resource.NewHelper(info.Client, info.Mapping).Create(info.Namespace, true, info.Object)
+		obj, err := resource.NewHelper(info.Client, info.Mapping).Create(info.Namespace, true, info.Object, nil)
 		if err != nil {
 			return err
 		}
