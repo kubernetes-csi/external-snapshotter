@@ -17,6 +17,7 @@ limitations under the License.
 package gce
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -29,7 +30,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	v1_service "k8s.io/kubernetes/pkg/api/v1/service"
-	"k8s.io/kubernetes/pkg/cloudprovider"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/gce/cloud"
 	"k8s.io/kubernetes/pkg/cloudprovider/providers/gce/cloud/mock"
 )
@@ -59,7 +59,7 @@ func TestEnsureInternalBackendServiceUpdates(t *testing.T) {
 	require.NoError(t, err)
 
 	svc := fakeLoadbalancerService(string(LBTypeInternal))
-	lbName := cloudprovider.GetLoadBalancerName(svc)
+	lbName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 	nodes, err := createAndInsertNodes(gce, nodeNames, vals.ZoneName)
 	igName := makeInstanceGroupName(vals.ClusterID)
 	igLinks, err := gce.ensureInternalInstanceGroups(igName, nodes)
@@ -80,6 +80,8 @@ func TestEnsureInternalBackendServiceUpdates(t *testing.T) {
 }
 
 func TestEnsureInternalBackendServiceGroups(t *testing.T) {
+	t.Parallel()
+
 	for desc, tc := range map[string]struct {
 		mockModifier func(*cloud.MockGCE)
 	}{
@@ -96,8 +98,6 @@ func TestEnsureInternalBackendServiceGroups(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			t.Parallel()
-
 			vals := DefaultTestClusterValues()
 			nodeNames := []string{"test-node-1"}
 
@@ -105,7 +105,7 @@ func TestEnsureInternalBackendServiceGroups(t *testing.T) {
 			require.NoError(t, err)
 
 			svc := fakeLoadbalancerService(string(LBTypeInternal))
-			lbName := cloudprovider.GetLoadBalancerName(svc)
+			lbName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 			nodes, err := createAndInsertNodes(gce, nodeNames, vals.ZoneName)
 			igName := makeInstanceGroupName(vals.ClusterID)
 			igLinks, err := gce.ensureInternalInstanceGroups(igName, nodes)
@@ -117,12 +117,12 @@ func TestEnsureInternalBackendServiceGroups(t *testing.T) {
 			err = gce.ensureInternalBackendService(bsName, "description", svc.Spec.SessionAffinity, cloud.SchemeInternal, "TCP", igLinks, "")
 			require.NoError(t, err)
 
-			// Update the BackendService with new Instances
+			// Update the BackendService with new InstanceGroups
 			if tc.mockModifier != nil {
 				tc.mockModifier(gce.c.(*cloud.MockGCE))
 			}
-			newNodeNames := []string{"new-test-node-1", "new-test-node-2"}
-			err = gce.ensureInternalBackendServiceGroups(bsName, newNodeNames)
+			newIGLinks := []string{"new-test-ig-1", "new-test-ig-2"}
+			err = gce.ensureInternalBackendServiceGroups(bsName, newIGLinks)
 			if tc.mockModifier != nil {
 				assert.Error(t, err)
 				return
@@ -132,10 +132,8 @@ func TestEnsureInternalBackendServiceGroups(t *testing.T) {
 			bs, err := gce.GetRegionBackendService(bsName, gce.region)
 			assert.NoError(t, err)
 
-			// Check that the instances are updated
-			newNodes, err := createAndInsertNodes(gce, newNodeNames, vals.ZoneName)
-			newIgLinks, err := gce.ensureInternalInstanceGroups(igName, newNodes)
-			backends := backendsFromGroupLinks(newIgLinks)
+			// Check that the Backends reflect the new InstanceGroups
+			backends := backendsFromGroupLinks(newIGLinks)
 			assert.Equal(t, bs.Backends, backends)
 		})
 	}
@@ -169,7 +167,7 @@ func TestEnsureInternalLoadBalancerWithExistingResources(t *testing.T) {
 
 	// Create the expected resources necessary for an Internal Load Balancer
 	nm := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
-	lbName := cloudprovider.GetLoadBalancerName(svc)
+	lbName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 
 	sharedHealthCheck := !v1_service.RequestsOnlyLocalTraffic(svc)
 	hcName := makeHealthCheckName(lbName, vals.ClusterID, sharedHealthCheck)
@@ -201,7 +199,7 @@ func TestEnsureInternalLoadBalancerClearPreviousResources(t *testing.T) {
 	require.NoError(t, err)
 
 	svc := fakeLoadbalancerService(string(LBTypeInternal))
-	lbName := cloudprovider.GetLoadBalancerName(svc)
+	lbName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 
 	// Create a ForwardingRule that's missing an IP address
 	existingFwdRule := &compute.ForwardingRule{
@@ -287,7 +285,7 @@ func TestUpdateInternalLoadBalancerBackendServices(t *testing.T) {
 	// incorrect (missing) attributes.
 	// ensureInternalBackendServiceGroups is called and creates the correct
 	// BackendService
-	lbName := cloudprovider.GetLoadBalancerName(svc)
+	lbName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 	sharedBackend := shareBackendService(svc)
 	backendServiceName := makeBackendServiceName(lbName, vals.ClusterID, sharedBackend, cloud.SchemeInternal, "TCP", svc.Spec.SessionAffinity)
 	existingBS := &compute.BackendService{
@@ -351,7 +349,7 @@ func TestUpdateInternalLoadBalancerNodes(t *testing.T) {
 	err = gce.updateInternalLoadBalancer(vals.ClusterName, vals.ClusterID, svc, nodes)
 	assert.NoError(t, err)
 
-	lbName := cloudprovider.GetLoadBalancerName(svc)
+	lbName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 	sharedBackend := shareBackendService(svc)
 	backendServiceName := makeBackendServiceName(lbName, vals.ClusterID, sharedBackend, cloud.SchemeInternal, "TCP", svc.Spec.SessionAffinity)
 	bs, err := gce.GetRegionBackendService(backendServiceName, gce.region)
@@ -444,7 +442,7 @@ func TestEnsureInternalLoadBalancerWithSpecialHealthCheck(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, status.Ingress)
 
-	loadBalancerName := cloudprovider.GetLoadBalancerName(svc)
+	loadBalancerName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 	hc, err := gce.GetHealthCheck(loadBalancerName)
 	assert.NoError(t, err)
 	assert.NotNil(t, hc)
@@ -455,9 +453,9 @@ func TestClearPreviousInternalResources(t *testing.T) {
 	// Configure testing environment.
 	vals := DefaultTestClusterValues()
 	svc := fakeLoadbalancerService(string(LBTypeInternal))
-	loadBalancerName := cloudprovider.GetLoadBalancerName(svc)
-	nm := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
 	gce, err := fakeGCECloud(vals)
+	loadBalancerName := gce.GetLoadBalancerName(context.TODO(), "", svc)
+	nm := types.NamespacedName{Name: svc.Name, Namespace: svc.Namespace}
 	c := gce.c.(*cloud.MockGCE)
 	require.NoError(t, err)
 
@@ -518,7 +516,7 @@ func TestEnsureInternalFirewallSucceedsOnXPN(t *testing.T) {
 	require.NoError(t, err)
 	vals := DefaultTestClusterValues()
 	svc := fakeLoadbalancerService(string(LBTypeInternal))
-	fwName := cloudprovider.GetLoadBalancerName(svc)
+	fwName := gce.GetLoadBalancerName(context.TODO(), "", svc)
 
 	c := gce.c.(*cloud.MockGCE)
 	c.MockFirewalls.InsertHook = mock.InsertFirewallsUnauthorizedErrHook

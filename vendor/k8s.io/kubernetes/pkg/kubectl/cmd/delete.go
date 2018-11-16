@@ -24,22 +24,17 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
-	"k8s.io/apimachinery/pkg/util/uuid"
-	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/cli-runtime/pkg/genericclioptions/printers"
+	"k8s.io/cli-runtime/pkg/genericclioptions/resource"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/kubernetes/pkg/kubectl/cmd/templates"
 	cmdutil "k8s.io/kubernetes/pkg/kubectl/cmd/util"
 	kubectlwait "k8s.io/kubernetes/pkg/kubectl/cmd/wait"
-	"k8s.io/kubernetes/pkg/kubectl/genericclioptions"
-	"k8s.io/kubernetes/pkg/kubectl/genericclioptions/printers"
-	"k8s.io/kubernetes/pkg/kubectl/genericclioptions/resource"
 	"k8s.io/kubernetes/pkg/kubectl/util/i18n"
 )
 
@@ -235,6 +230,7 @@ func (o *DeleteOptions) DeleteResult(r *resource.Result) error {
 		r = r.IgnoreErrors(errors.IsNotFound)
 	}
 	deletedInfos := []*resource.Info{}
+	uidMap := kubectlwait.UIDMap{}
 	err := r.Visit(func(info *resource.Info, err error) error {
 		if err != nil {
 			return err
@@ -246,13 +242,34 @@ func (o *DeleteOptions) DeleteResult(r *resource.Result) error {
 		if o.GracePeriod >= 0 {
 			options = metav1.NewDeleteOptions(int64(o.GracePeriod))
 		}
-		policy := metav1.DeletePropagationForeground
+		policy := metav1.DeletePropagationBackground
 		if !o.Cascade {
 			policy = metav1.DeletePropagationOrphan
 		}
 		options.PropagationPolicy = &policy
 
-		return o.deleteResource(info, options)
+		response, err := o.deleteResource(info, options)
+		if err != nil {
+			return err
+		}
+		resourceLocation := kubectlwait.ResourceLocation{
+			GroupResource: info.Mapping.Resource.GroupResource(),
+			Namespace:     info.Namespace,
+			Name:          info.Name,
+		}
+		if status, ok := response.(*metav1.Status); ok && status.Details != nil {
+			uidMap[resourceLocation] = status.Details.UID
+			return nil
+		}
+		responseMetadata, err := meta.Accessor(response)
+		if err != nil {
+			// we don't have UID, but we didn't fail the delete, next best thing is just skipping the UID
+			glog.V(1).Info(err)
+			return nil
+		}
+		uidMap[resourceLocation] = responseMetadata.GetUID()
+
+		return nil
 	})
 	if err != nil {
 		return err
@@ -277,6 +294,7 @@ func (o *DeleteOptions) DeleteResult(r *resource.Result) error {
 	}
 	waitOptions := kubectlwait.WaitOptions{
 		ResourceFinder: genericclioptions.ResourceFinderForResult(resource.InfoListVisitor(deletedInfos)),
+		UIDMap:         uidMap,
 		DynamicClient:  o.DynamicClient,
 		Timeout:        effectiveTimeout,
 
@@ -285,80 +303,23 @@ func (o *DeleteOptions) DeleteResult(r *resource.Result) error {
 		IOStreams:   o.IOStreams,
 	}
 	err = waitOptions.RunWait()
-	if errors.IsForbidden(err) {
+	if errors.IsForbidden(err) || errors.IsMethodNotSupported(err) {
 		// if we're forbidden from waiting, we shouldn't fail.
+		// if the resource doesn't support a verb we need, we shouldn't fail.
 		glog.V(1).Info(err)
 		return nil
 	}
 	return err
 }
 
-func (o *DeleteOptions) deleteResource(info *resource.Info, deleteOptions *metav1.DeleteOptions) error {
-	// TODO: Remove this in or after 1.12 release.
-	//       Server version >= 1.11 no longer needs this hack.
-	mapping := info.ResourceMapping()
-	if mapping.Resource.GroupResource() == (schema.GroupResource{Group: "extensions", Resource: "daemonsets"}) ||
-		mapping.Resource.GroupResource() == (schema.GroupResource{Group: "apps", Resource: "daemonsets"}) {
-		if err := updateDaemonSet(info.Namespace, info.Name, o.DynamicClient); err != nil {
-			return err
-		}
-	}
-
-	if err := resource.NewHelper(info.Client, info.Mapping).DeleteWithOptions(info.Namespace, info.Name, deleteOptions); err != nil {
-		return cmdutil.AddSourceToErr("deleting", info.Source, err)
+func (o *DeleteOptions) deleteResource(info *resource.Info, deleteOptions *metav1.DeleteOptions) (runtime.Object, error) {
+	deleteResponse, err := resource.NewHelper(info.Client, info.Mapping).DeleteWithOptions(info.Namespace, info.Name, deleteOptions)
+	if err != nil {
+		return nil, cmdutil.AddSourceToErr("deleting", info.Source, err)
 	}
 
 	o.PrintObj(info)
-	return nil
-}
-
-// TODO: Remove this in or after 1.12 release.
-//       Server version >= 1.11 no longer needs this hack.
-func updateDaemonSet(namespace, name string, dynamicClient dynamic.Interface) error {
-	dsClient := dynamicClient.Resource(schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "daemonsets"}).Namespace(namespace)
-	obj, err := dsClient.Get(name, metav1.GetOptions{})
-	if err != nil {
-		return err
-	}
-	ds := &appsv1.DaemonSet{}
-	if err := runtime.DefaultUnstructuredConverter.FromUnstructured(obj.Object, ds); err != nil {
-		return err
-	}
-
-	// We set the nodeSelector to a random label. This label is nearly guaranteed
-	// to not be set on any node so the DameonSetController will start deleting
-	// daemon pods. Once it's done deleting the daemon pods, it's safe to delete
-	// the DaemonSet.
-	ds.Spec.Template.Spec.NodeSelector = map[string]string{
-		string(uuid.NewUUID()): string(uuid.NewUUID()),
-	}
-	// force update to avoid version conflict
-	ds.ResourceVersion = ""
-
-	out, err := runtime.DefaultUnstructuredConverter.ToUnstructured(ds)
-	if err != nil {
-		return err
-	}
-	if _, err = dsClient.Update(&unstructured.Unstructured{Object: out}); err != nil {
-		return err
-	}
-
-	// Wait for the daemon set controller to kill all the daemon pods.
-	if err := wait.Poll(1*time.Second, 5*time.Minute, func() (bool, error) {
-		updatedObj, err := dsClient.Get(name, metav1.GetOptions{})
-		if err != nil {
-			return false, nil
-		}
-		updatedDS := &appsv1.DaemonSet{}
-		if err := runtime.DefaultUnstructuredConverter.FromUnstructured(updatedObj.Object, ds); err != nil {
-			return false, nil
-		}
-
-		return updatedDS.Status.CurrentNumberScheduled+updatedDS.Status.NumberMisscheduled == 0, nil
-	}); err != nil {
-		return err
-	}
-	return nil
+	return deleteResponse, nil
 }
 
 // deletion printing is special because we do not have an object to print.

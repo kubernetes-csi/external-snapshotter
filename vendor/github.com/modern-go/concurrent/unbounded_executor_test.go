@@ -32,10 +32,10 @@ func ExampleUnboundedExecutor_StopAndWaitForever() {
 	})
 	time.Sleep(time.Second)
 	executor.StopAndWaitForever()
-	fmt.Println("exectuor stopped")
+	fmt.Println("executor stopped")
 	// output:
 	// goroutine exited
-	// exectuor stopped
+	// executor stopped
 }
 
 func ExampleUnboundedExecutor_Go_panic() {

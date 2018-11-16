@@ -3,20 +3,25 @@
 
 package servicecontrol
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import _ "google.golang.org/genproto/googleapis/api/annotations"
-
 import (
-	context "golang.org/x/net/context"
+	context "context"
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	_ "google.golang.org/genproto/googleapis/api/annotations"
 	grpc "google.golang.org/grpc"
+	math "math"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 // Supported quota modes.
 type QuotaOperation_QuotaMode int32
@@ -46,6 +51,7 @@ var QuotaOperation_QuotaMode_name = map[int32]string{
 	2: "BEST_EFFORT",
 	3: "CHECK_ONLY",
 }
+
 var QuotaOperation_QuotaMode_value = map[string]int32{
 	"UNSPECIFIED": 0,
 	"NORMAL":      1,
@@ -56,7 +62,10 @@ var QuotaOperation_QuotaMode_value = map[string]int32{
 func (x QuotaOperation_QuotaMode) String() string {
 	return proto.EnumName(QuotaOperation_QuotaMode_name, int32(x))
 }
-func (QuotaOperation_QuotaMode) EnumDescriptor() ([]byte, []int) { return fileDescriptor5, []int{1, 0} }
+
+func (QuotaOperation_QuotaMode) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_4401e348913df3b0, []int{1, 0}
+}
 
 // Error codes related to project config validations are deprecated since the
 // quota controller methods do not perform these validations. Instead services
@@ -90,6 +99,7 @@ var QuotaError_Code_name = map[int32]string{
 	105: "API_KEY_INVALID",
 	112: "API_KEY_EXPIRED",
 }
+
 var QuotaError_Code_value = map[string]int32{
 	"UNSPECIFIED":        0,
 	"RESOURCE_EXHAUSTED": 8,
@@ -102,7 +112,10 @@ var QuotaError_Code_value = map[string]int32{
 func (x QuotaError_Code) String() string {
 	return proto.EnumName(QuotaError_Code_name, int32(x))
 }
-func (QuotaError_Code) EnumDescriptor() ([]byte, []int) { return fileDescriptor5, []int{3, 0} }
+
+func (QuotaError_Code) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_4401e348913df3b0, []int{3, 0}
+}
 
 // Request message for the AllocateQuota method.
 type AllocateQuotaRequest struct {
@@ -110,19 +123,42 @@ type AllocateQuotaRequest struct {
 	// `"pubsub.googleapis.com"`.
 	//
 	// See [google.api.Service][google.api.Service] for the definition of a service name.
-	ServiceName string `protobuf:"bytes,1,opt,name=service_name,json=serviceName" json:"service_name,omitempty"`
+	ServiceName string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	// Operation that describes the quota allocation.
-	AllocateOperation *QuotaOperation `protobuf:"bytes,2,opt,name=allocate_operation,json=allocateOperation" json:"allocate_operation,omitempty"`
+	AllocateOperation *QuotaOperation `protobuf:"bytes,2,opt,name=allocate_operation,json=allocateOperation,proto3" json:"allocate_operation,omitempty"`
 	// Specifies which version of service configuration should be used to process
 	// the request. If unspecified or no matching version can be found, the latest
 	// one will be used.
-	ServiceConfigId string `protobuf:"bytes,4,opt,name=service_config_id,json=serviceConfigId" json:"service_config_id,omitempty"`
+	ServiceConfigId      string   `protobuf:"bytes,4,opt,name=service_config_id,json=serviceConfigId,proto3" json:"service_config_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AllocateQuotaRequest) Reset()                    { *m = AllocateQuotaRequest{} }
-func (m *AllocateQuotaRequest) String() string            { return proto.CompactTextString(m) }
-func (*AllocateQuotaRequest) ProtoMessage()               {}
-func (*AllocateQuotaRequest) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{0} }
+func (m *AllocateQuotaRequest) Reset()         { *m = AllocateQuotaRequest{} }
+func (m *AllocateQuotaRequest) String() string { return proto.CompactTextString(m) }
+func (*AllocateQuotaRequest) ProtoMessage()    {}
+func (*AllocateQuotaRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4401e348913df3b0, []int{0}
+}
+
+func (m *AllocateQuotaRequest) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AllocateQuotaRequest.Unmarshal(m, b)
+}
+func (m *AllocateQuotaRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AllocateQuotaRequest.Marshal(b, m, deterministic)
+}
+func (m *AllocateQuotaRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AllocateQuotaRequest.Merge(m, src)
+}
+func (m *AllocateQuotaRequest) XXX_Size() int {
+	return xxx_messageInfo_AllocateQuotaRequest.Size(m)
+}
+func (m *AllocateQuotaRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_AllocateQuotaRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AllocateQuotaRequest proto.InternalMessageInfo
 
 func (m *AllocateQuotaRequest) GetServiceName() string {
 	if m != nil {
@@ -155,7 +191,7 @@ type QuotaOperation struct {
 	// operation is computed from existing information and an idempotent id is
 	// desirable for deduplication purpose, UUID version 5 is recommended. See
 	// RFC 4122 for details.
-	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId" json:"operation_id,omitempty"`
+	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	// Fully qualified name of the API method for which this quota operation is
 	// requested. This name is used for matching quota rules or metric rules and
 	// billing status rules defined in service configuration. This field is not
@@ -163,16 +199,16 @@ type QuotaOperation struct {
 	//
 	// Example of an RPC method name:
 	//     google.example.library.v1.LibraryService.CreateShelf
-	MethodName string `protobuf:"bytes,2,opt,name=method_name,json=methodName" json:"method_name,omitempty"`
+	MethodName string `protobuf:"bytes,2,opt,name=method_name,json=methodName,proto3" json:"method_name,omitempty"`
 	// Identity of the consumer for whom this quota operation is being performed.
 	//
 	// This can be in one of the following formats:
 	//   project:<project_id>,
 	//   project_number:<project_number>,
 	//   api_key:<api_key>.
-	ConsumerId string `protobuf:"bytes,3,opt,name=consumer_id,json=consumerId" json:"consumer_id,omitempty"`
+	ConsumerId string `protobuf:"bytes,3,opt,name=consumer_id,json=consumerId,proto3" json:"consumer_id,omitempty"`
 	// Labels describing the operation.
-	Labels map[string]string `protobuf:"bytes,4,rep,name=labels" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Labels map[string]string `protobuf:"bytes,4,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// Represents information about this operation. Each MetricValueSet
 	// corresponds to a metric defined in the service configuration.
 	// The data type used in the MetricValueSet must agree with
@@ -183,15 +219,38 @@ type QuotaOperation struct {
 	// label value combinations. If a request has such duplicated MetricValue
 	// instances, the entire request is rejected with
 	// an invalid argument error.
-	QuotaMetrics []*MetricValueSet `protobuf:"bytes,5,rep,name=quota_metrics,json=quotaMetrics" json:"quota_metrics,omitempty"`
+	QuotaMetrics []*MetricValueSet `protobuf:"bytes,5,rep,name=quota_metrics,json=quotaMetrics,proto3" json:"quota_metrics,omitempty"`
 	// Quota mode for this operation.
-	QuotaMode QuotaOperation_QuotaMode `protobuf:"varint,6,opt,name=quota_mode,json=quotaMode,enum=google.api.servicecontrol.v1.QuotaOperation_QuotaMode" json:"quota_mode,omitempty"`
+	QuotaMode            QuotaOperation_QuotaMode `protobuf:"varint,6,opt,name=quota_mode,json=quotaMode,proto3,enum=google.api.servicecontrol.v1.QuotaOperation_QuotaMode" json:"quota_mode,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                 `json:"-"`
+	XXX_unrecognized     []byte                   `json:"-"`
+	XXX_sizecache        int32                    `json:"-"`
 }
 
-func (m *QuotaOperation) Reset()                    { *m = QuotaOperation{} }
-func (m *QuotaOperation) String() string            { return proto.CompactTextString(m) }
-func (*QuotaOperation) ProtoMessage()               {}
-func (*QuotaOperation) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{1} }
+func (m *QuotaOperation) Reset()         { *m = QuotaOperation{} }
+func (m *QuotaOperation) String() string { return proto.CompactTextString(m) }
+func (*QuotaOperation) ProtoMessage()    {}
+func (*QuotaOperation) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4401e348913df3b0, []int{1}
+}
+
+func (m *QuotaOperation) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_QuotaOperation.Unmarshal(m, b)
+}
+func (m *QuotaOperation) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_QuotaOperation.Marshal(b, m, deterministic)
+}
+func (m *QuotaOperation) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QuotaOperation.Merge(m, src)
+}
+func (m *QuotaOperation) XXX_Size() int {
+	return xxx_messageInfo_QuotaOperation.Size(m)
+}
+func (m *QuotaOperation) XXX_DiscardUnknown() {
+	xxx_messageInfo_QuotaOperation.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QuotaOperation proto.InternalMessageInfo
 
 func (m *QuotaOperation) GetOperationId() string {
 	if m != nil {
@@ -239,9 +298,9 @@ func (m *QuotaOperation) GetQuotaMode() QuotaOperation_QuotaMode {
 type AllocateQuotaResponse struct {
 	// The same operation_id value used in the AllocateQuotaRequest. Used for
 	// logging and diagnostics purposes.
-	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId" json:"operation_id,omitempty"`
+	OperationId string `protobuf:"bytes,1,opt,name=operation_id,json=operationId,proto3" json:"operation_id,omitempty"`
 	// Indicates the decision of the allocate.
-	AllocateErrors []*QuotaError `protobuf:"bytes,2,rep,name=allocate_errors,json=allocateErrors" json:"allocate_errors,omitempty"`
+	AllocateErrors []*QuotaError `protobuf:"bytes,2,rep,name=allocate_errors,json=allocateErrors,proto3" json:"allocate_errors,omitempty"`
 	// Quota metrics to indicate the result of allocation. Depending on the
 	// request, one or more of the following metrics will be included:
 	//
@@ -252,15 +311,38 @@ type AllocateQuotaResponse struct {
 	// 2. The quota limit reached condition will be specified using the following
 	// boolean metric :
 	//   "serviceruntime.googleapis.com/quota/exceeded"
-	QuotaMetrics []*MetricValueSet `protobuf:"bytes,3,rep,name=quota_metrics,json=quotaMetrics" json:"quota_metrics,omitempty"`
+	QuotaMetrics []*MetricValueSet `protobuf:"bytes,3,rep,name=quota_metrics,json=quotaMetrics,proto3" json:"quota_metrics,omitempty"`
 	// ID of the actual config used to process the request.
-	ServiceConfigId string `protobuf:"bytes,4,opt,name=service_config_id,json=serviceConfigId" json:"service_config_id,omitempty"`
+	ServiceConfigId      string   `protobuf:"bytes,4,opt,name=service_config_id,json=serviceConfigId,proto3" json:"service_config_id,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *AllocateQuotaResponse) Reset()                    { *m = AllocateQuotaResponse{} }
-func (m *AllocateQuotaResponse) String() string            { return proto.CompactTextString(m) }
-func (*AllocateQuotaResponse) ProtoMessage()               {}
-func (*AllocateQuotaResponse) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{2} }
+func (m *AllocateQuotaResponse) Reset()         { *m = AllocateQuotaResponse{} }
+func (m *AllocateQuotaResponse) String() string { return proto.CompactTextString(m) }
+func (*AllocateQuotaResponse) ProtoMessage()    {}
+func (*AllocateQuotaResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4401e348913df3b0, []int{2}
+}
+
+func (m *AllocateQuotaResponse) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_AllocateQuotaResponse.Unmarshal(m, b)
+}
+func (m *AllocateQuotaResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_AllocateQuotaResponse.Marshal(b, m, deterministic)
+}
+func (m *AllocateQuotaResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AllocateQuotaResponse.Merge(m, src)
+}
+func (m *AllocateQuotaResponse) XXX_Size() int {
+	return xxx_messageInfo_AllocateQuotaResponse.Size(m)
+}
+func (m *AllocateQuotaResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_AllocateQuotaResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AllocateQuotaResponse proto.InternalMessageInfo
 
 func (m *AllocateQuotaResponse) GetOperationId() string {
 	if m != nil {
@@ -293,19 +375,42 @@ func (m *AllocateQuotaResponse) GetServiceConfigId() string {
 // Represents error information for [QuotaOperation][google.api.servicecontrol.v1.QuotaOperation].
 type QuotaError struct {
 	// Error code.
-	Code QuotaError_Code `protobuf:"varint,1,opt,name=code,enum=google.api.servicecontrol.v1.QuotaError_Code" json:"code,omitempty"`
+	Code QuotaError_Code `protobuf:"varint,1,opt,name=code,proto3,enum=google.api.servicecontrol.v1.QuotaError_Code" json:"code,omitempty"`
 	// Subject to whom this error applies. See the specific enum for more details
 	// on this field. For example, "clientip:<ip address of client>" or
 	// "project:<Google developer project id>".
-	Subject string `protobuf:"bytes,2,opt,name=subject" json:"subject,omitempty"`
+	Subject string `protobuf:"bytes,2,opt,name=subject,proto3" json:"subject,omitempty"`
 	// Free-form text that provides details on the cause of the error.
-	Description string `protobuf:"bytes,3,opt,name=description" json:"description,omitempty"`
+	Description          string   `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
 }
 
-func (m *QuotaError) Reset()                    { *m = QuotaError{} }
-func (m *QuotaError) String() string            { return proto.CompactTextString(m) }
-func (*QuotaError) ProtoMessage()               {}
-func (*QuotaError) Descriptor() ([]byte, []int) { return fileDescriptor5, []int{3} }
+func (m *QuotaError) Reset()         { *m = QuotaError{} }
+func (m *QuotaError) String() string { return proto.CompactTextString(m) }
+func (*QuotaError) ProtoMessage()    {}
+func (*QuotaError) Descriptor() ([]byte, []int) {
+	return fileDescriptor_4401e348913df3b0, []int{3}
+}
+
+func (m *QuotaError) XXX_Unmarshal(b []byte) error {
+	return xxx_messageInfo_QuotaError.Unmarshal(m, b)
+}
+func (m *QuotaError) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	return xxx_messageInfo_QuotaError.Marshal(b, m, deterministic)
+}
+func (m *QuotaError) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_QuotaError.Merge(m, src)
+}
+func (m *QuotaError) XXX_Size() int {
+	return xxx_messageInfo_QuotaError.Size(m)
+}
+func (m *QuotaError) XXX_DiscardUnknown() {
+	xxx_messageInfo_QuotaError.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_QuotaError proto.InternalMessageInfo
 
 func (m *QuotaError) GetCode() QuotaError_Code {
 	if m != nil {
@@ -329,113 +434,20 @@ func (m *QuotaError) GetDescription() string {
 }
 
 func init() {
-	proto.RegisterType((*AllocateQuotaRequest)(nil), "google.api.servicecontrol.v1.AllocateQuotaRequest")
-	proto.RegisterType((*QuotaOperation)(nil), "google.api.servicecontrol.v1.QuotaOperation")
-	proto.RegisterType((*AllocateQuotaResponse)(nil), "google.api.servicecontrol.v1.AllocateQuotaResponse")
-	proto.RegisterType((*QuotaError)(nil), "google.api.servicecontrol.v1.QuotaError")
 	proto.RegisterEnum("google.api.servicecontrol.v1.QuotaOperation_QuotaMode", QuotaOperation_QuotaMode_name, QuotaOperation_QuotaMode_value)
 	proto.RegisterEnum("google.api.servicecontrol.v1.QuotaError_Code", QuotaError_Code_name, QuotaError_Code_value)
-}
-
-// Reference imports to suppress errors if they are not otherwise used.
-var _ context.Context
-var _ grpc.ClientConn
-
-// This is a compile-time assertion to ensure that this generated file
-// is compatible with the grpc package it is being compiled against.
-const _ = grpc.SupportPackageIsVersion4
-
-// Client API for QuotaController service
-
-type QuotaControllerClient interface {
-	// Attempts to allocate quota for the specified consumer. It should be called
-	// before the operation is executed.
-	//
-	// This method requires the `servicemanagement.services.quota`
-	// permission on the specified service. For more information, see
-	// [Cloud IAM](https://cloud.google.com/iam).
-	//
-	// **NOTE:** The client **must** fail-open on server errors `INTERNAL`,
-	// `UNKNOWN`, `DEADLINE_EXCEEDED`, and `UNAVAILABLE`. To ensure system
-	// reliability, the server may inject these errors to prohibit any hard
-	// dependency on the quota functionality.
-	AllocateQuota(ctx context.Context, in *AllocateQuotaRequest, opts ...grpc.CallOption) (*AllocateQuotaResponse, error)
-}
-
-type quotaControllerClient struct {
-	cc *grpc.ClientConn
-}
-
-func NewQuotaControllerClient(cc *grpc.ClientConn) QuotaControllerClient {
-	return &quotaControllerClient{cc}
-}
-
-func (c *quotaControllerClient) AllocateQuota(ctx context.Context, in *AllocateQuotaRequest, opts ...grpc.CallOption) (*AllocateQuotaResponse, error) {
-	out := new(AllocateQuotaResponse)
-	err := grpc.Invoke(ctx, "/google.api.servicecontrol.v1.QuotaController/AllocateQuota", in, out, c.cc, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Server API for QuotaController service
-
-type QuotaControllerServer interface {
-	// Attempts to allocate quota for the specified consumer. It should be called
-	// before the operation is executed.
-	//
-	// This method requires the `servicemanagement.services.quota`
-	// permission on the specified service. For more information, see
-	// [Cloud IAM](https://cloud.google.com/iam).
-	//
-	// **NOTE:** The client **must** fail-open on server errors `INTERNAL`,
-	// `UNKNOWN`, `DEADLINE_EXCEEDED`, and `UNAVAILABLE`. To ensure system
-	// reliability, the server may inject these errors to prohibit any hard
-	// dependency on the quota functionality.
-	AllocateQuota(context.Context, *AllocateQuotaRequest) (*AllocateQuotaResponse, error)
-}
-
-func RegisterQuotaControllerServer(s *grpc.Server, srv QuotaControllerServer) {
-	s.RegisterService(&_QuotaController_serviceDesc, srv)
-}
-
-func _QuotaController_AllocateQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AllocateQuotaRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(QuotaControllerServer).AllocateQuota(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/google.api.servicecontrol.v1.QuotaController/AllocateQuota",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(QuotaControllerServer).AllocateQuota(ctx, req.(*AllocateQuotaRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-var _QuotaController_serviceDesc = grpc.ServiceDesc{
-	ServiceName: "google.api.servicecontrol.v1.QuotaController",
-	HandlerType: (*QuotaControllerServer)(nil),
-	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "AllocateQuota",
-			Handler:    _QuotaController_AllocateQuota_Handler,
-		},
-	},
-	Streams:  []grpc.StreamDesc{},
-	Metadata: "google/api/servicecontrol/v1/quota_controller.proto",
+	proto.RegisterType((*AllocateQuotaRequest)(nil), "google.api.servicecontrol.v1.AllocateQuotaRequest")
+	proto.RegisterType((*QuotaOperation)(nil), "google.api.servicecontrol.v1.QuotaOperation")
+	proto.RegisterMapType((map[string]string)(nil), "google.api.servicecontrol.v1.QuotaOperation.LabelsEntry")
+	proto.RegisterType((*AllocateQuotaResponse)(nil), "google.api.servicecontrol.v1.AllocateQuotaResponse")
+	proto.RegisterType((*QuotaError)(nil), "google.api.servicecontrol.v1.QuotaError")
 }
 
 func init() {
-	proto.RegisterFile("google/api/servicecontrol/v1/quota_controller.proto", fileDescriptor5)
+	proto.RegisterFile("google/api/servicecontrol/v1/quota_controller.proto", fileDescriptor_4401e348913df3b0)
 }
 
-var fileDescriptor5 = []byte{
+var fileDescriptor_4401e348913df3b0 = []byte{
 	// 775 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xa4, 0x55, 0xc1, 0x6e, 0xea, 0x46,
 	0x14, 0xed, 0x18, 0x42, 0x9b, 0xeb, 0x04, 0x9c, 0x69, 0x5a, 0x59, 0x28, 0x52, 0x28, 0x2b, 0x1a,
@@ -486,4 +498,98 @@ var fileDescriptor5 = []byte{
 	0xc1, 0xb0, 0x3a, 0xa4, 0x1e, 0x7f, 0x02, 0xd2, 0x27, 0xc3, 0xf4, 0x9d, 0x70, 0xf9, 0xb3, 0xf1,
 	0xfd, 0x22, 0xf2, 0x06, 0xa1, 0xbb, 0x1c, 0x67, 0x1e, 0xbd, 0x0d, 0x00, 0x00, 0xff, 0xff, 0xbb,
 	0x98, 0x03, 0x4f, 0xe0, 0x06, 0x00, 0x00,
+}
+
+// Reference imports to suppress errors if they are not otherwise used.
+var _ context.Context
+var _ grpc.ClientConn
+
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the grpc package it is being compiled against.
+const _ = grpc.SupportPackageIsVersion4
+
+// QuotaControllerClient is the client API for QuotaController service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
+type QuotaControllerClient interface {
+	// Attempts to allocate quota for the specified consumer. It should be called
+	// before the operation is executed.
+	//
+	// This method requires the `servicemanagement.services.quota`
+	// permission on the specified service. For more information, see
+	// [Cloud IAM](https://cloud.google.com/iam).
+	//
+	// **NOTE:** The client **must** fail-open on server errors `INTERNAL`,
+	// `UNKNOWN`, `DEADLINE_EXCEEDED`, and `UNAVAILABLE`. To ensure system
+	// reliability, the server may inject these errors to prohibit any hard
+	// dependency on the quota functionality.
+	AllocateQuota(ctx context.Context, in *AllocateQuotaRequest, opts ...grpc.CallOption) (*AllocateQuotaResponse, error)
+}
+
+type quotaControllerClient struct {
+	cc *grpc.ClientConn
+}
+
+func NewQuotaControllerClient(cc *grpc.ClientConn) QuotaControllerClient {
+	return &quotaControllerClient{cc}
+}
+
+func (c *quotaControllerClient) AllocateQuota(ctx context.Context, in *AllocateQuotaRequest, opts ...grpc.CallOption) (*AllocateQuotaResponse, error) {
+	out := new(AllocateQuotaResponse)
+	err := c.cc.Invoke(ctx, "/google.api.servicecontrol.v1.QuotaController/AllocateQuota", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// QuotaControllerServer is the server API for QuotaController service.
+type QuotaControllerServer interface {
+	// Attempts to allocate quota for the specified consumer. It should be called
+	// before the operation is executed.
+	//
+	// This method requires the `servicemanagement.services.quota`
+	// permission on the specified service. For more information, see
+	// [Cloud IAM](https://cloud.google.com/iam).
+	//
+	// **NOTE:** The client **must** fail-open on server errors `INTERNAL`,
+	// `UNKNOWN`, `DEADLINE_EXCEEDED`, and `UNAVAILABLE`. To ensure system
+	// reliability, the server may inject these errors to prohibit any hard
+	// dependency on the quota functionality.
+	AllocateQuota(context.Context, *AllocateQuotaRequest) (*AllocateQuotaResponse, error)
+}
+
+func RegisterQuotaControllerServer(s *grpc.Server, srv QuotaControllerServer) {
+	s.RegisterService(&_QuotaController_serviceDesc, srv)
+}
+
+func _QuotaController_AllocateQuota_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AllocateQuotaRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuotaControllerServer).AllocateQuota(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/google.api.servicecontrol.v1.QuotaController/AllocateQuota",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuotaControllerServer).AllocateQuota(ctx, req.(*AllocateQuotaRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+var _QuotaController_serviceDesc = grpc.ServiceDesc{
+	ServiceName: "google.api.servicecontrol.v1.QuotaController",
+	HandlerType: (*QuotaControllerServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "AllocateQuota",
+			Handler:    _QuotaController_AllocateQuota_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "google/api/servicecontrol/v1/quota_controller.proto",
 }
