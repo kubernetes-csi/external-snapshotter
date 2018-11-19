@@ -421,13 +421,65 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 	return nil
 }
 
-func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
-	status, _, size, err := ctrl.handler.GetSnapshotStatus(content)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check snapshot status %s with error %v", snapshot.Name, err)
+func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *v1.PersistentVolume, string, map[string]string, error) {
+	className := snapshot.Spec.VolumeSnapshotClassName
+	glog.V(5).Infof("getCreateSnapshotInput [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
+	var class *crdv1.VolumeSnapshotClass
+	var err error
+	if className != nil {
+		class, err = ctrl.GetSnapshotClass(*className)
+		if err != nil {
+			glog.Errorf("getCreateSnapshotInput failed to getClassFromVolumeSnapshot %s", err)
+			return nil, nil, "", nil, err
+		}
+	} else {
+		glog.Errorf("failed to getCreateSnapshotInput %s without a snapshot class", snapshot.Name)
+		return nil, nil, "", nil, fmt.Errorf("failed to take snapshot %s without a snapshot class", snapshot.Name)
 	}
-	timestamp := time.Now().UnixNano()
-	newSnapshot, err := ctrl.updateSnapshotStatus(snapshot, status, timestamp, size, IsSnapshotBound(snapshot, content))
+
+	volume, err := ctrl.getVolumeFromVolumeSnapshot(snapshot)
+	if err != nil {
+		glog.Errorf("getCreateSnapshotInput failed to get PersistentVolume object [%s]: Error: [%#v]", snapshot.Name, err)
+		return nil, nil, "", nil, err
+	}
+
+	// Create VolumeSnapshotContent name
+	contentName := GetSnapshotContentNameForSnapshot(snapshot)
+
+	// Resolve snapshotting secret credentials.
+	snapshotterSecretRef, err := GetSecretReference(class.Parameters, contentName, snapshot)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+	snapshotterCredentials, err := GetCredentials(ctrl.client, snapshotterSecretRef)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+
+	return class, volume, contentName, snapshotterCredentials, nil
+}
+
+func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
+	var err error
+	var timestamp int64 = 0
+	var size int64 = 0
+	var readyToUse bool = false
+	class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
+	}
+	driverName, snapshotID, timestamp, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+	if err != nil {
+		glog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
+		return nil, err
+	} else {
+		glog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
+	}
+
+	if timestamp == 0 {
+		timestamp = time.Now().UnixNano()
+	}
+	newSnapshot, err := ctrl.updateSnapshotStatus(snapshot, readyToUse, timestamp, size, IsSnapshotBound(snapshot, content))
 	if err != nil {
 		return nil, err
 	}
@@ -451,51 +503,22 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		return snapshot, nil
 	}
 
-	className := snapshot.Spec.VolumeSnapshotClassName
-	glog.V(5).Infof("createSnapshotOperation [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
-	var class *crdv1.VolumeSnapshotClass
-	var err error
-	if className != nil {
-		class, err = ctrl.GetSnapshotClass(*className)
-		if err != nil {
-			glog.Errorf("createSnapshotOperation failed to getClassFromVolumeSnapshot %s", err)
-			return nil, err
-		}
-	} else {
-		glog.Errorf("failed to take snapshot %s without a snapshot class", snapshot.Name)
-		return nil, fmt.Errorf("failed to take snapshot %s without a snapshot class", snapshot.Name)
-	}
-
-	volume, err := ctrl.getVolumeFromVolumeSnapshot(snapshot)
+	class, volume, contentName, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
 	if err != nil {
-		glog.Errorf("createSnapshotOperation failed to get PersistentVolume object [%s]: Error: [%#v]", snapshot.Name, err)
-		return nil, err
+		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
 	}
 
-	// Create VolumeSnapshotContent name
-	contentName := GetSnapshotContentNameForSnapshot(snapshot)
-
-	// Resolve snapshotting secret credentials.
-	snapshotterSecretRef, err := GetSecretReference(class.Parameters, contentName, snapshot)
-	if err != nil {
-		return nil, err
-	}
-	snapshotterCredentials, err := GetCredentials(ctrl.client, snapshotterSecretRef)
-	if err != nil {
-		return nil, err
-	}
-
-	driverName, snapshotID, timestamp, size, csiSnapshotStatus, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+	driverName, snapshotID, timestamp, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to take snapshot of the volume, %s: %q", volume.Name, err)
 	}
-	glog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, timestamp %d, size %d, csiSnapshotStatus %v", driverName, snapshotID, timestamp, size, csiSnapshotStatus)
+	glog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
 
 	var newSnapshot *crdv1.VolumeSnapshot
 	// Update snapshot status with timestamp
 	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
 		glog.V(5).Infof("createSnapshot [%s]: trying to update snapshot creation timestamp", snapshotKey(snapshot))
-		newSnapshot, err = ctrl.updateSnapshotStatus(snapshot, csiSnapshotStatus, timestamp, size, false)
+		newSnapshot, err = ctrl.updateSnapshotStatus(snapshot, readyToUse, timestamp, size, false)
 		if err == nil {
 			break
 		}
@@ -682,42 +705,12 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 			status.Error = nil
 			change = true
 		}
-		if status.CreationTime == nil {
-			status.CreationTime = timeAt
-			change = true
-		}
+	}
+	if status.CreationTime == nil {
+		status.CreationTime = timeAt
+		change = true
 	}
 
-	/* TODO FIXME
-	switch csistatus.Type {
-	case csi.SnapshotStatus_READY:
-		if bound {
-			status.Ready = true
-			// Remove the error if checking snapshot is already bound and ready
-			status.Error = nil
-			change = true
-		}
-		if status.CreationTime == nil {
-			status.CreationTime = timeAt
-			change = true
-		}
-	case csi.SnapshotStatus_ERROR_UPLOADING:
-		if status.Error == nil {
-			status.Error = &storage.VolumeError{
-				Time:    *timeAt,
-				Message: "Failed to upload the snapshot",
-			}
-			change = true
-			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotUploadError", "Failed to upload the snapshot")
-
-		}
-	case csi.SnapshotStatus_UPLOADING:
-		if status.CreationTime == nil {
-			status.CreationTime = timeAt
-			change = true
-		}
-	}
-	*/
 	if change {
 		if size > 0 {
 			status.RestoreSize = resource.NewQuantity(size, resource.BinarySI)
