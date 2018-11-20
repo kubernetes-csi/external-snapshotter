@@ -125,9 +125,24 @@ func (ctrl *csiSnapshotController) syncContent(content *crdv1.VolumeSnapshotCont
 		snapshot = nil
 	}
 	if snapshot == nil {
-		ctrl.deleteSnapshotContent(content)
-	}
+		if content.Spec.DeletionPolicy != nil {
+			switch *content.Spec.DeletionPolicy {
+			case crdv1.VolumeSnapshotContentRetain:
+				glog.V(4).Infof("VolumeSnapshotContent[%s]: policy is Retain, nothing to do", content.Name)
 
+			case crdv1.VolumeSnapshotContentDelete:
+				glog.V(4).Infof("VolumeSnapshotContent[%s]: policy is Delete", content.Name)
+				ctrl.deleteSnapshotContent(content)
+			default:
+				// Unknown VolumeSnapshotDeletionolicy
+				ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotUnknownDeletionPolicy", "Volume Snapshot Content has unrecognized deletion policy")
+			}
+			return nil
+		}
+		// By default, we use Retain policy if it is not set by users
+		glog.V(4).Infof("VolumeSnapshotContent[%s]: by default the policy is Retain", content.Name)
+
+	}
 	return nil
 }
 
@@ -538,6 +553,10 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		return nil, err
 	}
 
+	if class.DeletionPolicy == nil {
+		class.DeletionPolicy = new(crdv1.DeletionPolicy)
+		*class.DeletionPolicy = crdv1.VolumeSnapshotContentDelete
+	}
 	snapshotContent := &crdv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: contentName,
@@ -554,8 +573,10 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 				},
 			},
 			VolumeSnapshotClassName: &(class.Name),
+			DeletionPolicy:          class.DeletionPolicy,
 		},
 	}
+	glog.V(3).Infof("volume snapshot content %v", snapshotContent)
 	// Try to create the VolumeSnapshotContent object several times
 	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
 		glog.V(5).Infof("createSnapshot [%s]: trying to save volume snapshot content %s", snapshotKey(snapshot), snapshotContent.Name)
@@ -565,7 +586,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 				glog.V(3).Infof("volume snapshot content %q for snapshot %q already exists, reusing", snapshotContent.Name, snapshotKey(snapshot))
 				err = nil
 			} else {
-				glog.V(3).Infof("volume snapshot content %q for snapshot %q saved", snapshotContent.Name, snapshotKey(snapshot))
+				glog.V(3).Infof("volume snapshot content %q for snapshot %q saved, %v", snapshotContent.Name, snapshotKey(snapshot), snapshotContent)
 			}
 			break
 		}

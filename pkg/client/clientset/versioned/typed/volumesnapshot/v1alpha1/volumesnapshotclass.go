@@ -19,6 +19,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"time"
+
 	v1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	scheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -72,10 +74,15 @@ func (c *volumeSnapshotClasses) Get(name string, options v1.GetOptions) (result 
 
 // List takes label and field selectors, and returns the list of VolumeSnapshotClasses that match those selectors.
 func (c *volumeSnapshotClasses) List(opts v1.ListOptions) (result *v1alpha1.VolumeSnapshotClassList, err error) {
+	var timeout time.Duration
+	if opts.TimeoutSeconds != nil {
+		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
+	}
 	result = &v1alpha1.VolumeSnapshotClassList{}
 	err = c.client.Get().
 		Resource("volumesnapshotclasses").
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Timeout(timeout).
 		Do().
 		Into(result)
 	return
@@ -83,10 +90,15 @@ func (c *volumeSnapshotClasses) List(opts v1.ListOptions) (result *v1alpha1.Volu
 
 // Watch returns a watch.Interface that watches the requested volumeSnapshotClasses.
 func (c *volumeSnapshotClasses) Watch(opts v1.ListOptions) (watch.Interface, error) {
+	var timeout time.Duration
+	if opts.TimeoutSeconds != nil {
+		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
+	}
 	opts.Watch = true
 	return c.client.Get().
 		Resource("volumesnapshotclasses").
 		VersionedParams(&opts, scheme.ParameterCodec).
+		Timeout(timeout).
 		Watch()
 }
 
@@ -125,9 +137,14 @@ func (c *volumeSnapshotClasses) Delete(name string, options *v1.DeleteOptions) e
 
 // DeleteCollection deletes a collection of objects.
 func (c *volumeSnapshotClasses) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
+	var timeout time.Duration
+	if listOptions.TimeoutSeconds != nil {
+		timeout = time.Duration(*listOptions.TimeoutSeconds) * time.Second
+	}
 	return c.client.Delete().
 		Resource("volumesnapshotclasses").
 		VersionedParams(&listOptions, scheme.ParameterCodec).
+		Timeout(timeout).
 		Body(options).
 		Do().
 		Error()
