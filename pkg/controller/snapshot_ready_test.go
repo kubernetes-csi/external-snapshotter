@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/api/core/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -40,8 +41,7 @@ var volumeErr = &storagev1beta1.VolumeError{
 //    controllerTest.testCall *once*.
 // 3. Compare resulting contents and snapshots with expected contents and snapshots.
 func TestSync(t *testing.T) {
-	// TODO FIXME
-	_ = []controllerTest{
+	tests := []controllerTest{
 		{
 			// snapshot is bound to a non-existing content
 			name:              "2-1 - snapshot is bound to a non-existing content",
@@ -63,20 +63,26 @@ func TestSync(t *testing.T) {
 			errors:            noerrors,
 			test:              testSyncSnapshotError,
 		},
-		/* TODO FIXME
 		{
-			name:              "2-3 - success bind snapshot and content, no status changed",
+			name:              "2-3 - success bind snapshot and content but not ready, no status changed",
 			initialContents:   newContentArray("content2-3", validSecretClass, "sid2-3", "vuid2-3", "volume2-3", "", "snap2-3", &deletePolicy, nil, nil),
 			expectedContents:  newContentArray("content2-3", validSecretClass, "sid2-3", "vuid2-3", "volume2-3", "snapuid2-3", "snap2-3", &deletePolicy, nil, nil),
 			initialSnapshots:  newSnapshotArray("snap2-3", validSecretClass, "content2-3", "snapuid2-3", "claim2-3", false, nil, metaTimeNow, nil),
 			expectedSnapshots: newSnapshotArray("snap2-3", validSecretClass, "content2-3", "snapuid2-3", "claim2-3", false, nil, metaTimeNow, nil),
-			expectedListCalls: []listCall{
+			initialClaims:     newClaimArray("claim2-3", "pvc-uid2-3", "1Gi", "volume2-3", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			expectedCreateCalls: []createCall{
 				{
-					snapshotID: "sid2-3",
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_UPLOADING,
-						Details: "uploading",
-					},
+					snapshotName: "snapshot-snapuid2-3",
+					volume:       newVolume("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					parameters:   class5Parameters,
+					secrets:      map[string]string{"foo": "bar"},
+					// information to return
+					driverName: mockDriverName,
+					snapshotId: "sid2-3",
+					timestamp:  timeNow,
+					readyToUse: false,
 				},
 			},
 			errors: noerrors,
@@ -87,19 +93,10 @@ func TestSync(t *testing.T) {
 			name:              "2-4 - noop",
 			initialContents:   newContentArray("content2-4", validSecretClass, "sid2-4", "vuid2-4", "volume2-4", "snapuid2-4", "snap2-4", &deletePolicy, nil, nil),
 			expectedContents:  newContentArray("content2-4", validSecretClass, "sid2-4", "vuid2-4", "volume2-4", "snapuid2-4", "snap2-4", &deletePolicy, nil, nil),
-			initialSnapshots:  newSnapshotArray("snap2-4", validSecretClass, "content2-4", "snapuid2-4", "claim2-4", false, nil, metaTimeNow, nil),
-			expectedSnapshots: newSnapshotArray("snap2-4", validSecretClass, "content2-4", "snapuid2-4", "claim2-4", false, nil, metaTimeNow, nil),
-			expectedListCalls: []listCall{
-				{
-					snapshotID: "sid2-4",
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_UPLOADING,
-						Details: "uploading",
-					},
-				},
-			},
-			errors: noerrors,
-			test:   testSyncSnapshot,
+			initialSnapshots:  newSnapshotArray("snap2-4", validSecretClass, "content2-4", "snapuid2-4", "claim2-4", true, nil, metaTimeNow, nil),
+			expectedSnapshots: newSnapshotArray("snap2-4", validSecretClass, "content2-4", "snapuid2-4", "claim2-4", true, nil, metaTimeNow, nil),
+			errors:            noerrors,
+			test:              testSyncSnapshot,
 		},
 		{
 			name:              "2-5 - snapshot and content bound, status ready false -> true",
@@ -107,69 +104,70 @@ func TestSync(t *testing.T) {
 			expectedContents:  newContentArray("content2-5", validSecretClass, "sid2-5", "vuid2-5", "volume2-5", "snapuid2-5", "snap2-5", &deletePolicy, nil, nil),
 			initialSnapshots:  newSnapshotArray("snap2-5", validSecretClass, "content2-5", "snapuid2-5", "claim2-5", false, nil, metaTimeNow, nil),
 			expectedSnapshots: newSnapshotArray("snap2-5", validSecretClass, "content2-5", "snapuid2-5", "claim2-5", true, nil, metaTimeNow, nil),
-			expectedListCalls: []listCall{
+			initialClaims:     newClaimArray("claim2-5", "pvc-uid2-5", "1Gi", "volume2-5", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			expectedCreateCalls: []createCall{
 				{
-					snapshotID: "sid2-5",
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_READY,
-						Details: "success",
-					},
+					snapshotName: "snapshot-snapuid2-5",
+					volume:       newVolume("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					parameters:   class5Parameters,
+					secrets:      map[string]string{"foo": "bar"},
+					// information to return
+					driverName: mockDriverName,
+					snapshotId: "sid2-5",
+					timestamp:  timeNow,
+					readyToUse: true,
 				},
 			},
 			errors: noerrors,
 			test:   testSyncSnapshot,
 		},
-		{
-			name:              "2-6 - snapshot and content bound, status -> error uploading",
-			initialContents:   newContentArray("content2-6", validSecretClass, "sid2-6", "vuid2-6", "volume2-6", "snapuid2-6", "snap2-6", &deletePolicy, nil, nil),
-			expectedContents:  newContentArray("content2-6", validSecretClass, "sid2-6", "vuid2-6", "volume2-6", "snapuid2-6", "snap2-6", &deletePolicy, nil, nil),
-			initialSnapshots:  newSnapshotArray("snap2-6", validSecretClass, "content2-6", "snapuid2-6", "claim2-6", false, nil, metaTimeNow, nil),
-			expectedSnapshots: newSnapshotArray("snap2-6", validSecretClass, "content2-6", "snapuid2-6", "claim2-6", false, volumeErr, metaTimeNow, nil),
-			expectedEvents:    []string{"Warning SnapshotUploadError"},
-			expectedListCalls: []listCall{
-				{
-					snapshotID: "sid2-6",
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_ERROR_UPLOADING,
-						Details: "error upload",
-					},
-				},
-			},
-			errors: noerrors,
-			test:   testSyncSnapshot,
-		},
-		*/
 		{
 			name:              "2-7 - snapshot and content bound, csi driver get status error",
 			initialContents:   newContentArray("content2-7", validSecretClass, "sid2-7", "vuid2-7", "volume2-7", "snapuid2-7", "snap2-7", &deletePolicy, nil, nil),
 			expectedContents:  newContentArray("content2-7", validSecretClass, "sid2-7", "vuid2-7", "volume2-7", "snapuid2-7", "snap2-7", &deletePolicy, nil, nil),
 			initialSnapshots:  newSnapshotArray("snap2-7", validSecretClass, "content2-7", "snapuid2-7", "claim2-7", false, nil, metaTimeNow, nil),
-			expectedSnapshots: newSnapshotArray("snap2-7", validSecretClass, "content2-7", "snapuid2-7", "claim2-7", false, newVolumeError("Failed to check and update snapshot: failed to check snapshot status snap2-7 with error failed to list snapshot data content2-7: \"mock driver get status error\""), metaTimeNow, nil),
+			expectedSnapshots: newSnapshotArray("snap2-7", validSecretClass, "content2-7", "snapuid2-7", "claim2-7", false, newVolumeError("Failed to check and update snapshot: mock create snapshot error"), metaTimeNow, nil),
 			expectedEvents:    []string{"Warning SnapshotCheckandUpdateFailed"},
-			expectedListCalls: []listCall{
+			initialClaims:     newClaimArray("claim2-7", "pvc-uid2-7", "1Gi", "volume2-7", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			expectedCreateCalls: []createCall{
 				{
-					snapshotID: "sid2-7",
-					err:        errors.New("mock driver get status error"),
+					snapshotName: "snapshot-snapuid2-7",
+					volume:       newVolume("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					parameters:   class5Parameters,
+					secrets:      map[string]string{"foo": "bar"},
+					// information to return
+					err: errors.New("mock create snapshot error"),
 				},
 			},
 			errors: noerrors,
 			test:   testSyncSnapshot,
 		},
-		/* TODO FIXME
 		{
 			name:              "2-8 - snapshot and content bound, apiserver update status error",
 			initialContents:   newContentArray("content2-8", validSecretClass, "sid2-8", "vuid2-8", "volume2-8", "snapuid2-8", "snap2-8", &deletePolicy, nil, nil),
 			expectedContents:  newContentArray("content2-8", validSecretClass, "sid2-8", "vuid2-8", "volume2-8", "snapuid2-8", "snap2-8", &deletePolicy, nil, nil),
 			initialSnapshots:  newSnapshotArray("snap2-8", validSecretClass, "content2-8", "snapuid2-8", "claim2-8", false, nil, metaTimeNow, nil),
 			expectedSnapshots: newSnapshotArray("snap2-8", validSecretClass, "content2-8", "snapuid2-8", "claim2-8", false, newVolumeError("Failed to check and update snapshot: snapshot controller failed to update default/snap2-8 on API server: mock update error"), metaTimeNow, nil),
-			expectedEvents:    []string{"Warning SnapshotUploadError"},
-			expectedListCalls: []listCall{
+			expectedEvents:    []string{"Warning SnapshotCheckandUpdateFailed"},
+			initialClaims:     newClaimArray("claim2-8", "pvc-uid2-8", "1Gi", "volume2-8", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			expectedCreateCalls: []createCall{
 				{
-					snapshotID: "sid2-8",
-					status: &csi.SnapshotStatus{
-						Type:    csi.SnapshotStatus_ERROR_UPLOADING,
-						Details: "error upload",
-					},
+					snapshotName: "snapshot-snapuid2-8",
+					volume:       newVolume("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					parameters:   class5Parameters,
+					secrets:      map[string]string{"foo": "bar"},
+					// information to return
+					driverName: mockDriverName,
+					size:       defaultSize,
+					snapshotId: "sid2-8",
+					timestamp:  timeNow,
+					readyToUse: true,
 				},
 			},
 			errors: []reactorError{
@@ -179,7 +177,6 @@ func TestSync(t *testing.T) {
 			},
 			test: testSyncSnapshot,
 		},
-		*/
 		{
 			name:              "2-9 - bind when snapshot and content matches",
 			initialContents:   newContentArray("content2-9", validSecretClass, "sid2-9", "vuid2-9", "volume2-9", "snapuid2-9", "snap2-9", &deletePolicy, nil, nil),
@@ -258,6 +255,5 @@ func TestSync(t *testing.T) {
 		},
 	}
 
-	// TODO FIXME
-	// runSyncTests(t, tests, snapshotClasses)
+	runSyncTests(t, tests, snapshotClasses)
 }
