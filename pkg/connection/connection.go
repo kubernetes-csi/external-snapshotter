@@ -26,7 +26,6 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes"
-	"github.com/golang/protobuf/ptypes/timestamp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"k8s.io/api/core/v1"
@@ -48,13 +47,13 @@ type CSIConnection interface {
 	SupportsControllerListSnapshots(ctx context.Context) (bool, error)
 
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp int64, size int64, readyToUse bool, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, creationTime time.Time, size int64, readyToUse bool, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
 
 	// GetSnapshotStatus returns if a snapshot is ready to use, creation time, and restore size.
-	GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error)
+	GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error)
 
 	// Probe checks that the CSI driver is ready to process requests
 	Probe(ctx context.Context) error
@@ -190,17 +189,17 @@ func (c *csiConnection) SupportsControllerListSnapshots(ctx context.Context) (bo
 	return false, nil
 }
 
-func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
+func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
 	glog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
 	if volume.Spec.CSI == nil {
-		return "", "", 0, 0, false, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
+		return "", "", time.Time{}, 0, false, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
 	}
 
 	client := csi.NewControllerClient(c.conn)
 
 	driverName, err := c.GetDriverName(ctx)
 	if err != nil {
-		return "", "", 0, 0, false, err
+		return "", "", time.Time{}, 0, false, err
 	}
 
 	req := csi.CreateSnapshotRequest{
@@ -212,13 +211,13 @@ func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string,
 
 	rsp, err := client.CreateSnapshot(ctx, &req)
 	if err != nil {
-		return "", "", 0, 0, false, err
+		return "", "", time.Time{}, 0, false, err
 	}
 
 	glog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%d] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
-	creationTime, err := timestampToUnixTime(rsp.Snapshot.CreationTime)
+	creationTime, err := ptypes.Timestamp(rsp.Snapshot.CreationTime)
 	if err != nil {
-		return "", "", 0, 0, false, err
+		return "", "", time.Time{}, 0, false, err
 	}
 	return driverName, rsp.Snapshot.SnapshotId, creationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, nil
 }
@@ -238,7 +237,7 @@ func (c *csiConnection) DeleteSnapshot(ctx context.Context, snapshotID string, s
 	return nil
 }
 
-func (c *csiConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
+func (c *csiConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
 	client := csi.NewControllerClient(c.conn)
 
 	req := csi.ListSnapshotsRequest{
@@ -247,16 +246,16 @@ func (c *csiConnection) GetSnapshotStatus(ctx context.Context, snapshotID string
 
 	rsp, err := client.ListSnapshots(ctx, &req)
 	if err != nil {
-		return false, 0, 0, err
+		return false, time.Time{}, 0, err
 	}
 
 	if rsp.Entries == nil || len(rsp.Entries) == 0 {
-		return false, 0, 0, fmt.Errorf("can not find snapshot for snapshotID %s", snapshotID)
+		return false, time.Time{}, 0, fmt.Errorf("can not find snapshot for snapshotID %s", snapshotID)
 	}
 
-	creationTime, err := timestampToUnixTime(rsp.Entries[0].Snapshot.CreationTime)
+	creationTime, err := ptypes.Timestamp(rsp.Entries[0].Snapshot.CreationTime)
 	if err != nil {
-		return false, 0, 0, err
+		return false, time.Time{}, 0, err
 	}
 	return rsp.Entries[0].Snapshot.ReadyToUse, creationTime, rsp.Entries[0].Snapshot.SizeBytes, nil
 }
@@ -271,14 +270,4 @@ func logGRPC(ctx context.Context, method string, req, reply interface{}, cc *grp
 	glog.V(5).Infof("GRPC response: %+v", reply)
 	glog.V(5).Infof("GRPC error: %v", err)
 	return err
-}
-
-func timestampToUnixTime(t *timestamp.Timestamp) (int64, error) {
-	time, err := ptypes.Timestamp(t)
-	if err != nil {
-		return -1, err
-	}
-	// TODO: clean this up, we probably don't need this translation layer
-	// and can just use time.Time
-	return time.UnixNano(), nil
 }

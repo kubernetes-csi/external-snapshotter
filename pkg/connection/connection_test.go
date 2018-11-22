@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
@@ -429,19 +430,19 @@ func TestCreateSnapshot(t *testing.T) {
 	}
 
 	type snapshotResult struct {
-		driverName string
-		snapshotId string
-		timestamp  int64
-		size       int64
-		readyToUse bool
+		driverName   string
+		snapshotId   string
+		creationTime time.Time
+		size         int64
+		readyToUse   bool
 	}
 
 	result := &snapshotResult{
-		size:       1000,
-		driverName: driverName,
-		snapshotId: defaultID,
-		timestamp:  createTime.UnixNano(),
-		readyToUse: true,
+		size:         1000,
+		driverName:   driverName,
+		snapshotId:   defaultID,
+		creationTime: createTime,
+		readyToUse:   true,
 	}
 
 	tests := []struct {
@@ -535,7 +536,7 @@ func TestCreateSnapshot(t *testing.T) {
 			controllerServer.EXPECT().CreateSnapshot(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		driverName, snapshotId, timestamp, size, readyToUse, err := csiConn.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
+		driverName, snapshotId, creationTime, size, readyToUse, err := csiConn.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -551,8 +552,8 @@ func TestCreateSnapshot(t *testing.T) {
 				t.Errorf("test %q: expected snapshotId: %v, got: %v", test.name, test.expectResult.snapshotId, snapshotId)
 			}
 
-			if timestamp != test.expectResult.timestamp {
-				t.Errorf("test %q: expected create time: %v, got: %v", test.name, test.expectResult.timestamp, timestamp)
+			if !creationTime.Equal(test.expectResult.creationTime) {
+				t.Errorf("test %q: expected create time: %v, got: %v", test.name, test.expectResult.creationTime, creationTime)
 			}
 
 			if size != test.expectResult.size {
@@ -688,7 +689,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 		injectError    codes.Code
 		expectError    bool
 		expectReady    bool
-		expectCreateAt int64
+		expectCreateAt time.Time
 		expectSize     int64
 	}{
 		{
@@ -698,7 +699,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 			output:         defaultResponse,
 			expectError:    false,
 			expectReady:    true,
-			expectCreateAt: createTime.UnixNano(),
+			expectCreateAt: createTime,
 			expectSize:     size,
 		},
 		{
@@ -750,7 +751,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 		if test.expectReady != ready {
 			t.Errorf("test %q: expected status: %v, got: %v", test.name, test.expectReady, ready)
 		}
-		if test.expectCreateAt != createTime {
+		if !createTime.Equal(test.expectCreateAt) {
 			t.Errorf("test %q: expected createTime: %v, got: %v", test.name, test.expectCreateAt, createTime)
 		}
 		if test.expectSize != size {
