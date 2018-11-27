@@ -154,7 +154,7 @@ func (ctrl *csiSnapshotController) syncContent(content *crdv1.VolumeSnapshotCont
 func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	glog.V(5).Infof("synchonizing VolumeSnapshot[%s]: %s", snapshotKey(snapshot), getSnapshotStatusForLogging(snapshot))
 
-	if !snapshot.Status.Ready {
+	if !snapshot.Status.ReadyToUse {
 		return ctrl.syncUnreadySnapshot(snapshot)
 	} else {
 		return ctrl.syncReadySnapshot(snapshot)
@@ -379,7 +379,7 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 	}
 	snapshotClone.Status.Error = statusError
 
-	snapshotClone.Status.Ready = false
+	snapshotClone.Status.ReadyToUse = false
 	newSnapshot, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 	if err != nil {
 		glog.V(4).Infof("updating VolumeSnapshot[%s] error status failed %v", snapshotKey(snapshot), err)
@@ -399,7 +399,7 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 
 // Stateless functions
 func getSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
-	return fmt.Sprintf("bound to: %q, Completed: %v", snapshot.Spec.SnapshotContentName, snapshot.Status.Ready)
+	return fmt.Sprintf("bound to: %q, Completed: %v", snapshot.Spec.SnapshotContentName, snapshot.Status.ReadyToUse)
 }
 
 func IsSnapshotBound(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
@@ -721,7 +721,7 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 	snapshotClone := snapshot.DeepCopy()
 	if readyToUse {
 		if bound {
-			status.Ready = true
+			status.ReadyToUse = true
 			// Remove the error if checking snapshot is already bound and ready
 			status.Error = nil
 			change = true

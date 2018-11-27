@@ -96,12 +96,12 @@ type VolumeSnapshotStatus struct {
 	// +optional
 	RestoreSize *resource.Quantity `json:"restoreSize" protobuf:"bytes,2,opt,name=restoreSize"`
 
-	// Ready is set to true only if the snapshot is ready to use (e.g., finish uploading if
+	// ReadyToUse is set to true only if the snapshot is ready to use (e.g., finish uploading if
 	// there is an uploading phase) and also VolumeSnapshot and its VolumeSnapshotContent
-	// bind correctly with each other. If any of the above condition is not true, Ready is
+	// bind correctly with each other. If any of the above condition is not true, ReadyToUse is
 	// set to false
 	// +optional
-	Ready bool `json:"ready" protobuf:"varint,3,opt,name=ready"`
+	ReadyToUse bool `json:"readyToUse" protobuf:"varint,3,opt,name=readyToUse"`
 
 	// The last error encountered during create snapshot operation, if any.
 	// This field must only be set by the entity completing the create snapshot
