@@ -867,9 +867,9 @@ func (ctrl *csiSnapshotController) getClaimFromVolumeSnapshot(snapshot *crdv1.Vo
 		return nil, fmt.Errorf("the snapshot source does not have the right APIGroup. Expected empty string, Got %s", *(snapshot.Spec.Source.APIGroup))
 	}
 
-	pvc, err := ctrl.client.CoreV1().PersistentVolumeClaims(snapshot.Namespace).Get(pvcName, metav1.GetOptions{})
+	pvc, err := ctrl.pvcLister.PersistentVolumeClaims(snapshot.Namespace).Get(pvcName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve PVC %s from the API server: %q", pvcName, err)
+		return nil, fmt.Errorf("failed to retrieve PVC %s from the lister: %q", pvcName, err)
 	}
 
 	return pvc, nil
