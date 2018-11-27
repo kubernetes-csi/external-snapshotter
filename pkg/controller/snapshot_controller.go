@@ -34,6 +34,7 @@ import (
 	ref "k8s.io/client-go/tools/reference"
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 	"k8s.io/kubernetes/pkg/util/goroutinemap/exponentialbackoff"
+	"k8s.io/kubernetes/pkg/util/slice"
 )
 
 // ==================================================================
@@ -77,6 +78,9 @@ import (
 
 const pvcKind = "PersistentVolumeClaim"
 const apiGroup = ""
+const snapshotKind = "VolumeSnapshot"
+const snapshotAPIGroup = crdv1.GroupName
+
 const controllerUpdateFailMsg = "snapshot controller failed to update"
 
 const IsDefaultSnapshotClassAnnotation = "snapshot.storage.kubernetes.io/is-default-class"
@@ -84,6 +88,23 @@ const IsDefaultSnapshotClassAnnotation = "snapshot.storage.kubernetes.io/is-defa
 // syncContent deals with one key off the queue.  It returns false when it's time to quit.
 func (ctrl *csiSnapshotController) syncContent(content *crdv1.VolumeSnapshotContent) error {
 	glog.V(5).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
+
+	if isContentDeletionCandidate(content) {
+		// Volume snapshot content should be deleted. Check if it's used
+		// and remove finalizer if it's not.
+		// Check if snapshot content is still bound to a snapshot.
+		isUsed := ctrl.isSnapshotContentBeingUsed(content)
+		if !isUsed {
+			glog.V(5).Infof("syncContent: Remove Finalizer for VolumeSnapshotContent[%s]", content.Name)
+			return ctrl.removeContentFinalizer(content)
+		}
+	}
+
+	if needToAddContentFinalizer(content) {
+		// Content is not being deleted -> it should have the finalizer.
+		glog.V(5).Infof("syncContent: Add Finalizer for VolumeSnapshotContent[%s]", content.Name)
+		return ctrl.addContentFinalizer(content)
+	}
 
 	// VolumeSnapshotContent is not bound to any VolumeSnapshot, in this case we just return err
 	if content.Spec.VolumeSnapshotRef == nil {
@@ -153,6 +174,23 @@ func (ctrl *csiSnapshotController) syncContent(content *crdv1.VolumeSnapshotCont
 // For easier readability, it is split into syncUnreadySnapshot and syncReadySnapshot
 func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	glog.V(5).Infof("synchonizing VolumeSnapshot[%s]: %s", snapshotKey(snapshot), getSnapshotStatusForLogging(snapshot))
+
+	if isSnapshotDeletionCandidate(snapshot) {
+		// Volume snapshot should be deleted. Check if it's used
+		// and remove finalizer if it's not.
+		// Check if a volume is being created from snapshot.
+		isUsed := ctrl.isVolumeBeingCreatedFromSnapshot(snapshot)
+		if !isUsed {
+			glog.V(5).Infof("syncSnapshot: Remove Finalizer for VolumeSnapshot[%s]", snapshotKey(snapshot))
+			return ctrl.removeSnapshotFinalizer(snapshot)
+		}
+	}
+
+	if needToAddSnapshotFinalizer(snapshot) {
+		// Snapshot is not being deleted -> it should have the finalizer.
+		glog.V(5).Infof("syncSnapshot: Add Finalizer for VolumeSnapshot[%s]", snapshotKey(snapshot))
+		return ctrl.addSnapshotFinalizer(snapshot)
+	}
 
 	if !snapshot.Status.ReadyToUse {
 		return ctrl.syncUnreadySnapshot(snapshot)
@@ -407,6 +445,48 @@ func IsSnapshotBound(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapsh
 		content.Spec.VolumeSnapshotRef.UID == snapshot.UID {
 		return true
 	}
+	return false
+}
+
+// isSnapshotConentBeingUsed checks if snapshot content is bound to snapshot.
+func (ctrl *csiSnapshotController) isSnapshotContentBeingUsed(content *crdv1.VolumeSnapshotContent) bool {
+	if content.Spec.VolumeSnapshotRef != nil {
+		snapshotObj, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(content.Spec.VolumeSnapshotRef.Namespace).Get(content.Spec.VolumeSnapshotRef.Name, metav1.GetOptions{})
+		if err != nil {
+			glog.Infof("isSnapshotContentBeingUsed: Cannot get snapshot %s from api server: [%v]. VolumeSnapshot object may be deleted already.", content.Spec.VolumeSnapshotRef.Name, err)
+			return false
+		}
+
+		// Check if the snapshot content is bound to the snapshot
+		if IsSnapshotBound(snapshotObj, content) && snapshotObj.Spec.SnapshotContentName == content.Name {
+			glog.Infof("isSnapshotContentBeingUsed: VolumeSnapshot %s is bound to volumeSnapshotContent [%s]", snapshotObj.Name, content.Name)
+			return true
+		}
+	}
+
+	glog.V(5).Infof("isSnapshotContentBeingUsed: Snapshot content %s is not being used", content.Name)
+	return false
+}
+
+// isVolumeBeingCreatedFromSnapshot checks if an volume is being created from the snapshot.
+func (ctrl *csiSnapshotController) isVolumeBeingCreatedFromSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
+	pvcList, err := ctrl.client.CoreV1().PersistentVolumeClaims(snapshot.Namespace).List(metav1.ListOptions{})
+	if err != nil {
+		glog.Errorf("Failed to retrieve PVCs from the API server to check if volume snapshot %s is being used by a volume: %q", snapshotKey(snapshot), err)
+		return false
+	}
+	for _, pvc := range pvcList.Items {
+		if pvc.Spec.DataSource != nil && len(pvc.Spec.DataSource.Name) > 0 && pvc.Spec.DataSource.Name == snapshot.Name {
+			if pvc.Spec.DataSource.Kind == snapshotKind && *(pvc.Spec.DataSource.APIGroup) == snapshotAPIGroup {
+				if pvc.Status.Phase == v1.ClaimPending {
+					// A volume is being created from the snapshot
+					glog.Infof("isVolumeBeingCreatedFromSnapshot: volume %s is being created from snapshot %s", pvc.Name, pvc.Spec.DataSource.Name)
+					return true
+				}
+			}
+		}
+	}
+	glog.V(5).Infof("isVolumeBeingCreatedFromSnapshot: no volume is being created from snapshot %s", snapshotKey(snapshot))
 	return false
 }
 
@@ -898,4 +978,79 @@ func isControllerUpdateFailError(err *storage.VolumeError) bool {
 		}
 	}
 	return false
+}
+
+// addContentFinalizer adds a Finalizer for VolumeSnapshotContent.
+func (ctrl *csiSnapshotController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
+	contentClone := content.DeepCopy()
+	contentClone.ObjectMeta.Finalizers = append(contentClone.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
+
+	_, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	if err != nil {
+		return newControllerUpdateError(content.Name, err.Error())
+	}
+
+	_, err = ctrl.storeContentUpdate(contentClone)
+	if err != nil {
+		glog.Errorf("failed to update content store %v", err)
+	}
+
+	glog.V(5).Infof("Added protection finalizer to volume snapshot content %s", content.Name)
+	return nil
+}
+
+// removeContentFinalizer removes a Finalizer for VolumeSnapshotContent.
+func (ctrl *csiSnapshotController) removeContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
+	contentClone := content.DeepCopy()
+	contentClone.ObjectMeta.Finalizers = slice.RemoveString(contentClone.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
+
+	_, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	if err != nil {
+		return newControllerUpdateError(content.Name, err.Error())
+	}
+
+	_, err = ctrl.storeContentUpdate(contentClone)
+	if err != nil {
+		glog.Errorf("failed to update content store %v", err)
+	}
+
+	glog.V(5).Infof("Removed protection finalizer from volume snapshot content %s", content.Name)
+	return nil
+}
+
+// addSnapshotFinalizer adds a Finalizer for VolumeSnapshot.
+func (ctrl *csiSnapshotController) addSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+	snapshotClone := snapshot.DeepCopy()
+	snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, VolumeSnapshotFinalizer)
+	_, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+	if err != nil {
+		return newControllerUpdateError(snapshot.Name, err.Error())
+	}
+
+	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	if err != nil {
+		glog.Errorf("failed to update snapshot store %v", err)
+	}
+
+	glog.V(5).Infof("Added protection finalizer to volume snapshot %s", snapshotKey(snapshot))
+	return nil
+}
+
+// removeContentFinalizer removes a Finalizer for VolumeSnapshot.
+func (ctrl *csiSnapshotController) removeSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+	snapshotClone := snapshot.DeepCopy()
+	snapshotClone.ObjectMeta.Finalizers = slice.RemoveString(snapshotClone.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
+
+	_, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+	if err != nil {
+		return newControllerUpdateError(snapshot.Name, err.Error())
+	}
+
+	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	if err != nil {
+		glog.Errorf("failed to update snapshot store %v", err)
+	}
+
+	glog.V(5).Infof("Removed protection finalizer from volume snapshot %s", snapshotKey(snapshot))
+	return nil
 }
