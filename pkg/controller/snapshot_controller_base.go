@@ -30,11 +30,9 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
-	corelisters "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
@@ -55,8 +53,6 @@ type csiSnapshotController struct {
 	contentListerSynced  cache.InformerSynced
 	classLister          storagelisters.VolumeSnapshotClassLister
 	classListerSynced    cache.InformerSynced
-	pvcLister            corelisters.PersistentVolumeClaimLister
-	pvcListerSynced      cache.InformerSynced
 
 	snapshotStore cache.Store
 	contentStore  cache.Store
@@ -78,7 +74,6 @@ func NewCSISnapshotController(
 	volumeSnapshotInformer storageinformers.VolumeSnapshotInformer,
 	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
-	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	createSnapshotContentRetryCount int,
 	createSnapshotContentInterval time.Duration,
 	conn connection.CSIConnection,
@@ -108,9 +103,6 @@ func NewCSISnapshotController(
 		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-snapshot"),
 		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-content"),
 	}
-
-	ctrl.pvcLister = pvcInformer.Lister()
-	ctrl.pvcListerSynced = pvcInformer.Informer().HasSynced
 
 	volumeSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
@@ -147,7 +139,7 @@ func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting CSI snapshotter")
 	defer glog.Infof("Shutting CSI snapshotter")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced, ctrl.pvcListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced) {
 		glog.Errorf("Cannot sync caches")
 		return
 	}
