@@ -166,6 +166,16 @@ type reactorError struct {
 	error    error
 }
 
+func withSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) *crdv1.VolumeSnapshot {
+	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, VolumeSnapshotFinalizer)
+	return snapshot
+}
+
+func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
+	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
+	return content
+}
+
 // React is a callback called by fake kubeClient from the controller.
 // In other words, every snapshot/content change performed by the controller ends
 // here.
@@ -744,7 +754,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 }
 
 // newContent returns a new content with given attributes
-func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *int64, creationTime *int64) *crdv1.VolumeSnapshotContent {
+func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, deletionPolicy *crdv1.DeletionPolicy, size *int64, creationTime *int64, withFinalizer bool) *crdv1.VolumeSnapshotContent {
 	content := crdv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -766,6 +776,7 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 				UID:        types.UID(volumeUID),
 				Name:       volumeName,
 			},
+			DeletionPolicy: deletionPolicy,
 		},
 	}
 	if boundToSnapshotName != "" {
@@ -778,17 +789,20 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 		}
 	}
 
+	if withFinalizer {
+		return withContentFinalizer(&content)
+	}
 	return &content
 }
 
-func newContentArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *int64, creationTime *int64) []*crdv1.VolumeSnapshotContent {
+func newContentArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, deletionPolicy *crdv1.DeletionPolicy, size *int64, creationTime *int64, withFinalizer bool) []*crdv1.VolumeSnapshotContent {
 	return []*crdv1.VolumeSnapshotContent{
-		newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, size, creationTime),
+		newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, deletionPolicy, size, creationTime, withFinalizer),
 	}
 }
 
-func newContentWithUnmatchDriverArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, size *int64, creationTime *int64) []*crdv1.VolumeSnapshotContent {
-	content := newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, size, creationTime)
+func newContentWithUnmatchDriverArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, deletionPolicy *crdv1.DeletionPolicy, size *int64, creationTime *int64) []*crdv1.VolumeSnapshotContent {
+	content := newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, deletionPolicy, size, creationTime, false)
 	content.Spec.VolumeSnapshotSource.CSI.Driver = "fake"
 	return []*crdv1.VolumeSnapshotContent{
 		content,
@@ -814,13 +828,13 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 		},
 		Status: crdv1.VolumeSnapshotStatus{
 			CreationTime: creationTime,
-			Ready:        ready,
+			ReadyToUse:   ready,
 			Error:        err,
 			RestoreSize:  size,
 		},
 	}
 
-	return &snapshot
+	return withSnapshotFinalizer(&snapshot)
 }
 
 func newSnapshotArray(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *storagev1beta1.VolumeError, creationTime *metav1.Time, size *resource.Quantity) []*crdv1.VolumeSnapshot {

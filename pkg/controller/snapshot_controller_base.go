@@ -139,7 +139,7 @@ func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
 	glog.Infof("Starting CSI snapshotter")
 	defer glog.Infof("Shutting CSI snapshotter")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced) {
+	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced) {
 		glog.Errorf("Cannot sync caches")
 		return
 	}
@@ -475,8 +475,8 @@ func (ctrl *csiSnapshotController) initializeCaches(snapshotLister storagelister
 	}
 	for _, content := range contentList {
 		contentClone := content.DeepCopy()
-		if _, err = ctrl.storeSnapshotUpdate(contentClone); err != nil {
-			glog.Errorf("error updating volume snapshot cache: %v", err)
+		if _, err = ctrl.storeContentUpdate(contentClone); err != nil {
+			glog.Errorf("error updating volume snapshot content cache: %v", err)
 		}
 	}
 
