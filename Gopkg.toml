@@ -52,3 +52,7 @@ required = [
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
   version = "kubernetes-1.13.0-beta.1"
+
+[[constraint]]
+  name = "github.com/kubernetes-csi/csi-lib-utils"
+  version = "0.1.0"
