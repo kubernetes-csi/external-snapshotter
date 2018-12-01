@@ -18,6 +18,8 @@ package controller
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
@@ -37,12 +39,41 @@ var (
 	keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 )
 
-const snapshotterSecretNameKey = "csiSnapshotterSecretName"
-const snapshotterSecretNamespaceKey = "csiSnapshotterSecretNamespace"
+type deprecatedSecretParamsMap struct {
+	name                         string
+	deprecatedSecretNameKey      string
+	deprecatedSecretNamespaceKey string
+	secretNameKey                string
+	secretNamespaceKey           string
+}
 
-// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
-const VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-protection"
-const VolumeSnapshotFinalizer = "snapshot.storage.kubernetes.io/volumesnapshot-protection"
+const (
+	// CSI Parameters prefixed with csiParameterPrefix are not passed through
+	// to the driver on CreateSnapshotRequest calls. Instead they are intended
+	// to be used by the CSI external-snapshotter and maybe used to populate
+	// fields in subsequent CSI calls or Kubernetes API objects.
+	csiParameterPrefix = "csi.storage.k8s.io/"
+
+	prefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
+	prefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
+
+	// [Deprecated] CSI Parameters that are put into fields but
+	// NOT stripped from the parameters passed to CreateSnapshot
+	snapshotterSecretNameKey      = "csiSnapshotterSecretName"
+	snapshotterSecretNamespaceKey = "csiSnapshotterSecretNamespace"
+
+	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
+	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-protection"
+	VolumeSnapshotFinalizer        = "snapshot.storage.kubernetes.io/volumesnapshot-protection"
+)
+
+var snapshotterSecretParams = deprecatedSecretParamsMap{
+	name: "Snapshotter",
+	deprecatedSecretNameKey:      snapshotterSecretNameKey,
+	deprecatedSecretNamespaceKey: snapshotterSecretNamespaceKey,
+	secretNameKey:                prefixedSnapshotterSecretNameKey,
+	secretNamespaceKey:           prefixedSnapshotterSecretNamespaceKey,
+}
 
 func snapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
@@ -130,9 +161,54 @@ func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
 	return false
 }
 
-// GetSecretReference returns a reference to the secret specified in the given nameKey and namespaceKey parameters, or an error if the parameters are not specified correctly.
-// if neither the name or namespace parameter are set, a nil reference and no error is returned.
-// no lookup of the referenced secret is performed, and the secret may or may not exist.
+// verifyAndGetSecretNameAndNamespaceTemplate gets the values (templates) associated
+// with the parameters specified in "secret" and verifies that they are specified correctly.
+func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap, snapshotClassParams map[string]string) (nameTemplate, namespaceTemplate string, err error) {
+	numName := 0
+	numNamespace := 0
+	if t, ok := snapshotClassParams[secret.deprecatedSecretNameKey]; ok {
+		nameTemplate = t
+		numName += 1
+		glog.Warning(deprecationWarning(secret.deprecatedSecretNameKey, secret.secretNameKey, ""))
+	}
+	if t, ok := snapshotClassParams[secret.deprecatedSecretNamespaceKey]; ok {
+		namespaceTemplate = t
+		numNamespace += 1
+		glog.Warning(deprecationWarning(secret.deprecatedSecretNamespaceKey, secret.secretNamespaceKey, ""))
+	}
+	if t, ok := snapshotClassParams[secret.secretNameKey]; ok {
+		nameTemplate = t
+		numName += 1
+	}
+	if t, ok := snapshotClassParams[secret.secretNamespaceKey]; ok {
+		namespaceTemplate = t
+		numNamespace += 1
+	}
+
+	if numName > 1 || numNamespace > 1 {
+		// Double specified error
+		return "", "", fmt.Errorf("%s secrets specified in paramaters with both \"csi\" and \"%s\" keys", secret.name, csiParameterPrefix)
+	} else if numName != numNamespace {
+		// Not both 0 or both 1
+		return "", "", fmt.Errorf("either name and namespace for %s secrets specified, Both must be specified", secret.name)
+	} else if numName == 1 {
+		// Case where we've found a name and a namespace template
+		if nameTemplate == "" || namespaceTemplate == "" {
+			return "", "", fmt.Errorf("%s secrets specified in parameters but value of either namespace or name is empty", secret.name)
+		}
+		return nameTemplate, namespaceTemplate, nil
+	} else if numName == 0 {
+		// No secrets specified
+		return "", "", nil
+	} else {
+		// THIS IS NOT A VALID CASE
+		return "", "", fmt.Errorf("unknown error with getting secret name and namespace templates")
+	}
+}
+
+// getSecretReference returns a reference to the secret specified in the given nameTemplate
+//  and namespaceTemplate, or an error if the templates are not specified correctly.
+// No lookup of the referenced secret is performed, and the secret may or may not exist.
 //
 // supported tokens for name resolution:
 // - ${volumesnapshotcontent.name}
@@ -145,20 +221,17 @@ func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
 // - ${volumesnapshot.namespace}
 //
 // an error is returned in the following situations:
-// - only one of name or namespace is provided
-// - the name or namespace parameter contains a token that cannot be resolved
+// - the nameTemplate or namespaceTemplate contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func GetSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, hasName := snapshotClassParams[snapshotterSecretNameKey]
-	namespaceTemplate, hasNamespace := snapshotClassParams[snapshotterSecretNamespaceKey]
-
-	if !hasName && !hasNamespace {
-		return nil, nil
+func getSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(snapshotterSecretParams, snapshotClassParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
 	}
 
-	if len(nameTemplate) == 0 || len(namespaceTemplate) == 0 {
-		return nil, fmt.Errorf("%s and %s parameters must be specified together", snapshotterSecretNameKey, snapshotterSecretNamespaceKey)
+	if nameTemplate == "" && namespaceTemplate == "" {
+		return nil, nil
 	}
 
 	ref := &v1.SecretReference{}
@@ -174,15 +247,15 @@ func GetSecretReference(snapshotClassParams map[string]string, snapContentName s
 
 	resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving %s value %q: %v", snapshotterSecretNamespaceKey, namespaceTemplate, err)
+		return nil, fmt.Errorf("error resolving value %q: %v", namespaceTemplate, err)
 	}
 	glog.V(4).Infof("GetSecretReference namespaceTemplate %s, namespaceParams: %+v, resolved %s", namespaceTemplate, namespaceParams, resolvedNamespace)
 
 	if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
 		if namespaceTemplate != resolvedNamespace {
-			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid namespace name", snapshotterSecretNamespaceKey, namespaceTemplate, resolvedNamespace)
+			return nil, fmt.Errorf("%q resolved to %q which is not a valid namespace name", namespaceTemplate, resolvedNamespace)
 		}
-		return nil, fmt.Errorf("%s parameter %q is not a valid namespace name", snapshotterSecretNamespaceKey, namespaceTemplate)
+		return nil, fmt.Errorf("%q is not a valid namespace name", namespaceTemplate)
 	}
 	ref.Namespace = resolvedNamespace
 
@@ -199,13 +272,13 @@ func GetSecretReference(snapshotClassParams map[string]string, snapContentName s
 	}
 	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving %s value %q: %v", snapshotterSecretNameKey, nameTemplate, err)
+		return nil, fmt.Errorf("error resolving value %q: %v", nameTemplate, err)
 	}
 	if len(validation.IsDNS1123Subdomain(resolvedName)) > 0 {
 		if nameTemplate != resolvedName {
-			return nil, fmt.Errorf("%s parameter %q resolved to %q which is not a valid secret name", snapshotterSecretNameKey, nameTemplate, resolvedName)
+			return nil, fmt.Errorf("%q resolved to %q which is not a valid secret name", nameTemplate, resolvedName)
 		}
-		return nil, fmt.Errorf("%s parameter %q is not a valid secret name", snapshotterSecretNameKey, nameTemplate)
+		return nil, fmt.Errorf("%q is not a valid secret name", nameTemplate)
 	}
 	ref.Name = resolvedName
 
@@ -229,8 +302,8 @@ func resolveTemplate(template string, params map[string]string) (string, error) 
 	return resolved, nil
 }
 
-// GetCredentials retrieves credentials stored in v1.SecretReference
-func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[string]string, error) {
+// getCredentials retrieves credentials stored in v1.SecretReference
+func getCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[string]string, error) {
 	if ref == nil {
 		return nil, nil
 	}
@@ -270,4 +343,35 @@ func isSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
 // needToAddSnapshotFinalizer checks if a Finalizer needs to be added for the volume snapshot.
 func needToAddSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
+}
+
+func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {
+	if removalVersion == "" {
+		removalVersion = "a future release"
+	}
+	newParamPhrase := ""
+	if len(newParam) != 0 {
+		newParamPhrase = fmt.Sprintf(", please use \"%s\" instead", newParam)
+	}
+	return fmt.Sprintf("\"%s\" is deprecated and will be removed in %s%s", deprecatedParam, removalVersion, newParamPhrase)
+}
+
+func removePrefixedParameters(param map[string]string) (map[string]string, error) {
+	newParam := map[string]string{}
+	for k, v := range param {
+		if strings.HasPrefix(k, csiParameterPrefix) {
+			// Check if its well known
+			switch k {
+			case prefixedSnapshotterSecretNameKey:
+			case prefixedSnapshotterSecretNamespaceKey:
+			default:
+				return map[string]string{}, fmt.Errorf("found unknown parameter key \"%s\" with reserved namespace %s", k, csiParameterPrefix)
+			}
+		} else {
+			// Don't strip, add this key-value to new map
+			// Deprecated parameters prefixed with "csi" are not stripped to preserve backwards compatibility
+			newParam[k] = v
+		}
+	}
+	return newParam, nil
 }

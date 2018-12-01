@@ -230,7 +230,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			initialContents:   nocontents,
 			expectedContents:  nocontents,
 			initialSnapshots:  newSnapshotArray("snap7-2", invalidSecretClass, "", "snapuid7-2", "claim7-2", false, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap7-2", invalidSecretClass, "", "snapuid7-2", "claim7-2", false, newVolumeError("Failed to create snapshot: failed to get input parameters to create snapshot snap7-2: \"csiSnapshotterSecretName and csiSnapshotterSecretNamespace parameters must be specified together\""), nil, nil),
+			expectedSnapshots: newSnapshotArray("snap7-2", invalidSecretClass, "", "snapuid7-2", "claim7-2", false, newVolumeError("Failed to create snapshot: failed to get input parameters to create snapshot snap7-2: \"failed to get name and namespace template from params: either name and namespace for Snapshotter secrets specified, Both must be specified\""), nil, nil),
 			initialClaims:     newClaimArray("claim7-2", "pvc-uid7-2", "1Gi", "volume7-2", v1.ClaimBound, &classEmpty),
 			initialVolumes:    newVolumeArray("volume7-2", "pv-uid7-2", "pv-handle7-2", "1Gi", "pvc-uid7-2", "claim7-2", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			expectedEvents:    []string{"Warning SnapshotCreationFailed"},
