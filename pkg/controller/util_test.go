@@ -17,7 +17,6 @@ limitations under the License.
 package controller
 
 import (
-	"fmt"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -31,53 +30,50 @@ func TestGetSecretReference(t *testing.T) {
 		snapContentName string
 		snapshot        *crdv1.VolumeSnapshot
 		expectRef       *v1.SecretReference
-		expectErr       error
+		expectErr       bool
 	}{
 		"no params": {
 			params:    nil,
 			expectRef: nil,
-			expectErr: nil,
 		},
 		"empty err": {
 			params:    map[string]string{snapshotterSecretNameKey: "", snapshotterSecretNamespaceKey: ""},
-			expectErr: fmt.Errorf("csiSnapshotterSecretName and csiSnapshotterSecretNamespace parameters must be specified together"),
+			expectErr: true,
 		},
-		"name, no namespace": {
+		"[deprecated] name, no namespace": {
 			params:    map[string]string{snapshotterSecretNameKey: "foo"},
-			expectErr: fmt.Errorf("csiSnapshotterSecretName and csiSnapshotterSecretNamespace parameters must be specified together"),
+			expectErr: true,
 		},
 		"namespace, no name": {
-			params:    map[string]string{snapshotterSecretNamespaceKey: "foo"},
-			expectErr: fmt.Errorf("csiSnapshotterSecretName and csiSnapshotterSecretNamespace parameters must be specified together"),
+			params:    map[string]string{prefixedSnapshotterSecretNamespaceKey: "foo"},
+			expectErr: true,
 		},
 		"simple - valid": {
-			params:    map[string]string{snapshotterSecretNameKey: "name", snapshotterSecretNamespaceKey: "ns"},
+			params:    map[string]string{prefixedSnapshotterSecretNameKey: "name", prefixedSnapshotterSecretNamespaceKey: "ns"},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
-			expectErr: nil,
 		},
-		"simple - valid, no pvc": {
+		"[deprecated] simple - valid, no pvc": {
 			params:    map[string]string{snapshotterSecretNameKey: "name", snapshotterSecretNamespaceKey: "ns"},
 			snapshot:  nil,
 			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
-			expectErr: nil,
 		},
 		"simple - invalid name": {
-			params:    map[string]string{snapshotterSecretNameKey: "bad name", snapshotterSecretNamespaceKey: "ns"},
+			params:    map[string]string{prefixedSnapshotterSecretNameKey: "bad name", prefixedSnapshotterSecretNamespaceKey: "ns"},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: nil,
-			expectErr: fmt.Errorf(`csiSnapshotterSecretName parameter "bad name" is not a valid secret name`),
+			expectErr: true,
 		},
-		"simple - invalid namespace": {
+		"[deprecated] simple - invalid namespace": {
 			params:    map[string]string{snapshotterSecretNameKey: "name", snapshotterSecretNamespaceKey: "bad ns"},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: nil,
-			expectErr: fmt.Errorf(`csiSnapshotterSecretNamespace parameter "bad ns" is not a valid namespace name`),
+			expectErr: true,
 		},
 		"template - valid": {
 			params: map[string]string{
-				snapshotterSecretNameKey:      "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}-${volumesnapshot.name}-${volumesnapshot.annotations['akey']}",
-				snapshotterSecretNamespaceKey: "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}",
+				prefixedSnapshotterSecretNameKey:      "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}-${volumesnapshot.name}-${volumesnapshot.annotations['akey']}",
+				prefixedSnapshotterSecretNamespaceKey: "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}",
 			},
 			snapContentName: "snapcontentname",
 			snapshot: &crdv1.VolumeSnapshot{
@@ -88,7 +84,6 @@ func TestGetSecretReference(t *testing.T) {
 				},
 			},
 			expectRef: &v1.SecretReference{Name: "static-snapcontentname-snapshotnamespace-snapshotname-avalue", Namespace: "static-snapcontentname-snapshotnamespace"},
-			expectErr: nil,
 		},
 		"template - invalid namespace tokens": {
 			params: map[string]string{
@@ -97,7 +92,7 @@ func TestGetSecretReference(t *testing.T) {
 			},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: nil,
-			expectErr: fmt.Errorf(`error resolving csiSnapshotterSecretNamespace value "mynamespace${bar}": invalid tokens: ["bar"]`),
+			expectErr: true,
 		},
 		"template - invalid name tokens": {
 			params: map[string]string{
@@ -106,19 +101,95 @@ func TestGetSecretReference(t *testing.T) {
 			},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: nil,
-			expectErr: fmt.Errorf(`error resolving csiSnapshotterSecretName value "myname${foo}": invalid tokens: ["foo"]`),
+			expectErr: true,
 		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			ref, err := GetSecretReference(tc.params, tc.snapContentName, tc.snapshot)
-			if !reflect.DeepEqual(err, tc.expectErr) {
-				t.Errorf("Expected %v, got %v", tc.expectErr, err)
+			ref, err := getSecretReference(tc.params, tc.snapContentName, tc.snapshot)
+			if err != nil {
+				if tc.expectErr {
+					return
+				} else {
+					t.Fatalf("Did not expect error but got: %v", err)
+				}
+			} else {
+				if tc.expectErr {
+					t.Fatalf("Expected error but got none")
+				}
 			}
 			if !reflect.DeepEqual(ref, tc.expectRef) {
 				t.Errorf("Expected %v, got %v", tc.expectRef, ref)
 			}
 		})
+	}
+}
+
+func TestRemovePrefixedCSIParams(t *testing.T) {
+	testcases := []struct {
+		name           string
+		params         map[string]string
+		expectedParams map[string]string
+		expectErr      bool
+	}{
+		{
+			name:           "no prefix",
+			params:         map[string]string{"csiFoo": "bar", "bim": "baz"},
+			expectedParams: map[string]string{"csiFoo": "bar", "bim": "baz"},
+		},
+		{
+			name:           "one prefixed",
+			params:         map[string]string{prefixedSnapshotterSecretNameKey: "bar", "bim": "baz"},
+			expectedParams: map[string]string{"bim": "baz"},
+		},
+		{
+			name: "all known prefixed",
+			params: map[string]string{
+				prefixedSnapshotterSecretNameKey:      "csiBar",
+				prefixedSnapshotterSecretNamespaceKey: "csiBar",
+			},
+			expectedParams: map[string]string{},
+		},
+		{
+			name: "all known deprecated params not stripped",
+			params: map[string]string{
+				snapshotterSecretNameKey:      "csiBar",
+				snapshotterSecretNamespaceKey: "csiBar",
+			},
+			expectedParams: map[string]string{
+				snapshotterSecretNameKey:      "csiBar",
+				snapshotterSecretNamespaceKey: "csiBar",
+			},
+		},
+		{
+			name:      "unknown prefixed var",
+			params:    map[string]string{csiParameterPrefix + "bim": "baz"},
+			expectErr: true,
+		},
+		{
+			name:           "empty",
+			params:         map[string]string{},
+			expectedParams: map[string]string{},
+		},
+	}
+	for _, tc := range testcases {
+		t.Logf("test: %v", tc.name)
+		newParams, err := removePrefixedParameters(tc.params)
+		if err != nil {
+			if tc.expectErr {
+				continue
+			} else {
+				t.Fatalf("Encountered unexpected error: %v", err)
+			}
+		} else {
+			if tc.expectErr {
+				t.Fatalf("Did not get error when one was expected")
+			}
+		}
+		eq := reflect.DeepEqual(newParams, tc.expectedParams)
+		if !eq {
+			t.Fatalf("Stripped paramaters: %v not equal to expected paramaters: %v", newParams, tc.expectedParams)
+		}
 	}
 }
