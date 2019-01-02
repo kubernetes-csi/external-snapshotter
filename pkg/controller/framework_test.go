@@ -46,9 +46,11 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
+	corelisters "k8s.io/client-go/listers/core/v1"
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -720,6 +722,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory = informers.NewSharedInformerFactory(clientset, NoResyncPeriodFunc())
 	}
 
+	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, NoResyncPeriodFunc())
+
 	// Construct controller
 	csiConnection := &fakeCSIConnection{
 		t:           t,
@@ -735,6 +739,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Volumesnapshot().V1alpha1().VolumeSnapshots(),
 		informerFactory.Volumesnapshot().V1alpha1().VolumeSnapshotContents(),
 		informerFactory.Volumesnapshot().V1alpha1().VolumeSnapshotClasses(),
+		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
 		csiConnection,
@@ -1052,9 +1057,14 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 				reactor.contents[content.Name] = content
 			}
 		}
+
+		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 		for _, claim := range test.initialClaims {
 			reactor.claims[claim.Name] = claim
+			pvcIndexer.Add(claim)
 		}
+		ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
+
 		for _, volume := range test.initialVolumes {
 			reactor.volumes[volume.Name] = volume
 		}

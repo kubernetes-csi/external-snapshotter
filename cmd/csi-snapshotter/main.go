@@ -37,6 +37,7 @@ import (
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	coreinformers "k8s.io/client-go/informers"
 )
 
 const (
@@ -95,6 +96,7 @@ func main() {
 	}
 
 	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
+	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, *resyncPeriod)
 
 	// Create CRD resource
 	aeclientset, err := apiextensionsclient.NewForConfig(config)
@@ -165,6 +167,7 @@ func main() {
 		factory.Volumesnapshot().V1alpha1().VolumeSnapshots(),
 		factory.Volumesnapshot().V1alpha1().VolumeSnapshotContents(),
 		factory.Volumesnapshot().V1alpha1().VolumeSnapshotClasses(),
+		coreFactory.Core().V1().PersistentVolumeClaims(),
 		*createSnapshotContentRetryCount,
 		*createSnapshotContentInterval,
 		csiConn,
@@ -177,6 +180,7 @@ func main() {
 	// run...
 	stopCh := make(chan struct{})
 	factory.Start(stopCh)
+	coreFactory.Start(stopCh)
 	go ctrl.Run(threads, stopCh)
 
 	// ...until SIGINT
