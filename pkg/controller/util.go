@@ -320,7 +320,7 @@ func getCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[stri
 	return credentials, nil
 }
 
-// Returns 0 for resyncPeriod in case resyncing is not needed.
+// NoResyncPeriodFunc Returns 0 for resyncPeriod in case resyncing is not needed.
 func NoResyncPeriodFunc() time.Duration {
 	return 0
 }

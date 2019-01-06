@@ -42,6 +42,7 @@ type csiHandler struct {
 	snapshotNameUUIDLength int
 }
 
+// NewCSIHandler returns a handler which includes the csi connection and Snapshot name details
 func NewCSIHandler(
 	csiConnection connection.CSIConnection,
 	timeout time.Duration,
