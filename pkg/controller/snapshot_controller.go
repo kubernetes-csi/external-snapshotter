@@ -440,6 +440,7 @@ func getSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("bound to: %q, Completed: %v", snapshot.Spec.SnapshotContentName, snapshot.Status.ReadyToUse)
 }
 
+// IsSnapshotBound returns true/false if snapshot is bound
 func IsSnapshotBound(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
 	if content.Spec.VolumeSnapshotRef != nil && content.Spec.VolumeSnapshotRef.Name == snapshot.Name &&
 		content.Spec.VolumeSnapshotRef.UID == snapshot.UID {
