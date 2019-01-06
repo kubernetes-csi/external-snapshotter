@@ -864,7 +864,7 @@ func (ctrl *csiSnapshotController) getStorageClassFromVolumeSnapshot(snapshot *c
 		storageclassName = volume.Spec.StorageClassName
 	}
 	if len(storageclassName) == 0 {
-		return nil, fmt.Errorf("cannot figure out the snapshot class automatically, please specify one in snapshot spec.")
+		return nil, fmt.Errorf("cannot figure out the snapshot class automatically, please specify one in snapshot spec")
 	}
 	storageclass, err := ctrl.client.StorageV1().StorageClasses().Get(*pvc.Spec.StorageClassName, metav1.GetOptions{})
 	if err != nil {
@@ -934,7 +934,7 @@ func (ctrl *csiSnapshotController) SetDefaultSnapshotClass(snapshot *crdv1.Volum
 // getClaimFromVolumeSnapshot is a helper function to get PVC from VolumeSnapshot.
 func (ctrl *csiSnapshotController) getClaimFromVolumeSnapshot(snapshot *crdv1.VolumeSnapshot) (*v1.PersistentVolumeClaim, error) {
 	if snapshot.Spec.Source == nil {
-		return nil, fmt.Errorf("the snapshot source is not specified.")
+		return nil, fmt.Errorf("the snapshot source is not specified")
 	}
 	if snapshot.Spec.Source.Kind != pvcKind {
 		return nil, fmt.Errorf("the snapshot source is not the right type. Expected %s, Got %v", pvcKind, snapshot.Spec.Source.Kind)
