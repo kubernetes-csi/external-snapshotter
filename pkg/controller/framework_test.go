@@ -119,7 +119,7 @@ type testCall func(ctrl *csiSnapshotController, reactor *snapshotReactor, test c
 const testNamespace = "default"
 const mockDriverName = "csi-mock-plugin"
 
-var versionConflictError = errors.New("VersionError")
+var errVersionConflict = errors.New("VersionError")
 var nocontents []*crdv1.VolumeSnapshotContent
 var nosnapshots []*crdv1.VolumeSnapshot
 var noevents = []string{}
@@ -228,7 +228,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			storedVer, _ := strconv.Atoi(storedVolume.ResourceVersion)
 			requestedVer, _ := strconv.Atoi(content.ResourceVersion)
 			if storedVer != requestedVer {
-				return true, obj, versionConflictError
+				return true, obj, errVersionConflict
 			}
 			// Don't modify the existing object
 			content = content.DeepCopy()
@@ -254,7 +254,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			storedVer, _ := strconv.Atoi(storedSnapshot.ResourceVersion)
 			requestedVer, _ := strconv.Atoi(snapshot.ResourceVersion)
 			if storedVer != requestedVer {
-				return true, obj, versionConflictError
+				return true, obj, errVersionConflict
 			}
 			// Don't modify the existing object
 			snapshot = snapshot.DeepCopy()
@@ -966,16 +966,16 @@ func testSyncContent(ctrl *csiSnapshotController, reactor *snapshotReactor, test
 }
 
 var (
-	classEmpty         string = ""
-	classGold          string = "gold"
-	classSilver        string = "silver"
-	classNonExisting   string = "non-existing"
-	defaultClass       string = "default-class"
-	emptySecretClass   string = "empty-secret-class"
-	invalidSecretClass string = "invalid-secret-class"
-	validSecretClass   string = "valid-secret-class"
-	sameDriver         string = "sameDriver"
-	diffDriver         string = "diffDriver"
+	classEmpty         string
+	classGold          = "gold"
+	classSilver        = "silver"
+	classNonExisting   = "non-existing"
+	defaultClass       = "default-class"
+	emptySecretClass   = "empty-secret-class"
+	invalidSecretClass = "invalid-secret-class"
+	validSecretClass   = "valid-secret-class"
+	sameDriver         = "sameDriver"
+	diffDriver         = "diffDriver"
 )
 
 // wrapTestWithInjectedOperation returns a testCall that:

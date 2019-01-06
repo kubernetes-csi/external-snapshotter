@@ -556,9 +556,9 @@ func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.Volume
 
 func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
 	var err error
-	var timestamp int64 = 0
-	var size int64 = 0
-	var readyToUse bool = false
+	var timestamp int64
+	var size int64
+	var readyToUse = false
 	class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)

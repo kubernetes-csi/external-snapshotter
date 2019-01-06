@@ -104,7 +104,7 @@ func TestGetPluginInfo(t *testing.T) {
 		in := &csi.GetPluginInfoRequest{}
 
 		out := test.output
-		var injectedErr error = nil
+		var injectedErr error
 		if test.injectError {
 			injectedErr = fmt.Errorf("mock error")
 		}
@@ -214,7 +214,7 @@ func TestSupportsControllerCreateSnapshot(t *testing.T) {
 		in := &csi.ControllerGetCapabilitiesRequest{}
 
 		out := test.output
-		var injectedErr error = nil
+		var injectedErr error
 		if test.injectError {
 			injectedErr = fmt.Errorf("mock error")
 		}
@@ -354,7 +354,7 @@ func TestSupportsControllerListSnapshots(t *testing.T) {
 		in := &csi.ControllerGetCapabilitiesRequest{}
 
 		out := test.output
-		var injectedErr error = nil
+		var injectedErr error
 		if test.injectError {
 			injectedErr = fmt.Errorf("mock error")
 		}
@@ -524,7 +524,7 @@ func TestCreateSnapshot(t *testing.T) {
 	for _, test := range tests {
 		in := test.input
 		out := test.output
-		var injectedErr error = nil
+		var injectedErr error
 		if test.injectError != codes.OK {
 			injectedErr = status.Error(test.injectError, fmt.Sprintf("Injecting error %d", test.injectError))
 		}
@@ -632,7 +632,7 @@ func TestDeleteSnapshot(t *testing.T) {
 	for _, test := range tests {
 		in := test.input
 		out := test.output
-		var injectedErr error = nil
+		var injectedErr error
 		if test.injectError != codes.OK {
 			injectedErr = status.Error(test.injectError, fmt.Sprintf("Injecting error %d", test.injectError))
 		}
@@ -730,7 +730,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 	for _, test := range tests {
 		in := test.input
 		out := test.output
-		var injectedErr error = nil
+		var injectedErr error
 		if test.injectError != codes.OK {
 			injectedErr = status.Error(test.injectError, fmt.Sprintf("Injecting error %d", test.injectError))
 		}
