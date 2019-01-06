@@ -276,10 +276,9 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		if found {
 			glog.V(4).Infof("GetVolume: found %s", content.Name)
 			return true, content, nil
-		} else {
-			glog.V(4).Infof("GetVolume: content %s not found", name)
-			return true, nil, fmt.Errorf("cannot find content %s", name)
 		}
+		glog.V(4).Infof("GetVolume: content %s not found", name)
+		return true, nil, fmt.Errorf("cannot find content %s", name)
 
 	case action.Matches("get", "volumesnapshots"):
 		name := action.(core.GetAction).GetName()
@@ -287,10 +286,9 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		if found {
 			glog.V(4).Infof("GetSnapshot: found %s", snapshot.Name)
 			return true, snapshot, nil
-		} else {
-			glog.V(4).Infof("GetSnapshot: content %s not found", name)
-			return true, nil, fmt.Errorf("cannot find snapshot %s", name)
 		}
+		glog.V(4).Infof("GetSnapshot: content %s not found", name)
+		return true, nil, fmt.Errorf("cannot find snapshot %s", name)
 
 	case action.Matches("delete", "volumesnapshotcontents"):
 		name := action.(core.DeleteAction).GetName()
@@ -300,9 +298,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			delete(r.contents, name)
 			r.changedSinceLastSync++
 			return true, nil, nil
-		} else {
-			return true, nil, fmt.Errorf("cannot delete content %s: not found", name)
 		}
+		return true, nil, fmt.Errorf("cannot delete content %s: not found", name)
 
 	case action.Matches("delete", "volumesnapshots"):
 		name := action.(core.DeleteAction).GetName()
@@ -312,9 +309,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			delete(r.snapshots, name)
 			r.changedSinceLastSync++
 			return true, nil, nil
-		} else {
-			return true, nil, fmt.Errorf("cannot delete snapshot %s: not found", name)
 		}
+		return true, nil, fmt.Errorf("cannot delete snapshot %s: not found", name)
 
 	case action.Matches("get", "persistentvolumes"):
 		name := action.(core.GetAction).GetName()
@@ -322,10 +318,9 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		if found {
 			glog.V(4).Infof("GetVolume: found %s", volume.Name)
 			return true, volume, nil
-		} else {
-			glog.V(4).Infof("GetVolume: volume %s not found", name)
-			return true, nil, fmt.Errorf("cannot find volume %s", name)
 		}
+		glog.V(4).Infof("GetVolume: volume %s not found", name)
+		return true, nil, fmt.Errorf("cannot find volume %s", name)
 
 	case action.Matches("get", "persistentvolumeclaims"):
 		name := action.(core.GetAction).GetName()
@@ -333,10 +328,9 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		if found {
 			glog.V(4).Infof("GetClaim: found %s", claim.Name)
 			return true, claim, nil
-		} else {
-			glog.V(4).Infof("GetClaim: claim %s not found", name)
-			return true, nil, fmt.Errorf("cannot find claim %s", name)
 		}
+		glog.V(4).Infof("GetClaim: claim %s not found", name)
+		return true, nil, fmt.Errorf("cannot find claim %s", name)
 
 	case action.Matches("get", "storageclasses"):
 		name := action.(core.GetAction).GetName()
@@ -344,10 +338,9 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		if found {
 			glog.V(4).Infof("GetStorageClass: found %s", storageClass.Name)
 			return true, storageClass, nil
-		} else {
-			glog.V(4).Infof("GetStorageClass: storageClass %s not found", name)
-			return true, nil, fmt.Errorf("cannot find storageClass %s", name)
 		}
+		glog.V(4).Infof("GetStorageClass: storageClass %s not found", name)
+		return true, nil, fmt.Errorf("cannot find storageClass %s", name)
 
 	case action.Matches("get", "secrets"):
 		name := action.(core.GetAction).GetName()
@@ -355,10 +348,10 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		if found {
 			glog.V(4).Infof("GetSecret: found %s", secret.Name)
 			return true, secret, nil
-		} else {
-			glog.V(4).Infof("GetSecret: secret %s not found", name)
-			return true, nil, fmt.Errorf("cannot find secret %s", name)
 		}
+		glog.V(4).Infof("GetSecret: secret %s not found", name)
+		return true, nil, fmt.Errorf("cannot find secret %s", name)
+
 	}
 
 	return false, nil, nil
