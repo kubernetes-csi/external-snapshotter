@@ -168,21 +168,21 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap
 	numNamespace := 0
 	if t, ok := snapshotClassParams[secret.deprecatedSecretNameKey]; ok {
 		nameTemplate = t
-		numName += 1
+		numName++
 		glog.Warning(deprecationWarning(secret.deprecatedSecretNameKey, secret.secretNameKey, ""))
 	}
 	if t, ok := snapshotClassParams[secret.deprecatedSecretNamespaceKey]; ok {
 		namespaceTemplate = t
-		numNamespace += 1
+		numNamespace++
 		glog.Warning(deprecationWarning(secret.deprecatedSecretNamespaceKey, secret.secretNamespaceKey, ""))
 	}
 	if t, ok := snapshotClassParams[secret.secretNameKey]; ok {
 		nameTemplate = t
-		numName += 1
+		numName++
 	}
 	if t, ok := snapshotClassParams[secret.secretNamespaceKey]; ok {
 		namespaceTemplate = t
-		numNamespace += 1
+		numNamespace++
 	}
 
 	if numName > 1 || numNamespace > 1 {

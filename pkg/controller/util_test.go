@@ -111,9 +111,9 @@ func TestGetSecretReference(t *testing.T) {
 			if err != nil {
 				if tc.expectErr {
 					return
-				} else {
-					t.Fatalf("Did not expect error but got: %v", err)
 				}
+				t.Fatalf("Did not expect error but got: %v", err)
+
 			} else {
 				if tc.expectErr {
 					t.Fatalf("Expected error but got none")

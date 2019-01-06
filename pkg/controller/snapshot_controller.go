@@ -194,9 +194,9 @@ func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) 
 
 	if !snapshot.Status.ReadyToUse {
 		return ctrl.syncUnreadySnapshot(snapshot)
-	} else {
-		return ctrl.syncReadySnapshot(snapshot)
 	}
+	return ctrl.syncReadySnapshot(snapshot)
+
 }
 
 // syncReadySnapshot checks the snapshot which has been bound to snapshot content successfully before.
@@ -557,9 +557,9 @@ func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.Volume
 
 func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
 	var err error
-	var timestamp int64 = 0
-	var size int64 = 0
-	var readyToUse bool = false
+	var timestamp int64
+	var size int64
+	var readyToUse = false
 	class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
@@ -568,9 +568,8 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 	if err != nil {
 		glog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
 		return nil, err
-	} else {
-		glog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
 	}
+	glog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
 
 	if timestamp == 0 {
 		timestamp = time.Now().UnixNano()
@@ -821,9 +820,9 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 		newSnapshotObj, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 		if err != nil {
 			return nil, newControllerUpdateError(snapshotKey(snapshot), err.Error())
-		} else {
-			return newSnapshotObj, nil
 		}
+		return newSnapshotObj, nil
+
 	}
 	return snapshot, nil
 }
