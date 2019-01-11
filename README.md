@@ -2,7 +2,7 @@
 
 The CSI external-snapshotter is part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec).
 
-The volume snapshot feature supports CSI v1.0 and it has been an Alpha feature in Kubernetes since v1.12. 
+The volume snapshot feature supports CSI v1.0 and it has been an Alpha feature in Kubernetes since v1.12.
 
 ## Overview
 
@@ -16,7 +16,7 @@ External snapshotter follows [controller](https://github.com/kubernetes/communit
 
 Snapshotter talks to CSI over socket (/run/csi/socket by default, configurable by -csi-address). The snapshotter then:
 
-* Discovers the supported snapshotter name by `GetDriverName` call. 
+* Discovers the supported snapshotter name by `GetDriverName` call.
 
 * Uses ControllerGetCapabilities for find out if CSI driver supports `ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT` and `ControllerServiceCapability_RPC_LIST_SNAPSHOTS` calls. Otherwise, the controller will not start.
 
@@ -25,7 +25,6 @@ Snapshotter talks to CSI over socket (/run/csi/socket by default, configurable b
   * If the snapshot status is not ready, there are two cases.
     * `SnapshotContentName` is not empty: the controller verifies whether the snapshot content exists and also binds to the snapshot. If verification passes, the controller binds the snapshot and its content objects and marks it is ready. Otherwise, it updates the error status of the snapshot.
     * `SnapshotContentName` is set empty: the controller will first check whether there is already a content object which binds the snapshot correctly with snapshot uid (`VolumeSnapshotRef.UID`) specified. If so, the controller binds these two objects. Otherwise, the controller issues a create snapshot operation. Please note that if the error status shows that snapshot creation already failed before, it will not try to create snapshot again.
-
 
 * Processes new/updated/deleted `VolumeSnapshotContents`: The snapshotter only processes `VolumeSnapshotContent` in which the CSI driver specified in the spec matches the controller's driver name.
   * If the `VolumeSnapshotRef` is set to nil, skip this content since it is not bound to any snapshot object.
@@ -37,29 +36,30 @@ Snapshotter talks to CSI over socket (/run/csi/socket by default, configurable b
 
 For debugging, it is possible to run snapshotter on command line. For example,
 
-```
-$ csi-snapshotter -kubeconfig ~/.kube/config -v 5 -csi-address /run/csi/socket
+```bash
+csi-snapshotter -kubeconfig ~/.kube/config -v 5 -csi-address /run/csi/socket
 ```
 
 ### Running in a statefulset
 
 It is necessary to create a new service account and give it enough privileges to run the snapshotter. We provide .yaml files that deploy for use together with the hostpath example driver. A real production deployment must customize them:
 
-```
-$ for i in $(find deploy/kubernetes -name '*.yaml'); do kubectl create -f $i; done
+```bash
+for i in $(find deploy/kubernetes -name '*.yaml'); do kubectl create -f $i; done
 ```
 
 ## Testing
 
 Running Unit Tests:
-```
-$ go test -timeout 30s  github.com/kubernetes-csi/external-snapshotter/pkg/controller
+
+```bash
+go test -timeout 30s  github.com/kubernetes-csi/external-snapshotter/pkg/controller
 ```
 
 ## Dependency Management
 
-```
-$ dep ensure
+```bash
+dep ensure
 ```
 
 To modify dependencies or versions change `./Gopkg.toml`
@@ -70,8 +70,8 @@ Learn how to engage with the Kubernetes community on the [community page](http:/
 
 You can reach the maintainers of this project at:
 
-- [Slack channel](https://kubernetes.slack.com/messages/sig-storage)
-- [Mailing list](https://groups.google.com/forum/#!forum/kubernetes-sig-storage)
+* [Slack channel](https://kubernetes.slack.com/messages/sig-storage)
+* [Mailing list](https://groups.google.com/forum/#!forum/kubernetes-sig-storage)
 
 ### Code of conduct
 
