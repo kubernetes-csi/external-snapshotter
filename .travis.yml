@@ -1,13 +1,1 @@
-language: go
-matrix:
-  include:
-  - go: 1.10.3
-script:
-- go fmt $(go list ./... | grep -v vendor) | wc -l | grep 0
-- go vet $(go list ./... | grep -v vendor)
-- go test $(go list ./... | grep -v vendor)
-after_success:
-  - if [ "${TRAVIS_PULL_REQUEST}" == "false" ]; then
-      docker login -u "${DOCKER_USERNAME}" -p "${DOCKER_PASSWORD}" quay.io;
-      make push;
-    fi
+release-tools/travis.yml
