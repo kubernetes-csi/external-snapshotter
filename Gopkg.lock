@@ -754,7 +754,6 @@
     "github.com/kubernetes-csi/csi-test/driver",
     "google.golang.org/grpc",
     "google.golang.org/grpc/codes",
-    "google.golang.org/grpc/connectivity",
     "google.golang.org/grpc/status",
     "k8s.io/api/core/v1",
     "k8s.io/api/storage/v1",

@@ -126,6 +126,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Check it's ready
+	if err = waitForDriverReady(csiConn, *connectionTimeout); err != nil {
+		glog.Error(err.Error())
+		os.Exit(1)
+	}
+
 	// Pass a context with a timeout
 	ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
 	defer cancel()
@@ -139,12 +145,6 @@ func main() {
 		}
 	}
 	glog.V(2).Infof("CSI driver name: %q", *snapshotter)
-
-	// Check it's ready
-	if err = waitForDriverReady(csiConn, *connectionTimeout); err != nil {
-		glog.Error(err.Error())
-		os.Exit(1)
-	}
 
 	// Find out if the driver supports create/delete snapshot.
 	supportsCreateSnapshot, err := csiConn.SupportsControllerCreateSnapshot(ctx)
@@ -206,7 +206,7 @@ func waitForDriverReady(csiConn connection.CSIConnection, timeout time.Duration)
 	finish := now.Add(timeout)
 	var err error
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
 		defer cancel()
 		err = csiConn.Probe(ctx)
 		if err == nil {
