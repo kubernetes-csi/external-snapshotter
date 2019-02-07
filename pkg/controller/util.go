@@ -68,7 +68,7 @@ const (
 )
 
 var snapshotterSecretParams = deprecatedSecretParamsMap{
-	name: "Snapshotter",
+	name:                         "Snapshotter",
 	deprecatedSecretNameKey:      snapshotterSecretNameKey,
 	deprecatedSecretNamespaceKey: snapshotterSecretNamespaceKey,
 	secretNameKey:                prefixedSnapshotterSecretNameKey,
