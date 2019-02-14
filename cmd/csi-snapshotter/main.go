@@ -51,7 +51,7 @@ const (
 	threads = 10
 
 	// Default timeout of short CSI calls like GetPluginInfo
-	csiTimeout = time.Second
+	defaultCSITimeout = 10 * time.Second
 )
 
 // Command line flags
@@ -66,6 +66,7 @@ var (
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
 	showVersion                     = flag.Bool("version", false, "Show version.")
+	csiTimeout                      = flag.Duration("timeout", defaultCSITimeout, "The timeout for any RPCs to the CSI driver. Default is 10s.")
 
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
@@ -142,7 +143,7 @@ func main() {
 	}
 
 	// Pass a context with a timeout
-	ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
+	ctx, cancel := context.WithTimeout(context.Background(), *csiTimeout)
 	defer cancel()
 
 	// Find driver name
@@ -155,10 +156,9 @@ func main() {
 	klog.V(2).Infof("CSI driver name: %q", *snapshotterName)
 
 	// Check it's ready
-	if err = csirpc.ProbeForever(csiConn, csiTimeout); err != nil {
+	if err = csirpc.ProbeForever(csiConn, *csiTimeout); err != nil {
 		klog.Errorf("error waiting for CSI driver to be ready: %v", err)
 		os.Exit(1)
-
 	}
 
 	// Find out if the driver supports create/delete snapshot.
@@ -191,7 +191,7 @@ func main() {
 		*createSnapshotContentRetryCount,
 		*createSnapshotContentInterval,
 		snapShotter,
-		*connectionTimeout,
+		*csiTimeout,
 		*resyncPeriod,
 		*snapshotNamePrefix,
 		*snapshotNameUUIDLength,
