@@ -12,24 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: all clean test
-
-ifdef V
-TESTARGS = -v
-else
-TESTARGS =
-endif
-
+# No individual commands at the moment, just packages.
+CMDS=
 all:
 	go build `go list ./... | grep -v 'vendor'`
 
-clean:
-	true
-
-test:
-	go test `go list ./... | grep -v ^vendor` $(TESTARGS)
-	go vet `go list ./... | grep -v ^vendor`
-	diff="$$(gofmt -d $$(find . -name '*.go' | grep -v ^./vendor))" && \
-	    ( [ -z "$$diff" ] || ( \
-	      echo "\nvvvvvv formatting errors, fix with patch -p1 vvvvvvvvvv\n$$diff\n^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n"; \
-	      false ) )
+include release-tools/build.make
