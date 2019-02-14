@@ -52,7 +52,7 @@ const (
 var (
 	snapshotter                     = flag.String("snapshotter", "", "Name of the snapshotter. The snapshotter will only create snapshot content for snapshot that requests a VolumeSnapshotClass with a snapshotter field set equal to this name.")
 	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
-	connectionTimeout               = flag.Duration("connection-timeout", 1*time.Minute, "Timeout for waiting for CSI driver socket.")
+	connectionTimeout               = flag.Duration("connection-timeout", 0, "The --connection-timeout flag is deprecated")
 	csiAddress                      = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
 	createSnapshotContentRetryCount = flag.Int("create-snapshotcontent-retrycount", 5, "Number of retries when we create a snapshot content object for a snapshot.")
 	createSnapshotContentInterval   = flag.Duration("create-snapshotcontent-interval", 10*time.Second, "Interval between retries when we create a snapshot content object for a snapshot.")
@@ -75,6 +75,10 @@ func main() {
 		os.Exit(0)
 	}
 	glog.Infof("Version: %s", version)
+
+	if *connectionTimeout != 0 {
+		glog.Warning("--connection-timeout is deprecated and will have no effect")
+	}
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := buildConfig(*kubeconfig)
@@ -116,7 +120,7 @@ func main() {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
 	// Connect to CSI.
-	csiConn, err := connection.New(*csiAddress, *connectionTimeout)
+	csiConn, err := connection.New(*csiAddress)
 	if err != nil {
 		glog.Error(err.Error())
 		os.Exit(1)
