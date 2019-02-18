@@ -72,7 +72,7 @@ import (
 // this snapshot. After that, the controller will keep checking the snapshot status
 // though csi snapshot calls. When the snapshot is ready to use, the controller set
 // the status "Bound" to true to indicate the snapshot is bound and ready to use.
-// If the createtion failed for any reason, the Error status is set accordingly.
+// If the creation failed for any reason, the Error status is set accordingly.
 // In alpha version, the controller not retry to create the snapshot after it failed.
 // In the future version, a retry policy will be added.
 
@@ -560,16 +560,14 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 	var timestamp int64
 	var size int64
 	var readyToUse = false
-	class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
+
+	readyToUse, timestamp, size, err = ctrl.handler.GetSnapshotStatus(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
-	}
-	driverName, snapshotID, timestamp, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
-	if err != nil {
-		glog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
+		glog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call list snapshot to check whether the"+
+			" snapshot is ready to use %q", err)
 		return nil, err
 	}
-	glog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
+	glog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: timestamp %d, size %d, readyToUse %t", timestamp, size, readyToUse)
 
 	if timestamp == 0 {
 		timestamp = time.Now().UnixNano()
