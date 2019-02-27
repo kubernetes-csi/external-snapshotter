@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package connection
+package snapshotter
 
 import (
 	"context"
@@ -25,9 +25,13 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-test/driver"
+
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -37,7 +41,7 @@ const (
 	driverName = "foo/bar"
 )
 
-func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, *driver.MockIdentityServer, *driver.MockControllerServer, CSIConnection, error) {
+func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, *driver.MockIdentityServer, *driver.MockControllerServer, *grpc.ClientConn, error) {
 	// Start the mock server
 	mockController := gomock.NewController(t)
 	identityServer := driver.NewMockIdentityServer(mockController)
@@ -50,329 +54,12 @@ func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, 
 
 	// Create a client connection to it
 	addr := drv.Address()
-	csiConn, err := New(addr)
+	csiConn, err := connection.Connect(addr)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 
 	return mockController, drv, identityServer, controllerServer, csiConn, nil
-}
-
-func TestGetPluginInfo(t *testing.T) {
-	tests := []struct {
-		name        string
-		output      *csi.GetPluginInfoResponse
-		injectError bool
-		expectError bool
-	}{
-		{
-			name: "success",
-			output: &csi.GetPluginInfoResponse{
-				Name:          "csi/example",
-				VendorVersion: "0.3.0",
-				Manifest: map[string]string{
-					"hello": "world",
-				},
-			},
-			expectError: false,
-		},
-		{
-			name:        "gRPC error",
-			output:      nil,
-			injectError: true,
-			expectError: true,
-		},
-		{
-			name: "empty name",
-			output: &csi.GetPluginInfoResponse{
-				Name: "",
-			},
-			expectError: true,
-		},
-	}
-
-	mockController, driver, identityServer, _, csiConn, err := createMockServer(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mockController.Finish()
-	defer driver.Stop()
-	defer csiConn.Close()
-
-	for _, test := range tests {
-
-		in := &csi.GetPluginInfoRequest{}
-
-		out := test.output
-		var injectedErr error
-		if test.injectError {
-			injectedErr = fmt.Errorf("mock error")
-		}
-
-		// Setup expectation
-		identityServer.EXPECT().GetPluginInfo(gomock.Any(), in).Return(out, injectedErr).Times(1)
-
-		name, err := csiConn.GetDriverName(context.Background())
-		if test.expectError && err == nil {
-			t.Errorf("test %q: Expected error, got none", test.name)
-		}
-		if !test.expectError && err != nil {
-			t.Errorf("test %q: got error: %v", test.name, err)
-		}
-		if err == nil && name != "csi/example" {
-			t.Errorf("got unexpected name: %q", name)
-		}
-	}
-}
-
-func TestSupportsControllerCreateSnapshot(t *testing.T) {
-	tests := []struct {
-		name         string
-		output       *csi.ControllerGetCapabilitiesResponse
-		injectError  bool
-		expectError  bool
-		expectResult bool
-	}{
-		{
-			name: "success",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-							},
-						},
-					},
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
-							},
-						},
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: true,
-		},
-		{
-			name:         "gRPC error",
-			output:       nil,
-			injectError:  true,
-			expectError:  true,
-			expectResult: false,
-		},
-		{
-			name: "no create snapshot",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-							},
-						},
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-		{
-			name: "empty capability",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: nil,
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-		{
-			name: "no capabilities",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-	}
-
-	mockController, driver, _, controllerServer, csiConn, err := createMockServer(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mockController.Finish()
-	defer driver.Stop()
-	defer csiConn.Close()
-
-	for _, test := range tests {
-
-		in := &csi.ControllerGetCapabilitiesRequest{}
-
-		out := test.output
-		var injectedErr error
-		if test.injectError {
-			injectedErr = fmt.Errorf("mock error")
-		}
-
-		// Setup expectation
-		controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), in).Return(out, injectedErr).Times(1)
-
-		ok, err := csiConn.SupportsControllerCreateSnapshot(context.Background())
-		if test.expectError && err == nil {
-			t.Errorf("test %q: Expected error, got none", test.name)
-		}
-		if !test.expectError && err != nil {
-			t.Errorf("test %q: got error: %v", test.name, err)
-		}
-		if err == nil && test.expectResult != ok {
-			t.Errorf("test fail expected result %t but got %t\n", test.expectResult, ok)
-		}
-	}
-}
-
-func TestSupportsControllerListSnapshots(t *testing.T) {
-	tests := []struct {
-		name         string
-		output       *csi.ControllerGetCapabilitiesResponse
-		injectError  bool
-		expectError  bool
-		expectResult bool
-	}{
-		{
-			name: "success",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-							},
-						},
-					},
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
-							},
-						},
-					},
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
-							},
-						},
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: true,
-		},
-		{
-			name: "have create_delete_snapshot but no list snapshot ",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-							},
-						},
-					},
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT,
-							},
-						},
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-		{
-			name:         "gRPC error",
-			output:       nil,
-			injectError:  true,
-			expectError:  true,
-			expectResult: false,
-		},
-		{
-			name: "no list snapshot",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: &csi.ControllerServiceCapability_Rpc{
-							Rpc: &csi.ControllerServiceCapability_RPC{
-								Type: csi.ControllerServiceCapability_RPC_CREATE_DELETE_VOLUME,
-							},
-						},
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-		{
-			name: "empty capability",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{
-					{
-						Type: nil,
-					},
-				},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-		{
-			name: "no capabilities",
-			output: &csi.ControllerGetCapabilitiesResponse{
-				Capabilities: []*csi.ControllerServiceCapability{},
-			},
-			expectError:  false,
-			expectResult: false,
-		},
-	}
-
-	mockController, driver, _, controllerServer, csiConn, err := createMockServer(t)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer mockController.Finish()
-	defer driver.Stop()
-	defer csiConn.Close()
-
-	for _, test := range tests {
-
-		in := &csi.ControllerGetCapabilitiesRequest{}
-
-		out := test.output
-		var injectedErr error
-		if test.injectError {
-			injectedErr = fmt.Errorf("mock error")
-		}
-
-		// Setup expectation
-		controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), in).Return(out, injectedErr).Times(1)
-
-		ok, err := csiConn.SupportsControllerListSnapshots(context.Background())
-		if test.expectError && err == nil {
-			t.Errorf("test %q: Expected error, got none", test.name)
-		}
-		if !test.expectError && err != nil {
-			t.Errorf("test %q: got error: %v", test.name, err)
-		}
-		if err == nil && test.expectResult != ok {
-			t.Errorf("test fail expected result %t but got %t\n", test.expectResult, ok)
-		}
-	}
 }
 
 func TestCreateSnapshot(t *testing.T) {
@@ -535,7 +222,8 @@ func TestCreateSnapshot(t *testing.T) {
 			controllerServer.EXPECT().CreateSnapshot(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		driverName, snapshotId, timestamp, size, readyToUse, err := csiConn.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
+		s := NewSnapshotter(csiConn)
+		driverName, snapshotId, timestamp, size, readyToUse, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -642,7 +330,8 @@ func TestDeleteSnapshot(t *testing.T) {
 			controllerServer.EXPECT().DeleteSnapshot(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		err := csiConn.DeleteSnapshot(context.Background(), test.snapshotID, test.secrets)
+		s := NewSnapshotter(csiConn)
+		err := s.DeleteSnapshot(context.Background(), test.snapshotID, test.secrets)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -650,7 +339,6 @@ func TestDeleteSnapshot(t *testing.T) {
 			t.Errorf("test %q: got error: %v", test.name, err)
 		}
 	}
-
 }
 
 func TestGetSnapshotStatus(t *testing.T) {
@@ -740,7 +428,8 @@ func TestGetSnapshotStatus(t *testing.T) {
 			controllerServer.EXPECT().ListSnapshots(gomock.Any(), in).Return(out, injectedErr).Times(1)
 		}
 
-		ready, createTime, size, err := csiConn.GetSnapshotStatus(context.Background(), test.snapshotID)
+		s := NewSnapshotter(csiConn)
+		ready, createTime, size, err := s.GetSnapshotStatus(context.Background(), test.snapshotID)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}

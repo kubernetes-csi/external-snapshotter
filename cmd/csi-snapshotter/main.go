@@ -24,14 +24,19 @@ import (
 	"os/signal"
 	"time"
 
+	"google.golang.org/grpc"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 
-	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/kubernetes-csi/csi-lib-utils/connection"
+	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/controller"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
@@ -50,7 +55,7 @@ const (
 
 // Command line flags
 var (
-	snapshotter                     = flag.String("snapshotter", "", "This option is deprecated.")
+	snapshotterName                 = flag.String("snapshotter", "", "This option is deprecated.")
 	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	connectionTimeout               = flag.Duration("connection-timeout", 0, "The --connection-timeout flag is deprecated")
 	csiAddress                      = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
@@ -80,7 +85,8 @@ func main() {
 	if *connectionTimeout != 0 {
 		klog.Warning("--connection-timeout is deprecated and will have no effect")
 	}
-	if *snapshotter != "" {
+
+	if *snapshotterName != "" {
 		klog.Warning("--snapshotter is deprecated and will have no effect")
 	}
 
@@ -124,9 +130,9 @@ func main() {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
 	// Connect to CSI.
-	csiConn, err := connection.New(*csiAddress)
+	csiConn, err := connection.Connect(*csiAddress)
 	if err != nil {
-		klog.Error(err.Error())
+		klog.Errorf("error connecting to CSI driver: %v", err)
 		os.Exit(1)
 	}
 
@@ -135,27 +141,29 @@ func main() {
 	defer cancel()
 
 	// Find driver name
-	*snapshotter, err = csiConn.GetDriverName(ctx)
+	*snapshotterName, err = csirpc.GetDriverName(ctx, csiConn)
 	if err != nil {
-		klog.Error(err.Error())
+		klog.Errorf("error getting CSI driver name: %v", err)
 		os.Exit(1)
 	}
-	klog.V(2).Infof("CSI driver name: %q", *snapshotter)
+
+	klog.V(2).Infof("CSI driver name: %q", *snapshotterName)
 
 	// Check it's ready
-	if err = waitForDriverReady(csiConn, *connectionTimeout); err != nil {
-		klog.Error(err.Error())
+	if err = csirpc.ProbeForever(csiConn, csiTimeout); err != nil {
+		klog.Errorf("error waiting for CSI driver to be ready: %v", err)
 		os.Exit(1)
+
 	}
 
 	// Find out if the driver supports create/delete snapshot.
-	supportsCreateSnapshot, err := csiConn.SupportsControllerCreateSnapshot(ctx)
+	supportsCreateSnapshot, err := supportsControllerCreateSnapshot(ctx, csiConn)
 	if err != nil {
-		klog.Error(err.Error())
+		klog.Errorf("error determining if driver supports create/delete snapshot operations: %v", err)
 		os.Exit(1)
 	}
 	if !supportsCreateSnapshot {
-		klog.Errorf("CSI driver %s does not support ControllerCreateSnapshot", *snapshotter)
+		klog.Errorf("CSI driver %s does not support ControllerCreateSnapshot", *snapshotterName)
 		os.Exit(1)
 	}
 
@@ -164,19 +172,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	klog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotter, *kubeconfig, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
+	klog.V(2).Infof("Start NewCSISnapshotController with snapshotter [%s] kubeconfig [%s] connectionTimeout [%+v] csiAddress [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%+v] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", *snapshotterName, *kubeconfig, *connectionTimeout, *csiAddress, createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
 
+	snapShotter := snapshotter.NewSnapshotter(csiConn)
 	ctrl := controller.NewCSISnapshotController(
 		snapClient,
 		kubeClient,
-		*snapshotter,
+		*snapshotterName,
 		factory.Volumesnapshot().V1alpha1().VolumeSnapshots(),
 		factory.Volumesnapshot().V1alpha1().VolumeSnapshotContents(),
 		factory.Volumesnapshot().V1alpha1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		*createSnapshotContentRetryCount,
 		*createSnapshotContentInterval,
-		csiConn,
+		snapShotter,
 		*connectionTimeout,
 		*resyncPeriod,
 		*snapshotNamePrefix,
@@ -203,24 +212,11 @@ func buildConfig(kubeconfig string) (*rest.Config, error) {
 	return rest.InClusterConfig()
 }
 
-func waitForDriverReady(csiConn connection.CSIConnection, timeout time.Duration) error {
-	now := time.Now()
-	finish := now.Add(timeout)
-	var err error
-	for {
-		ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
-		defer cancel()
-		err = csiConn.Probe(ctx)
-		if err == nil {
-			klog.V(2).Infof("Probe succeeded")
-			return nil
-		}
-		klog.V(2).Infof("Probe failed with %s", err)
-
-		now := time.Now()
-		if now.After(finish) {
-			return fmt.Errorf("failed to probe the controller: %s", err)
-		}
-		time.Sleep(time.Second)
+func supportsControllerCreateSnapshot(ctx context.Context, conn *grpc.ClientConn) (bool, error) {
+	capabilities, err := csirpc.GetControllerCapabilities(ctx, conn)
+	if err != nil {
+		return false, err
 	}
+
+	return capabilities[csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT], nil
 }
