@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -560,16 +561,27 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 	var timestamp int64
 	var size int64
 	var readyToUse = false
-	class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
+
+	if snapshot.Spec.Source == nil {
+		klog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: snapshot [%s] is pre-bound to content [%s]", snapshot.Name, content.Name)
+		readyToUse, timestamp, size, err = ctrl.handler.GetSnapshotStatus(content)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
+		}
+		var driverName string
+		var snapshotID string
+		driverName, snapshotID, timestamp, size, readyToUse, err = ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+		if err != nil {
+			glog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
+			return nil, err
+		}
+		klog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
 	}
-	driverName, snapshotID, timestamp, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
-	if err != nil {
-		klog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
-		return nil, err
-	}
-	klog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: driver %s, snapshotId %s, timestamp %d, size %d, readyToUse %t", driverName, snapshotID, timestamp, size, readyToUse)
 
 	if timestamp == 0 {
 		timestamp = time.Now().UnixNano()
