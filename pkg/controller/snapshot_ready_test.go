@@ -124,6 +124,21 @@ func TestSync(t *testing.T) {
 			test:   testSyncSnapshot,
 		},
 		{
+			name:              "2-6 - snapshot bound to prebound content correctly, status ready false -> true, ref.UID '' -> 'snapuid2-6'",
+			initialContents:   newContentArray("content2-6", validSecretClass, "sid2-6", noVolume, noVolume, noBoundUID, "snap2-6", &deletePolicy, nil, &timeNow, false),
+			expectedContents:  newContentArray("content2-6", validSecretClass, "sid2-6", noVolume, noVolume, "snapuid2-6", "snap2-6", &deletePolicy, nil, &timeNow, false),
+			initialSnapshots:  newSnapshotArray("snap2-6", validSecretClass, "content2-6", "snapuid2-6", noClaim, false, nil, metaTimeNow, nil),
+			expectedSnapshots: newSnapshotArray("snap2-6", validSecretClass, "content2-6", "snapuid2-6", noClaim, true, nil, metaTimeNow, nil),
+			expectedListCalls: []listCall{
+				{
+					snapshotID: "sid2-6",
+					readyToUse: true,
+				},
+			},
+			errors: noerrors,
+			test:   testSyncSnapshot,
+		},
+		{
 			name:              "2-7 - snapshot and content bound, csi driver get status error",
 			initialContents:   newContentArray("content2-7", validSecretClass, "sid2-7", "vuid2-7", "volume2-7", "snapuid2-7", "snap2-7", &deletePolicy, nil, nil, false),
 			expectedContents:  newContentArray("content2-7", validSecretClass, "sid2-7", "vuid2-7", "volume2-7", "snapuid2-7", "snap2-7", &deletePolicy, nil, nil, false),

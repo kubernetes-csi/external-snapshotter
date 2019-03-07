@@ -257,16 +257,15 @@ func (ctrl *csiSnapshotController) syncUnreadySnapshot(snapshot *crdv1.VolumeSna
 		if !ok {
 			return fmt.Errorf("expected volume snapshot content, got %+v", contentObj)
 		}
-
-		if err := ctrl.checkandBindSnapshotContent(snapshot, content); err != nil {
+		contentBound, err := ctrl.checkandBindSnapshotContent(snapshot, content)
+		if err != nil {
 			// snapshot is bound but content is not bound to snapshot correctly
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotBindFailed", fmt.Sprintf("Snapshot failed to bind VolumeSnapshotContent, %v", err))
 			return fmt.Errorf("snapshot %s is bound, but VolumeSnapshotContent %s is not bound to the VolumeSnapshot correctly, %v", uniqueSnapshotName, content.Name, err)
 		}
-
 		// snapshot is already bound correctly, check the status and update if it is ready.
 		klog.V(5).Infof("Check and update snapshot %s status", uniqueSnapshotName)
-		if err = ctrl.checkandUpdateBoundSnapshotStatus(snapshot, content); err != nil {
+		if err = ctrl.checkandUpdateBoundSnapshotStatus(snapshot, contentBound); err != nil {
 			return err
 		}
 		return nil
@@ -493,13 +492,13 @@ func (ctrl *csiSnapshotController) isVolumeBeingCreatedFromSnapshot(snapshot *cr
 }
 
 // The function checks whether the volumeSnapshotRef in snapshot content matches the given snapshot. If match, it binds the content with the snapshot
-func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) error {
+func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	if content.Spec.VolumeSnapshotRef == nil || content.Spec.VolumeSnapshotRef.Name != snapshot.Name {
-		return fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
+		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotRef.UID != snapshot.UID {
-		return fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
+		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
-		return nil
+		return content, nil
 	}
 	contentClone := content.DeepCopy()
 	contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
@@ -508,14 +507,14 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 	newContent, err := ctrl.clientset.VolumesnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
-		return err
+		return nil, err
 	}
 	_, err = ctrl.storeContentUpdate(newContent)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status: cannot update internal cache %v", newContent.Name, err)
-		return err
+		return nil, err
 	}
-	return nil
+	return newContent, nil
 }
 
 func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *v1.PersistentVolume, string, map[string]string, error) {
