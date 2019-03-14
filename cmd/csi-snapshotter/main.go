@@ -50,7 +50,7 @@ const (
 
 // Command line flags
 var (
-	snapshotter                     = flag.String("snapshotter", "", "Name of the snapshotter. The snapshotter will only create snapshot content for snapshot that requests a VolumeSnapshotClass with a snapshotter field set equal to this name.")
+	snapshotter                     = flag.String("snapshotter", "", "This option is deprecated.")
 	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	connectionTimeout               = flag.Duration("connection-timeout", 0, "The --connection-timeout flag is deprecated")
 	csiAddress                      = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
@@ -78,6 +78,9 @@ func main() {
 
 	if *connectionTimeout != 0 {
 		glog.Warning("--connection-timeout is deprecated and will have no effect")
+	}
+	if *snapshotter != "" {
+		glog.Warning("--snapshotter is deprecated and will have no effect")
 	}
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
@@ -131,12 +134,10 @@ func main() {
 	defer cancel()
 
 	// Find driver name
-	if *snapshotter == "" {
-		*snapshotter, err = csiConn.GetDriverName(ctx)
-		if err != nil {
-			glog.Error(err.Error())
-			os.Exit(1)
-		}
+	*snapshotter, err = csiConn.GetDriverName(ctx)
+	if err != nil {
+		glog.Error(err.Error())
+		os.Exit(1)
 	}
 	glog.V(2).Infof("CSI driver name: %q", *snapshotter)
 
