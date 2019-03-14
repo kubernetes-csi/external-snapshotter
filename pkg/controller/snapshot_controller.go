@@ -866,7 +866,7 @@ func (ctrl *csiSnapshotController) getStorageClassFromVolumeSnapshot(snapshot *c
 	if len(storageclassName) == 0 {
 		return nil, fmt.Errorf("cannot figure out the snapshot class automatically, please specify one in snapshot spec")
 	}
-	storageclass, err := ctrl.client.StorageV1().StorageClasses().Get(*pvc.Spec.StorageClassName, metav1.GetOptions{})
+	storageclass, err := ctrl.client.StorageV1().StorageClasses().Get(storageclassName, metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
