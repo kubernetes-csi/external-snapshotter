@@ -21,13 +21,13 @@ import (
 	"fmt"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/glog"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/golang/protobuf/ptypes/timestamp"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/protosanitizer"
 	"google.golang.org/grpc"
 	"k8s.io/api/core/v1"
+	"k8s.io/klog"
 )
 
 // CSIConnection is gRPC connection to a remote CSI driver and abstracts all
@@ -157,7 +157,7 @@ func (c *csiConnection) SupportsControllerListSnapshots(ctx context.Context) (bo
 }
 
 func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
-	glog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
+	klog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
 	if volume.Spec.CSI == nil {
 		return "", "", 0, 0, false, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
 	}
@@ -181,7 +181,7 @@ func (c *csiConnection) CreateSnapshot(ctx context.Context, snapshotName string,
 		return "", "", 0, 0, false, err
 	}
 
-	glog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%d] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
+	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%d] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
 	creationTime, err := timestampToUnixTime(rsp.Snapshot.CreationTime)
 	if err != nil {
 		return "", "", 0, 0, false, err
@@ -232,11 +232,11 @@ func (c *csiConnection) Close() error {
 }
 
 func logGRPC(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	glog.V(5).Infof("GRPC call: %s", method)
-	glog.V(5).Infof("GRPC request: %s", protosanitizer.StripSecrets(req))
+	klog.V(5).Infof("GRPC call: %s", method)
+	klog.V(5).Infof("GRPC request: %s", protosanitizer.StripSecrets(req))
 	err := invoker(ctx, method, req, reply, cc, opts...)
-	glog.V(5).Infof("GRPC response: %s", protosanitizer.StripSecrets(reply))
-	glog.V(5).Infof("GRPC error: %v", err)
+	klog.V(5).Infof("GRPC response: %s", protosanitizer.StripSecrets(reply))
+	klog.V(5).Infof("GRPC error: %v", err)
 	return err
 }
 
