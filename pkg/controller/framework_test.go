@@ -28,8 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/klog"
-
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
@@ -54,6 +52,7 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
 )
 
 // This is a unit test framework for snapshot controller.
@@ -768,14 +767,16 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 				},
 			},
 			VolumeSnapshotClassName: &className,
-			PersistentVolumeRef: &v1.ObjectReference{
-				Kind:       "PersistentVolume",
-				APIVersion: "v1",
-				UID:        types.UID(volumeUID),
-				Name:       volumeName,
-			},
-			DeletionPolicy: deletionPolicy,
+			DeletionPolicy:          deletionPolicy,
 		},
+	}
+	if volumeName != noVolume {
+		content.Spec.PersistentVolumeRef = &v1.ObjectReference{
+			Kind:       "PersistentVolume",
+			APIVersion: "v1",
+			UID:        types.UID(volumeUID),
+			Name:       volumeName,
+		}
 	}
 	if boundToSnapshotName != "" {
 		content.Spec.VolumeSnapshotRef = &v1.ObjectReference{
@@ -817,10 +818,6 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			SelfLink:        "/apis/snapshot.storage.k8s.io/v1alpha1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
-			Source: &v1.TypedLocalObjectReference{
-				Name: claimName,
-				Kind: "PersistentVolumeClaim",
-			},
 			VolumeSnapshotClassName: &className,
 			SnapshotContentName:     boundToContent,
 		},
@@ -830,6 +827,12 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			Error:        err,
 			RestoreSize:  size,
 		},
+	}
+	if claimName != noClaim {
+		snapshot.Spec.Source = &v1.TypedLocalObjectReference{
+			Name: claimName,
+			Kind: "PersistentVolumeClaim",
+		}
 	}
 
 	return withSnapshotFinalizer(&snapshot)
@@ -969,6 +972,9 @@ var (
 	validSecretClass   = "valid-secret-class"
 	sameDriver         = "sameDriver"
 	diffDriver         = "diffDriver"
+	noClaim            = ""
+	noBoundUID         = ""
+	noVolume           = ""
 )
 
 // wrapTestWithInjectedOperation returns a testCall that:
