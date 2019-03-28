@@ -14,29 +14,26 @@ required = [
   version = "=1.0.0" # Set this to exactly 1.0.0 until we can update test code to handle 1.1.0
 
 
-# Branches are used for k8s.io constraints because at the
-# moment we need latest 1.14 APIs for external-provisioner.
-# This can be set to an official 1.14 tag once 1.14 is released.
 # The dependency on external-provisioner should be removed with #60.
 [[constraint]]
   name = "k8s.io/api"
-  branch = "release-1.14"
+  version = "kubernetes-1.14.0"
 
 [[constraint]]
   name = "k8s.io/apimachinery"
-  branch = "release-1.14"
+  version = "kubernetes-1.14.0"
 
 [[constraint]]
   name = "k8s.io/client-go"
-  branch = "release-11.0"
+  version = "kubernetes-1.14.0"
 
 [[constraint]]
   name = "k8s.io/code-generator"
-  branch = "release-1.14"
+  version = "kubernetes-1.14.0"
 
 [[constraint]]
   name = "k8s.io/apiextensions-apiserver"
-  branch = "release-1.14"
+  version = "kubernetes-1.14.0"
 
 [prune]
   non-go = true
