@@ -34,6 +34,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
+	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/controller"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
@@ -65,10 +66,14 @@ var (
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
 	showVersion                     = flag.Bool("version", false, "Show version.")
+
+	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
+	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
 )
 
 var (
-	version = "unknown"
+	version                = "unknown"
+	leaderElectionLockName = "external-snapshotter-leader-election"
 )
 
 func main() {
@@ -192,17 +197,31 @@ func main() {
 		*snapshotNameUUIDLength,
 	)
 
-	// run...
-	stopCh := make(chan struct{})
-	factory.Start(stopCh)
-	coreFactory.Start(stopCh)
-	go ctrl.Run(threads, stopCh)
+	run := func(context.Context) {
+		// run...
+		stopCh := make(chan struct{})
+		factory.Start(stopCh)
+		coreFactory.Start(stopCh)
+		go ctrl.Run(threads, stopCh)
 
-	// ...until SIGINT
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-	close(stopCh)
+		// ...until SIGINT
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		<-c
+		close(stopCh)
+	}
+
+	if !*leaderElection {
+		run(context.TODO())
+	} else {
+		le := leaderelection.NewLeaderElection(kubeClient, leaderElectionLockName, run)
+		if *leaderElectionNamespace != "" {
+			le.WithNamespace(*leaderElectionNamespace)
+		}
+		if err := le.Run(); err != nil {
+			klog.Fatalf("failed to initialize leader election: %v", err)
+		}
+	}
 }
 
 func buildConfig(kubeconfig string) (*rest.Config, error) {
