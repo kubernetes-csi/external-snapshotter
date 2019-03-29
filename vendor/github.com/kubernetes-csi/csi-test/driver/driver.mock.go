@@ -96,6 +96,19 @@ func (m *MockControllerServer) EXPECT() *MockControllerServerMockRecorder {
 	return m.recorder
 }
 
+// ControllerExpandVolume mocks base method
+func (m *MockControllerServer) ControllerExpandVolume(arg0 context.Context, arg1 *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
+	ret := m.ctrl.Call(m, "ControllerExpandVolume", arg0, arg1)
+	ret0, _ := ret[0].(*csi.ControllerExpandVolumeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ControllerExpandVolume indicates an expected call of ControllerExpandVolume
+func (mr *MockControllerServerMockRecorder) ControllerExpandVolume(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ControllerExpandVolume", reflect.TypeOf((*MockControllerServer)(nil).ControllerExpandVolume), arg0, arg1)
+}
+
 // ControllerGetCapabilities mocks base method
 func (m *MockControllerServer) ControllerGetCapabilities(arg0 context.Context, arg1 *csi.ControllerGetCapabilitiesRequest) (*csi.ControllerGetCapabilitiesResponse, error) {
 	ret := m.ctrl.Call(m, "ControllerGetCapabilities", arg0, arg1)
@@ -260,6 +273,19 @@ func NewMockNodeServer(ctrl *gomock.Controller) *MockNodeServer {
 // EXPECT returns an object that allows the caller to indicate expected use
 func (m *MockNodeServer) EXPECT() *MockNodeServerMockRecorder {
 	return m.recorder
+}
+
+// NodeExpandVolume mocks base method
+func (m *MockNodeServer) NodeExpandVolume(arg0 context.Context, arg1 *csi.NodeExpandVolumeRequest) (*csi.NodeExpandVolumeResponse, error) {
+	ret := m.ctrl.Call(m, "NodeExpandVolume", arg0, arg1)
+	ret0, _ := ret[0].(*csi.NodeExpandVolumeResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// NodeExpandVolume indicates an expected call of NodeExpandVolume
+func (mr *MockNodeServerMockRecorder) NodeExpandVolume(arg0, arg1 interface{}) *gomock.Call {
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "NodeExpandVolume", reflect.TypeOf((*MockNodeServer)(nil).NodeExpandVolume), arg0, arg1)
 }
 
 // NodeGetCapabilities mocks base method
