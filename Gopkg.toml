@@ -35,6 +35,10 @@ required = [
   name = "k8s.io/apiextensions-apiserver"
   version = "kubernetes-1.14.0"
 
+[[constraint]]
+  name = "github.com/kubernetes-csi/csi-lib-utils"
+  version = ">=0.4.0"
+
 [prune]
   non-go = true
   go-tests = true

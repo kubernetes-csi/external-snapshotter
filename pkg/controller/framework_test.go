@@ -717,7 +717,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, NoResyncPeriodFunc())
 
 	// Construct controller
-	csiConnection := &fakeCSIConnection{
+	fakeSnapshot := &fakeSnapshotter{
 		t:           t,
 		listCalls:   test.expectedListCalls,
 		createCalls: test.expectedCreateCalls,
@@ -734,7 +734,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
-		csiConnection,
+		fakeSnapshot,
 		5*time.Millisecond,
 		60*time.Second,
 		"snapshot",
@@ -1152,9 +1152,9 @@ type createCall struct {
 	err        error
 }
 
-// Fake CSIConnection implementation that check that Attach/Detach is called
+// Fake SnapShotter implementation that check that Attach/Detach is called
 // with the right parameters and it returns proper error code and metadata.
-type fakeCSIConnection struct {
+type fakeSnapshotter struct {
 	createCalls       []createCall
 	createCallCounter int
 	deleteCalls       []deleteCall
@@ -1164,19 +1164,7 @@ type fakeCSIConnection struct {
 	t                 *testing.T
 }
 
-func (f *fakeCSIConnection) GetDriverName(ctx context.Context) (string, error) {
-	return mockDriverName, nil
-}
-
-func (f *fakeCSIConnection) SupportsControllerCreateSnapshot(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("Not implemented")
-}
-
-func (f *fakeCSIConnection) SupportsControllerListSnapshots(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("Not implemented")
-}
-
-func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
 		return "", "", 0, 0, false, fmt.Errorf("unexpected call")
@@ -1212,7 +1200,7 @@ func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName str
 	return call.driverName, call.snapshotId, call.timestamp, call.size, call.readyToUse, call.err
 }
 
-func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
+func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
 	if f.deleteCallCounter >= len(f.deleteCalls) {
 		f.t.Errorf("Unexpected CSI Delete Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
 		return fmt.Errorf("unexpected call")
@@ -1238,7 +1226,7 @@ func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID strin
 	return call.err
 }
 
-func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
+func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
 		return false, 0, 0, fmt.Errorf("unexpected call")
@@ -1257,12 +1245,4 @@ func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID st
 	}
 
 	return call.readyToUse, call.createTime, call.size, call.err
-}
-
-func (f *fakeCSIConnection) Close() error {
-	return fmt.Errorf("Not implemented")
-}
-
-func (f *fakeCSIConnection) Probe(ctx context.Context) error {
-	return nil
 }

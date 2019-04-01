@@ -24,8 +24,9 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	storageinformers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions/volumesnapshot/v1alpha1"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1alpha1"
-	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
-	v1 "k8s.io/api/core/v1"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
+
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -81,7 +82,7 @@ func NewCSISnapshotController(
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	createSnapshotContentRetryCount int,
 	createSnapshotContentInterval time.Duration,
-	conn connection.CSIConnection,
+	snapshotter snapshotter.Snapshotter,
 	timeout time.Duration,
 	resyncPeriod time.Duration,
 	snapshotNamePrefix string,
@@ -98,7 +99,7 @@ func NewCSISnapshotController(
 		client:                          client,
 		snapshotterName:                 snapshotterName,
 		eventRecorder:                   eventRecorder,
-		handler:                         NewCSIHandler(conn, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
+		handler:                         NewCSIHandler(snapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
 		runningOperations:               goroutinemap.NewGoRoutineMap(true),
 		createSnapshotContentRetryCount: createSnapshotContentRetryCount,
 		createSnapshotContentInterval:   createSnapshotContentInterval,
