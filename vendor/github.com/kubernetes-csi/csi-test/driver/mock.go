@@ -46,9 +46,9 @@ func NewMockCSIDriver(servers *MockCSIDriverServers) *MockCSIDriver {
 	}
 }
 
-func (m *MockCSIDriver) Start() error {
-	// Listen on a port assigned by the net package
-	l, err := net.Listen("tcp", "127.0.0.1:0")
+// StartOnAddress starts a new gRPC server listening on given address.
+func (m *MockCSIDriver) StartOnAddress(network, address string) error {
+	l, err := net.Listen(network, address)
 	if err != nil {
 		return err
 	}
@@ -59,6 +59,12 @@ func (m *MockCSIDriver) Start() error {
 	}
 
 	return nil
+}
+
+// Start starts a new gRPC server listening on a random TCP loopback port.
+func (m *MockCSIDriver) Start() error {
+	// Listen on a port assigned by the net package
+	return m.StartOnAddress("tcp", "127.0.0.1:0")
 }
 
 func (m *MockCSIDriver) Nexus() (*grpc.ClientConn, error) {

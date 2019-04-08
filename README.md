@@ -48,6 +48,13 @@ It is necessary to create a new service account and give it enough privileges to
 for i in $(find deploy/kubernetes -name '*.yaml'); do kubectl create -f $i; done
 ```
 
+### Running with Leader Election
+
+If you want to run external-snapshotter with higher availability, you can enable resource based leader election. To enable this, set the following flags:
+```bash
+--leader-election=true
+```
+
 ## Testing
 
 Running Unit Tests:
