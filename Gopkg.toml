@@ -42,3 +42,10 @@ required = [
   non-go = true
   go-tests = true
   unused-packages = true
+  [[prune.project]]
+    # Scripts under code-generator are required to generate code
+    # when snapshot APIs are changed. Therefore they should not
+    # be pruned.
+    name = "k8s.io/code-generator"
+    non-go = false
+    unused-packages = false

@@ -654,7 +654,7 @@
   version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:a295a9e0bea492f7bc4af12661b9b619b8ad61295f4890a8ea1335396d9098af"
+  digest = "1:2d821667dbd520a7ef31bdc923543f197ba30021b4317fd8871618ada52f23b0"
   name = "k8s.io/code-generator"
   packages = [
     "cmd/client-gen",
@@ -678,7 +678,7 @@
     "pkg/namer",
     "pkg/util",
   ]
-  pruneopts = "NUT"
+  pruneopts = "T"
   revision = "50b561225d70b3eb79a1faafd3dfe7b1a62cbe73"
   version = "kubernetes-1.14.0"
 
