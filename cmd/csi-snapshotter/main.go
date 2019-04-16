@@ -51,7 +51,7 @@ const (
 	threads = 10
 
 	// Default timeout of short CSI calls like GetPluginInfo
-	defaultCSITimeout = 10 * time.Second
+	defaultCSITimeout = time.Minute
 )
 
 // Command line flags
