@@ -2,7 +2,7 @@
 
 The CSI external-snapshotter is part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec).
 
-The volume snapshot feature supports CSI v1.0 and it has been an Alpha feature in Kubernetes since v1.12.
+The volume snapshot feature supports CSI v1.0 and higher and it has been an Alpha feature in Kubernetes since v1.12.
 
 ## Overview
 
