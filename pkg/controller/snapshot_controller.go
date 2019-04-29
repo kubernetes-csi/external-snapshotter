@@ -192,11 +192,19 @@ func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) 
 		return ctrl.addSnapshotFinalizer(snapshot)
 	}
 
+	klog.V(5).Infof("syncSnapshot[%s]: check if we should remove finalizer on snapshot source and remove it if we can", snapshotKey(snapshot))
+	// Check if we should remove finalizer on snapshot source and remove it if we can.
+	errFinalizer := ctrl.checkandRemoveSnapshotSourceFinalizer(snapshot)
+	if errFinalizer != nil {
+		klog.Errorf("error check and remove snapshot source finalizer for snapshot [%s]: %v", snapshot.Name, errFinalizer)
+		// Log an event and keep the original error from syncUnready/ReadySnapshot
+		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorSnapshotSourceFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
+	}
+
 	if !snapshot.Status.ReadyToUse {
 		return ctrl.syncUnreadySnapshot(snapshot)
 	}
 	return ctrl.syncReadySnapshot(snapshot)
-
 }
 
 // syncReadySnapshot checks the snapshot which has been bound to snapshot content successfully before.
@@ -367,7 +375,6 @@ func (ctrl *csiSnapshotController) createSnapshot(snapshot *crdv1.VolumeSnapshot
 			// We will get an "snapshot update" event soon, this is not a big error
 			klog.V(4).Infof("createSnapshot [%s]: cannot update internal cache: %v", snapshotKey(snapshotObj), updateErr)
 		}
-
 		return nil
 	})
 	return nil
@@ -610,6 +617,14 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	if snapshot.Status.Error != nil && !isControllerUpdateFailError(snapshot.Status.Error) {
 		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", snapshot.Status.Error.Message)
 		return snapshot, nil
+	}
+
+	// If PVC is not being deleted and finalizer is not added yet, a finalizer should be added.
+	klog.V(5).Infof("createSnapshotOperation: Check if PVC is not being deleted and add Finalizer for source of snapshot [%s] if needed", snapshot.Name)
+	err := ctrl.ensureSnapshotSourceFinalizer(snapshot)
+	if err != nil {
+		klog.Errorf("createSnapshotOperation failed to add finalizer for source of snapshot %s", err)
+		return nil, err
 	}
 
 	class, volume, contentName, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
@@ -1066,5 +1081,115 @@ func (ctrl *csiSnapshotController) removeSnapshotFinalizer(snapshot *crdv1.Volum
 	}
 
 	klog.V(5).Infof("Removed protection finalizer from volume snapshot %s", snapshotKey(snapshot))
+	return nil
+}
+
+// ensureSnapshotSourceFinalizer checks if a Finalizer needs to be added for the snapshot source;
+// if true, adds a Finalizer for VolumeSnapshot Source PVC
+func (ctrl *csiSnapshotController) ensureSnapshotSourceFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+	// Get snapshot source which is a PVC
+	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
+	if err != nil {
+		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already.", snapshot.Name, err)
+		return nil
+	}
+
+	// If PVC is not being deleted and PVCFinalizer is not added yet, the PVCFinalizer should be added.
+	if pvc.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(pvc.ObjectMeta.Finalizers, PVCFinalizer, nil) {
+		// Add the finalizer
+		pvcClone := pvc.DeepCopy()
+		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, PVCFinalizer)
+		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(pvcClone)
+		if err != nil {
+			klog.Errorf("cannot add finalizer on claim [%s] for snapshot [%s]: [%v]", pvc.Name, snapshot.Name, err)
+			return newControllerUpdateError(pvcClone.Name, err.Error())
+		}
+		klog.Infof("Added protection finalizer to persistent volume claim %s", pvc.Name)
+	}
+
+	return nil
+}
+
+// removeSnapshotSourceFinalizer removes a Finalizer for VolumeSnapshot Source PVC.
+func (ctrl *csiSnapshotController) removeSnapshotSourceFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+	// Get snapshot source which is a PVC
+	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
+	if err != nil {
+		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already. No need to remove finalizer on the claim.", snapshot.Name, err)
+		return nil
+	}
+
+	pvcClone := pvc.DeepCopy()
+	pvcClone.ObjectMeta.Finalizers = slice.RemoveString(pvcClone.ObjectMeta.Finalizers, PVCFinalizer, nil)
+
+	_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(pvcClone)
+	if err != nil {
+		return newControllerUpdateError(pvcClone.Name, err.Error())
+	}
+
+	klog.V(5).Infof("Removed protection finalizer from persistent volume claim %s", pvc.Name)
+	return nil
+}
+
+// isSnapshotSourceBeingUsed checks if a PVC is being used as a source to create a snapshot
+func (ctrl *csiSnapshotController) isSnapshotSourceBeingUsed(snapshot *crdv1.VolumeSnapshot) bool {
+	klog.V(5).Infof("isSnapshotSourceBeingUsed[%s]: started", snapshotKey(snapshot))
+	// Get snapshot source which is a PVC
+	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
+	if err != nil {
+		klog.Infof("isSnapshotSourceBeingUsed: cannot to get claim from snapshot: %v", err)
+		return false
+	}
+
+	// Going through snapshots in the cache (snapshotLister). If a snapshot's PVC source
+	// is the same as the input snapshot's PVC source and snapshot's ReadyToUse status
+	// is false, the snapshot is still being created from the PVC and the PVC is in-use.
+	snapshots, err := ctrl.snapshotLister.VolumeSnapshots(snapshot.Namespace).List(labels.Everything())
+	if err != nil {
+		return false
+	}
+	for _, snap := range snapshots {
+		// Skip static bound snapshot without a PVC source
+		if snap.Spec.Source == nil {
+			klog.V(4).Infof("Skipping static bound snapshot %s when checking PVC %s/%s", snap.Name, pvc.Namespace, pvc.Name)
+			continue
+		}
+		if pvc.Name == snap.Spec.Source.Name && snap.Status.ReadyToUse == false {
+			klog.V(2).Infof("Keeping PVC %s/%s, it is used by snapshot %s/%s", pvc.Namespace, pvc.Name, snap.Namespace, snap.Name)
+			return true
+		}
+	}
+
+	klog.V(5).Infof("isSnapshotSourceBeingUsed: no snapshot is being created from PVC %s/%s", pvc.Namespace, pvc.Name)
+	return false
+}
+
+// checkandRemoveSnapshotSourceFinalizer checks if the snapshot source finalizer should be removed
+// and removed it if needed.
+func (ctrl *csiSnapshotController) checkandRemoveSnapshotSourceFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+	// Get snapshot source which is a PVC
+	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
+	if err != nil {
+		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already. No need to remove finalizer on the claim.", snapshot.Name, err)
+		return nil
+	}
+
+	klog.V(5).Infof("checkandRemoveSnapshotSourceFinalizer for snapshot [%s]: snapshot status [%#v]", snapshot.Name, snapshot.Status)
+
+	// Check if there is a Finalizer on PVC to be removed
+	if slice.ContainsString(pvc.ObjectMeta.Finalizers, PVCFinalizer, nil) {
+		// There is a Finalizer on PVC. Check if PVC is used
+		// and remove finalizer if it's not used.
+		isUsed := ctrl.isSnapshotSourceBeingUsed(snapshot)
+		if !isUsed {
+			klog.Infof("checkandRemoveSnapshotSourceFinalizer[%s]: Remove Finalizer for PVC %s as it is not used by snapshots in creation", snapshot.Name, pvc.Name)
+			err = ctrl.removeSnapshotSourceFinalizer(snapshot)
+			if err != nil {
+				klog.Errorf("checkandRemoveSnapshotSourceFinalizer [%s]: removeSnapshotSourceFinalizer failed to remove finalizer %v", snapshot.Name, err)
+				return err
+			}
+		}
+	}
+
 	return nil
 }
