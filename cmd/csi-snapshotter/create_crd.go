@@ -44,18 +44,11 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 		},
 	}
 
-	_, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
-	if err == nil {
-		if res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Update(crd); err != nil {
-			klog.Fatalf("failed to update VolumeSnapshotResource: %#v, err: %#v",
-				res, err)
-		}
-	} else {
-		res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
-		if err != nil && !apierrors.IsAlreadyExists(err) {
-			klog.Fatalf("failed to create VolumeSnapshotResource: %#v, err: %#v",
-				res, err)
-		}
+	res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+
+	if err != nil && !apierrors.IsAlreadyExists(err) {
+		klog.Fatalf("failed to create VolumeSnapshotResource: %#v, err: %#v",
+			res, err)
 	}
 
 	crd = &apiextensionsv1beta1.CustomResourceDefinition{
@@ -72,7 +65,7 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 			},
 		},
 	}
-	res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
+	res, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
 		klog.Fatalf("failed to create VolumeSnapshotContentResource: %#v, err: %#v",
