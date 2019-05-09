@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -30,12 +30,12 @@ import (
 
 // FakeVolumeSnapshotClasses implements VolumeSnapshotClassInterface
 type FakeVolumeSnapshotClasses struct {
-	Fake *FakeVolumesnapshotV1alpha1
+	Fake *FakeSnapshotV1alpha1
 }
 
-var volumesnapshotclassesResource = schema.GroupVersionResource{Group: "volumesnapshot", Version: "v1alpha1", Resource: "volumesnapshotclasses"}
+var volumesnapshotclassesResource = schema.GroupVersionResource{Group: "snapshot.storage.k8s.io", Version: "v1alpha1", Resource: "volumesnapshotclasses"}
 
-var volumesnapshotclassesKind = schema.GroupVersionKind{Group: "volumesnapshot", Version: "v1alpha1", Kind: "VolumeSnapshotClass"}
+var volumesnapshotclassesKind = schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1alpha1", Kind: "VolumeSnapshotClass"}
 
 // Get takes name of the volumeSnapshotClass, and returns the corresponding volumeSnapshotClass object, and an error if there is any.
 func (c *FakeVolumeSnapshotClasses) Get(name string, options v1.GetOptions) (result *v1alpha1.VolumeSnapshotClass, err error) {
