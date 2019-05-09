@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
@@ -118,7 +119,7 @@ func TestCreateSnapshot(t *testing.T) {
 	type snapshotResult struct {
 		driverName string
 		snapshotId string
-		timestamp  int64
+		timestamp  time.Time
 		size       int64
 		readyToUse bool
 	}
@@ -127,7 +128,7 @@ func TestCreateSnapshot(t *testing.T) {
 		size:       1000,
 		driverName: driverName,
 		snapshotId: defaultID,
-		timestamp:  createTime.UnixNano(),
+		timestamp:  createTime,
 		readyToUse: true,
 	}
 
@@ -376,7 +377,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 		injectError    codes.Code
 		expectError    bool
 		expectReady    bool
-		expectCreateAt int64
+		expectCreateAt time.Time
 		expectSize     int64
 	}{
 		{
@@ -386,7 +387,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 			output:         defaultResponse,
 			expectError:    false,
 			expectReady:    true,
-			expectCreateAt: createTime.UnixNano(),
+			expectCreateAt: createTime,
 			expectSize:     size,
 		},
 		{
