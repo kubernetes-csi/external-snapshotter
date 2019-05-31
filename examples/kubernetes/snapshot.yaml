@@ -7,5 +7,3 @@ spec:
   source:
     name: hpvc
     kind: PersistentVolumeClaim
-  subresources:
-    status: {}
