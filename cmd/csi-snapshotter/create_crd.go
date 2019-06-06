@@ -16,12 +16,12 @@ package main
 import (
 	"reflect"
 
-	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 // CreateCRD creates CustomResourceDefinition
@@ -43,7 +43,7 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 	res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		glog.Fatalf("failed to create VolumeSnapshotResource: %#v, err: %#v",
+		klog.Fatalf("failed to create VolumeSnapshotResource: %#v, err: %#v",
 			res, err)
 	}
 
@@ -64,7 +64,7 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 	res, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		glog.Fatalf("failed to create VolumeSnapshotContentResource: %#v, err: %#v",
+		klog.Fatalf("failed to create VolumeSnapshotContentResource: %#v, err: %#v",
 			res, err)
 	}
 
@@ -85,7 +85,7 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 	res, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
-		glog.Fatalf("failed to create VolumeSnapshotResource: %#v, err: %#v",
+		klog.Fatalf("failed to create VolumeSnapshotResource: %#v, err: %#v",
 			res, err)
 	}
 

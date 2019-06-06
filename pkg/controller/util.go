@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -29,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/slice"
 	"os"
 	"strconv"
@@ -104,7 +104,7 @@ func storeObjectUpdate(store cache.Store, obj interface{}, className string) (bo
 
 	if !found {
 		// This is a new object
-		glog.V(4).Infof("storeObjectUpdate: adding %s %q, version %s", className, objName, objAccessor.GetResourceVersion())
+		klog.V(4).Infof("storeObjectUpdate: adding %s %q, version %s", className, objName, objAccessor.GetResourceVersion())
 		if err = store.Add(obj); err != nil {
 			return false, fmt.Errorf("error adding %s %q to controller cache: %v", className, objName, err)
 		}
@@ -128,11 +128,11 @@ func storeObjectUpdate(store cache.Store, obj interface{}, className string) (bo
 	// Throw away only older version, let the same version pass - we do want to
 	// get periodic sync events.
 	if oldObjResourceVersion > objResourceVersion {
-		glog.V(4).Infof("storeObjectUpdate: ignoring %s %q version %s", className, objName, objAccessor.GetResourceVersion())
+		klog.V(4).Infof("storeObjectUpdate: ignoring %s %q version %s", className, objName, objAccessor.GetResourceVersion())
 		return false, nil
 	}
 
-	glog.V(4).Infof("storeObjectUpdate updating %s %q with version %s", className, objName, objAccessor.GetResourceVersion())
+	klog.V(4).Infof("storeObjectUpdate updating %s %q with version %s", className, objName, objAccessor.GetResourceVersion())
 	if err = store.Update(obj); err != nil {
 		return false, fmt.Errorf("error updating %s %q in controller cache: %v", className, objName, err)
 	}
@@ -169,12 +169,12 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap
 	if t, ok := snapshotClassParams[secret.deprecatedSecretNameKey]; ok {
 		nameTemplate = t
 		numName++
-		glog.Warning(deprecationWarning(secret.deprecatedSecretNameKey, secret.secretNameKey, ""))
+		klog.Warning(deprecationWarning(secret.deprecatedSecretNameKey, secret.secretNameKey, ""))
 	}
 	if t, ok := snapshotClassParams[secret.deprecatedSecretNamespaceKey]; ok {
 		namespaceTemplate = t
 		numNamespace++
-		glog.Warning(deprecationWarning(secret.deprecatedSecretNamespaceKey, secret.secretNamespaceKey, ""))
+		klog.Warning(deprecationWarning(secret.deprecatedSecretNamespaceKey, secret.secretNamespaceKey, ""))
 	}
 	if t, ok := snapshotClassParams[secret.secretNameKey]; ok {
 		nameTemplate = t
@@ -249,7 +249,7 @@ func getSecretReference(snapshotClassParams map[string]string, snapContentName s
 	if err != nil {
 		return nil, fmt.Errorf("error resolving value %q: %v", namespaceTemplate, err)
 	}
-	glog.V(4).Infof("GetSecretReference namespaceTemplate %s, namespaceParams: %+v, resolved %s", namespaceTemplate, namespaceParams, resolvedNamespace)
+	klog.V(4).Infof("GetSecretReference namespaceTemplate %s, namespaceParams: %+v, resolved %s", namespaceTemplate, namespaceParams, resolvedNamespace)
 
 	if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
 		if namespaceTemplate != resolvedNamespace {
@@ -282,7 +282,7 @@ func getSecretReference(snapshotClassParams map[string]string, snapContentName s
 	}
 	ref.Name = resolvedName
 
-	glog.V(4).Infof("GetSecretReference validated Secret: %+v", ref)
+	klog.V(4).Infof("GetSecretReference validated Secret: %+v", ref)
 	return ref, nil
 }
 

@@ -89,6 +89,7 @@ spec:
           args:
             - "--csi-address=$(ADDRESS)"
             - "--connection-timeout=15s"
+            - "--leader-election=false"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
