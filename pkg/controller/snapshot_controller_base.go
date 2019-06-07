@@ -20,12 +20,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	storageinformers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions/volumesnapshot/v1alpha1"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1alpha1"
-	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
+
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -38,6 +38,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 )
 
@@ -81,15 +82,15 @@ func NewCSISnapshotController(
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	createSnapshotContentRetryCount int,
 	createSnapshotContentInterval time.Duration,
-	conn connection.CSIConnection,
+	snapshotter snapshotter.Snapshotter,
 	timeout time.Duration,
 	resyncPeriod time.Duration,
 	snapshotNamePrefix string,
 	snapshotNameUUIDLength int,
 ) *csiSnapshotController {
 	broadcaster := record.NewBroadcaster()
-	broadcaster.StartLogging(glog.Infof)
-	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.Core().Events(v1.NamespaceAll)})
+	broadcaster.StartLogging(klog.Infof)
+	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.CoreV1().Events(v1.NamespaceAll)})
 	var eventRecorder record.EventRecorder
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", snapshotterName)})
 
@@ -98,7 +99,7 @@ func NewCSISnapshotController(
 		client:                          client,
 		snapshotterName:                 snapshotterName,
 		eventRecorder:                   eventRecorder,
-		handler:                         NewCSIHandler(conn, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
+		handler:                         NewCSIHandler(snapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
 		runningOperations:               goroutinemap.NewGoRoutineMap(true),
 		createSnapshotContentRetryCount: createSnapshotContentRetryCount,
 		createSnapshotContentInterval:   createSnapshotContentInterval,
@@ -144,11 +145,11 @@ func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
 	defer ctrl.snapshotQueue.ShutDown()
 	defer ctrl.contentQueue.ShutDown()
 
-	glog.Infof("Starting CSI snapshotter")
-	defer glog.Infof("Shutting CSI snapshotter")
+	klog.Infof("Starting CSI snapshotter")
+	defer klog.Infof("Shutting CSI snapshotter")
 
 	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced, ctrl.pvcListerSynced) {
-		glog.Errorf("Cannot sync caches")
+		klog.Errorf("Cannot sync caches")
 		return
 	}
 
@@ -171,10 +172,10 @@ func (ctrl *csiSnapshotController) enqueueSnapshotWork(obj interface{}) {
 	if snapshot, ok := obj.(*crdv1.VolumeSnapshot); ok {
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(snapshot)
 		if err != nil {
-			glog.Errorf("failed to get key from object: %v, %v", err, snapshot)
+			klog.Errorf("failed to get key from object: %v, %v", err, snapshot)
 			return
 		}
-		glog.V(5).Infof("enqueued %q for sync", objName)
+		klog.V(5).Infof("enqueued %q for sync", objName)
 		ctrl.snapshotQueue.Add(objName)
 	}
 }
@@ -188,10 +189,10 @@ func (ctrl *csiSnapshotController) enqueueContentWork(obj interface{}) {
 	if content, ok := obj.(*crdv1.VolumeSnapshotContent); ok {
 		objName, err := cache.DeletionHandlingMetaNamespaceKeyFunc(content)
 		if err != nil {
-			glog.Errorf("failed to get key from object: %v, %v", err, content)
+			klog.Errorf("failed to get key from object: %v, %v", err, content)
 			return
 		}
-		glog.V(5).Infof("enqueued %q for sync", objName)
+		klog.V(5).Infof("enqueued %q for sync", objName)
 		ctrl.contentQueue.Add(objName)
 	}
 }
@@ -206,12 +207,12 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 		}
 		defer ctrl.snapshotQueue.Done(keyObj)
 		key := keyObj.(string)
-		glog.V(5).Infof("snapshotWorker[%s]", key)
+		klog.V(5).Infof("snapshotWorker[%s]", key)
 
 		namespace, name, err := cache.SplitMetaNamespaceKey(key)
-		glog.V(5).Infof("snapshotWorker: snapshot namespace [%s] name [%s]", namespace, name)
+		klog.V(5).Infof("snapshotWorker: snapshot namespace [%s] name [%s]", namespace, name)
 		if err != nil {
-			glog.Errorf("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
+			klog.Errorf("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
 			return false
 		}
 		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
@@ -220,30 +221,30 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 			// been add/update/sync
 			newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
 			if err == nil {
-				glog.V(5).Infof("passed checkAndUpdateSnapshotClass for snapshot %q", key)
+				klog.V(5).Infof("passed checkAndUpdateSnapshotClass for snapshot %q", key)
 				ctrl.updateSnapshot(newSnapshot)
 			}
 			return false
 		}
 		if err != nil && !errors.IsNotFound(err) {
-			glog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
+			klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
 			return false
 		}
 		// The snapshot is not in informer cache, the event must have been "delete"
 		vsObj, found, err := ctrl.snapshotStore.GetByKey(key)
 		if err != nil {
-			glog.V(2).Infof("error getting snapshot %q from cache: %v", key, err)
+			klog.V(2).Infof("error getting snapshot %q from cache: %v", key, err)
 			return false
 		}
 		if !found {
 			// The controller has already processed the delete event and
 			// deleted the snapshot from its cache
-			glog.V(2).Infof("deletion of snapshot %q was already processed", key)
+			klog.V(2).Infof("deletion of snapshot %q was already processed", key)
 			return false
 		}
 		snapshot, ok := vsObj.(*crdv1.VolumeSnapshot)
 		if !ok {
-			glog.Errorf("expected vs, got %+v", vsObj)
+			klog.Errorf("expected vs, got %+v", vsObj)
 			return false
 		}
 		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
@@ -255,7 +256,7 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 
 	for {
 		if quit := workFunc(); quit {
-			glog.Infof("snapshot worker queue shutting down")
+			klog.Infof("snapshot worker queue shutting down")
 			return
 		}
 	}
@@ -271,11 +272,11 @@ func (ctrl *csiSnapshotController) contentWorker() {
 		}
 		defer ctrl.contentQueue.Done(keyObj)
 		key := keyObj.(string)
-		glog.V(5).Infof("contentWorker[%s]", key)
+		klog.V(5).Infof("contentWorker[%s]", key)
 
 		_, name, err := cache.SplitMetaNamespaceKey(key)
 		if err != nil {
-			glog.V(4).Infof("error getting name of snapshotContent %q to get snapshotContent from informer: %v", key, err)
+			klog.V(4).Infof("error getting name of snapshotContent %q to get snapshotContent from informer: %v", key, err)
 			return false
 		}
 		content, err := ctrl.contentLister.Get(name)
@@ -288,7 +289,7 @@ func (ctrl *csiSnapshotController) contentWorker() {
 			return false
 		}
 		if !errors.IsNotFound(err) {
-			glog.V(2).Infof("error getting content %q from informer: %v", key, err)
+			klog.V(2).Infof("error getting content %q from informer: %v", key, err)
 			return false
 		}
 
@@ -296,18 +297,18 @@ func (ctrl *csiSnapshotController) contentWorker() {
 		// "delete"
 		contentObj, found, err := ctrl.contentStore.GetByKey(key)
 		if err != nil {
-			glog.V(2).Infof("error getting content %q from cache: %v", key, err)
+			klog.V(2).Infof("error getting content %q from cache: %v", key, err)
 			return false
 		}
 		if !found {
 			// The controller has already processed the delete event and
 			// deleted the content from its cache
-			glog.V(2).Infof("deletion of content %q was already processed", key)
+			klog.V(2).Infof("deletion of content %q was already processed", key)
 			return false
 		}
 		content, ok := contentObj.(*crdv1.VolumeSnapshotContent)
 		if !ok {
-			glog.Errorf("expected content, got %+v", content)
+			klog.Errorf("expected content, got %+v", content)
 			return false
 		}
 		ctrl.deleteContent(content)
@@ -316,7 +317,7 @@ func (ctrl *csiSnapshotController) contentWorker() {
 
 	for {
 		if quit := workFunc(); quit {
-			glog.Infof("content worker queue shutting down")
+			klog.Infof("content worker queue shutting down")
 			return
 		}
 	}
@@ -352,26 +353,26 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 	var err error
 	newSnapshot := snapshot
 	if className != nil {
-		glog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
+		klog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 		class, err = ctrl.GetSnapshotClass(*className)
 		if err != nil {
-			glog.Errorf("checkAndUpdateSnapshotClass failed to getSnapshotClass %v", err)
+			klog.Errorf("checkAndUpdateSnapshotClass failed to getSnapshotClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
 			return nil, err
 		}
 	} else {
-		glog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: SetDefaultSnapshotClass", snapshot.Name)
+		klog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: SetDefaultSnapshotClass", snapshot.Name)
 		class, newSnapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
 		if err != nil {
-			glog.Errorf("checkAndUpdateSnapshotClass failed to setDefaultClass %v", err)
+			klog.Errorf("checkAndUpdateSnapshotClass failed to setDefaultClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
 			return nil, err
 		}
 	}
 
-	glog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
+	klog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
 	if class.Snapshotter != ctrl.snapshotterName {
-		glog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)
+		klog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)
 		return nil, fmt.Errorf("volumeSnapshotClass does not match with the snapshotter for controller")
 	}
 	return newSnapshot, nil
@@ -382,10 +383,10 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 func (ctrl *csiSnapshotController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) {
 	// Store the new snapshot version in the cache and do not process it if this is
 	// an old version.
-	glog.V(5).Infof("updateSnapshot %q", snapshotKey(snapshot))
+	klog.V(5).Infof("updateSnapshot %q", snapshotKey(snapshot))
 	newSnapshot, err := ctrl.storeSnapshotUpdate(snapshot)
 	if err != nil {
-		glog.Errorf("%v", err)
+		klog.Errorf("%v", err)
 	}
 	if !newSnapshot {
 		return
@@ -395,9 +396,9 @@ func (ctrl *csiSnapshotController) updateSnapshot(snapshot *crdv1.VolumeSnapshot
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
 			// recovers from it easily.
-			glog.V(3).Infof("could not sync claim %q: %+v", snapshotKey(snapshot), err)
+			klog.V(3).Infof("could not sync claim %q: %+v", snapshotKey(snapshot), err)
 		} else {
-			glog.Errorf("could not sync volume %q: %+v", snapshotKey(snapshot), err)
+			klog.Errorf("could not sync volume %q: %+v", snapshotKey(snapshot), err)
 		}
 	}
 }
@@ -409,7 +410,7 @@ func (ctrl *csiSnapshotController) updateContent(content *crdv1.VolumeSnapshotCo
 	// an old version.
 	new, err := ctrl.storeContentUpdate(content)
 	if err != nil {
-		glog.Errorf("%v", err)
+		klog.Errorf("%v", err)
 	}
 	if !new {
 		return
@@ -419,9 +420,9 @@ func (ctrl *csiSnapshotController) updateContent(content *crdv1.VolumeSnapshotCo
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
 			// recovers from it easily.
-			glog.V(3).Infof("could not sync content %q: %+v", content.Name, err)
+			klog.V(3).Infof("could not sync content %q: %+v", content.Name, err)
 		} else {
-			glog.Errorf("could not sync content %q: %+v", content.Name, err)
+			klog.Errorf("could not sync content %q: %+v", content.Name, err)
 		}
 	}
 }
@@ -429,34 +430,34 @@ func (ctrl *csiSnapshotController) updateContent(content *crdv1.VolumeSnapshotCo
 // deleteSnapshot runs in worker thread and handles "snapshot deleted" event.
 func (ctrl *csiSnapshotController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot) {
 	_ = ctrl.snapshotStore.Delete(snapshot)
-	glog.V(4).Infof("snapshot %q deleted", snapshotKey(snapshot))
+	klog.V(4).Infof("snapshot %q deleted", snapshotKey(snapshot))
 
 	snapshotContentName := snapshot.Spec.SnapshotContentName
 	if snapshotContentName == "" {
-		glog.V(5).Infof("deleteSnapshot[%q]: content not bound", snapshotKey(snapshot))
+		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", snapshotKey(snapshot))
 		return
 	}
 	// sync the content when its snapshot is deleted.  Explicitly sync'ing the
 	// content here in response to snapshot deletion prevents the content from
 	// waiting until the next sync period for its Release.
-	glog.V(5).Infof("deleteSnapshot[%q]: scheduling sync of content %s", snapshotKey(snapshot), snapshotContentName)
+	klog.V(5).Infof("deleteSnapshot[%q]: scheduling sync of content %s", snapshotKey(snapshot), snapshotContentName)
 	ctrl.contentQueue.Add(snapshotContentName)
 }
 
 // deleteContent runs in worker thread and handles "content deleted" event.
 func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotContent) {
 	_ = ctrl.contentStore.Delete(content)
-	glog.V(4).Infof("content %q deleted", content.Name)
+	klog.V(4).Infof("content %q deleted", content.Name)
 
 	snapshotName := snapshotRefKey(content.Spec.VolumeSnapshotRef)
 	if snapshotName == "" {
-		glog.V(5).Infof("deleteContent[%q]: content not bound", content.Name)
+		klog.V(5).Infof("deleteContent[%q]: content not bound", content.Name)
 		return
 	}
 	// sync the snapshot when its content is deleted.  Explicitly sync'ing the
 	// snapshot here in response to content deletion prevents the snapshot from
 	// waiting until the next sync period for its Release.
-	glog.V(5).Infof("deleteContent[%q]: scheduling sync of snapshot %s", content.Name, snapshotName)
+	klog.V(5).Infof("deleteContent[%q]: scheduling sync of snapshot %s", content.Name, snapshotName)
 	ctrl.snapshotQueue.Add(snapshotName)
 }
 
@@ -466,27 +467,27 @@ func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotCo
 func (ctrl *csiSnapshotController) initializeCaches(snapshotLister storagelisters.VolumeSnapshotLister, contentLister storagelisters.VolumeSnapshotContentLister) {
 	snapshotList, err := snapshotLister.List(labels.Everything())
 	if err != nil {
-		glog.Errorf("CSISnapshotController can't initialize caches: %v", err)
+		klog.Errorf("CSISnapshotController can't initialize caches: %v", err)
 		return
 	}
 	for _, snapshot := range snapshotList {
 		snapshotClone := snapshot.DeepCopy()
 		if _, err = ctrl.storeSnapshotUpdate(snapshotClone); err != nil {
-			glog.Errorf("error updating volume snapshot cache: %v", err)
+			klog.Errorf("error updating volume snapshot cache: %v", err)
 		}
 	}
 
 	contentList, err := contentLister.List(labels.Everything())
 	if err != nil {
-		glog.Errorf("CSISnapshotController can't initialize caches: %v", err)
+		klog.Errorf("CSISnapshotController can't initialize caches: %v", err)
 		return
 	}
 	for _, content := range contentList {
 		contentClone := content.DeepCopy()
 		if _, err = ctrl.storeContentUpdate(contentClone); err != nil {
-			glog.Errorf("error updating volume snapshot content cache: %v", err)
+			klog.Errorf("error updating volume snapshot content cache: %v", err)
 		}
 	}
 
-	glog.V(4).Infof("controller initialized")
+	klog.V(4).Infof("controller initialized")
 }

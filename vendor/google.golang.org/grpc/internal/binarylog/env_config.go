@@ -28,7 +28,8 @@ import (
 	"google.golang.org/grpc/grpclog"
 )
 
-// newLoggerFromConfigString reads the string and build a logger.
+// NewLoggerFromConfigString reads the string and build a logger. It can be used
+// to build a new logger and assign it to binarylog.Logger.
 //
 // Example filter config strings:
 //  - "" Nothing will be logged
@@ -43,7 +44,10 @@ import (
 //
 // If two configs exist for one certain method or service, the one specified
 // later overrides the privous config.
-func newLoggerFromConfigString(s string) *logger {
+func NewLoggerFromConfigString(s string) Logger {
+	if s == "" {
+		return nil
+	}
 	l := newEmptyLogger()
 	methods := strings.Split(s, ",")
 	for _, method := range methods {
@@ -176,7 +180,7 @@ func parseHeaderMessageLengthConfig(c string) (hdrLenStr, msgLenStr uint64, err 
 		if s := match[1]; s != "" {
 			msgLenStr, err = strconv.ParseUint(s, 10, 64)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Failed to convert %q to uint", s)
+				return 0, 0, fmt.Errorf("failed to convert %q to uint", s)
 			}
 			return 0, msgLenStr, nil
 		}
@@ -191,13 +195,13 @@ func parseHeaderMessageLengthConfig(c string) (hdrLenStr, msgLenStr uint64, err 
 		if s := match[1]; s != "" {
 			hdrLenStr, err = strconv.ParseUint(s, 10, 64)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Failed to convert %q to uint", s)
+				return 0, 0, fmt.Errorf("failed to convert %q to uint", s)
 			}
 		}
 		if s := match[2]; s != "" {
 			msgLenStr, err = strconv.ParseUint(s, 10, 64)
 			if err != nil {
-				return 0, 0, fmt.Errorf("Failed to convert %q to uint", s)
+				return 0, 0, fmt.Errorf("failed to convert %q to uint", s)
 			}
 		}
 		return hdrLenStr, msgLenStr, nil

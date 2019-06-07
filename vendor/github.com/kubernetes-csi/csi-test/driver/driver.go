@@ -41,6 +41,8 @@ var (
 	ErrAuthFailed = errors.New("authentication failed")
 )
 
+// CSIDriverServers is a unified driver component with both Controller and Node
+// services.
 type CSIDriverServers struct {
 	Controller csi.ControllerServer
 	Identity   csi.IdentityServer
@@ -54,14 +56,15 @@ const secretField = "secretKey"
 // secrets. This mock driver has a single string secret with secretField as the
 // key.
 type CSICreds struct {
-	CreateVolumeSecret              string
-	DeleteVolumeSecret              string
-	ControllerPublishVolumeSecret   string
-	ControllerUnpublishVolumeSecret string
-	NodeStageVolumeSecret           string
-	NodePublishVolumeSecret         string
-	CreateSnapshotSecret            string
-	DeleteSnapshotSecret            string
+	CreateVolumeSecret                         string
+	DeleteVolumeSecret                         string
+	ControllerPublishVolumeSecret              string
+	ControllerUnpublishVolumeSecret            string
+	NodeStageVolumeSecret                      string
+	NodePublishVolumeSecret                    string
+	CreateSnapshotSecret                       string
+	DeleteSnapshotSecret                       string
+	ControllerValidateVolumeCapabilitiesSecret string
 }
 
 type CSIDriver struct {
@@ -81,15 +84,7 @@ func NewCSIDriver(servers *CSIDriverServers) *CSIDriver {
 }
 
 func (c *CSIDriver) goServe(started chan<- bool) {
-	c.wg.Add(1)
-	go func() {
-		defer c.wg.Done()
-		started <- true
-		err := c.server.Serve(c.listener)
-		if err != nil {
-			panic(err.Error())
-		}
-	}()
+	goServe(c.server, &c.wg, c.listener, started)
 }
 
 func (c *CSIDriver) Address() string {
@@ -128,15 +123,7 @@ func (c *CSIDriver) Start(l net.Listener) error {
 }
 
 func (c *CSIDriver) Stop() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-
-	if !c.running {
-		return
-	}
-
-	c.server.Stop()
-	c.wg.Wait()
+	stop(&c.lock, &c.wg, c.server, c.running)
 }
 
 func (c *CSIDriver) Close() {
@@ -152,20 +139,56 @@ func (c *CSIDriver) IsRunning() bool {
 
 // SetDefaultCreds sets the default secrets for CSI creds.
 func (c *CSIDriver) SetDefaultCreds() {
-	c.creds = &CSICreds{
-		CreateVolumeSecret:              "secretval1",
-		DeleteVolumeSecret:              "secretval2",
-		ControllerPublishVolumeSecret:   "secretval3",
-		ControllerUnpublishVolumeSecret: "secretval4",
-		NodeStageVolumeSecret:           "secretval5",
-		NodePublishVolumeSecret:         "secretval6",
-		CreateSnapshotSecret:            "secretval7",
-		DeleteSnapshotSecret:            "secretval8",
-	}
+	setDefaultCreds(c.creds)
 }
 
 func (c *CSIDriver) callInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
-	err := c.authInterceptor(req)
+	return callInterceptor(ctx, c.creds, req, info, handler)
+}
+
+// goServe starts a grpc server.
+func goServe(server *grpc.Server, wg *sync.WaitGroup, listener net.Listener, started chan<- bool) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		started <- true
+		err := server.Serve(listener)
+		if err != nil {
+			panic(err.Error())
+		}
+	}()
+}
+
+// stop stops a grpc server.
+func stop(lock *sync.Mutex, wg *sync.WaitGroup, server *grpc.Server, running bool) {
+	lock.Lock()
+	defer lock.Unlock()
+
+	if !running {
+		return
+	}
+
+	server.Stop()
+	wg.Wait()
+}
+
+// setDefaultCreds sets the default credentials, given a CSICreds instance.
+func setDefaultCreds(creds *CSICreds) {
+	creds = &CSICreds{
+		CreateVolumeSecret:                         "secretval1",
+		DeleteVolumeSecret:                         "secretval2",
+		ControllerPublishVolumeSecret:              "secretval3",
+		ControllerUnpublishVolumeSecret:            "secretval4",
+		NodeStageVolumeSecret:                      "secretval5",
+		NodePublishVolumeSecret:                    "secretval6",
+		CreateSnapshotSecret:                       "secretval7",
+		DeleteSnapshotSecret:                       "secretval8",
+		ControllerValidateVolumeCapabilitiesSecret: "secretval9",
+	}
+}
+
+func callInterceptor(ctx context.Context, creds *CSICreds, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	err := authInterceptor(creds, req)
 	if err != nil {
 		logGRPC(info.FullMethod, req, nil, err)
 		return nil, err
@@ -175,9 +198,9 @@ func (c *CSIDriver) callInterceptor(ctx context.Context, req interface{}, info *
 	return rsp, err
 }
 
-func (c *CSIDriver) authInterceptor(req interface{}) error {
-	if c.creds != nil {
-		authenticated, authErr := isAuthenticated(req, c.creds)
+func authInterceptor(creds *CSICreds, req interface{}) error {
+	if creds != nil {
+		authenticated, authErr := isAuthenticated(req, creds)
 		if !authenticated {
 			if authErr == ErrNoCredentials {
 				return status.Error(codes.InvalidArgument, authErr.Error())
@@ -227,6 +250,8 @@ func isAuthenticated(req interface{}, creds *CSICreds) (bool, error) {
 		return authenticateCreateSnapshot(r, creds)
 	case *csi.DeleteSnapshotRequest:
 		return authenticateDeleteSnapshot(r, creds)
+	case *csi.ValidateVolumeCapabilitiesRequest:
+		return authenticateControllerValidateVolumeCapabilities(r, creds)
 	default:
 		return true, nil
 	}
@@ -262,6 +287,10 @@ func authenticateCreateSnapshot(req *csi.CreateSnapshotRequest, creds *CSICreds)
 
 func authenticateDeleteSnapshot(req *csi.DeleteSnapshotRequest, creds *CSICreds) (bool, error) {
 	return credsCheck(req.GetSecrets(), creds.DeleteSnapshotSecret)
+}
+
+func authenticateControllerValidateVolumeCapabilities(req *csi.ValidateVolumeCapabilitiesRequest, creds *CSICreds) (bool, error) {
+	return credsCheck(req.GetSecrets(), creds.ControllerValidateVolumeCapabilitiesSecret)
 }
 
 func credsCheck(secrets map[string]string, secretVal string) (bool, error) {

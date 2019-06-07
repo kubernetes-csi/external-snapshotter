@@ -28,8 +28,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang/glog"
-
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
@@ -54,6 +52,7 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog"
 )
 
 // This is a unit test framework for snapshot controller.
@@ -191,7 +190,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	glog.V(4).Infof("reactor got operation %q on %q", action.GetVerb(), action.GetResource())
+	klog.V(4).Infof("reactor got operation %q on %q", action.GetVerb(), action.GetResource())
 
 	// Inject error when requested
 	err = r.injectReactError(action)
@@ -215,7 +214,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.contents[content.Name] = content
 		r.changedObjects = append(r.changedObjects, content)
 		r.changedSinceLastSync++
-		glog.V(5).Infof("created content %s", content.Name)
+		klog.V(5).Infof("created content %s", content.Name)
 		return true, content, nil
 
 	case action.Matches("update", "volumesnapshotcontents"):
@@ -241,7 +240,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.contents[content.Name] = content
 		r.changedObjects = append(r.changedObjects, content)
 		r.changedSinceLastSync++
-		glog.V(4).Infof("saved updated content %s", content.Name)
+		klog.V(4).Infof("saved updated content %s", content.Name)
 		return true, content, nil
 
 	case action.Matches("update", "volumesnapshots"):
@@ -267,32 +266,32 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.snapshots[snapshot.Name] = snapshot
 		r.changedObjects = append(r.changedObjects, snapshot)
 		r.changedSinceLastSync++
-		glog.V(4).Infof("saved updated snapshot %s", snapshot.Name)
+		klog.V(4).Infof("saved updated snapshot %s", snapshot.Name)
 		return true, snapshot, nil
 
 	case action.Matches("get", "volumesnapshotcontents"):
 		name := action.(core.GetAction).GetName()
 		content, found := r.contents[name]
 		if found {
-			glog.V(4).Infof("GetVolume: found %s", content.Name)
+			klog.V(4).Infof("GetVolume: found %s", content.Name)
 			return true, content, nil
 		}
-		glog.V(4).Infof("GetVolume: content %s not found", name)
+		klog.V(4).Infof("GetVolume: content %s not found", name)
 		return true, nil, fmt.Errorf("cannot find content %s", name)
 
 	case action.Matches("get", "volumesnapshots"):
 		name := action.(core.GetAction).GetName()
 		snapshot, found := r.snapshots[name]
 		if found {
-			glog.V(4).Infof("GetSnapshot: found %s", snapshot.Name)
+			klog.V(4).Infof("GetSnapshot: found %s", snapshot.Name)
 			return true, snapshot, nil
 		}
-		glog.V(4).Infof("GetSnapshot: content %s not found", name)
+		klog.V(4).Infof("GetSnapshot: content %s not found", name)
 		return true, nil, fmt.Errorf("cannot find snapshot %s", name)
 
 	case action.Matches("delete", "volumesnapshotcontents"):
 		name := action.(core.DeleteAction).GetName()
-		glog.V(4).Infof("deleted content %s", name)
+		klog.V(4).Infof("deleted content %s", name)
 		_, found := r.contents[name]
 		if found {
 			delete(r.contents, name)
@@ -303,7 +302,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 
 	case action.Matches("delete", "volumesnapshots"):
 		name := action.(core.DeleteAction).GetName()
-		glog.V(4).Infof("deleted snapshot %s", name)
+		klog.V(4).Infof("deleted snapshot %s", name)
 		_, found := r.contents[name]
 		if found {
 			delete(r.snapshots, name)
@@ -316,40 +315,40 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		name := action.(core.GetAction).GetName()
 		volume, found := r.volumes[name]
 		if found {
-			glog.V(4).Infof("GetVolume: found %s", volume.Name)
+			klog.V(4).Infof("GetVolume: found %s", volume.Name)
 			return true, volume, nil
 		}
-		glog.V(4).Infof("GetVolume: volume %s not found", name)
+		klog.V(4).Infof("GetVolume: volume %s not found", name)
 		return true, nil, fmt.Errorf("cannot find volume %s", name)
 
 	case action.Matches("get", "persistentvolumeclaims"):
 		name := action.(core.GetAction).GetName()
 		claim, found := r.claims[name]
 		if found {
-			glog.V(4).Infof("GetClaim: found %s", claim.Name)
+			klog.V(4).Infof("GetClaim: found %s", claim.Name)
 			return true, claim, nil
 		}
-		glog.V(4).Infof("GetClaim: claim %s not found", name)
+		klog.V(4).Infof("GetClaim: claim %s not found", name)
 		return true, nil, fmt.Errorf("cannot find claim %s", name)
 
 	case action.Matches("get", "storageclasses"):
 		name := action.(core.GetAction).GetName()
 		storageClass, found := r.storageClasses[name]
 		if found {
-			glog.V(4).Infof("GetStorageClass: found %s", storageClass.Name)
+			klog.V(4).Infof("GetStorageClass: found %s", storageClass.Name)
 			return true, storageClass, nil
 		}
-		glog.V(4).Infof("GetStorageClass: storageClass %s not found", name)
+		klog.V(4).Infof("GetStorageClass: storageClass %s not found", name)
 		return true, nil, fmt.Errorf("cannot find storageClass %s", name)
 
 	case action.Matches("get", "secrets"):
 		name := action.(core.GetAction).GetName()
 		secret, found := r.secrets[name]
 		if found {
-			glog.V(4).Infof("GetSecret: found %s", secret.Name)
+			klog.V(4).Infof("GetSecret: found %s", secret.Name)
 			return true, secret, nil
 		}
-		glog.V(4).Infof("GetSecret: secret %s not found", name)
+		klog.V(4).Infof("GetSecret: secret %s not found", name)
 		return true, nil, fmt.Errorf("cannot find secret %s", name)
 
 	}
@@ -366,11 +365,11 @@ func (r *snapshotReactor) injectReactError(action core.Action) error {
 	}
 
 	for i, expected := range r.errors {
-		glog.V(4).Infof("trying to match %q %q with %q %q", expected.verb, expected.resource, action.GetVerb(), action.GetResource())
+		klog.V(4).Infof("trying to match %q %q with %q %q", expected.verb, expected.resource, action.GetVerb(), action.GetResource())
 		if action.Matches(expected.verb, expected.resource) {
 			// That's the action we're waiting for, remove it from injectedErrors
 			r.errors = append(r.errors[:i], r.errors[i+1:]...)
-			glog.V(4).Infof("reactor found matching error at index %d: %q %q, returning %v", i, expected.verb, expected.resource, expected.error)
+			klog.V(4).Infof("reactor found matching error at index %d: %q %q, returning %v", i, expected.verb, expected.resource, expected.error)
 			return expected.error
 		}
 	}
@@ -477,14 +476,14 @@ func checkEvents(t *testing.T, expectedEvents []string, ctrl *csiSnapshotControl
 		select {
 		case event, ok := <-fakeRecorder.Events:
 			if ok {
-				glog.V(5).Infof("event recorder got event %s", event)
+				klog.V(5).Infof("event recorder got event %s", event)
 				gotEvents = append(gotEvents, event)
 			} else {
-				glog.V(5).Infof("event recorder finished")
+				klog.V(5).Infof("event recorder finished")
 				finished = true
 			}
 		case _, _ = <-timer.C:
-			glog.V(5).Infof("event recorder timeout")
+			klog.V(5).Infof("event recorder timeout")
 			finished = true
 		}
 	}
@@ -524,10 +523,10 @@ func (r *snapshotReactor) popChange() interface{} {
 		switch obj.(type) {
 		case *crdv1.VolumeSnapshotContent:
 			vol, _ := obj.(*crdv1.VolumeSnapshotContent)
-			glog.V(4).Infof("reactor queue: %s", vol.Name)
+			klog.V(4).Infof("reactor queue: %s", vol.Name)
 		case *crdv1.VolumeSnapshot:
 			snapshot, _ := obj.(*crdv1.VolumeSnapshot)
-			glog.V(4).Infof("reactor queue: %s", snapshot.Name)
+			klog.V(4).Infof("reactor queue: %s", snapshot.Name)
 		}
 	}
 
@@ -718,7 +717,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, NoResyncPeriodFunc())
 
 	// Construct controller
-	csiConnection := &fakeCSIConnection{
+	fakeSnapshot := &fakeSnapshotter{
 		t:           t,
 		listCalls:   test.expectedListCalls,
 		createCalls: test.expectedCreateCalls,
@@ -735,7 +734,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
-		csiConnection,
+		fakeSnapshot,
 		5*time.Millisecond,
 		60*time.Second,
 		"snapshot",
@@ -768,14 +767,16 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 				},
 			},
 			VolumeSnapshotClassName: &className,
-			PersistentVolumeRef: &v1.ObjectReference{
-				Kind:       "PersistentVolume",
-				APIVersion: "v1",
-				UID:        types.UID(volumeUID),
-				Name:       volumeName,
-			},
-			DeletionPolicy: deletionPolicy,
+			DeletionPolicy:          deletionPolicy,
 		},
+	}
+	if volumeName != noVolume {
+		content.Spec.PersistentVolumeRef = &v1.ObjectReference{
+			Kind:       "PersistentVolume",
+			APIVersion: "v1",
+			UID:        types.UID(volumeUID),
+			Name:       volumeName,
+		}
 	}
 	if boundToSnapshotName != "" {
 		content.Spec.VolumeSnapshotRef = &v1.ObjectReference{
@@ -817,10 +818,6 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			SelfLink:        "/apis/snapshot.storage.k8s.io/v1alpha1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
-			Source: &v1.TypedLocalObjectReference{
-				Name: claimName,
-				Kind: "PersistentVolumeClaim",
-			},
 			VolumeSnapshotClassName: &className,
 			SnapshotContentName:     boundToContent,
 		},
@@ -830,6 +827,12 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			Error:        err,
 			RestoreSize:  size,
 		},
+	}
+	if claimName != noClaim {
+		snapshot.Spec.Source = &v1.TypedLocalObjectReference{
+			Name: claimName,
+			Kind: "PersistentVolumeClaim",
+		}
 	}
 
 	return withSnapshotFinalizer(&snapshot)
@@ -969,6 +972,9 @@ var (
 	validSecretClass   = "valid-secret-class"
 	sameDriver         = "sameDriver"
 	diffDriver         = "diffDriver"
+	noClaim            = ""
+	noBoundUID         = ""
+	noVolume           = ""
 )
 
 // wrapTestWithInjectedOperation returns a testCall that:
@@ -981,7 +987,7 @@ func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(c
 
 	return func(ctrl *csiSnapshotController, reactor *snapshotReactor, test controllerTest) error {
 		// Inject a hook before async operation starts
-		glog.V(4).Infof("reactor:injecting call")
+		klog.V(4).Infof("reactor:injecting call")
 		injectBeforeOperation(ctrl, reactor)
 
 		// Run the tested function (typically syncSnapshot/syncContent) in a
@@ -1028,7 +1034,7 @@ func evaluateTestResults(ctrl *csiSnapshotController, reactor *snapshotReactor, 
 func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
-		glog.V(4).Infof("starting test %q", test.name)
+		klog.V(4).Infof("starting test %q", test.name)
 
 		// Initialize the controller
 		kubeClient := &kubefake.Clientset{}
@@ -1146,9 +1152,9 @@ type createCall struct {
 	err        error
 }
 
-// Fake CSIConnection implementation that check that Attach/Detach is called
+// Fake SnapShotter implementation that check that Attach/Detach is called
 // with the right parameters and it returns proper error code and metadata.
-type fakeCSIConnection struct {
+type fakeSnapshotter struct {
 	createCalls       []createCall
 	createCallCounter int
 	deleteCalls       []deleteCall
@@ -1158,19 +1164,7 @@ type fakeCSIConnection struct {
 	t                 *testing.T
 }
 
-func (f *fakeCSIConnection) GetDriverName(ctx context.Context) (string, error) {
-	return mockDriverName, nil
-}
-
-func (f *fakeCSIConnection) SupportsControllerCreateSnapshot(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("Not implemented")
-}
-
-func (f *fakeCSIConnection) SupportsControllerListSnapshots(ctx context.Context) (bool, error) {
-	return false, fmt.Errorf("Not implemented")
-}
-
-func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
 		return "", "", 0, 0, false, fmt.Errorf("unexpected call")
@@ -1206,7 +1200,7 @@ func (f *fakeCSIConnection) CreateSnapshot(ctx context.Context, snapshotName str
 	return call.driverName, call.snapshotId, call.timestamp, call.size, call.readyToUse, call.err
 }
 
-func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
+func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
 	if f.deleteCallCounter >= len(f.deleteCalls) {
 		f.t.Errorf("Unexpected CSI Delete Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
 		return fmt.Errorf("unexpected call")
@@ -1232,7 +1226,7 @@ func (f *fakeCSIConnection) DeleteSnapshot(ctx context.Context, snapshotID strin
 	return call.err
 }
 
-func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
+func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
 		return false, 0, 0, fmt.Errorf("unexpected call")
@@ -1251,12 +1245,4 @@ func (f *fakeCSIConnection) GetSnapshotStatus(ctx context.Context, snapshotID st
 	}
 
 	return call.readyToUse, call.createTime, call.size, call.err
-}
-
-func (f *fakeCSIConnection) Close() error {
-	return fmt.Errorf("Not implemented")
-}
-
-func (f *fakeCSIConnection) Probe(ctx context.Context) error {
-	return nil
 }

@@ -23,7 +23,8 @@ import (
 	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	"github.com/kubernetes-csi/external-snapshotter/pkg/connection"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
+
 	"k8s.io/api/core/v1"
 )
 
@@ -36,7 +37,7 @@ type Handler interface {
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
 type csiHandler struct {
-	csiConnection          connection.CSIConnection
+	snapshotter            snapshotter.Snapshotter
 	timeout                time.Duration
 	snapshotNamePrefix     string
 	snapshotNameUUIDLength int
@@ -44,13 +45,13 @@ type csiHandler struct {
 
 // NewCSIHandler returns a handler which includes the csi connection and Snapshot name details
 func NewCSIHandler(
-	csiConnection connection.CSIConnection,
+	snapshotter snapshotter.Snapshotter,
 	timeout time.Duration,
 	snapshotNamePrefix string,
 	snapshotNameUUIDLength int,
 ) Handler {
 	return &csiHandler{
-		csiConnection:          csiConnection,
+		snapshotter:            snapshotter,
 		timeout:                timeout,
 		snapshotNamePrefix:     snapshotNamePrefix,
 		snapshotNameUUIDLength: snapshotNameUUIDLength,
@@ -70,7 +71,7 @@ func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume
 	if err != nil {
 		return "", "", 0, 0, false, fmt.Errorf("failed to remove CSI Parameters of prefixed keys: %v", err)
 	}
-	return handler.csiConnection.CreateSnapshot(ctx, snapshotName, volume, newParameters, snapshotterCredentials)
+	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, volume, newParameters, snapshotterCredentials)
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {
@@ -80,7 +81,7 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	err := handler.csiConnection.DeleteSnapshot(ctx, content.Spec.CSI.SnapshotHandle, snapshotterCredentials)
+	err := handler.snapshotter.DeleteSnapshot(ctx, content.Spec.CSI.SnapshotHandle, snapshotterCredentials)
 	if err != nil {
 		return fmt.Errorf("failed to delete snapshot content %s: %q", content.Name, err)
 	}
@@ -95,12 +96,12 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	csiSnapshotStatus, timestamp, size, err := handler.csiConnection.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
+	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
 	if err != nil {
 		return false, 0, 0, fmt.Errorf("failed to list snapshot content %s: %q", content.Name, err)
 	}
-	return csiSnapshotStatus, timestamp, size, nil
 
+	return csiSnapshotStatus, timestamp, size, nil
 }
 
 func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (string, error) {
