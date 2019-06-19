@@ -73,8 +73,8 @@ var (
 )
 
 var (
-	version                = "unknown"
-	leaderElectionLockName = "external-snapshotter-leader-election"
+	version = "unknown"
+	prefix  = "external-snapshotter-leader"
 )
 
 func main() {
@@ -214,7 +214,8 @@ func main() {
 	if !*leaderElection {
 		run(context.TODO())
 	} else {
-		le := leaderelection.NewLeaderElection(kubeClient, leaderElectionLockName, run)
+		lockName := fmt.Sprintf("%s-%s", prefix, strings.Replace(*snapshotterName, "/", "-", -1))
+		le := leaderelection.NewLeaderElection(kubeClient, lockName, run)
 		if *leaderElectionNamespace != "" {
 			le.WithNamespace(*leaderElectionNamespace)
 		}
