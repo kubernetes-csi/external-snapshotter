@@ -1,0 +1,47 @@
+module github.com/kubernetes-csi/external-snapshotter.git
+
+go 1.12
+
+require (
+	github.com/container-storage-interface/spec v1.1.0
+	github.com/davecgh/go-spew v1.1.1
+	github.com/evanphx/json-patch v4.1.0+incompatible
+	github.com/gogo/protobuf v1.2.1
+	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef
+	github.com/golang/mock v1.2.0
+	github.com/golang/protobuf v1.3.1
+	github.com/google/gofuzz v0.0.0-20170612174753-24818f796faf
+	github.com/googleapis/gnostic v0.2.0
+	github.com/hashicorp/golang-lru v0.5.1
+	github.com/imdario/mergo v0.3.7
+	github.com/json-iterator/go v1.1.6
+	github.com/kubernetes-csi/csi-lib-utils v0.6.1
+	github.com/kubernetes-csi/csi-test v2.0.0+incompatible
+	github.com/kubernetes-csi/external-snapshotter v1.2.0
+	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd
+	github.com/modern-go/reflect2 v0.0.0-20180701023420-4b7aa43c6742
+	github.com/spf13/pflag v1.0.3
+	golang.org/x/crypto v0.0.0-20190325154230-a5d413f7728c
+	golang.org/x/net v0.0.0-20190403144856-b630fd6fe46b
+	golang.org/x/oauth2 v0.0.0-20190402181905-9f3314589c9a
+	golang.org/x/sys v0.0.0-20190403152447-81d4e9dc473e
+	golang.org/x/text v0.3.0
+	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4
+	golang.org/x/tools v0.0.0-20190403183509-8a44e74612bc
+	google.golang.org/appengine v1.5.0
+	google.golang.org/genproto v0.0.0-20190401181712-f467c93bbac2
+	google.golang.org/grpc v1.19.1
+	gopkg.in/inf.v0 v0.9.1
+	gopkg.in/yaml.v2 v2.2.2
+	k8s.io/api v0.0.0-20190313235455-40a48860b5ab
+	k8s.io/apiextensions-apiserver v0.0.0-20190315093550-53c4693659ed
+	k8s.io/apimachinery v0.0.0-20190313205120-d7deff9243b1
+	k8s.io/client-go v11.0.0+incompatible
+	k8s.io/code-generator v0.0.0-20190311093542-50b561225d70
+	k8s.io/gengo v0.0.0-20190327210449-e17681d19d3a
+	k8s.io/klog v0.2.0
+	k8s.io/kube-openapi v0.0.0-20190401085232-94e1e7b7574c
+	k8s.io/kubernetes v1.14.0
+	k8s.io/utils v0.0.0-20190308190857-21c4ce38f2a7
+	sigs.k8s.io/yaml v1.1.0
+)
