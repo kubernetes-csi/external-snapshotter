@@ -101,13 +101,36 @@ func (s *snapshot) DeleteSnapshot(ctx context.Context, snapshotID string, snapsh
 	return nil
 }
 
+func (s *snapshot) isListSnapshotsSupported(ctx context.Context) (bool, error) {
+	client := csi.NewControllerClient(s.conn)
+	capRsp, err := client.ControllerGetCapabilities(ctx, &csi.ControllerGetCapabilitiesRequest{})
+	if err != nil {
+		return false, err
+	}
+
+	for _, cap := range capRsp.Capabilities {
+		if cap.GetRpc().GetType() == csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
 	client := csi.NewControllerClient(s.conn)
 
+	// If the driver does not support ListSnapshots, assume the snapshot ID is valid.
+	listSnapshotsSupported, err := s.isListSnapshotsSupported(ctx)
+	if err != nil {
+		return false, time.Time{}, 0, fmt.Errorf("failed to check if ListSnapshots is supported: %s", err.Error())
+	}
+	if !listSnapshotsSupported {
+		return true, time.Time{}, 0, nil
+	}
 	req := csi.ListSnapshotsRequest{
 		SnapshotId: snapshotID,
 	}
-
 	rsp, err := client.ListSnapshots(ctx, &req)
 	if err != nil {
 		return false, time.Time{}, 0, err
