@@ -20,8 +20,8 @@ import (
 	"errors"
 	"testing"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	"k8s.io/api/core/v1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -56,8 +56,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: classGold,
 		},
-		Snapshotter: mockDriverName,
-		Parameters:  class1Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class1Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -66,8 +67,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: classSilver,
 		},
-		Snapshotter: mockDriverName,
-		Parameters:  class2Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class2Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -76,8 +78,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: emptySecretClass,
 		},
-		Snapshotter: mockDriverName,
-		Parameters:  class4Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class4Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -86,8 +89,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: invalidSecretClass,
 		},
-		Snapshotter: mockDriverName,
-		Parameters:  class3Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class3Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -96,8 +100,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: validSecretClass,
 		},
-		Snapshotter: mockDriverName,
-		Parameters:  class5Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class5Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -107,7 +112,8 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Name:        defaultClass,
 			Annotations: map[string]string{IsDefaultSnapshotClassAnnotation: "true"},
 		},
-		Snapshotter: mockDriverName,
+		Driver:         mockDriverName,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 }
 
@@ -119,7 +125,7 @@ func TestDeleteSync(t *testing.T) {
 	tests := []controllerTest{
 		{
 			name:                "1-1 - content with empty snapshot class is deleted if it is bound to a non-exist snapshot and also has a snapshot uid specified",
-			initialContents:     newContentArray("content1-1", classEmpty, "sid1-1", "vuid1-1", "volume1-1", "snapuid1-1", "snap1-1", &deletePolicy, nil, nil, true, nil),
+			initialContents:     newContentArray("content1-1", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "", deletionPolicy, nil, nil, true),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
@@ -130,8 +136,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "2-1 - content with empty snapshot class will not be deleted if it is bound to a non-exist snapshot but it does not have a snapshot uid specified",
-			initialContents:     newContentArray("content2-1", classEmpty, "sid2-1", "vuid2-1", "volume2-1", "", "snap2-1", &deletePolicy, nil, nil, true, nil),
-			expectedContents:    newContentArray("content2-1", classEmpty, "sid2-1", "vuid2-1", "volume2-1", "", "snap2-1", &deletePolicy, nil, nil, true, nil),
+			initialContents:     newContentArray("content2-1", "", "snap2-1", "sid2-1", "", "", "", deletionPolicy, nil, nil, true),
+			expectedContents:    newContentArray("content2-1", "", "snap2-1", "sid2-1", "", "", "", deletionPolicy, nil, nil, true),
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
 			expectedEvents:      noevents,
@@ -141,7 +147,7 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-2 - successful delete with snapshot class that has empty secret parameter",
-			initialContents:     newContentArray("content1-2", emptySecretClass, "sid1-2", "vuid1-2", "volume1-2", "snapuid1-2", "snap1-2", &deletePolicy, nil, nil, true, emptyDataSecretAnnotations()),
+			initialContents:     newContentArray("content1-2", "sid1-2", "snap1-2", "sid1-2", emptySecretClass, "", "", deletionPolicy, nil, nil, true),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
@@ -153,7 +159,7 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-3 - successful delete with snapshot class that has valid secret parameter",
-			initialContents:     newContentArray("content1-3", validSecretClass, "sid1-3", "vuid1-3", "volume1-3", "snapuid1-3", "snap1-3", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-3", "sid1-3", "snap1-3", "sid1-3", validSecretClass, "", "", deletionPolicy, nil, nil, true),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
@@ -163,20 +169,20 @@ func TestDeleteSync(t *testing.T) {
 			expectedDeleteCalls: []deleteCall{{"sid1-3", map[string]string{"foo": "bar"}, nil}},
 			test:                testSyncContent,
 		},
-		{
+		/*{
 			name:              "1-4 - fail delete with snapshot class that has invalid secret parameter",
-			initialContents:   newContentArray("content1-4", invalidSecretClass, "sid1-4", "vuid1-4", "volume1-4", "snapuid1-4", "snap1-4", &deletePolicy, nil, nil, true, emptyNamespaceSecretAnnotations()),
-			expectedContents:  newContentArray("content1-4", invalidSecretClass, "sid1-4", "vuid1-4", "volume1-4", "snapuid1-4", "snap1-4", &deletePolicy, nil, nil, true, emptyNamespaceSecretAnnotations()),
+			initialContents:   newContentArray("content1-4", "sid1-4", "snapuid1-4", "snap1-4", &deletePolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-4", "sid1-4", "snapuid1-4", "snap1-4", &deletePolicy, nil, nil, true),
 			initialSnapshots:  nosnapshots,
 			expectedSnapshots: nosnapshots,
 			expectedEvents:    noevents,
 			errors:            noerrors,
 			test:              testSyncContent,
-		},
+		},*/
 		{
 			name:                "1-5 - csi driver delete snapshot returns error",
-			initialContents:     newContentArray("content1-5", validSecretClass, "sid1-5", "vuid1-5", "volume1-5", "snapuid1-5", "snap1-5", &deletePolicy, nil, nil, true, secretAnnotations()),
-			expectedContents:    newContentArray("content1-5", validSecretClass, "sid1-5", "vuid1-5", "volume1-5", "snapuid1-5", "snap1-5", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-5", "sid1-5", "snap1-5", "sid1-5", validSecretClass, "", "", deletionPolicy, nil, nil, true),
+			expectedContents:    newContentArray("content1-5", "sid1-5", "snap1-5", "sid1-5", validSecretClass, "", "", deletionPolicy, nil, nil, true),
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
 			initialSecrets:      []*v1.Secret{secret()},
@@ -187,15 +193,15 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-6 - api server delete content returns error",
-			initialContents:     newContentArray("content1-6", validSecretClass, "sid1-6", "vuid1-6", "volume1-6", "snapuid1-6", "snap1-6", &deletePolicy, nil, nil, true, secretAnnotations()),
-			expectedContents:    newContentArray("content1-6", validSecretClass, "sid1-6", "vuid1-6", "volume1-6", "snapuid1-6", "snap1-6", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-6", "sid1-6", "snap1-6", "sid1-6", validSecretClass, "", "", deletionPolicy, nil, nil, true),
+			expectedContents:    newContentArray("content1-6", "sid1-6", "snap1-6", "sid1-6", validSecretClass, "", "", deletionPolicy, nil, nil, true),
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
 			initialSecrets:      []*v1.Secret{secret()},
 			expectedDeleteCalls: []deleteCall{{"sid1-6", map[string]string{"foo": "bar"}, nil}},
 			expectedEvents:      []string{"Warning SnapshotContentObjectDeleteError"},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1alpha1().VolumeSnapshotContents().Delete call.
+				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshotContents().Delete call.
 				// All other calls will succeed.
 				{"delete", "volumesnapshotcontents", errors.New("mock delete error")},
 			},
@@ -205,10 +211,10 @@ func TestDeleteSync(t *testing.T) {
 			// delete success - snapshot that the content was pointing to was deleted, and another
 			// with the same name created.
 			name:                "1-7 - prebound content is deleted while the snapshot exists",
-			initialContents:     newContentArray("content1-7", validSecretClass, "sid1-7", "vuid1-7", "volume1-7", "snapuid1-7", "snap1-7", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-7", "sid1-7", "snap1-7", "sid1-7", emptySecretClass, "", "", deletionPolicy, nil, nil, true),
 			expectedContents:    nocontents,
-			initialSnapshots:    newSnapshotArray("snap1-7", validSecretClass, "content1-7", "snapuid1-7-x", "claim1-7", false, nil, nil, nil),
-			expectedSnapshots:   newSnapshotArray("snap1-7", validSecretClass, "content1-7", "snapuid1-7-x", "claim1-7", false, nil, nil, nil),
+			initialSnapshots:    newSnapshotArray("snap1-7", "snapuid1-7-x", "claim1-7", "", validSecretClass, "", &False, nil, nil, nil),
+			expectedSnapshots:   newSnapshotArray("snap1-7", "snapuid1-7-x", "claim1-7", "", validSecretClass, "", &False, nil, nil, nil),
 			initialSecrets:      []*v1.Secret{secret()},
 			expectedDeleteCalls: []deleteCall{{"sid1-7", map[string]string{"foo": "bar"}, nil}},
 			expectedEvents:      noevents,
@@ -218,7 +224,7 @@ func TestDeleteSync(t *testing.T) {
 		{
 			// delete success(?) - content is deleted before doDelete() starts
 			name:                "1-8 - content is deleted before deleting",
-			initialContents:     newContentArray("content1-8", validSecretClass, "sid1-8", "vuid1-8", "volume1-8", "snapuid1-8", "snap1-8", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-8", "sid1-8", "snap1-8", "sid1-8", validSecretClass, "", "", deletionPolicy, nil, nil, true),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
@@ -235,33 +241,21 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-9 - content will not be deleted if it is bound to a snapshot correctly, snapshot uid is specified",
-			initialContents:   newContentArray("content1-9", validSecretClass, "sid1-9", "vuid1-9", "volume1-9", "snapuid1-9", "snap1-9", &deletePolicy, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-9", validSecretClass, "sid1-9", "vuid1-9", "volume1-9", "snapuid1-9", "snap1-9", &deletePolicy, nil, nil, true, nil),
-			initialSnapshots:  newSnapshotArray("snap1-9", validSecretClass, "content1-9", "snapuid1-9", "claim1-9", false, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap1-9", validSecretClass, "content1-9", "snapuid1-9", "claim1-9", false, nil, nil, nil),
+			initialContents:   newContentArray("content1-9", "snapuid1-9", "snap1-9", "sid1-9", validSecretClass, "", "", deletionPolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-9", "snapuid1-9", "snap1-9", "sid1-9", validSecretClass, "", "", deletionPolicy, nil, nil, true),
+			initialSnapshots:  newSnapshotArray("snap1-9", "snapuid1-9", "claim1-9", "", validSecretClass, "content1-9", &False, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap1-9", "snapuid1-9", "claim1-9", "", validSecretClass, "content1-9", &False, nil, nil, nil),
 			expectedEvents:    noevents,
 			initialSecrets:    []*v1.Secret{secret()},
 			errors:            noerrors,
 			test:              testSyncContent,
 		},
 		{
-			name:                "1-10 - should delete content which is bound to a snapshot incorrectly",
-			initialContents:     newContentArray("content1-10", validSecretClass, "sid1-10", "vuid1-10", "volume1-10", "snapuid1-10-x", "snap1-10", &deletePolicy, nil, nil, true, secretAnnotations()),
-			expectedContents:    nocontents,
-			initialSnapshots:    newSnapshotArray("snap1-10", validSecretClass, "content1-10", "snapuid1-10", "claim1-10", false, nil, nil, nil),
-			expectedSnapshots:   newSnapshotArray("snap1-10", validSecretClass, "content1-10", "snapuid1-10", "claim1-10", false, nil, nil, nil),
-			expectedEvents:      noevents,
-			initialSecrets:      []*v1.Secret{secret()},
-			errors:              noerrors,
-			expectedDeleteCalls: []deleteCall{{"sid1-10", map[string]string{"foo": "bar"}, nil}},
-			test:                testSyncContent,
-		},
-		{
 			name:              "1-10 - will not delete content with retain policy set which is bound to a snapshot incorrectly",
-			initialContents:   newContentArray("content1-10", validSecretClass, "sid1-10", "vuid1-10", "volume1-10", "snapuid1-10-x", "snap1-10", &retainPolicy, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-10", validSecretClass, "sid1-10", "vuid1-10", "volume1-10", "snapuid1-10-x", "snap1-10", &retainPolicy, nil, nil, true, nil),
-			initialSnapshots:  newSnapshotArray("snap1-10", validSecretClass, "content1-10", "snapuid1-10", "claim1-10", false, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap1-10", validSecretClass, "content1-10", "snapuid1-10", "claim1-10", false, nil, nil, nil),
+			initialContents:   newContentArray("content1-10", "snapuid1-10-x", "snap1-10", "sid1-10", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-10", "snapuid1-10-x", "snap1-10", "sid1-10", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			initialSnapshots:  newSnapshotArray("snap1-10", "snapuid1-10", "claim1-10", "", validSecretClass, "content1-10", &False, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap1-10", "snapuid1-10", "claim1-10", "", validSecretClass, "content1-10", &False, nil, nil, nil),
 			expectedEvents:    noevents,
 			initialSecrets:    []*v1.Secret{secret()},
 			errors:            noerrors,
@@ -269,10 +263,10 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-11 - content will not be deleted if it is bound to a snapshot correctly, snapsht uid is not specified",
-			initialContents:   newContentArray("content1-11", validSecretClass, "sid1-11", "vuid1-11", "volume1-11", "", "snap1-11", &deletePolicy, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-11", validSecretClass, "sid1-11", "vuid1-11", "volume1-11", "", "snap1-11", &deletePolicy, nil, nil, true, nil),
-			initialSnapshots:  newSnapshotArray("snap1-11", validSecretClass, "content1-11", "snapuid1-11", "claim1-11", false, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap1-11", validSecretClass, "content1-11", "snapuid1-11", "claim1-11", false, nil, nil, nil),
+			initialContents:   newContentArray("content1-11", "", "snap1-11", "sid1-11", validSecretClass, "", "", deletePolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-11", "", "snap1-11", "sid1-11", validSecretClass, "", "", deletePolicy, nil, nil, true),
+			initialSnapshots:  newSnapshotArray("snap1-11", "snapuid1-11", "claim1-11", "", validSecretClass, "content1-11", &False, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap1-11", "snapuid1-11", "claim1-11", "", validSecretClass, "content1-11", &False, nil, nil, nil),
 			expectedEvents:    noevents,
 			initialSecrets:    []*v1.Secret{secret()},
 			errors:            noerrors,
@@ -280,8 +274,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-12 - content with retain policy will not be deleted if it is bound to a non-exist snapshot and also has a snapshot uid specified",
-			initialContents:   newContentArray("content1-12", classEmpty, "sid1-12", "vuid1-12", "volume1-12", "snapuid1-12", "snap1-12", &retainPolicy, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-12", classEmpty, "sid1-12", "vuid1-12", "volume1-12", "snapuid1-12", "snap1-12", &retainPolicy, nil, nil, true, nil),
+			initialContents:   newContentArray("content1-12", "sid1-12", "snap1-11", "sid1-11", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-12", "sid1-12", "snap1-11", "sid1-11", validSecretClass, "", "", retainPolicy, nil, nil, true),
 			initialSnapshots:  nosnapshots,
 			expectedSnapshots: nosnapshots,
 			expectedEvents:    noevents,
@@ -290,8 +284,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-13 - content with empty snapshot class is not deleted when Deletion policy is not set even if it is bound to a non-exist snapshot and also has a snapshot uid specified",
-			initialContents:   newContentArray("content1-1", classEmpty, "sid1-1", "vuid1-1", "volume1-1", "snapuid1-1", "snap1-1", nil, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-1", classEmpty, "sid1-1", "vuid1-1", "volume1-1", "snapuid1-1", "snap1-1", nil, nil, nil, true, nil),
+			initialContents:   newContentArray("content1-13", "sid1-13", "snap1-13", "sid1-13", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-13", "sid1-13", "snap1-13", "sid1-13", validSecretClass, "", "", retainPolicy, nil, nil, true),
 			initialSnapshots:  nosnapshots,
 			expectedSnapshots: nosnapshots,
 			expectedEvents:    noevents,
@@ -300,21 +294,10 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-14 - content will not be deleted if it is bound to a snapshot correctly, snapshot uid is specified",
-			initialContents:   newContentArray("content1-14", validSecretClass, "sid1-14", "vuid1-14", "volume1-14", "snapuid1-14", "snap1-14", &retainPolicy, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-14", validSecretClass, "sid1-14", "vuid1-14", "volume1-14", "snapuid1-14", "snap1-14", &retainPolicy, nil, nil, true, nil),
-			initialSnapshots:  newSnapshotArray("snap1-14", validSecretClass, "content1-14", "snapuid1-14", "claim1-14", false, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap1-14", validSecretClass, "content1-14", "snapuid1-14", "claim1-14", false, nil, nil, nil),
-			expectedEvents:    noevents,
-			initialSecrets:    []*v1.Secret{secret()},
-			errors:            noerrors,
-			test:              testSyncContent,
-		},
-		{
-			name:              "1-15 - content will not be deleted which is bound to a snapshot incorrectly if Deletion policy is not set",
-			initialContents:   newContentArray("content1-10", validSecretClass, "sid1-15", "vuid1-15", "volume1-15", "snapuid1-15-x", "snap1-15", nil, nil, nil, true, nil),
-			expectedContents:  newContentArray("content1-10", validSecretClass, "sid1-15", "vuid1-15", "volume1-15", "snapuid1-15-x", "snap1-15", nil, nil, nil, true, nil),
-			initialSnapshots:  newSnapshotArray("snap1-10", validSecretClass, "content1-15", "snapuid1-15", "claim1-15", false, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap1-10", validSecretClass, "content1-15", "snapuid1-15", "claim1-15", false, nil, nil, nil),
+			initialContents:   newContentArray("content1-14", "snapuid1-14", "snap1-14", "sid1-14", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-14", "snapuid1-14", "snap1-14", "sid1-14", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			initialSnapshots:  newSnapshotArray("snap1-14", "snapuid1-14", "claim1-14", "", validSecretClass, "content1-14", &False, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap1-14", "snapuid1-14", "claim1-14", "", validSecretClass, "content1-14", &False, nil, nil, nil),
 			expectedEvents:    noevents,
 			initialSecrets:    []*v1.Secret{secret()},
 			errors:            noerrors,
@@ -322,7 +305,7 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-16 - continue delete with snapshot class that has nonexistent secret",
-			initialContents:     newContentArray("content1-16", validSecretClass, "sid1-16", "vuid1-16", "volume1-16", "snapuid1-16", "snap1-16", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-16", "sid1-16", "snap1-16", "sid1-16", emptySecretClass, "", "", deletePolicy, nil, nil, true),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,

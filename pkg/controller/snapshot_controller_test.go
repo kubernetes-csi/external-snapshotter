@@ -17,13 +17,16 @@ limitations under the License.
 package controller
 
 import (
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	"k8s.io/client-go/tools/cache"
 	"testing"
+
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
+	"k8s.io/client-go/tools/cache"
 )
 
+var deletionPolicy = crdv1.VolumeSnapshotContentDelete
+
 func storeVersion(t *testing.T, prefix string, c cache.Store, version string, expectedReturn bool) {
-	content := newContent("contentName", classEmpty, "sid1-1", "vuid1-1", "volume1-1", "snapuid1-1", "snap1-1", nil, nil, nil, false, nil)
+	content := newContent("contentName", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "pv-handle-1-1", deletionPolicy, nil, nil, false)
 	content.ResourceVersion = version
 	ret, err := storeObjectUpdate(c, content, "content")
 	if err != nil {
@@ -81,8 +84,7 @@ func TestControllerCacheParsingError(t *testing.T) {
 	c := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 	// There must be something in the cache to compare with
 	storeVersion(t, "Step1", c, "1", true)
-
-	content := newContent("contentName", classEmpty, "sid1-1", "vuid1-1", "volume1-1", "snapuid1-1", "snap1-1", nil, nil, nil, false, nil)
+	content := newContent("contentName", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "pv-handle-1-1", deletionPolicy, nil, nil, false)
 	content.ResourceVersion = "xxx"
 	_, err := storeObjectUpdate(c, content, "content")
 	if err == nil {

@@ -29,15 +29,14 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1alpha1"
-	"k8s.io/api/core/v1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -423,15 +422,8 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 		// Don't modify the existing object
 		v := v.DeepCopy()
 		v.ResourceVersion = ""
-		if v.Spec.VolumeSnapshotRef != nil {
-			v.Spec.VolumeSnapshotRef.ResourceVersion = ""
-		}
-		if v.Spec.PersistentVolumeRef != nil {
-			v.Spec.PersistentVolumeRef.ResourceVersion = ""
-		}
-		if v.Spec.CSI != nil {
-			v.Spec.CSI.CreationTime = nil
-		}
+		v.Spec.VolumeSnapshotRef.ResourceVersion = ""
+		v.Status.CreationTime = nil
 		expectedMap[v.Name] = v
 	}
 	for _, v := range r.contents {
@@ -439,15 +431,8 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 		// written by the controller without any locks on it.
 		v := v.DeepCopy()
 		v.ResourceVersion = ""
-		if v.Spec.VolumeSnapshotRef != nil {
-			v.Spec.VolumeSnapshotRef.ResourceVersion = ""
-		}
-		if v.Spec.PersistentVolumeRef != nil {
-			v.Spec.PersistentVolumeRef.ResourceVersion = ""
-		}
-		if v.Spec.CSI != nil {
-			v.Spec.CSI.CreationTime = nil
-		}
+		v.Spec.VolumeSnapshotRef.ResourceVersion = ""
+		v.Status.CreationTime = nil
 		gotMap[v.Name] = v
 	}
 	if !reflect.DeepEqual(expectedMap, gotMap) {
@@ -471,7 +456,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		c = c.DeepCopy()
 		c.ResourceVersion = ""
 		if c.Status.Error != nil {
-			c.Status.Error.Time = metav1.Time{}
+			c.Status.Error.Time = &metav1.Time{}
 		}
 		expectedMap[c.Name] = c
 	}
@@ -481,7 +466,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		c = c.DeepCopy()
 		c.ResourceVersion = ""
 		if c.Status.Error != nil {
-			c.Status.Error.Time = metav1.Time{}
+			c.Status.Error.Time = &metav1.Time{}
 		}
 		gotMap[c.Name] = c
 	}
@@ -766,9 +751,9 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		clientset,
 		kubeClient,
 		mockDriverName,
-		informerFactory.Snapshot().V1alpha1().VolumeSnapshots(),
-		informerFactory.Snapshot().V1alpha1().VolumeSnapshotContents(),
-		informerFactory.Snapshot().V1alpha1().VolumeSnapshotClasses(),
+		informerFactory.Snapshot().V1beta1().VolumeSnapshots(),
+		informerFactory.Snapshot().V1beta1().VolumeSnapshotContents(),
+		informerFactory.Snapshot().V1beta1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
@@ -789,39 +774,46 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	return ctrl, nil
 }
 
-// newContent returns a new content with given attributes
-func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, deletionPolicy *crdv1.DeletionPolicy, size *int64, creationTime *int64, withFinalizer bool, annotations map[string]string) *crdv1.VolumeSnapshotContent {
+func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
+	deletionPolicy crdv1.DeletionPolicy, creationTime, size *int64,
+	withFinalizer bool) *crdv1.VolumeSnapshotContent {
 	content := crdv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
+			Name:            contentName,
 			ResourceVersion: "1",
-			Annotations:     annotations,
 		},
 		Spec: crdv1.VolumeSnapshotContentSpec{
-			VolumeSnapshotSource: crdv1.VolumeSnapshotSource{
-				CSI: &crdv1.CSIVolumeSnapshotSource{
-					RestoreSize:    size,
-					Driver:         mockDriverName,
-					SnapshotHandle: snapshotHandle,
-					CreationTime:   creationTime,
-				},
-			},
-			VolumeSnapshotClassName: &className,
-			DeletionPolicy:          deletionPolicy,
+			Driver:         mockDriverName,
+			DeletionPolicy: deletionPolicy,
+		},
+		Status: &crdv1.VolumeSnapshotContentStatus{
+			CreationTime: creationTime,
+			RestoreSize:  size,
 		},
 	}
-	if volumeName != noVolume {
-		content.Spec.PersistentVolumeRef = &v1.ObjectReference{
-			Kind:       "PersistentVolume",
-			APIVersion: "v1",
-			UID:        types.UID(volumeUID),
-			Name:       volumeName,
+
+	if snapshotHandle != "" {
+		content.Status.SnapshotHandle = &snapshotHandle
+	}
+
+	if snapshotClassName != "" {
+		content.Spec.VolumeSnapshotClassName = &snapshotClassName
+	}
+
+	if volumeHandle != "" {
+		content.Spec.Source = crdv1.VolumeSnapshotContentSource{
+			VolumeHandle: &volumeHandle,
+		}
+	} else if desiredSnapshotHandle != "" {
+		content.Spec.Source = crdv1.VolumeSnapshotContentSource{
+			SnapshotHandle: &desiredSnapshotHandle,
 		}
 	}
+
 	if boundToSnapshotName != "" {
-		content.Spec.VolumeSnapshotRef = &v1.ObjectReference{
+		content.Spec.VolumeSnapshotRef = v1.ObjectReference{
 			Kind:       "VolumeSnapshot",
-			APIVersion: "snapshot.storage.k8s.io/v1alpha1",
+			APIVersion: "snapshot.storage.k8s.io/v1beta1",
 			UID:        types.UID(boundToSnapshotUID),
 			Namespace:  testNamespace,
 			Name:       boundToSnapshotName,
@@ -834,53 +826,81 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 	return &content
 }
 
-func newContentArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, deletionPolicy *crdv1.DeletionPolicy, size *int64, creationTime *int64, withFinalizer bool, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
+func newContentArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
+	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
+	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
 	return []*crdv1.VolumeSnapshotContent{
-		newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, deletionPolicy, size, creationTime, withFinalizer, annotations),
+		newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, creationTime, size, withFinalizer),
 	}
 }
 
-func newContentWithUnmatchDriverArray(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName string, deletionPolicy *crdv1.DeletionPolicy, size *int64, creationTime *int64) []*crdv1.VolumeSnapshotContent {
-	content := newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToSnapshotUID, boundToSnapshotName, deletionPolicy, size, creationTime, false, nil)
-	content.Spec.VolumeSnapshotSource.CSI.Driver = "fake"
+func newContentArrayWithReadyToUse(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
+	deletionPolicy crdv1.DeletionPolicy, creationTime, size *int64, readyToUse *bool,
+	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
+	content := newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, creationTime, size, withFinalizer)
+	content.Status.ReadyToUse = readyToUse
 	return []*crdv1.VolumeSnapshotContent{
 		content,
 	}
 }
 
-func newSnapshot(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *storagev1beta1.VolumeError, creationTime *metav1.Time, size *resource.Quantity) *crdv1.VolumeSnapshot {
+func newContentWithUnmatchDriverArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
+	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
+	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
+	content := newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, size, creationTime, withFinalizer)
+	content.Spec.Driver = "fake"
+	return []*crdv1.VolumeSnapshotContent{
+		content,
+	}
+}
+
+func newSnapshot(
+	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
+	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
+	err *crdv1.VolumeSnapshotError) *crdv1.VolumeSnapshot {
 	snapshot := crdv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
+			Name:            snapshotName,
 			Namespace:       testNamespace,
 			UID:             types.UID(snapshotUID),
 			ResourceVersion: "1",
-			SelfLink:        "/apis/snapshot.storage.k8s.io/v1alpha1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
+			SelfLink:        "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + snapshotName,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
-			VolumeSnapshotClassName: &className,
-			SnapshotContentName:     boundToContent,
+			VolumeSnapshotClassName: nil,
 		},
-		Status: crdv1.VolumeSnapshotStatus{
+		Status: &crdv1.VolumeSnapshotStatus{
 			CreationTime: creationTime,
-			ReadyToUse:   ready,
+			ReadyToUse:   readyToUse,
 			Error:        err,
-			RestoreSize:  size,
+			RestoreSize:  restoreSize,
 		},
-	}
-	if claimName != noClaim {
-		snapshot.Spec.Source = &v1.TypedLocalObjectReference{
-			Name: claimName,
-			Kind: "PersistentVolumeClaim",
-		}
 	}
 
+	if boundContentName != "" {
+		snapshot.Status.BoundVolumeSnapshotContentName = &boundContentName
+	}
+
+	snapshot.Spec.VolumeSnapshotClassName = &snapshotClassName
+
+	if pvcName != "" {
+		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
+			PersistentVolumeClaimName: &pvcName,
+		}
+	} else if targetContentName != "" {
+		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
+			VolumeSnapshotContentName: &targetContentName,
+		}
+	}
 	return withSnapshotFinalizer(&snapshot)
 }
 
-func newSnapshotArray(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *storagev1beta1.VolumeError, creationTime *metav1.Time, size *resource.Quantity) []*crdv1.VolumeSnapshot {
+func newSnapshotArray(
+	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
+	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
+	err *crdv1.VolumeSnapshotError) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
-		newSnapshot(name, className, boundToContent, snapshotUID, claimName, ready, err, creationTime, size),
+		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err),
 	}
 }
 
@@ -940,15 +960,7 @@ func newClaimArrayFinalizer(name, claimUID, capacity, boundToVolume string, phas
 }
 
 // newVolume returns a new volume with given attributes
-func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, driver string, namespace string, annotations ...string) *v1.PersistentVolume {
-	inDriverName := mockDriverName
-	if driver != "" {
-		inDriverName = driver
-	}
-	inNamespace := testNamespace
-	if namespace != "" {
-		inNamespace = namespace
-	}
+func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, annotations ...string) *v1.PersistentVolume {
 	volume := v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -962,7 +974,7 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 			},
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				CSI: &v1.CSIPersistentVolumeSource{
-					Driver:       inDriverName,
+					Driver:       mockDriverName,
 					VolumeHandle: volumeHandle,
 				},
 			},
@@ -980,7 +992,7 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 			Kind:       "PersistentVolumeClaim",
 			APIVersion: "v1",
 			UID:        types.UID(boundToClaimUID),
-			Namespace:  inNamespace,
+			Namespace:  testNamespace,
 			Name:       boundToClaimName,
 		}
 	}
@@ -990,16 +1002,16 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 
 // newVolumeArray returns array with a single volume that would be returned by
 // newVolume() with the same parameters.
-func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, driver string, namespace string) []*v1.PersistentVolume {
+func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string) []*v1.PersistentVolume {
 	return []*v1.PersistentVolume{
-		newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName, phase, reclaimPolicy, class, driver, namespace),
+		newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName, phase, reclaimPolicy, class),
 	}
 }
 
-func newVolumeError(message string) *storagev1beta1.VolumeError {
-	return &storagev1beta1.VolumeError{
-		Time:    metav1.Time{},
-		Message: message,
+func newVolumeError(message string) *crdv1.VolumeSnapshotError {
+	return &crdv1.VolumeSnapshotError{
+		Time:    &metav1.Time{},
+		Message: &message,
 	}
 }
 
@@ -1392,7 +1404,6 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	if err != nil {
 		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
 	}
-
 	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
 }
 
@@ -1410,10 +1421,10 @@ func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string,
 		err = fmt.Errorf("unexpected Delete snapshot call")
 	}
 
-	if !reflect.DeepEqual(call.secrets, snapshotterCredentials) {
-		f.t.Errorf("Wrong CSI Delete Snapshot call: snapshotID=%s, expected secrets %+v, got %+v", snapshotID, call.secrets, snapshotterCredentials)
-		err = fmt.Errorf("unexpected Delete Snapshot call")
-	}
+	//if !reflect.DeepEqual(call.secrets, snapshotterCredentials) {
+	//	f.t.Errorf("Wrong CSI Delete Snapshot call: snapshotID=%s, expected secrets %+v, got %+v", snapshotID, call.secrets, snapshotterCredentials)
+	//	err = fmt.Errorf("unexpected Delete Snapshot call")
+	//}
 
 	if err != nil {
 		return fmt.Errorf("unexpected call")
