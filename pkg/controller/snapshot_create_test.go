@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -69,7 +69,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 		{
 			name:              "6-1 - successful create snapshot with snapshot class gold",
 			initialContents:   nocontents,
-			expectedContents:  newContentArray("snapcontent-snapuid6-1", classGold, "sid6-1", "pv-uid6-1", "volume6-1", "snapuid6-1", "snap6-1", &deletePolicy, &defaultSize, &timeNowStamp, false, nil),
+			expectedContents:  newContentArray("snapcontent-snapuid6-1", "sid6-1", "snapuid6-1", "snap6-1", &deletePolicy, &defaultSize, &timeNowStamp, false),
 			initialSnapshots:  newSnapshotArray("snap6-1", classGold, "", "snapuid6-1", "claim6-1", false, nil, nil, nil),
 			expectedSnapshots: newSnapshotArray("snap6-1", classGold, "snapcontent-snapuid6-1", "snapuid6-1", "claim6-1", false, nil, metaTimeNowUnix, getSize(defaultSize)),
 			initialClaims:     newClaimArray("claim6-1", "pvc-uid6-1", "1Gi", "volume6-1", v1.ClaimBound, &classEmpty),
@@ -93,7 +93,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 		{
 			name:              "6-2 - successful create snapshot with snapshot class silver",
 			initialContents:   nocontents,
-			expectedContents:  newContentArray("snapcontent-snapuid6-2", classSilver, "sid6-2", "pv-uid6-2", "volume6-2", "snapuid6-2", "snap6-2", &deletePolicy, &defaultSize, &timeNowStamp, false, nil),
+			expectedContents:  newContentArray("snapcontent-snapuid6-2", "sid6-2", "snapuid6-2", "snap6-2", &deletePolicy, &defaultSize, &timeNowStamp, false),
 			initialSnapshots:  newSnapshotArray("snap6-2", classSilver, "", "snapuid6-2", "claim6-2", false, nil, nil, nil),
 			expectedSnapshots: newSnapshotArray("snap6-2", classSilver, "snapcontent-snapuid6-2", "snapuid6-2", "claim6-2", false, nil, metaTimeNowUnix, getSize(defaultSize)),
 			initialClaims:     newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
@@ -114,10 +114,10 @@ func TestCreateSnapshotSync(t *testing.T) {
 			errors: noerrors,
 			test:   testSyncSnapshot,
 		},
-		{
+		/*{
 			name:              "6-3 - successful create snapshot with snapshot class valid-secret-class",
 			initialContents:   nocontents,
-			expectedContents:  newContentArray("snapcontent-snapuid6-3", validSecretClass, "sid6-3", "pv-uid6-3", "volume6-3", "snapuid6-3", "snap6-3", &deletePolicy, &defaultSize, &timeNowStamp, false, secretAnnotations()),
+			expectedContents:  newContentArray("snapcontent-snapuid6-3", "sid6-3", "snapuid6-3", "snap6-3", &deletePolicy, &defaultSize, &timeNowStamp, false),
 			initialSnapshots:  newSnapshotArray("snap6-3", validSecretClass, "", "snapuid6-3", "claim6-3", false, nil, nil, nil),
 			expectedSnapshots: newSnapshotArray("snap6-3", validSecretClass, "snapcontent-snapuid6-3", "snapuid6-3", "claim6-3", false, nil, metaTimeNowUnix, getSize(defaultSize)),
 			initialClaims:     newClaimArray("claim6-3", "pvc-uid6-3", "1Gi", "volume6-3", v1.ClaimBound, &classEmpty),
@@ -143,7 +143,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 		{
 			name:              "6-4 - successful create snapshot with snapshot class empty-secret-class",
 			initialContents:   nocontents,
-			expectedContents:  newContentArray("snapcontent-snapuid6-4", emptySecretClass, "sid6-4", "pv-uid6-4", "volume6-4", "snapuid6-4", "snap6-4", &deletePolicy, &defaultSize, &timeNowStamp, false, emptyDataSecretAnnotations()),
+			expectedContents:  newContentArray("snapcontent-snapuid6-4", "sid6-4", "snapuid6-4", "snap6-4", &deletePolicy, &defaultSize, &timeNowStamp, false),
 			initialSnapshots:  newSnapshotArray("snap6-4", emptySecretClass, "", "snapuid6-4", "claim6-4", false, nil, nil, nil),
 			expectedSnapshots: newSnapshotArray("snap6-4", emptySecretClass, "snapcontent-snapuid6-4", "snapuid6-4", "claim6-4", false, nil, metaTimeNowUnix, getSize(defaultSize)),
 			initialClaims:     newClaimArray("claim6-4", "pvc-uid6-4", "1Gi", "volume6-4", v1.ClaimBound, &classEmpty),
@@ -165,11 +165,11 @@ func TestCreateSnapshotSync(t *testing.T) {
 			},
 			errors: noerrors,
 			test:   testSyncSnapshot,
-		},
+		},*/
 		{
 			name:              "6-5 - successful create snapshot with status uploading",
 			initialContents:   nocontents,
-			expectedContents:  newContentArray("snapcontent-snapuid6-5", classGold, "sid6-5", "pv-uid6-5", "volume6-5", "snapuid6-5", "snap6-5", &deletePolicy, &defaultSize, &timeNowStamp, false, nil),
+			expectedContents:  newContentArray("snapcontent-snapuid6-5", "sid6-5", "snapuid6-5", "snap6-5", &deletePolicy, &defaultSize, &timeNowStamp, false),
 			initialSnapshots:  newSnapshotArray("snap6-5", classGold, "", "snapuid6-5", "claim6-5", false, nil, nil, nil),
 			expectedSnapshots: newSnapshotArray("snap6-5", classGold, "snapcontent-snapuid6-5", "snapuid6-5", "claim6-5", false, nil, metaTimeNowUnix, getSize(defaultSize)),
 			initialClaims:     newClaimArray("claim6-5", "pvc-uid6-5", "1Gi", "volume6-5", v1.ClaimBound, &classEmpty),
@@ -193,7 +193,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 		{
 			name:              "6-6 - successful create snapshot with status error uploading",
 			initialContents:   nocontents,
-			expectedContents:  newContentArray("snapcontent-snapuid6-6", classGold, "sid6-6", "pv-uid6-6", "volume6-6", "snapuid6-6", "snap6-6", &deletePolicy, &defaultSize, &timeNowStamp, false, nil),
+			expectedContents:  newContentArray("snapcontent-snapuid6-6", "sid6-6", "snapuid6-6", "snap6-6", &deletePolicy, &defaultSize, &timeNowStamp, false),
 			initialSnapshots:  newSnapshotArray("snap6-6", classGold, "", "snapuid6-6", "claim6-6", false, nil, nil, nil),
 			expectedSnapshots: newSnapshotArray("snap6-6", classGold, "snapcontent-snapuid6-6", "snapuid6-6", "claim6-6", false, nil, metaTimeNowUnix, getSize(defaultSize)),
 			initialClaims:     newClaimArray("claim6-6", "pvc-uid6-6", "1Gi", "volume6-6", v1.ClaimBound, &classEmpty),
@@ -327,7 +327,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 				},
 			},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1alpha1().VolumeSnapshots().Update call.
+				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
 				// All other calls will succeed.
 				{"update", "volumesnapshots", errors.New("mock update error")},
 				{"update", "volumesnapshots", errors.New("mock update error")},
