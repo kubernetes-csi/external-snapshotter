@@ -186,7 +186,7 @@ func TestSync(t *testing.T) {
 				},
 			},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1alpha1().VolumeSnapshots().Update call.
+				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
 				// All other calls will succeed.
 				{"update", "volumesnapshots", errors.New("mock update error")},
 			},
