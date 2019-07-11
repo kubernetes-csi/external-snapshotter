@@ -22,10 +22,10 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
@@ -75,13 +75,10 @@ func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {
-	if content.Spec.CSI == nil {
-		return fmt.Errorf("CSISnapshot not defined in spec")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	err := handler.snapshotter.DeleteSnapshot(ctx, content.Spec.CSI.SnapshotHandle, snapshotterCredentials)
+	err := handler.snapshotter.DeleteSnapshot(ctx, *content.Status.SnapshotHandle, snapshotterCredentials)
 	if err != nil {
 		return fmt.Errorf("failed to delete snapshot content %s: %q", content.Name, err)
 	}
@@ -90,13 +87,10 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 }
 
 func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (bool, time.Time, int64, error) {
-	if content.Spec.CSI == nil {
-		return false, time.Time{}, 0, fmt.Errorf("CSISnapshot not defined in spec")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, content.Spec.CSI.SnapshotHandle)
+	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, *content.Status.SnapshotHandle)
 	if err != nil {
 		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot content %s: %q", content.Name, err)
 	}
