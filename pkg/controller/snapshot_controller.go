@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storage "k8s.io/api/storage/v1beta1"
@@ -423,7 +423,7 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 	}
 	snapshotClone.Status.Error = statusError
 	snapshotClone.Status.ReadyToUse = false
-	newSnapshot, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
+	newSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshot[%s] error status failed %v", snapshotKey(snapshot), err)
@@ -458,7 +458,7 @@ func IsSnapshotBound(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapsh
 // isSnapshotConentBeingUsed checks if snapshot content is bound to snapshot.
 func (ctrl *csiSnapshotController) isSnapshotContentBeingUsed(content *crdv1.VolumeSnapshotContent) bool {
 	if content.Spec.VolumeSnapshotRef != nil {
-		snapshotObj, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(content.Spec.VolumeSnapshotRef.Namespace).Get(content.Spec.VolumeSnapshotRef.Name, metav1.GetOptions{})
+		snapshotObj, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(content.Spec.VolumeSnapshotRef.Namespace).Get(content.Spec.VolumeSnapshotRef.Name, metav1.GetOptions{})
 		if err != nil {
 			klog.Infof("isSnapshotContentBeingUsed: Cannot get snapshot %s from api server: [%v]. VolumeSnapshot object may be deleted already.", content.Spec.VolumeSnapshotRef.Name, err)
 			return false
@@ -510,7 +510,7 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 	contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
 	className := *(snapshot.Spec.VolumeSnapshotClassName)
 	contentClone.Spec.VolumeSnapshotClassName = &className
-	newContent, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
 		return nil, err
@@ -691,7 +691,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	// Try to create the VolumeSnapshotContent object several times
 	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
 		klog.V(5).Infof("createSnapshot [%s]: trying to save volume snapshot content %s", snapshotKey(snapshot), snapshotContent.Name)
-		if _, err = ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotContents().Create(snapshotContent); err == nil || apierrs.IsAlreadyExists(err) {
+		if _, err = ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Create(snapshotContent); err == nil || apierrs.IsAlreadyExists(err) {
 			// Save succeeded.
 			if err != nil {
 				klog.V(3).Infof("volume snapshot content %q for snapshot %q already exists, reusing", snapshotContent.Name, snapshotKey(snapshot))
@@ -758,7 +758,7 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 		return fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
 	}
 
-	err = ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotContents().Delete(content.Name, &metav1.DeleteOptions{})
+	err = ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Delete(content.Name, &metav1.DeleteOptions{})
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotContentObjectDeleteError", "Failed to delete snapshot content API object")
 		return fmt.Errorf("failed to delete VolumeSnapshotContent %s from API server: %q", content.Name, err)
@@ -769,7 +769,7 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 
 func (ctrl *csiSnapshotController) bindandUpdateVolumeSnapshot(snapshotContent *crdv1.VolumeSnapshotContent, snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
 	klog.V(5).Infof("bindandUpdateVolumeSnapshot for snapshot [%s]: snapshotContent [%s]", snapshot.Name, snapshotContent.Name)
-	snapshotObj, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshot.Namespace).Get(snapshot.Name, metav1.GetOptions{})
+	snapshotObj, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Get(snapshot.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error get snapshot %s from api server: %v", snapshotKey(snapshot), err)
 	}
@@ -782,7 +782,7 @@ func (ctrl *csiSnapshotController) bindandUpdateVolumeSnapshot(snapshotContent *
 	} else {
 		klog.Infof("bindVolumeSnapshotContentToVolumeSnapshot: before bind VolumeSnapshot %s to volumeSnapshotContent [%s]", snapshot.Name, snapshotContent.Name)
 		snapshotCopy.Spec.SnapshotContentName = snapshotContent.Name
-		updateSnapshot, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshot.Namespace).Update(snapshotCopy)
+		updateSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Update(snapshotCopy)
 		if err != nil {
 			klog.Infof("bindVolumeSnapshotContentToVolumeSnapshot: Error binding VolumeSnapshot %s to volumeSnapshotContent [%s]. Error [%#v]", snapshot.Name, snapshotContent.Name, err)
 			return nil, newControllerUpdateError(snapshotKey(snapshot), err.Error())
@@ -808,7 +808,7 @@ func (ctrl *csiSnapshotController) updateSnapshotContentSize(content *crdv1.Volu
 	}
 	contentClone := content.DeepCopy()
 	contentClone.Spec.VolumeSnapshotSource.CSI.RestoreSize = &size
-	_, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
@@ -848,7 +848,7 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 			status.RestoreSize = resource.NewQuantity(size, resource.BinarySI)
 		}
 		snapshotClone.Status = status
-		newSnapshotObj, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
+		newSnapshotObj, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 		if err != nil {
 			return nil, newControllerUpdateError(snapshotKey(snapshot), err.Error())
 		}
@@ -949,7 +949,7 @@ func (ctrl *csiSnapshotController) SetDefaultSnapshotClass(snapshot *crdv1.Volum
 	klog.V(5).Infof("setDefaultSnapshotClass [%s]: default VolumeSnapshotClassName [%s]", snapshot.Name, defaultClasses[0].Name)
 	snapshotClone := snapshot.DeepCopy()
 	snapshotClone.Spec.VolumeSnapshotClassName = &(defaultClasses[0].Name)
-	newSnapshot, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+	newSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshot[%s] default class failed %v", snapshotKey(snapshot), err)
 	}
@@ -1016,7 +1016,7 @@ func (ctrl *csiSnapshotController) addContentFinalizer(content *crdv1.VolumeSnap
 	contentClone := content.DeepCopy()
 	contentClone.ObjectMeta.Finalizers = append(contentClone.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
 
-	_, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
@@ -1035,7 +1035,7 @@ func (ctrl *csiSnapshotController) removeContentFinalizer(content *crdv1.VolumeS
 	contentClone := content.DeepCopy()
 	contentClone.ObjectMeta.Finalizers = slice.RemoveString(contentClone.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
 
-	_, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotContents().Update(contentClone)
+	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
@@ -1053,7 +1053,7 @@ func (ctrl *csiSnapshotController) removeContentFinalizer(content *crdv1.VolumeS
 func (ctrl *csiSnapshotController) addSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) error {
 	snapshotClone := snapshot.DeepCopy()
 	snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, VolumeSnapshotFinalizer)
-	_, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
@@ -1072,7 +1072,7 @@ func (ctrl *csiSnapshotController) removeSnapshotFinalizer(snapshot *crdv1.Volum
 	snapshotClone := snapshot.DeepCopy()
 	snapshotClone.ObjectMeta.Finalizers = slice.RemoveString(snapshotClone.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
 
-	_, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
+	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).Update(snapshotClone)
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}

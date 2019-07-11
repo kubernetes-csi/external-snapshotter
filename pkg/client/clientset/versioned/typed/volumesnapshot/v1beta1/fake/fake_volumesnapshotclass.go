@@ -19,7 +19,7 @@ limitations under the License.
 package fake
 
 import (
-	v1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,27 +30,27 @@ import (
 
 // FakeVolumeSnapshotClasses implements VolumeSnapshotClassInterface
 type FakeVolumeSnapshotClasses struct {
-	Fake *FakeSnapshotV1alpha1
+	Fake *FakeSnapshotV1beta1
 }
 
-var volumesnapshotclassesResource = schema.GroupVersionResource{Group: "snapshot.storage.k8s.io", Version: "v1alpha1", Resource: "volumesnapshotclasses"}
+var volumesnapshotclassesResource = schema.GroupVersionResource{Group: "snapshot.storage.k8s.io", Version: "v1beta1", Resource: "volumesnapshotclasses"}
 
-var volumesnapshotclassesKind = schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1alpha1", Kind: "VolumeSnapshotClass"}
+var volumesnapshotclassesKind = schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1beta1", Kind: "VolumeSnapshotClass"}
 
 // Get takes name of the volumeSnapshotClass, and returns the corresponding volumeSnapshotClass object, and an error if there is any.
-func (c *FakeVolumeSnapshotClasses) Get(name string, options v1.GetOptions) (result *v1alpha1.VolumeSnapshotClass, err error) {
+func (c *FakeVolumeSnapshotClasses) Get(name string, options v1.GetOptions) (result *v1beta1.VolumeSnapshotClass, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(volumesnapshotclassesResource, name), &v1alpha1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootGetAction(volumesnapshotclassesResource, name), &v1beta1.VolumeSnapshotClass{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.VolumeSnapshotClass), err
+	return obj.(*v1beta1.VolumeSnapshotClass), err
 }
 
 // List takes label and field selectors, and returns the list of VolumeSnapshotClasses that match those selectors.
-func (c *FakeVolumeSnapshotClasses) List(opts v1.ListOptions) (result *v1alpha1.VolumeSnapshotClassList, err error) {
+func (c *FakeVolumeSnapshotClasses) List(opts v1.ListOptions) (result *v1beta1.VolumeSnapshotClassList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(volumesnapshotclassesResource, volumesnapshotclassesKind, opts), &v1alpha1.VolumeSnapshotClassList{})
+		Invokes(testing.NewRootListAction(volumesnapshotclassesResource, volumesnapshotclassesKind, opts), &v1beta1.VolumeSnapshotClassList{})
 	if obj == nil {
 		return nil, err
 	}
@@ -59,8 +59,8 @@ func (c *FakeVolumeSnapshotClasses) List(opts v1.ListOptions) (result *v1alpha1.
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.VolumeSnapshotClassList{ListMeta: obj.(*v1alpha1.VolumeSnapshotClassList).ListMeta}
-	for _, item := range obj.(*v1alpha1.VolumeSnapshotClassList).Items {
+	list := &v1beta1.VolumeSnapshotClassList{ListMeta: obj.(*v1beta1.VolumeSnapshotClassList).ListMeta}
+	for _, item := range obj.(*v1beta1.VolumeSnapshotClassList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -75,29 +75,29 @@ func (c *FakeVolumeSnapshotClasses) Watch(opts v1.ListOptions) (watch.Interface,
 }
 
 // Create takes the representation of a volumeSnapshotClass and creates it.  Returns the server's representation of the volumeSnapshotClass, and an error, if there is any.
-func (c *FakeVolumeSnapshotClasses) Create(volumeSnapshotClass *v1alpha1.VolumeSnapshotClass) (result *v1alpha1.VolumeSnapshotClass, err error) {
+func (c *FakeVolumeSnapshotClasses) Create(volumeSnapshotClass *v1beta1.VolumeSnapshotClass) (result *v1beta1.VolumeSnapshotClass, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(volumesnapshotclassesResource, volumeSnapshotClass), &v1alpha1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootCreateAction(volumesnapshotclassesResource, volumeSnapshotClass), &v1beta1.VolumeSnapshotClass{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.VolumeSnapshotClass), err
+	return obj.(*v1beta1.VolumeSnapshotClass), err
 }
 
 // Update takes the representation of a volumeSnapshotClass and updates it. Returns the server's representation of the volumeSnapshotClass, and an error, if there is any.
-func (c *FakeVolumeSnapshotClasses) Update(volumeSnapshotClass *v1alpha1.VolumeSnapshotClass) (result *v1alpha1.VolumeSnapshotClass, err error) {
+func (c *FakeVolumeSnapshotClasses) Update(volumeSnapshotClass *v1beta1.VolumeSnapshotClass) (result *v1beta1.VolumeSnapshotClass, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(volumesnapshotclassesResource, volumeSnapshotClass), &v1alpha1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootUpdateAction(volumesnapshotclassesResource, volumeSnapshotClass), &v1beta1.VolumeSnapshotClass{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.VolumeSnapshotClass), err
+	return obj.(*v1beta1.VolumeSnapshotClass), err
 }
 
 // Delete takes name of the volumeSnapshotClass and deletes it. Returns an error if one occurs.
 func (c *FakeVolumeSnapshotClasses) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(volumesnapshotclassesResource, name), &v1alpha1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootDeleteAction(volumesnapshotclassesResource, name), &v1beta1.VolumeSnapshotClass{})
 	return err
 }
 
@@ -105,16 +105,16 @@ func (c *FakeVolumeSnapshotClasses) Delete(name string, options *v1.DeleteOption
 func (c *FakeVolumeSnapshotClasses) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewRootDeleteCollectionAction(volumesnapshotclassesResource, listOptions)
 
-	_, err := c.Fake.Invokes(action, &v1alpha1.VolumeSnapshotClassList{})
+	_, err := c.Fake.Invokes(action, &v1beta1.VolumeSnapshotClassList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched volumeSnapshotClass.
-func (c *FakeVolumeSnapshotClasses) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.VolumeSnapshotClass, err error) {
+func (c *FakeVolumeSnapshotClasses) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.VolumeSnapshotClass, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(volumesnapshotclassesResource, name, pt, data, subresources...), &v1alpha1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootPatchSubresourceAction(volumesnapshotclassesResource, name, pt, data, subresources...), &v1beta1.VolumeSnapshotClass{})
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.VolumeSnapshotClass), err
+	return obj.(*v1beta1.VolumeSnapshotClass), err
 }

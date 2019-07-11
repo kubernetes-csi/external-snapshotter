@@ -20,7 +20,7 @@ import (
 	"errors"
 	"testing"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -195,7 +195,7 @@ func TestDeleteSync(t *testing.T) {
 			expectedDeleteCalls: []deleteCall{{"sid1-6", map[string]string{"foo": "bar"}, nil}},
 			expectedEvents:      []string{"Warning SnapshotContentObjectDeleteError"},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1alpha1().VolumeSnapshotContents().Delete call.
+				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshotContents().Delete call.
 				// All other calls will succeed.
 				{"delete", "volumesnapshotcontents", errors.New("mock delete error")},
 			},

@@ -29,12 +29,12 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1alpha1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
@@ -766,9 +766,9 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		clientset,
 		kubeClient,
 		mockDriverName,
-		informerFactory.Snapshot().V1alpha1().VolumeSnapshots(),
-		informerFactory.Snapshot().V1alpha1().VolumeSnapshotContents(),
-		informerFactory.Snapshot().V1alpha1().VolumeSnapshotClasses(),
+		informerFactory.Snapshot().V1beta1().VolumeSnapshots(),
+		informerFactory.Snapshot().V1beta1().VolumeSnapshotContents(),
+		informerFactory.Snapshot().V1beta1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
@@ -820,7 +820,7 @@ func newContent(name, className, snapshotHandle, volumeUID, volumeName, boundToS
 	if boundToSnapshotName != "" {
 		content.Spec.VolumeSnapshotRef = &v1.ObjectReference{
 			Kind:       "VolumeSnapshot",
-			APIVersion: "snapshot.storage.k8s.io/v1alpha1",
+			APIVersion: "snapshot.storage.k8s.io/v1beta1",
 			UID:        types.UID(boundToSnapshotUID),
 			Namespace:  testNamespace,
 			Name:       boundToSnapshotName,
@@ -854,7 +854,7 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			Namespace:       testNamespace,
 			UID:             types.UID(snapshotUID),
 			ResourceVersion: "1",
-			SelfLink:        "/apis/snapshot.storage.k8s.io/v1alpha1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
+			SelfLink:        "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
 			VolumeSnapshotClassName: &className,

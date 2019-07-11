@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	storage "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -327,7 +327,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 				},
 			},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1alpha1().VolumeSnapshots().Update call.
+				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
 				// All other calls will succeed.
 				{"update", "volumesnapshots", errors.New("mock update error")},
 				{"update", "volumesnapshots", errors.New("mock update error")},
