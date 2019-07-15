@@ -52,6 +52,26 @@ configvar () {
     eval echo "\$3:" "$1=\${$1}"
 }
 
+# Takes the minor version of $CSI_PROW_KUBERNETES_VERSION and overrides it to
+# $1 if they are equal minor versions. Ignores versions that begin with
+# "release-".
+override_k8s_version () {
+    local current_minor_version
+    local override_minor_version
+
+    # Ignore: See if you can use ${variable//search/replace} instead.
+    # shellcheck disable=SC2001
+    current_minor_version="$(echo "${CSI_PROW_KUBERNETES_VERSION}" | sed -e 's/\([0-9]*\)\.\([0-9]*\).*/\1\.\2/')"
+
+    # Ignore: See if you can use ${variable//search/replace} instead.
+    # shellcheck disable=SC2001
+    override_minor_version="$(echo "${1}" | sed -e 's/\([0-9]*\)\.\([0-9]*\).*/\1\.\2/')"
+    if [ "${current_minor_version}" == "${override_minor_version}" ]; then
+      CSI_PROW_KUBERNETES_VERSION="$1"
+      echo "Overriding CSI_PROW_KUBERNETES_VERSION with $1: $CSI_PROW_KUBERNETES_VERSION"
+    fi
+}
+
 # Prints the value of a variable + version suffix, falling back to variable + "LATEST".
 get_versioned_variable () {
     local var="$1"
@@ -81,7 +101,7 @@ configvar CSI_PROW_GO_VERSION_GINKGO "${CSI_PROW_GO_VERSION_BUILD}" "Go version 
 # kind version to use. If the pre-installed version is different,
 # the desired version is downloaded from https://github.com/kubernetes-sigs/kind/releases/download/
 # (if available), otherwise it is built from source.
-configvar CSI_PROW_KIND_VERSION 0.2.1 "kind"
+configvar CSI_PROW_KIND_VERSION v0.4.0 "kind"
 
 # ginkgo test runner version to use. If the pre-installed version is
 # different, the desired version is built from source.
@@ -107,6 +127,18 @@ configvar CSI_PROW_BUILD_JOB true "building code in repo enabled"
 # as long as there are no breaking changes in Kubernetes, like
 # deprecating or changing the implementation of an alpha feature.
 configvar CSI_PROW_KUBERNETES_VERSION 1.13.3 "Kubernetes"
+
+# This is a hack to workaround the issue that each version
+# of kind currently only supports specific patch versions of
+# Kubernetes. We need to override CSI_PROW_KUBERNETES_VERSION
+# passed in by our CI/pull jobs to the versions that
+# kind v0.4.0 supports.
+#
+# If the version is prefixed with "release-", then nothing
+# is overridden.
+override_k8s_version "1.13.7"
+override_k8s_version "1.14.3"
+override_k8s_version "1.15.0"
 
 # CSI_PROW_KUBERNETES_VERSION reduced to first two version numbers and
 # with underscore (1_13 instead of 1.13.3) and in uppercase (LATEST
@@ -151,9 +183,10 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #
 # When no deploy script is found (nothing in `deploy` directory,
 # CSI_PROW_HOSTPATH_REPO=none), nothing gets deployed.
-configvar CSI_PROW_HOSTPATH_VERSION fc52d13ba07922c80555a24616a5b16480350c3f "hostpath driver" # pre-1.1.0
+configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0-rc2" "hostpath driver"
 configvar CSI_PROW_HOSTPATH_REPO https://github.com/kubernetes-csi/csi-driver-host-path "hostpath repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
+configvar CSI_PROW_HOSTPATH_DRIVER_NAME "hostpath.csi.k8s.io" "the hostpath driver name"
 
 # If CSI_PROW_HOSTPATH_CANARY is set (typically to "canary", but also
 # "1.0-canary"), then all image versions are replaced with that
@@ -169,6 +202,7 @@ configvar CSI_PROW_HOSTPATH_CANARY "" "hostpath image"
 # CSI_PROW_E2E_REPO=none disables E2E testing.
 configvar CSI_PROW_E2E_VERSION_1_13 v1.14.0 "E2E version for Kubernetes 1.13.x" # we can't use the one from 1.13.x because it didn't have --storage.testdriver
 configvar CSI_PROW_E2E_VERSION_1_14 v1.14.0 "E2E version for Kubernetes 1.14.x"
+configvar CSI_PROW_E2E_VERSION_1_15 v1.15.0 "E2E version for Kubernetes 1.15.x"
 # TODO: add new CSI_PROW_E2E_VERSION entry for future Kubernetes releases
 configvar CSI_PROW_E2E_VERSION_LATEST master "E2E version for Kubernetes master" # testing against Kubernetes master is already tracking a moving target, so we might as well use a moving E2E version
 configvar CSI_PROW_E2E_REPO_LATEST https://github.com/kubernetes/kubernetes "E2E repo for Kubernetes >= 1.13.x" # currently the same for all versions
@@ -276,6 +310,7 @@ configvar CSI_PROW_E2E_ALPHA "$(get_versioned_variable CSI_PROW_E2E_ALPHA "${csi
 # it anymore for older releases.
 configvar CSI_PROW_E2E_ALPHA_GATES_1_13 'VolumeSnapshotDataSource=true,BlockVolume=true,CSIBlockVolume=true' "alpha feature gates for Kubernetes 1.13"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_14 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.14"
+configvar CSI_PROW_E2E_ALPHA_GATES_1_15 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.15"
 # TODO: add new CSI_PROW_ALPHA_GATES_xxx entry for future Kubernetes releases and
 # add new gates to CSI_PROW_E2E_ALPHA_GATES_LATEST.
 configvar CSI_PROW_E2E_ALPHA_GATES_LATEST 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for latest Kubernetes"
@@ -463,40 +498,51 @@ start_cluster () {
         image="kindest/node:v${CSI_PROW_KUBERNETES_VERSION}"
     fi
     cat >"${CSI_PROW_WORK}/kind-config.yaml" <<EOF
-kind: Config
-apiVersion: kind.sigs.k8s.io/v1alpha2
+kind: Cluster
+apiVersion: kind.sigs.k8s.io/v1alpha3
 nodes:
 - role: control-plane
-  kubeadmConfigPatches:
-  - |
-    apiVersion: kubeadm.k8s.io/v1beta1
-    kind: ClusterConfiguration
-    metadata:
-      name: config
-    apiServer:
-      extraArgs:
-        "feature-gates": "$gates"
-    controllerManager:
-      extraArgs:
-        "feature-gates": "$gates"
-    scheduler:
-      extraArgs:
-        "feature-gates": "$gates"
-  - |
-    apiVersion: kubelet.config.k8s.io/v1beta1
-    kind: KubeletConfiguration
-    metadata:
-      name: config
-    featureGates:
-$(list_gates "$gates")
-  - |
-    apiVersion: kubeproxy.config.k8s.io/v1alpha1
-    kind: KubeProxyConfiguration
-    metadata:
-      name: config
-    featureGates:
+EOF
+
+    # kubeadm has API dependencies between apiVersion and Kubernetes version
+    # 1.15+ requires kubeadm.k8s.io/v1beta2
+    # We only run alpha tests against master so we don't need to maintain
+    # different patches for different Kubernetes releases.
+    if [[ -n "$gates" ]]; then
+        cat >>"${CSI_PROW_WORK}/kind-config.yaml" <<EOF
+kubeadmConfigPatches:
+- |
+  apiVersion: kubeadm.k8s.io/v1beta2
+  kind: ClusterConfiguration
+  metadata:
+    name: config
+  apiServer:
+    extraArgs:
+      "feature-gates": "$gates"
+  controllerManager:
+    extraArgs:
+      "feature-gates": "$gates"
+  scheduler:
+    extraArgs:
+      "feature-gates": "$gates"
+- |
+  apiVersion: kubeadm.k8s.io/v1beta2
+  kind: InitConfiguration
+  metadata:
+    name: config
+  nodeRegistration:
+    kubeletExtraArgs:
+      "feature-gates": "$gates"
+- |
+  apiVersion: kubeproxy.config.k8s.io/v1alpha1
+  kind: KubeProxyConfiguration
+  metadata:
+    name: config
+  featureGates:
 $(list_gates "$gates")
 EOF
+    fi
+
     info "kind-config.yaml:"
     cat "${CSI_PROW_WORK}/kind-config.yaml"
     if ! run kind create cluster --name csi-prow --config "${CSI_PROW_WORK}/kind-config.yaml" --wait 5m --image "$image"; then
@@ -673,6 +719,29 @@ hostpath_supports_block () {
     echo "${result:-true}"
 }
 
+# The default implementation of this function generates a external
+# driver test configuration for the hostpath driver.
+#
+# The content depends on both what the E2E suite expects and what the
+# installed hostpath driver supports. Generating it here seems prone
+# to breakage, but it is uncertain where a better place might be.
+generate_test_driver () {
+    cat <<EOF
+ShortName: csiprow
+StorageClass:
+  FromName: true
+SnapshotClass:
+  FromName: true
+DriverInfo:
+  Name: ${CSI_PROW_HOSTPATH_DRIVER_NAME}
+  Capabilities:
+    block: $(hostpath_supports_block)
+    persistence: true
+    dataSource: true
+    multipods: true
+EOF
+}
+
 # Captures pod output while running some other command.
 run_with_loggers () (
     loggers=$(start_loggers -f)
@@ -698,23 +767,7 @@ run_e2e () (
     # When running on a multi-node cluster, we need to figure out where the
     # hostpath driver was deployed and set ClientNodeName accordingly.
 
-    # The content of this file depends on both what the E2E suite expects and
-    # what the installed hostpath driver supports. Generating it here seems
-    # prone to breakage, but it is uncertain where a better place might be.
-    cat >"${CSI_PROW_WORK}/hostpath-test-driver.yaml" <<EOF
-ShortName: csiprow
-StorageClass:
-  FromName: true
-SnapshotClass:
-  FromName: true
-DriverInfo:
-  Name: csi-hostpath
-  Capabilities:
-    block: $(hostpath_supports_block)
-    persistence: true
-    dataSource: true
-    multipods: true
-EOF
+    generate_test_driver >"${CSI_PROW_WORK}/test-driver.yaml" || die "generating test-driver.yaml failed"
 
     # Rename, merge and filter JUnit files. Necessary in case that we run the E2E suite again
     # and to avoid the large number of "skipped" tests that we get from using
@@ -727,7 +780,7 @@ EOF
     trap move_junit EXIT
 
     cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
-    run_with_loggers ginkgo -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/hostpath-test-driver.yaml"
+    run_with_loggers ginkgo -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
 )
 
 # Run csi-sanity against installed CSI driver.
