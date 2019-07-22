@@ -97,6 +97,10 @@ func main() {
 		klog.Warning("--snapshotter is deprecated and will have no effect")
 	}
 
+	if len(*snapshotNamePrefix) == 0 {
+		klog.Error("Snapshot name prefix cannot be of length 0")
+		os.Exit(1)
+	}
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := buildConfig(*kubeconfig)
 	if err != nil {
@@ -170,11 +174,6 @@ func main() {
 	}
 	if !supportsCreateSnapshot {
 		klog.Errorf("CSI driver %s does not support ControllerCreateSnapshot", *snapshotterName)
-		os.Exit(1)
-	}
-
-	if len(*snapshotNamePrefix) == 0 {
-		klog.Error("Snapshot name prefix cannot be of length 0")
 		os.Exit(1)
 	}
 
