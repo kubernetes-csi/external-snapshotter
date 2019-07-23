@@ -44,6 +44,21 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 		},
 	}
 
+	rep, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			klog.Fatalf("failed to get VolumeSnapshotResource: %#v, err: %#v",
+				rep, err)
+		} else {
+			klog.Infof("can not find VolumeSnapshotResource: %s, err: %#v", crd.Name, err)
+		}
+	} else {
+		err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			klog.Fatalf("failed to delete VolumeSnapshotResource: %s, err: %#v",
+				crd.Name, err)
+		}
+	}
 	res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
@@ -64,6 +79,22 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 				Kind:   reflect.TypeOf(crdv1.VolumeSnapshotContent{}).Name(),
 			},
 		},
+	}
+
+	rep, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			klog.Fatalf("failed to get VolumeSnapshotResource: %#v, err: %#v",
+				rep, err)
+		} else {
+			klog.Infof("can not find VolumeSnapshotResource: %s, err: %#v", crd.Name, err)
+		}
+	} else {
+		err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			klog.Fatalf("failed to delete VolumeSnapshotResource: %s, err: %#v",
+				crd.Name, err)
+		}
 	}
 	res, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
@@ -88,6 +119,22 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 				Status: &apiextensionsv1beta1.CustomResourceSubresourceStatus{},
 			},
 		},
+	}
+
+	rep, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Get(crd.Name, metav1.GetOptions{})
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			klog.Fatalf("failed to get VolumeSnapshotResource: %#v, err: %#v",
+				rep, err)
+		} else {
+			klog.Infof("can not find VolumeSnapshotResource: %s, err: %#v", crd.Name, err)
+		}
+	} else {
+		err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Delete(crd.Name, &metav1.DeleteOptions{})
+		if err != nil && !apierrors.IsNotFound(err) {
+			klog.Fatalf("failed to delete VolumeSnapshotResource: %s, err: %#v",
+				crd.Name, err)
+		}
 	}
 	res, err = clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
