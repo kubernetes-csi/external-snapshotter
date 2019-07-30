@@ -18,10 +18,8 @@ package controller
 
 import (
 	"fmt"
-	"strings"
-	"time"
-
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +32,8 @@ import (
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 	"k8s.io/kubernetes/pkg/util/goroutinemap/exponentialbackoff"
 	"k8s.io/kubernetes/pkg/util/slice"
+	"strings"
+	"time"
 )
 
 // ==================================================================
@@ -363,20 +363,37 @@ func (ctrl *csiSnapshotController) storeContentUpdate(content interface{}) (bool
 
 // createSnapshot starts new asynchronous operation to create snapshot
 func (ctrl *csiSnapshotController) createSnapshot(snapshot *crdv1.VolumeSnapshot) error {
-	klog.V(5).Infof("createSnapshot[%s]: started", snapshotKey(snapshot))
-	opName := fmt.Sprintf("create-%s[%s]", snapshotKey(snapshot), string(snapshot.UID))
+	key := snapshotKey(snapshot)
+	klog.V(5).Infof("createSnapshot[%s]: started", key)
+	opName := fmt.Sprintf("create-%s[%s]", key, string(snapshot.UID))
 	ctrl.scheduleOperation(opName, func() error {
-		snapshotObj, err := ctrl.createSnapshotOperation(snapshot)
+		snapshotObj, state, err := ctrl.createSnapshotOperation(snapshot)
 		if err != nil {
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot: %v", err))
 			klog.Errorf("createSnapshot [%s]: error occurred in createSnapshotOperation: %v", opName, err)
+
+			// Handle state:
+			if state == snapshotter.SnapshottingFinished {
+				// Snapshotting finished, remove obj from snapshotsInProgress.
+				ctrl.snapshotsInProgress.Delete(key)
+			} else if state == snapshotter.SnapshottingInBackground {
+				// Snapshotting still in progress.
+				klog.V(4).Infof("createSnapshot [%s]: Temporary error received, adding Snapshot back in queue: %v", key, err)
+				ctrl.snapshotsInProgress.Store(key, snapshotObj)
+			} else {
+				// State is SnapshottingNoChange. Don't change snapshotsInProgress.
+			}
+
 			return err
 		}
+
+		// If no errors, update the snapshot.
 		_, updateErr := ctrl.storeSnapshotUpdate(snapshotObj)
 		if updateErr != nil {
 			// We will get an "snapshot update" event soon, this is not a big error
-			klog.V(4).Infof("createSnapshot [%s]: cannot update internal cache: %v", snapshotKey(snapshotObj), updateErr)
+			klog.V(4).Infof("createSnapshot [%s]: cannot update internal cache: %v", key, updateErr)
 		}
+
 		return nil
 	})
 	return nil
@@ -588,7 +605,7 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 		if err != nil {
 			return nil, err
 		}
-		driverName, snapshotID, creationTime, size, readyToUse, err = ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+		driverName, snapshotID, creationTime, size, readyToUse, _, err = ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
 			return nil, err
@@ -622,12 +639,12 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 // 2. Update VolumeSnapshot status with creationtimestamp information
 // 3. Create the VolumeSnapshotContent object with the snapshot id information.
 // 4. Bind the VolumeSnapshot and VolumeSnapshotContent object
-func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
+func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, snapshotter.SnapshottingState, error) {
 	klog.Infof("createSnapshot: Creating snapshot %s through the plugin ...", snapshotKey(snapshot))
 
 	if snapshot.Status != nil && snapshot.Status.Error != nil && snapshot.Status.Error.Message != nil && !isControllerUpdateFailError(snapshot.Status.Error) {
 		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *snapshot.Status.Error.Message)
-		return snapshot, nil
+		return snapshot, snapshotter.SnapshottingNoChange, nil
 	}
 
 	// If PVC is not being deleted and finalizer is not added yet, a finalizer should be added.
@@ -635,22 +652,22 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	err := ctrl.ensureSnapshotSourceFinalizer(snapshot)
 	if err != nil {
 		klog.Errorf("createSnapshotOperation failed to add finalizer for source of snapshot %s", err)
-		return nil, err
+		return nil, snapshotter.SnapshottingNoChange, err
 	}
 
 	class, volume, contentName, snapshotterSecretRef, err := ctrl.getCreateSnapshotInput(snapshot)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
+		return nil, snapshotter.SnapshottingNoChange, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
 	}
 
 	snapshotterCredentials, err := getCredentials(ctrl.client, snapshotterSecretRef)
 	if err != nil {
-		return nil, err
+		return nil, snapshotter.SnapshottingNoChange, err
 	}
 
-	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+	driverName, snapshotID, creationTime, size, readyToUse, state, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 	if err != nil {
-		return nil, fmt.Errorf("failed to take snapshot of the volume, %s: %q", volume.Name, err)
+		return nil, state, fmt.Errorf("failed to take snapshot of the volume, %s: %q", volume.Name, err)
 	}
 
 	klog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, snapshotID, creationTime, size, readyToUse)
@@ -667,12 +684,12 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 	}
 
 	if err != nil {
-		return nil, err
+		return nil, snapshotter.SnapshottingInBackground, err
 	}
 	// Create VolumeSnapshotContent in the database
 	snapshotRef, err := ref.GetReference(scheme.Scheme, snapshot)
 	if err != nil {
-		return nil, err
+		return nil, snapshotter.SnapshottingInBackground, err
 	}
 
 	timestamp := creationTime.UnixNano()
@@ -730,9 +747,10 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		strerr := fmt.Sprintf("Error creating volume snapshot content object for snapshot %s: %v.", snapshotKey(snapshot), err)
 		klog.Error(strerr)
 		ctrl.eventRecorder.Event(newSnapshot, v1.EventTypeWarning, "CreateSnapshotContentFailed", strerr)
-		return nil, newControllerUpdateError(snapshotKey(snapshot), err.Error())
+		return nil, snapshotter.SnapshottingInBackground, newControllerUpdateError(snapshotKey(snapshot), err.Error())
 	}
-	return newSnapshot, nil
+
+	return newSnapshot, snapshotter.SnapshottingFinished, nil
 }
 
 // Delete a snapshot

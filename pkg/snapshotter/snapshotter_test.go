@@ -143,6 +143,7 @@ func TestCreateSnapshot(t *testing.T) {
 		injectError  codes.Code
 		expectError  bool
 		expectResult *snapshotResult
+		expectState  SnapshottingState
 	}{
 		{
 			name:         "success",
@@ -152,6 +153,7 @@ func TestCreateSnapshot(t *testing.T) {
 			output:       defaultResponse,
 			expectError:  false,
 			expectResult: result,
+			expectState:  SnapshottingFinished,
 		},
 		{
 			name:         "attributes",
@@ -162,6 +164,7 @@ func TestCreateSnapshot(t *testing.T) {
 			output:       defaultResponse,
 			expectError:  false,
 			expectResult: result,
+			expectState:  SnapshottingFinished,
 		},
 		{
 			name:         "secrets",
@@ -172,6 +175,7 @@ func TestCreateSnapshot(t *testing.T) {
 			output:       defaultResponse,
 			expectError:  false,
 			expectResult: result,
+			expectState:  SnapshottingFinished,
 		},
 		{
 			name:         "fail for volume without csi source",
@@ -180,6 +184,7 @@ func TestCreateSnapshot(t *testing.T) {
 			input:        nil,
 			output:       nil,
 			expectError:  true,
+			expectState:  SnapshottingFinished,
 		},
 		{
 			name:         "gRPC transient error",
@@ -189,6 +194,7 @@ func TestCreateSnapshot(t *testing.T) {
 			output:       nil,
 			injectError:  codes.DeadlineExceeded,
 			expectError:  true,
+			expectState:  SnapshottingInBackground,
 		},
 		{
 			name:         "gRPC final error",
@@ -198,6 +204,7 @@ func TestCreateSnapshot(t *testing.T) {
 			output:       nil,
 			injectError:  codes.NotFound,
 			expectError:  true,
+			expectState:  SnapshottingFinished,
 		},
 	}
 
@@ -224,7 +231,7 @@ func TestCreateSnapshot(t *testing.T) {
 		}
 
 		s := NewSnapshotter(csiConn)
-		driverName, snapshotId, timestamp, size, readyToUse, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
+		driverName, snapshotId, timestamp, size, readyToUse, snapState, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -251,6 +258,9 @@ func TestCreateSnapshot(t *testing.T) {
 			if !reflect.DeepEqual(readyToUse, test.expectResult.readyToUse) {
 				t.Errorf("test %q: expected readyToUse: %v, got: %v", test.name, test.expectResult.readyToUse, readyToUse)
 			}
+		}
+		if test.expectState != snapState {
+			t.Errorf("test %q: expected snapState: %v, got: %v", test.name, test.expectState, snapState)
 		}
 	}
 }

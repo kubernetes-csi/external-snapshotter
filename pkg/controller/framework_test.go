@@ -35,6 +35,7 @@ import (
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -757,6 +758,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
+		5*time.Millisecond,
+		10*time.Second,
 		fakeSnapshot,
 		5*time.Millisecond,
 		60*time.Second,
@@ -1372,10 +1375,10 @@ type fakeSnapshotter struct {
 	t                 *testing.T
 }
 
-func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, snapshotter.SnapshottingState, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, snapshotter.SnapshottingFinished, fmt.Errorf("unexpected call")
 	}
 	call := f.createCalls[f.createCallCounter]
 	f.createCallCounter++
@@ -1402,9 +1405,10 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	}
 
 	if err != nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, snapshotter.SnapshottingFinished, fmt.Errorf("unexpected call")
 	}
-	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
+
+	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, snapshotter.SnapshottingFinished, call.err
 }
 
 func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {

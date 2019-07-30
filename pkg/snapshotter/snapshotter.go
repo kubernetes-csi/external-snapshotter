@@ -26,15 +26,18 @@ import (
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"k8s.io/api/core/v1"
+
 	"k8s.io/klog"
 )
 
 // Snapshotter implements CreateSnapshot/DeleteSnapshot operations against a remote CSI driver.
 type Snapshotter interface {
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp time.Time, size int64, readyToUse bool, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp time.Time, size int64, readyToUse bool, snapshotterState SnapshottingState, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
@@ -47,23 +50,40 @@ type snapshot struct {
 	conn *grpc.ClientConn
 }
 
+// SnapshottingState is the state of volume snapshotting. It tells the controller if snapshotting could
+// be in progress in the background after a CreateSnapshot() call returns or the snapshotting is
+// 100% finished (with or without success)
+type SnapshottingState string
+
+const (
+	// SnapshottingInBackground tells the controller that snapshotting may be in progress
+	// after CreateSnapshot exits.
+	SnapshottingInBackground SnapshottingState = "Background"
+	// SnapshottingFinished tells the controller that snapshotting is not running in the background
+	// and has exited successfully or with errors.
+	SnapshottingFinished SnapshottingState = "Finished"
+	// SnapshottingNoChange tells the controller that snapshotting status has not changed since
+	// CreateSnapshot was called.
+	SnapshottingNoChange SnapshottingState = "NoChange"
+)
+
 func NewSnapshotter(conn *grpc.ClientConn) Snapshotter {
 	return &snapshot{
 		conn: conn,
 	}
 }
 
-func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, SnapshottingState, error) {
 	klog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
 	if volume.Spec.CSI == nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
+		return "", "", time.Time{}, 0, false, SnapshottingFinished, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
 	}
 
 	client := csi.NewControllerClient(s.conn)
 
 	driverName, err := csirpc.GetDriverName(ctx, s.conn)
 	if err != nil {
-		return "", "", time.Time{}, 0, false, err
+		return "", "", time.Time{}, 0, false, SnapshottingFinished, err
 	}
 
 	req := csi.CreateSnapshotRequest{
@@ -75,15 +95,43 @@ func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volu
 
 	rsp, err := client.CreateSnapshot(ctx, &req)
 	if err != nil {
-		return "", "", time.Time{}, 0, false, err
+		if isFinalError(err) {
+			return "", "", time.Time{}, 0, false, SnapshottingFinished, err
+		}
+		return "", "", time.Time{}, 0, false, SnapshottingInBackground, err
 	}
 
 	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%d] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
 	creationTime, err := ptypes.Timestamp(rsp.Snapshot.CreationTime)
 	if err != nil {
-		return "", "", time.Time{}, 0, false, err
+		return "", "", time.Time{}, 0, false, SnapshottingFinished, err
 	}
-	return driverName, rsp.Snapshot.SnapshotId, creationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, nil
+	return driverName, rsp.Snapshot.SnapshotId, creationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, SnapshottingFinished, nil
+}
+
+func isFinalError(err error) bool {
+	// Sources:
+	// https://github.com/kubernetes-csi/external-provisioner/commit/8203a03c47ce2b86a2a2c2421d74345b76183b14
+	// https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+	// https://github.com/container-storage-interface/spec/blob/master/spec.md
+	st, ok := status.FromError(err)
+	if !ok {
+		// This is not gRPC error. The operation must have failed before gRPC
+		// method was called, otherwise we would get gRPC error.
+		// We don't know if any previous CreateSnapshot is in progress, be on the safe side.
+		return false
+	}
+	switch st.Code() {
+	case codes.Canceled, // gRPC: Client Application cancelled the request
+		codes.DeadlineExceeded,  // gRPC: Timeout
+		codes.Unavailable,       // gRPC: Server shutting down, TCP connection broken - previous CreateSnapshot() may be still in progress.
+		codes.ResourceExhausted, // gRPC: Server temporarily out of resources - previous CreateSnapshot() may be still in progress.
+		codes.Aborted:           // CSI: Operation pending for snapshot
+		return false
+	}
+	// All other errors mean that snapshot creation either did not
+	// even start or failed. It is for sure not in progress.
+	return true
 }
 
 func (s *snapshot) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error) {

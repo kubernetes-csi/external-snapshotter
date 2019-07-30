@@ -62,6 +62,8 @@ var (
 	csiAddress                      = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
 	createSnapshotContentRetryCount = flag.Int("create-snapshotcontent-retrycount", 5, "Number of retries when we create a snapshot content object for a snapshot.")
 	createSnapshotContentInterval   = flag.Duration("create-snapshotcontent-interval", 10*time.Second, "Interval between retries when we create a snapshot content object for a snapshot.")
+	retryIntervalStart              = flag.Duration("retry-interval-start", time.Second, "Initial retry interval of failed snapshot creation. It doubles with each failure, up to retry-interval-max.")
+	retryIntervalMax                = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed snapshot creation.")
 	resyncPeriod                    = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
 	snapshotNamePrefix              = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength          = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
@@ -176,6 +178,8 @@ func main() {
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		*createSnapshotContentRetryCount,
 		*createSnapshotContentInterval,
+		*retryIntervalStart,
+		*retryIntervalMax,
 		snapShotter,
 		*csiTimeout,
 		*resyncPeriod,

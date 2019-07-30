@@ -18,6 +18,7 @@ package controller
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
@@ -50,6 +51,9 @@ type csiSnapshotController struct {
 	snapshotQueue workqueue.RateLimitingInterface
 	contentQueue  workqueue.RateLimitingInterface
 
+	// Map UID -> *Snapshot with all snapshots in progress in the background.
+	snapshotsInProgress sync.Map
+
 	snapshotLister       storagelisters.VolumeSnapshotLister
 	snapshotListerSynced cache.InformerSynced
 	contentLister        storagelisters.VolumeSnapshotContentLister
@@ -68,6 +72,8 @@ type csiSnapshotController struct {
 
 	createSnapshotContentRetryCount int
 	createSnapshotContentInterval   time.Duration
+	retryIntervalStart              time.Duration
+	retryIntervalMax                time.Duration
 	resyncPeriod                    time.Duration
 }
 
@@ -82,6 +88,8 @@ func NewCSISnapshotController(
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	createSnapshotContentRetryCount int,
 	createSnapshotContentInterval time.Duration,
+	retryIntervalStart time.Duration,
+	retryIntervalMax time.Duration,
 	snapshotter snapshotter.Snapshotter,
 	timeout time.Duration,
 	resyncPeriod time.Duration,
@@ -103,10 +111,12 @@ func NewCSISnapshotController(
 		runningOperations:               goroutinemap.NewGoRoutineMap(true),
 		createSnapshotContentRetryCount: createSnapshotContentRetryCount,
 		createSnapshotContentInterval:   createSnapshotContentInterval,
+		retryIntervalStart:              retryIntervalStart,
+		retryIntervalMax:                retryIntervalMax,
 		resyncPeriod:                    resyncPeriod,
 		snapshotStore:                   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		contentStore:                    cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-snapshot"),
+		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.NewItemExponentialFailureRateLimiter(retryIntervalStart, retryIntervalMax), "csi-snapshotter-snapshot"),
 		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-content"),
 	}
 
@@ -215,10 +225,29 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 			klog.Errorf("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
 			return false
 		}
-		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
-		if err == nil {
-			// The volume snapshot still exists in informer cache, the event must have
-			// been add/update/sync
+
+		// Attempt to get snapshot from the informer
+		var snapshot *crdv1.VolumeSnapshot
+		snapshot, err = ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
+		if err != nil && !errors.IsNotFound(err) {
+			klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
+			return false
+		} else if errors.IsNotFound(err) {
+			// Check snapshotsInProgress for the snapshot if not found from the informer
+			inProgressObj, ok := ctrl.snapshotsInProgress.Load(key)
+			if ok {
+				snapshot, ok = inProgressObj.(*crdv1.VolumeSnapshot)
+				if !ok {
+					klog.Errorf("expected vs, got %+v", inProgressObj)
+					return false
+				}
+			}
+
+		}
+
+		if snapshot != nil {
+			// If the volume snapshot still exists in informer cache, the event must have
+			// been add/update/sync. Otherwise, the volume snapshot was still in progress.
 			newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
 			if err == nil {
 				klog.V(5).Infof("passed checkAndUpdateSnapshotClass for snapshot %q", key)
@@ -226,11 +255,8 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 			}
 			return false
 		}
-		if err != nil && !errors.IsNotFound(err) {
-			klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
-			return false
-		}
-		// The snapshot is not in informer cache, the event must have been "delete"
+
+		// The snapshot is not in informer cache or in progress, the event must have been "delete"
 		vsObj, found, err := ctrl.snapshotStore.GetByKey(key)
 		if err != nil {
 			klog.V(2).Infof("error getting snapshot %q from cache: %v", key, err)
@@ -251,6 +277,10 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 		if err == nil {
 			ctrl.deleteSnapshot(newSnapshot)
 		}
+
+		ctrl.snapshotQueue.Forget(keyObj)
+		ctrl.snapshotsInProgress.Delete(key)
+
 		return false
 	}
 
@@ -377,12 +407,22 @@ func (ctrl *csiSnapshotController) updateSnapshot(snapshot *crdv1.VolumeSnapshot
 	}
 	err = ctrl.syncSnapshot(snapshot)
 	if err != nil {
+		sKey := snapshotKey(snapshot)
+
+		// if the snapshot has been deleted, remove from snapshots in progress
+		if _, exists, _ := ctrl.snapshotStore.Get(sKey); !exists {
+			ctrl.snapshotsInProgress.Delete(sKey)
+		} else {
+			// otherwise, add back to the snapshot queue to retry.
+			ctrl.snapshotQueue.AddRateLimited(sKey)
+		}
+
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
 			// recovers from it easily.
-			klog.V(3).Infof("could not sync claim %q: %+v", snapshotKey(snapshot), err)
+			klog.V(3).Infof("could not sync claim %q: %+v", sKey, err)
 		} else {
-			klog.Errorf("could not sync volume %q: %+v", snapshotKey(snapshot), err)
+			klog.Errorf("could not sync volume %q: %+v", sKey, err)
 		}
 	}
 }
