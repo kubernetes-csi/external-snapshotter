@@ -5,6 +5,4 @@ RUN make build
 
 FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
 COPY --from=builder /go/src/github.com/kubernetes-csi/external-snapshotter/bin/csi-snapshotter /usr/bin/
-RUN useradd csi-snapshotter
-USER csi-snapshotter
 ENTRYPOINT ["/usr/bin/csi-snapshotter"]
