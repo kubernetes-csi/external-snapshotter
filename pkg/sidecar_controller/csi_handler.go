@@ -24,6 +24,7 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
 
 	"k8s.io/api/core/v1"
 )
@@ -67,7 +68,7 @@ func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume
 	if err != nil {
 		return "", "", time.Time{}, 0, false, err
 	}
-	newParameters, err := removePrefixedParameters(parameters)
+	newParameters, err := utils.RemovePrefixedParameters(parameters)
 	if err != nil {
 		return "", "", time.Time{}, 0, false, fmt.Errorf("failed to remove CSI Parameters of prefixed keys: %v", err)
 	}

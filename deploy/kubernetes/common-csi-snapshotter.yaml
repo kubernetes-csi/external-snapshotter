@@ -1,0 +1,47 @@
+# This YAML file shows how to deploy the CSI snapshotter together
+# with the hostpath CSI driver. It depends on the RBAC rules
+# from rbac.yaml and rbac-external-provisioner.yaml.
+#
+# Because external-snapshotter and external-provisioner get
+# deployed in the same pod, we have to merge the permissions
+# for the provisioner into the service account. This is not
+# necessary when deploying separately.
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: common-csi-snapshotter
+  labels:
+    app: common-csi-snapshotter
+spec:
+  selector:
+    app: common-csi-snapshotter
+  ports:
+    - name: dummy
+      port: 12345
+
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: common-csi-snapshotter
+spec:
+  serviceName: "common-csi-snapshotter"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: common-csi-snapshotter
+  template:
+    metadata:
+      labels:
+        app: common-csi-snapshotter
+    spec:
+      serviceAccount: common-csi-snapshotter
+      containers:
+        - name: common-csi-snapshotter
+          image: common-snapshotter:v1beta1 #quay.io/k8scsi/csi-snapshotter:v1.1.0
+          args:
+            - "--v=5"
+            - "--leader-election=false"
+          imagePullPolicy: IfNotPresent #Always

@@ -11,14 +11,14 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: csi-snapshotter
+  name: common-csi-snapshotter
 
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   # rename if there are conflicts
-  name: external-snapshotter-runner
+  name: common-external-snapshotter-runner
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -32,13 +32,6 @@ rules:
   - apiGroups: [""]
     resources: ["events"]
     verbs: ["list", "watch", "create", "update", "patch"]
-  # Secret permission is optional.
-  # Enable it if your driver needs secret.
-  # For example, `csi.storage.k8s.io/snapshotter-secret-name` is set in VolumeSnapshotClass.
-  # See https://kubernetes-csi.github.io/docs/secrets-and-credentials.html for more details.
-  #  - apiGroups: [""]
-  #    resources: ["secrets"]
-  #    verbs: ["get", "list"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshotclasses"]
     verbs: ["get", "list", "watch"]
@@ -51,21 +44,24 @@ rules:
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots/status"]
     verbs: ["update"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["create", "list", "watch", "delete", "get", "update"]
 
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: csi-snapshotter-role
+  name: common-csi-snapshotter-role
 subjects:
   - kind: ServiceAccount
-    name: csi-snapshotter
+    name: common-csi-snapshotter
     # replace with non-default namespace name
     namespace: default
 roleRef:
   kind: ClusterRole
   # change the name also here if the ClusterRole gets renamed
-  name: external-snapshotter-runner
+  name: common-external-snapshotter-runner
   apiGroup: rbac.authorization.k8s.io
 
 ---
@@ -73,7 +69,7 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: default # TODO: replace with the namespace you want for your sidecar
-  name: external-snapshotter-leaderelection
+  name: common-external-snapshotter-leaderelection
 rules:
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
@@ -83,14 +79,14 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: external-snapshotter-leaderelection
+  name: common-external-snapshotter-leaderelection
   namespace: default # TODO: replace with the namespace you want for your sidecar
 subjects:
   - kind: ServiceAccount
-    name: csi-snapshotter
+    name: common-csi-snapshotter
     namespace: default # TODO: replace with the namespace you want for your sidecar
 roleRef:
   kind: Role
-  name: external-snapshotter-leaderelection
+  name: common-external-snapshotter-leaderelection
   apiGroup: rbac.authorization.k8s.io
 

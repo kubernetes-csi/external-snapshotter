@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package utils
 
 import (
 	"fmt"
@@ -65,6 +65,36 @@ const (
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-protection"
 	VolumeSnapshotFinalizer        = "snapshot.storage.kubernetes.io/volumesnapshot-protection"
+
+	IsDefaultSnapshotClassAnnotation = "snapshot.storage.kubernetes.io/is-default-class"
+
+	// AnnBindCompleted Annotation applies to VolumeSnapshots. It indicates that the lifecycle
+	// of the VolumeSnapshot has passed through the initial setup. This information changes how
+	// we interpret some observations of the state of the objects. Value of this
+	// Annotation does not matter.
+	AnnBindCompleted = "snapshot.storage.kubernetes.io/bind-completed"
+
+	// AnnBoundByController annotation applies to VolumeSnapshots and VolumeSnapshotContents. It indicates that
+	// the binding (VolumeSnapshot->VolumeSnapshotContent or VolumeSnapshotContent->VolumeSnapshot) was installed by the controller. The
+	// absence of this annotation means the binding was done by the user (i.e.
+	// pre-bound). Value of this annotation does not matter.
+	AnnBoundByController = "snapshot.storage.kubernetes.io/bound-by-controller"
+
+	// This annotation is also added to a VolumeSnapshotContent that has been dynamically
+	// provisioned by Kubernetes. Its value is name of volume plugin that created the
+	// VolumeSnapshot. It serves both user (to show where a VolumeSnapshotContent comes
+	// from) and Kubernetes (to recognize dynamically provisioned VolumeSnapshotContents
+	// in its decisions).
+	AnnDynamicallyProvisioned = "snapshot.storage.kubernetes.io/provisioned-by"
+
+	// This annotation is added to a VolumeSnapshot after it is being dynamically created
+	AnnDynamicallyCreated = "snapshot.storage.kubernetes.io/dynamically-created"
+
+	// AnnShouldDelete annotation applies to VolumeSnapshotContents. It indicates that
+	// the common snapshot controller has verified that volume snapshot is nil
+	// and it is safe to delete the volume snapshot backing the snapshot content.
+	// Value of this annotation does not matter.
+	AnnShouldDelete = "snapshot.storage.kubernetes.io/should-delete"
 )
 
 var snapshotterSecretParams = deprecatedSecretParamsMap{
@@ -78,11 +108,11 @@ var snapshotterSecretParams = deprecatedSecretParamsMap{
 // Name of finalizer on PVCs that have been used as a source to create VolumeSnapshots
 const PVCFinalizer = "snapshot.storage.kubernetes.io/pvc-protection"
 
-func snapshotKey(vs *crdv1.VolumeSnapshot) string {
+func SnapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
 }
 
-func snapshotRefKey(vsref *v1.ObjectReference) string {
+func SnapshotRefKey(vsref *v1.ObjectReference) string {
 	return fmt.Sprintf("%s/%s", vsref.Namespace, vsref.Name)
 }
 
@@ -90,7 +120,7 @@ func snapshotRefKey(vsref *v1.ObjectReference) string {
 // callback (i.e. with events from etcd) or with an object modified by the
 // controller itself. Returns "true", if the cache was updated, false if the
 // object is an old version and should be ignored.
-func storeObjectUpdate(store cache.Store, obj interface{}, className string) (bool, error) {
+func StoreObjectUpdate(store cache.Store, obj interface{}, className string) (bool, error) {
 	objName, err := keyFunc(obj)
 	if err != nil {
 		return false, fmt.Errorf("Couldn't get key for object %+v: %v", obj, err)
@@ -227,7 +257,7 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap
 // - the nameTemplate or namespaceTemplate contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func getSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+func GetSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
 	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(snapshotterSecretParams, snapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
@@ -306,7 +336,7 @@ func resolveTemplate(template string, params map[string]string) (string, error) 
 }
 
 // getCredentials retrieves credentials stored in v1.SecretReference
-func getCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[string]string, error) {
+func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[string]string, error) {
 	if ref == nil {
 		return nil, nil
 	}
@@ -329,22 +359,24 @@ func NoResyncPeriodFunc() time.Duration {
 }
 
 // isContentDeletionCandidate checks if a volume snapshot content is a deletion candidate.
-func isContentDeletionCandidate(content *crdv1.VolumeSnapshotContent) bool {
+// It is a deletion candidate if DeletionTimestamp is not nil and
+// VolumeSnapshotContentFinalizer is set.
+func IsContentDeletionCandidate(content *crdv1.VolumeSnapshotContent) bool {
 	return content.ObjectMeta.DeletionTimestamp != nil && slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
 }
 
 // needToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
-func needToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
+func NeedToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
 	return content.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
 }
 
 // isSnapshotDeletionCandidate checks if a volume snapshot is a deletion candidate.
-func isSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
+func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.ObjectMeta.DeletionTimestamp != nil && slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
 }
 
 // needToAddSnapshotFinalizer checks if a Finalizer needs to be added for the volume snapshot.
-func needToAddSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
+func NeedToAddSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotFinalizer, nil)
 }
 
@@ -359,7 +391,7 @@ func deprecationWarning(deprecatedParam, newParam, removalVersion string) string
 	return fmt.Sprintf("\"%s\" is deprecated and will be removed in %s%s", deprecatedParam, removalVersion, newParamPhrase)
 }
 
-func removePrefixedParameters(param map[string]string) (map[string]string, error) {
+func RemovePrefixedParameters(param map[string]string) (map[string]string, error) {
 	newParam := map[string]string{}
 	for k, v := range param {
 		if strings.HasPrefix(k, csiParameterPrefix) {
@@ -377,4 +409,18 @@ func removePrefixedParameters(param map[string]string) (map[string]string, error
 		}
 	}
 	return newParam, nil
+}
+
+// Stateless functions
+func GetSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
+	return fmt.Sprintf("bound to: %q, Completed: %v", snapshot.Spec.SnapshotContentName, snapshot.Status.ReadyToUse)
+}
+
+// IsSnapshotBound returns true/false if snapshot is bound
+func IsSnapshotBound(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
+	if content.Spec.VolumeSnapshotRef != nil && content.Spec.VolumeSnapshotRef.Name == snapshot.Name &&
+		content.Spec.VolumeSnapshotRef.UID == snapshot.UID {
+		return true
+	}
+	return false
 }
