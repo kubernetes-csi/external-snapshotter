@@ -13,19 +13,29 @@ required = [
   name = "github.com/container-storage-interface/spec"
   version = "=1.1.0"
 
+# TODO: all the k8s.io dependencies are overrides due to
+# csi-lib-utils constraints. Once 1.16.0 is released, update
+# all of these versions back to a constraint.
+
 # The dependency on external-provisioner should be removed with #60.
-[[constraint]]
+[[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.14.0"
+  branch = "master"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.14.0"
+  branch = "master"
 
-[[constraint]]
+[[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.14.0"
+  branch = "master"
 
+[[override]]
+  name = "k8s.io/utils"
+  branch = "master"
+
+
+# These dependencies are used for CRD API generation
 [[constraint]]
   name = "k8s.io/code-generator"
   version = "kubernetes-1.14.0"
