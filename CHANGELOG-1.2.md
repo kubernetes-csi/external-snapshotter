@@ -1,3 +1,9 @@
+# Changelog since v1.2.0
+
+## Notable Changes
+
+- Cherry picks PR #138: Prebound snapshots will work correctly with CSI drivers that does not support ListSnasphots.([#156](https://github.com/kubernetes-csi/external-snapshotter/pull/156), [@hakanmemisoglu](https://github.com/hakanmemisoglu))
+
 # Changelog since v1.1.0
 
 ## Breaking Changes
