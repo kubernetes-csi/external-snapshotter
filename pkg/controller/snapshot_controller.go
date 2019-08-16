@@ -549,7 +549,7 @@ func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.Volume
 	contentName := GetSnapshotContentNameForSnapshot(snapshot)
 
 	// Resolve snapshotting secret credentials.
-	snapshotterSecretRef, err := getSecretReference(class.Parameters, contentName, snapshot)
+	snapshotterSecretRef, err := getSecretReference(class.Parameters, snapshotterSecretParams, contentName, snapshot)
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
@@ -561,6 +561,22 @@ func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.Volume
 	return class, volume, contentName, snapshotterCredentials, nil
 }
 
+func (ctrl *csiSnapshotController) getListSnapshotCredentials(snapshot *crdv1.VolumeSnapshot) (map[string]string, error) {
+	className := snapshot.Spec.VolumeSnapshotClassName
+	if className == nil {
+		return nil, fmt.Errorf("failed to get list snapshot credentials for %s without a snapshot class", snapshot.Name)
+	}
+	vsc, err := ctrl.clientset.SnapshotV1alpha1().VolumeSnapshotClasses().Get(className, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the snapshot class %s: Error: [%#v]", className, err)
+	}
+	secretRef, err := getSecretReference(vsc.Parameters, snapshotterListSecretParams, snapshot.Spec.SnapshotContentName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get secret reference for list operation")
+	}
+	return getCredentials(ctrl.client, secretRef)
+}
+
 func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
 	var err error
 	var creationTime time.Time
@@ -570,8 +586,13 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 	var snapshotID string
 
 	if snapshot.Spec.Source == nil {
+		snapshotterListCredentials, err := ctrl.getListSnapshotCredentials(snapshot)
+		if err != nil {
+			klog.Errorf("checkAndUpdateBoundSnapshotStatusOperation: failed to get list snapshot credentials from snapshot [%s", snapshot.Name)
+			return nil, err
+		}
 		klog.V(5).Infof("checkandUpdateBoundSnapshotStatusOperation: checking whether snapshot [%s] is pre-bound to content [%s]", snapshot.Name, content.Name)
-		readyToUse, creationTime, size, err = ctrl.handler.GetSnapshotStatus(content)
+		readyToUse, creationTime, size, err = ctrl.handler.GetSnapshotStatus(content, snapshotterListCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call get snapshot status to check whether snapshot is ready to use %q", err)
 			return nil, err
@@ -741,7 +762,7 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
 			// Resolve snapshotting secret credentials.
 			// No VolumeSnapshot is provided when resolving delete secret names, since the VolumeSnapshot may or may not exist at delete time.
-			snapshotterSecretRef, err := getSecretReference(snapshotClass.Parameters, content.Name, nil)
+			snapshotterSecretRef, err := getSecretReference(snapshotClass.Parameters, snapshotterSecretParams, content.Name, nil)
 			if err != nil {
 				return err
 			}

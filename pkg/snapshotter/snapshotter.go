@@ -24,9 +24,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
-
 	"google.golang.org/grpc"
-
 	"k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
@@ -40,7 +38,7 @@ type Snapshotter interface {
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
 
 	// GetSnapshotStatus returns if a snapshot is ready to use, creation time, and restore size.
-	GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error)
+	GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (bool, time.Time, int64, error)
 }
 
 type snapshot struct {
@@ -117,7 +115,7 @@ func (s *snapshot) isListSnapshotsSupported(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
+func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (bool, time.Time, int64, error) {
 	client := csi.NewControllerClient(s.conn)
 
 	// If the driver does not support ListSnapshots, assume the snapshot ID is valid.
@@ -130,6 +128,7 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string) (bo
 	}
 	req := csi.ListSnapshotsRequest{
 		SnapshotId: snapshotID,
+		Secrets:    snapshotterCredentials,
 	}
 	rsp, err := client.ListSnapshots(ctx, &req)
 	if err != nil {

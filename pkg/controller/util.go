@@ -18,7 +18,10 @@ package controller
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
 	"k8s.io/api/core/v1"
@@ -30,9 +33,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/slice"
-	"os"
-	"strconv"
-	"time"
 )
 
 var (
@@ -57,6 +57,9 @@ const (
 	prefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
 	prefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
 
+	listSnapshotSecretNameKey      = csiParameterPrefix + "snapshotter-list-snapshot-secret-name"
+	listSnapshotSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-snapshot-secret-namespace"
+
 	// [Deprecated] CSI Parameters that are put into fields but
 	// NOT stripped from the parameters passed to CreateSnapshot
 	snapshotterSecretNameKey      = "csiSnapshotterSecretName"
@@ -68,11 +71,17 @@ const (
 )
 
 var snapshotterSecretParams = deprecatedSecretParamsMap{
-	name:                         "Snapshotter",
+	name:                         "Snapshotter (CreateSnapshot, DeleteSnapshot)",
 	deprecatedSecretNameKey:      snapshotterSecretNameKey,
 	deprecatedSecretNamespaceKey: snapshotterSecretNamespaceKey,
 	secretNameKey:                prefixedSnapshotterSecretNameKey,
 	secretNamespaceKey:           prefixedSnapshotterSecretNamespaceKey,
+}
+
+var snapshotterListSecretParams = deprecatedSecretParamsMap{
+	name:               "Snapshotter (ListSnapshot)",
+	secretNameKey:      listSnapshotSecretNameKey,
+	secretNamespaceKey: listSnapshotSecretNamespaceKey,
 }
 
 // Name of finalizer on PVCs that have been used as a source to create VolumeSnapshots
@@ -227,8 +236,8 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap
 // - the nameTemplate or namespaceTemplate contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func getSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(snapshotterSecretParams, snapshotClassParams)
+func getSecretReference(snapshotClassParams map[string]string, secretMap deprecatedSecretParamsMap, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretMap, snapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
 	}
