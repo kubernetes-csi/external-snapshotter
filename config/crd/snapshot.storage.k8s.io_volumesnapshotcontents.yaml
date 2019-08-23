@@ -10,7 +10,7 @@ spec:
   names:
     kind: VolumeSnapshotContent
     plural: volumesnapshotcontents
-  scope: ""
+  scope: Cluster
   validation:
     openAPIV3Schema:
       description: VolumeSnapshotContent represents the actual "on-disk" snapshot
@@ -30,100 +30,64 @@ spec:
           description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
           type: object
         spec:
-          description: Spec represents the desired state of the snapshot content
+          description: spec defines properties of a VolumeSnapshotContent created
+            by underlying storage system.
           properties:
-            csiVolumeSnapshotSource:
-              description: CSI (Container Storage Interface) represents storage that
-                handled by an external CSI Volume Driver (Alpha feature).
+            csi:
+              description: csi represents a volume snapshot created by a CSI(Container
+                Storage Interface) driver.
               properties:
                 creationTime:
-                  description: Timestamp when the point-in-time snapshot is taken
-                    by the underlying storage system. This timestamp will be generated
-                    and returned by the CSI volume driver after the snapshot is cut.
-                    The format of this field is a Unix nanoseconds time encoded as
-                    an int64. On Unix, the command `date +%s%N` returns the current
-                    time in nanoseconds (aka, epoch time) since 1970-01-01 00:00:00
-                    UTC. This field is required in the CSI spec however made optional
-                    here to support static binding.
+                  description: creationTime is the timestamp when the point-in-time
+                    snapshot is taken by the underlying storage system. This timestamp
+                    is returned by the CSI driver after the snapshot is cut. The format
+                    of this field is a Unix nanoseconds time encoded as an int64.
+                    On Unix, the command `date +%s%N` returns the current time in
+                    nanoseconds (aka, epoch time) since 1970-01-01 00:00:00 UTC.
                   format: int64
                   type: integer
                 driver:
-                  description: Driver is the name of the driver used to create a physical
-                    snapshot on underlying storage system. This MUST be the same name
-                    returned by the CSI GetPluginName() call for that driver. Required.
+                  description: driver is the name of the CSI driver used to create
+                    the physical snapshot on the underlying storage system. This MUST
+                    be the same name returned by the CSI GetPluginName() call for
+                    that driver. Required.
                   type: string
                 restoreSize:
-                  description: When restoring a volume from a snapshot, the volume
-                    size needs to be equal to or larger than the RestoreSize if it
-                    is specified. If RestoreSize is set to nil, in the dynamic snapshot
-                    creation case, it means that the underlying storage system does
-                    not have this information available; in the static binding case,
-                    this piece of information is not available.
+                  description: restoreSize specifies the number of bytes that the
+                    snapshot's data would consume when restored to a volume. When
+                    restoring a volume from a snapshot, the volume size needs to be
+                    equal to or larger than the RestoreSize if it is specified.
                   format: int64
                   type: integer
                 snapshotHandle:
-                  description: SnapshotHandle is the unique id returned from the underlying
-                    storage system by the CSI driver's CreationSnapshot gRPC call.
-                    It serves as the only and sufficient handle when communicating
-                    with underlying storage systems via CSI driver for all subsequent
-                    calls on the specific VolumeSnapshot Required.
+                  description: snapshotHandle is the snapshot id returned by the CSI
+                    driver in the CreateSnapshotResponse and is used as the snapshot
+                    identifier for all subsequent CSI calls. Required.
                   type: string
               required:
               - driver
               - snapshotHandle
               type: object
             deletionPolicy:
-              description: DeletionPolicy defines whether a VolumeSnapshotContent
-                and its associated physical snapshot on underlying storage system
-                should be deleted or not when released from its corresponding VolumeSnapshot.
-                If not specified, the default will be VolumeSnapshotContentRetain
-                for static binding, and VolumeSnapshotContentDelete for dynamic snapshot
-                creation.
+              description: deletionPolicy determines whether this VolumeSnapshotContent
+                and its bound physical snapshot on the underlying storage system should
+                be deleted when its VolumeSnapshot is deleted. Supported values are
+                "Retain" and "Delete". "Retain" means that the VolumeSnapshotContent
+                and its physical snapshot on underlying storage system are kept. "Delete"
+                means that the VolumeSnapshotContent and its physical snapshot on
+                underlying storage system are deleted. If not specified, the default
+                value is "Retain"
+              enum:
+              - Delete
+              - Retain
               type: string
-            persistentVolumeRef:
-              description: PersistentVolumeRef represents the PersistentVolume that
-                the snapshot has been taken from. In dynamic snapshot creation case,
-                the field will be specified when VolumeSnapshot and VolumeSnapshotContent
-                are bound.
-              properties:
-                apiVersion:
-                  description: API version of the referent.
-                  type: string
-                fieldPath:
-                  description: 'If referring to a piece of an object instead of an
-                    entire object, this string should contain a valid JSON/Go field
-                    access statement, such as desiredState.manifest.containers[2].
-                    For example, if the object reference is to a container within
-                    a pod, this would take on a value like: "spec.containers{name}"
-                    (where "name" refers to the name of the container that triggered
-                    the event) or if no container name is specified "spec.containers[2]"
-                    (container with index 2 in this pod). This syntax is chosen only
-                    to have some well-defined way of referencing a part of an object.
-                    TODO: this design is not final and this field is subject to change
-                    in the future.'
-                  type: string
-                kind:
-                  description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
-                  type: string
-                name:
-                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
-                  type: string
-                namespace:
-                  description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
-                  type: string
-                resourceVersion:
-                  description: 'Specific resourceVersion to which this reference is
-                    made, if any. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency'
-                  type: string
-                uid:
-                  description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
-                  type: string
-              type: object
             volumeSnapshotRef:
-              description: VolumeSnapshotRef is part of bi-directional binding between
-                VolumeSnapshot and VolumeSnapshotContent. Expect to be non-nil when
-                bound. VolumeSnapshot.VolumeSnapshotContentName is the authoritative
-                bind between VolumeSnapshot and VolumeSnapshotContent
+              description: volumeSnapshotRef specifies the VolumeSnapshot object that
+                this VolumeSnapshotContent is bound with. The VolumeSnapshot.Spec.VolumeSnapshotContentName
+                field must reference this VolumeSnapshotContent name for the binding
+                to be considered valid(a.k.a bi-directional binding). If the referenced
+                VolumeSnapshot object does not exist(i.e., deleted by user), then
+                the VolumeSnapshotContent.Spec.DeletionPolicy is triggered.
               properties:
                 apiVersion:
                   description: API version of the referent.

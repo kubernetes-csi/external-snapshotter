@@ -10,14 +10,13 @@ spec:
   names:
     kind: VolumeSnapshotClass
     plural: volumesnapshotclasses
-  scope: ""
+  scope: Cluster
   validation:
     openAPIV3Schema:
-      description: VolumeSnapshotClass describes the parameters for a class of storage
-        snapshotter for which VolumeSnapshot can be dynamically taken for a given
-        PersistentVolumeClaim VolumeSnapshotClasses are non-namespaced. The name of
-        a VolumeSnapshotClass object is significant, it serves as the unique identifier
-        for a user to request a snapshot to be created using the specific VolumeSnapshotClass
+      description: VolumeSnapshotClass specifies parameters that a underlying storage
+        system uses when creating a volume snapshot. A specific VolumeSnapshotClass
+        is used by specifying its name in a VolumeSnapshot object. VolumeSnapshotClasses
+        are non-namespaced
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -25,11 +24,19 @@ spec:
             internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
           type: string
         deletionPolicy:
-          description: DeletionPolicy defines whether a VolumeSnapshotContent and
-            its associated physical snapshot on underlying storage system should be
-            deleted or not when released from its corresponding VolumeSnapshot. If
-            not specified, the default will be VolumeSnapshotContentRetain for static
-            binding, and VolumeSnapshotContentDelete for dynamic snapshot creation.
+          description: deletionPolicy determines whether a VolumeSnapshotContent created
+            through the VolumeSnapshotClass should be deleted when its bound VolumeSnapshot
+            is deleted. Supported values are "Retain" and "Delete". "Retain" means
+            that the VolumeSnapshotContent and its physical snapshot on underlying
+            storage system are kept. "Delete" means that the VolumeSnapshotContent
+            and its physical snapshot on underlying storage system are deleted. If
+            not specified, the default value is "Delete"
+          enum:
+          - Delete
+          - Retain
+          type: string
+        driver:
+          description: driver is the name of the driver that handles this VolumeSnapshotClass.
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this
@@ -42,15 +49,11 @@ spec:
         parameters:
           additionalProperties:
             type: string
-          description: Parameters holds parameters for underlying storage system.
-            These values are opaque to Kubernetes.
+          description: parameters is a key-value map with storage driver specific
+            parameters for creating snapshots. These values are opaque to Kubernetes.
           type: object
-        snapshotter:
-          description: Snapshotter is the name of the driver expected to handle VolumeSnapshot
-            requests of this VolumeSnapshotClass.
-          type: string
       required:
-      - snapshotter
+      - driver
       type: object
   version: v1beta1
   versions:
