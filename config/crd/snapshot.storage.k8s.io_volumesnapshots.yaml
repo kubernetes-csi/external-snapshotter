@@ -11,106 +11,114 @@ spec:
     kind: VolumeSnapshot
     plural: volumesnapshots
   scope: ""
+  validation:
+    openAPIV3Schema:
+      description: VolumeSnapshot is a user's request for taking a point in time snapshot
+        of a volume. Upon successful creation of the snapshot by the volume provider,
+        it is bound to a corresponding VolumeSnapshotContent. VolumeSnapshot objects
+        are namespaced
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+          type: object
+        spec:
+          description: 'Spec defines the desired characteristics of a snapshot requested
+            by a user. More info: https:s//kubernetes.io/docs/concepts/storage/volume-snapshots#volumesnapshots'
+          properties:
+            source:
+              description: Source has the information about where a snapshot should
+                be created from. Currently PersistentVolumeClaim is the only supported
+                source type. If specified, and VolumeSnapshotContentName is not specified
+                (i.e., nil), snapshot will be dynamically created from the given source.
+                If not specified, user can statically bind a VolumeSnapshot to a VolumeSnapshotContent
+                by specifying VolumeSnapshotContentName.
+              properties:
+                apiGroup:
+                  description: APIGroup is the group for the resource being referenced.
+                    If APIGroup is not specified, the specified Kind must be in the
+                    core API group. For any other third-party types, APIGroup is required.
+                  type: string
+                kind:
+                  description: Kind is the type of resource being referenced
+                  type: string
+                name:
+                  description: Name is the name of resource being referenced
+                  type: string
+              required:
+              - kind
+              - name
+              type: object
+            volumeSnapshotClassName:
+              description: 'Name of the VolumeSnapshotClass requested by the VolumeSnapshot.
+                If not specified, the default snapshot class will be used if there
+                exists one. More info: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes'
+              type: string
+            volumeSnapshotContentName:
+              description: VolumeSnapshotContentName is the binding reference to the
+                VolumeSnapshotContent backing the VolumeSnapshot. In dynamic snapshot
+                creation case, VolumeSnapshotContentName must NOT be specified.
+              type: string
+          type: object
+        status:
+          description: 'Status represents the current status/information of a volume
+            snapshot. NOTE: Status is subjected to change by sources other than snapshot
+            controller,       for example, undesired corruption from human operation
+            errors. It is only informational to       provide necessary transparency
+            of a snapshot''s status to users. It is highly recommended       not to
+            rely on this piece of information programmatically.'
+          properties:
+            creationTime:
+              description: CreationTime, if not nil, represents the timestamp when
+                a snapshot was successfully cut by the underlying storage system.
+                In static binding, CreationTime might not be available.
+              format: date-time
+              type: string
+            error:
+              description: The lastest observed error during snapshot creation operation,
+                if any.
+              properties:
+                message:
+                  description: String detailing the error encountered during Attach
+                    or Detach operation. This string may be logged, so it should not
+                    contain sensitive information.
+                  type: string
+                time:
+                  description: Time the error was encountered.
+                  format: date-time
+                  type: string
+              type: object
+            readyToUse:
+              description: ReadyToUse is a status/informational flag which provides
+                transparency to users. In the dynamic snapshot creation case, ReadyToUse
+                will be set to true when underlying storage system has successfully
+                finished all procedures out-of-bound to make a snapshot available
+                AND snapshot controller has bound the VolumeSnapshot to a VolumeSnapshotContent
+                successfully.
+              type: boolean
+            restoreSize:
+              description: RestoreSize, if not nil, represents the minimum volume
+                size to restore from a VolumeSnapshot It is a storage system level
+                property of a snapshot when the underlying storage system supports.
+                The field could be nil if the underlying storage system does not have
+                the information available, , or in cases like manual/static binding.
+              type: string
+          required:
+          - readyToUse
+          type: object
+      type: object
   version: v1beta1
   versions:
   - name: v1beta1
-    schema:
-      openAPIV3Schema:
-        description: VolumeSnapshot is a user's request for taking a snapshot. Upon
-          successful creation of the actual snapshot by the volume provider it is
-          bound to the corresponding VolumeSnapshotContent. Only the VolumeSnapshot
-          object is accessible to the user in the namespace.
-        properties:
-          apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
-            type: string
-          kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
-            type: string
-          metadata:
-            description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-            type: object
-          spec:
-            description: Spec defines the desired characteristics of a snapshot requested
-              by a user.
-            properties:
-              snapshotClassName:
-                description: Name of the VolumeSnapshotClass used by the VolumeSnapshot.
-                  If not specified, a default snapshot class will be used if it is
-                  available.
-                type: string
-              snapshotContentName:
-                description: SnapshotContentName binds the VolumeSnapshot object with
-                  the VolumeSnapshotContent
-                type: string
-              source:
-                description: Source has the information about where the snapshot is
-                  created from. In Alpha version, only PersistentVolumeClaim is supported
-                  as the source. If not specified, user can create VolumeSnapshotContent
-                  and bind it with VolumeSnapshot manually.
-                properties:
-                  apiGroup:
-                    description: APIGroup is the group for the resource being referenced.
-                      If APIGroup is not specified, the specified Kind must be in
-                      the core API group. For any other third-party types, APIGroup
-                      is required.
-                    type: string
-                  kind:
-                    description: Kind is the type of resource being referenced
-                    type: string
-                  name:
-                    description: Name is the name of resource being referenced
-                    type: string
-                required:
-                - kind
-                - name
-                type: object
-            type: object
-          status:
-            description: Status represents the latest observed state of the snapshot
-            properties:
-              creationTime:
-                description: CreationTime is the time the snapshot was successfully
-                  created. If it is set, it means the snapshot was created; Otherwise
-                  the snapshot was not created.
-                format: date-time
-                type: string
-              error:
-                description: The last error encountered during create snapshot operation,
-                  if any. This field must only be set by the entity completing the
-                  create snapshot operation, i.e. the external-snapshotter.
-                properties:
-                  message:
-                    description: String detailing the error encountered during Attach
-                      or Detach operation. This string may be logged, so it should
-                      not contain sensitive information.
-                    type: string
-                  time:
-                    description: Time the error was encountered.
-                    format: date-time
-                    type: string
-                type: object
-              readyToUse:
-                description: ReadyToUse is set to true only if the snapshot is ready
-                  to use (e.g., finish uploading if there is an uploading phase) and
-                  also VolumeSnapshot and its VolumeSnapshotContent bind correctly
-                  with each other. If any of the above condition is not true, ReadyToUse
-                  is set to false
-                type: boolean
-              restoreSize:
-                description: When restoring volume from the snapshot, the volume size
-                  should be equal to or larger than the RestoreSize if it is specified.
-                  If RestoreSize is set to nil, it means that the storage plugin does
-                  not have this information available.
-                type: string
-            type: object
-        required:
-        - spec
-        type: object
     served: true
     storage: true
 status:

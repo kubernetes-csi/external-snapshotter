@@ -35,9 +35,10 @@ const (
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VolumeSnapshot is a user's request for taking a snapshot. Upon successful creation of the actual
-// snapshot by the volume provider it is bound to the corresponding VolumeSnapshotContent.
-// Only the VolumeSnapshot object is accessible to the user in the namespace.
+// VolumeSnapshot is a user's request for taking a point in time snapshot of a volume.
+// Upon successful creation of the snapshot by the volume provider, it is bound to a
+// corresponding VolumeSnapshotContent.
+// VolumeSnapshot objects are namespaced
 type VolumeSnapshot struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -46,9 +47,15 @@ type VolumeSnapshot struct {
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Spec defines the desired characteristics of a snapshot requested by a user.
-	Spec VolumeSnapshotSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`
+	// More info: https:s//kubernetes.io/docs/concepts/storage/volume-snapshots#volumesnapshots
+	// +optional
+	Spec VolumeSnapshotSpec `json:"spec,omitempty" protobuf:"bytes,2,opt,name=spec"`
 
-	// Status represents the latest observed state of the snapshot
+	// Status represents the current status/information of a volume snapshot.
+	// NOTE: Status is subjected to change by sources other than snapshot controller,
+	//       for example, undesired corruption from human operation errors. It is only informational to
+	//       provide necessary transparency of a snapshot's status to users. It is highly recommended
+	//       not to rely on this piece of information programmatically.
 	// +optional
 	Status VolumeSnapshotStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
@@ -61,51 +68,57 @@ type VolumeSnapshotList struct {
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	// Items is the list of VolumeSnapshots
+	// List of VolumeSnapshots
 	Items []VolumeSnapshot `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
 // VolumeSnapshotSpec describes the common attributes of a volume snapshot
 type VolumeSnapshotSpec struct {
-	// Source has the information about where the snapshot is created from.
-	// In Alpha version, only PersistentVolumeClaim is supported as the source.
-	// If not specified, user can create VolumeSnapshotContent and bind it with VolumeSnapshot manually.
+	// Source has the information about where a snapshot should be created from.
+	// Currently PersistentVolumeClaim is the only supported source type.
+	// If specified, and VolumeSnapshotContentName is not specified (i.e., nil),
+	// snapshot will be dynamically created from the given source.
+	// If not specified, user can statically bind a VolumeSnapshot to a
+	// VolumeSnapshotContent by specifying VolumeSnapshotContentName.
 	// +optional
-	Source *core_v1.TypedLocalObjectReference `json:"source" protobuf:"bytes,1,opt,name=source"`
+	Source *core_v1.TypedLocalObjectReference `json:"source,omitempty" protobuf:"bytes,1,opt,name=source"`
 
-	// SnapshotContentName binds the VolumeSnapshot object with the VolumeSnapshotContent
+	// VolumeSnapshotContentName is the binding reference to the VolumeSnapshotContent backing the VolumeSnapshot.
+	// In dynamic snapshot creation case, VolumeSnapshotContentName must NOT be specified.
 	// +optional
-	SnapshotContentName string `json:"snapshotContentName" protobuf:"bytes,2,opt,name=snapshotContentName"`
+	VolumeSnapshotContentName *string `json:"volumeSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentName"`
 
-	// Name of the VolumeSnapshotClass used by the VolumeSnapshot. If not specified, a default snapshot class will
-	// be used if it is available.
+	// Name of the VolumeSnapshotClass requested by the VolumeSnapshot.
+	// If not specified, the default snapshot class will be used if there exists one.
+	// More info: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes
 	// +optional
-	VolumeSnapshotClassName *string `json:"snapshotClassName" protobuf:"bytes,3,opt,name=snapshotClassName"`
+	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty" protobuf:"bytes,3,opt,name=volumeSnapshotClassName"`
 }
 
 // VolumeSnapshotStatus is the status of the VolumeSnapshot
 type VolumeSnapshotStatus struct {
-	// CreationTime is the time the snapshot was successfully created. If it is set,
-	// it means the snapshot was created; Otherwise the snapshot was not created.
-	// +optional
-	CreationTime *metav1.Time `json:"creationTime" protobuf:"bytes,1,opt,name=creationTime"`
+	// NOTE: All fields in VolumeSnapshotStatus are informational for user references.
+	//       Controllers MUST NOT rely on any fields programmatically.
 
-	// When restoring volume from the snapshot, the volume size should be equal to or
-	// larger than the RestoreSize if it is specified. If RestoreSize is set to nil, it means
-	// that the storage plugin does not have this information available.
+	// CreationTime, if not nil, represents the timestamp when a snapshot was successfully
+	// cut by the underlying storage system. In static binding, CreationTime might not be available.
 	// +optional
-	RestoreSize *resource.Quantity `json:"restoreSize" protobuf:"bytes,2,opt,name=restoreSize"`
+	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,1,opt,name=creationTime"`
 
-	// ReadyToUse is set to true only if the snapshot is ready to use (e.g., finish uploading if
-	// there is an uploading phase) and also VolumeSnapshot and its VolumeSnapshotContent
-	// bind correctly with each other. If any of the above condition is not true, ReadyToUse is
-	// set to false
-	// +optional
+	// ReadyToUse is a status/informational flag which provides transparency to users.
+	// In the dynamic snapshot creation case, ReadyToUse will be set to true when underlying storage
+	// system has successfully finished all procedures out-of-bound to make a snapshot available AND
+	// snapshot controller has bound the VolumeSnapshot to a VolumeSnapshotContent successfully.
 	ReadyToUse bool `json:"readyToUse" protobuf:"varint,3,opt,name=readyToUse"`
 
-	// The last error encountered during create snapshot operation, if any.
-	// This field must only be set by the entity completing the create snapshot
-	// operation, i.e. the external-snapshotter.
+	// RestoreSize, if not nil, represents the minimum volume size to restore from a VolumeSnapshot
+	// It is a storage system level property of a snapshot when the underlying storage system supports.
+	// The field could be nil if the underlying storage system does not have the information available,
+	// , or in cases like manual/static binding.
+	// +optional
+	RestoreSize *resource.Quantity `json:"restoreSize,omitempty" protobuf:"bytes,2,opt,name=restoreSize"`
+
+	// The lastest observed error during snapshot creation operation, if any.
 	// +optional
 	Error *storage.VolumeError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeError"`
 }
@@ -114,9 +127,11 @@ type VolumeSnapshotStatus struct {
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VolumeSnapshotClass describes the parameters used by storage system when
-// provisioning VolumeSnapshots from PVCs.
-// The name of a VolumeSnapshotClass object is significant, and is how users can request a particular class.
+// VolumeSnapshotClass describes the parameters for a class of storage snapshotter
+// for which VolumeSnapshot can be dynamically taken for a given PersistentVolumeClaim
+// VolumeSnapshotClasses are non-namespaced.
+// The name of a VolumeSnapshotClass object is significant, it serves as the unique identifier
+// for a user to request a snapshot to be created using the specific VolumeSnapshotClass
 type VolumeSnapshotClass struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -124,24 +139,26 @@ type VolumeSnapshotClass struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	// Snapshotter is the driver expected to handle this VolumeSnapshotClass.
+	// Snapshotter is the name of the driver expected to handle VolumeSnapshot requests of this VolumeSnapshotClass.
 	Snapshotter string `json:"snapshotter" protobuf:"bytes,2,opt,name=snapshotter"`
 
-	// Parameters holds parameters for the snapshotter.
-	// These values are opaque to the system and are passed directly
-	// to the snapshotter.
+	// Parameters holds parameters for underlying storage system.
+	// These values are opaque to Kubernetes.
 	// +optional
 	Parameters map[string]string `json:"parameters,omitempty" protobuf:"bytes,3,rep,name=parameters"`
 
-	// Optional: what happens to a snapshot content when released from its snapshot.
-	// The default policy is Delete if not specified.
+	// DeletionPolicy defines whether a VolumeSnapshotContent and its
+	// associated physical snapshot on underlying storage system
+	// should be deleted or not when released from its corresponding VolumeSnapshot.
+	// If not specified, the default will be VolumeSnapshotContentRetain for static binding,
+	// and VolumeSnapshotContentDelete for dynamic snapshot creation.
 	// +optional
 	DeletionPolicy *DeletionPolicy `json:"deletionPolicy,omitempty" protobuf:"bytes,4,opt,name=deletionPolicy"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VolumeSnapshotClassList is a collection of snapshot classes.
+// VolumeSnapshotClassList is a collection of VolumeSnapshotClasses.
 type VolumeSnapshotClassList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata
@@ -157,7 +174,8 @@ type VolumeSnapshotClassList struct {
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VolumeSnapshotContent represents the actual "on-disk" snapshot object
+// VolumeSnapshotContent represents the actual "on-disk" snapshot object in the
+// underlying storage system
 type VolumeSnapshotContent struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -181,30 +199,31 @@ type VolumeSnapshotContentList struct {
 	Items []VolumeSnapshotContent `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
-// VolumeSnapshotContentSpec is the spec of the volume snapshot content
+// VolumeSnapshotContentSpec is the specification of a VolumeSnapshotContent
 type VolumeSnapshotContentSpec struct {
-	// Source represents the location and type of the volume snapshot
+	// VolumeSnapshotSource holds critical metadata where the snapshot on underlying storage
+	// system has been created from.
 	VolumeSnapshotSource `json:",inline" protobuf:"bytes,1,opt,name=volumeSnapshotSource"`
 
 	// VolumeSnapshotRef is part of bi-directional binding between VolumeSnapshot
-	// and VolumeSnapshotContent. It becomes non-nil when bound.
+	// and VolumeSnapshotContent.
+	// Expect to be non-nil when bound.
+	// VolumeSnapshot.VolumeSnapshotContentName is the authoritative bind between VolumeSnapshot and VolumeSnapshotContent
 	// +optional
-	VolumeSnapshotRef *core_v1.ObjectReference `json:"volumeSnapshotRef" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
+	VolumeSnapshotRef *core_v1.ObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
 
-	// PersistentVolumeRef represents the PersistentVolume that the snapshot has been
-	// taken from. It becomes non-nil when VolumeSnapshot and VolumeSnapshotContent are bound.
+	// PersistentVolumeRef represents the PersistentVolume that the snapshot has been taken from.
+	// In dynamic snapshot creation case, the field will be specified when VolumeSnapshot and VolumeSnapshotContent are bound.
 	// +optional
-	PersistentVolumeRef *core_v1.ObjectReference `json:"persistentVolumeRef" protobuf:"bytes,3,opt,name=persistentVolumeRef"`
+	PersistentVolumeRef *core_v1.ObjectReference `json:"persistentVolumeRef,omitempty" protobuf:"bytes,3,opt,name=persistentVolumeRef"`
 
-	// Name of the VolumeSnapshotClass used by the VolumeSnapshot. If not specified, a default snapshot class will
-	// be used if it is available.
+	// DeletionPolicy defines whether a VolumeSnapshotContent and its
+	// associated physical snapshot on underlying storage system
+	// should be deleted or not when released from its corresponding VolumeSnapshot.
+	// If not specified, the default will be VolumeSnapshotContentRetain for static binding,
+	// and VolumeSnapshotContentDelete for dynamic snapshot creation.
 	// +optional
-	VolumeSnapshotClassName *string `json:"snapshotClassName" protobuf:"bytes,4,opt,name=snapshotClassName"`
-
-	// Optional: what happens to a snapshot content when released from its snapshot. It will be set to Delete by default
-	// if not specified
-	// +optional
-	DeletionPolicy *DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,5,opt,name=deletionPolicy"`
+	DeletionPolicy *DeletionPolicy `json:"deletionPolicy,omitempty" protobuf:"bytes,5,opt,name=deletionPolicy"`
 }
 
 // VolumeSnapshotSource represents the actual location and type of the snapshot. Only one of its members may be specified.
@@ -216,29 +235,34 @@ type VolumeSnapshotSource struct {
 
 // CSIVolumeSnapshotSource represents the source from CSI volume snapshot
 type CSIVolumeSnapshotSource struct {
-	// Driver is the name of the driver to use for this snapshot.
+	// Driver is the name of the driver used to create a physical snapshot on
+	// underlying storage system.
 	// This MUST be the same name returned by the CSI GetPluginName() call for
 	// that driver.
 	// Required.
 	Driver string `json:"driver" protobuf:"bytes,1,opt,name=driver"`
 
-	// SnapshotHandle is the unique snapshot id returned by the CSI volume
-	// plugin’s CreateSnapshot to refer to the snapshot on all subsequent calls.
+	// SnapshotHandle is the unique id returned from the underlying storage system
+	// by the CSI driver's CreationSnapshot gRPC call. It serves as the only and sufficient
+	// handle when communicating with underlying storage systems via CSI driver for
+	// all subsequent calls on the specific VolumeSnapshot
 	// Required.
 	SnapshotHandle string `json:"snapshotHandle" protobuf:"bytes,2,opt,name=snapshotHandle"`
 
-	// Timestamp when the point-in-time snapshot is taken on the storage
-	// system. This timestamp will be generated by the CSI volume driver after
-	// the snapshot is cut. The format of this field should be a Unix nanoseconds
+	// Timestamp when the point-in-time snapshot is taken by the underlying storage
+	// system. This timestamp will be generated and returned by the CSI volume driver after
+	// the snapshot is cut. The format of this field is a Unix nanoseconds
 	// time encoded as an int64. On Unix, the command `date +%s%N` returns
-	// the  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
-	// This field is required in the CSI spec but optional here to support static binding.
+	// the current time in nanoseconds (aka, epoch time) since 1970-01-01 00:00:00 UTC.
+	// This field is required in the CSI spec however made optional here to support static binding.
 	// +optional
 	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,3,opt,name=creationTime"`
 
-	// When restoring volume from the snapshot, the volume size should be equal to or
-	// larger than the RestoreSize if it is specified. If RestoreSize is set to nil, it means
-	// that the storage plugin does not have this information available.
+	// When restoring a volume from a snapshot, the volume size needs to be equal to or
+	// larger than the RestoreSize if it is specified.
+	// If RestoreSize is set to nil, in the dynamic snapshot creation case, it means
+	// that the underlying storage system does not have this information available;
+	// in the static binding case, this piece of information is not available.
 	// +optional
 	RestoreSize *int64 `json:"restoreSize,omitempty" protobuf:"bytes,4,opt,name=restoreSize"`
 }
