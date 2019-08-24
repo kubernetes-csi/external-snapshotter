@@ -70,7 +70,7 @@ func TestGetSecretReference(t *testing.T) {
 			expectRef: nil,
 			expectErr: true,
 		},
-		"template - valid": {
+		"template - invalid": {
 			params: map[string]string{
 				prefixedSnapshotterSecretNameKey:      "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}-${volumesnapshot.name}-${volumesnapshot.annotations['akey']}",
 				prefixedSnapshotterSecretNamespaceKey: "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}",
@@ -83,7 +83,8 @@ func TestGetSecretReference(t *testing.T) {
 					Annotations: map[string]string{"akey": "avalue"},
 				},
 			},
-			expectRef: &v1.SecretReference{Name: "static-snapcontentname-snapshotnamespace-snapshotname-avalue", Namespace: "static-snapcontentname-snapshotnamespace"},
+			expectRef: nil,
+			expectErr: true,
 		},
 		"template - invalid namespace tokens": {
 			params: map[string]string{

@@ -523,7 +523,7 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 	return newContent, nil
 }
 
-func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *v1.PersistentVolume, string, map[string]string, error) {
+func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *v1.PersistentVolume, string, *v1.SecretReference, error) {
 	className := snapshot.Spec.VolumeSnapshotClassName
 	klog.V(5).Infof("getCreateSnapshotInput [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 	var class *crdv1.VolumeSnapshotClass
@@ -553,12 +553,8 @@ func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.Volume
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
-	snapshotterCredentials, err := getCredentials(ctrl.client, snapshotterSecretRef)
-	if err != nil {
-		return nil, nil, "", nil, err
-	}
 
-	return class, volume, contentName, snapshotterCredentials, nil
+	return class, volume, contentName, snapshotterSecretRef, nil
 }
 
 func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
@@ -580,9 +576,13 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 			driverName, snapshotID = content.Spec.CSI.Driver, content.Spec.CSI.SnapshotHandle
 		}
 	} else {
-		class, volume, _, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
+		class, volume, _, snapshotterSecretRef, err := ctrl.getCreateSnapshotInput(snapshot)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
+		}
+		snapshotterCredentials, err := getCredentials(ctrl.client, snapshotterSecretRef)
+		if err != nil {
+			return nil, err
 		}
 		driverName, snapshotID, creationTime, size, readyToUse, err = ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 		if err != nil {
@@ -627,9 +627,14 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		return nil, err
 	}
 
-	class, volume, contentName, snapshotterCredentials, err := ctrl.getCreateSnapshotInput(snapshot)
+	class, volume, contentName, snapshotterSecretRef, err := ctrl.getCreateSnapshotInput(snapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", snapshot.Name, err)
+	}
+
+	snapshotterCredentials, err := getCredentials(ctrl.client, snapshotterSecretRef)
+	if err != nil {
+		return nil, err
 	}
 
 	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
@@ -687,6 +692,16 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 			DeletionPolicy:          class.DeletionPolicy,
 		},
 	}
+
+	// Set AnnDeletionSecretRefName and AnnDeletionSecretRefNamespace
+	if snapshotterSecretRef != nil {
+		klog.V(5).Infof("createSnapshotOperation: set annotation [%s] on content [%s].", AnnDeletionSecretRefName, snapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, AnnDeletionSecretRefName, snapshotterSecretRef.Name)
+
+		klog.V(5).Infof("syncContent: set annotation [%s] on content [%s].", AnnDeletionSecretRefNamespace, snapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, AnnDeletionSecretRefNamespace, snapshotterSecretRef.Namespace)
+	}
+
 	klog.V(3).Infof("volume snapshot content %v", snapshotContent)
 	// Try to create the VolumeSnapshotContent object several times
 	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
@@ -736,23 +751,30 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
-	snapshotClassName := content.Spec.VolumeSnapshotClassName
-	if snapshotClassName != nil {
-		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
-			// Resolve snapshotting secret credentials.
-			// No VolumeSnapshot is provided when resolving delete secret names, since the VolumeSnapshot may or may not exist at delete time.
-			snapshotterSecretRef, err := getSecretReference(snapshotClass.Parameters, content.Name, nil)
-			if err != nil {
-				return err
-			}
-			snapshotterCredentials, err = getCredentials(ctrl.client, snapshotterSecretRef)
-			if err != nil {
-				return err
-			}
+	var err error
+
+	// Check if annotation exists
+	if metav1.HasAnnotation(content.ObjectMeta, AnnDeletionSecretRefName) && metav1.HasAnnotation(content.ObjectMeta, AnnDeletionSecretRefNamespace) {
+		annDeletionSecretName := content.Annotations[AnnDeletionSecretRefName]
+		annDeletionSecretNamespace := content.Annotations[AnnDeletionSecretRefNamespace]
+
+		snapshotterSecretRef := &v1.SecretReference{}
+
+		if annDeletionSecretName == "" || annDeletionSecretNamespace == "" {
+			return fmt.Errorf("cannot delete snapshot %#v, err: secret name or namespace not specified", content.Name)
+		}
+
+		snapshotterSecretRef.Name = annDeletionSecretName
+		snapshotterSecretRef.Namespace = annDeletionSecretNamespace
+
+		snapshotterCredentials, err = getCredentials(ctrl.client, snapshotterSecretRef)
+		if err != nil {
+			// Continue with deletion, as the secret may have already been deleted.
+			klog.Errorf("Failed to get credentials for snapshot %s: %s", content.Name, err.Error())
 		}
 	}
 
-	err := ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
+	err = ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to delete snapshot")
 		return fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
