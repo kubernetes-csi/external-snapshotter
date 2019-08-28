@@ -43,12 +43,12 @@ import (
 )
 
 type csiSnapshotController struct {
-	clientset       clientset.Interface
-	client          kubernetes.Interface
-	snapshotterName string
-	eventRecorder   record.EventRecorder
-	snapshotQueue   workqueue.RateLimitingInterface
-	contentQueue    workqueue.RateLimitingInterface
+	clientset     clientset.Interface
+	client        kubernetes.Interface
+	driverName    string
+	eventRecorder record.EventRecorder
+	snapshotQueue workqueue.RateLimitingInterface
+	contentQueue  workqueue.RateLimitingInterface
 
 	snapshotLister       storagelisters.VolumeSnapshotLister
 	snapshotListerSynced cache.InformerSynced
@@ -75,7 +75,7 @@ type csiSnapshotController struct {
 func NewCSISnapshotController(
 	clientset clientset.Interface,
 	client kubernetes.Interface,
-	snapshotterName string,
+	driverName string,
 	volumeSnapshotInformer storageinformers.VolumeSnapshotInformer,
 	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
@@ -92,12 +92,12 @@ func NewCSISnapshotController(
 	broadcaster.StartLogging(klog.Infof)
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.CoreV1().Events(v1.NamespaceAll)})
 	var eventRecorder record.EventRecorder
-	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", snapshotterName)})
+	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", driverName)})
 
 	ctrl := &csiSnapshotController{
 		clientset:                       clientset,
 		client:                          client,
-		snapshotterName:                 snapshotterName,
+		driverName:                      driverName,
 		eventRecorder:                   eventRecorder,
 		handler:                         NewCSIHandler(snapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
 		runningOperations:               goroutinemap.NewGoRoutineMap(true),
@@ -329,17 +329,9 @@ func (ctrl *csiSnapshotController) isDriverMatch(content *crdv1.VolumeSnapshotCo
 		// Skip this snapshot content if it not a CSI snapshot
 		return false
 	}
-	if content.Spec.VolumeSnapshotSource.CSI.Driver != ctrl.snapshotterName {
+	if content.Spec.VolumeSnapshotSource.CSI.Driver != ctrl.driverName {
 		// Skip this snapshot content if the driver does not match
 		return false
-	}
-	snapshotClassName := content.Spec.VolumeSnapshotClassName
-	if snapshotClassName != nil {
-		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
-			if snapshotClass.Snapshotter != ctrl.snapshotterName {
-				return false
-			}
-		}
 	}
 	return true
 }
@@ -370,9 +362,9 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 		}
 	}
 
-	klog.V(5).Infof("VolumeSnapshotClass Snapshotter [%s] Snapshot Controller snapshotterName [%s]", class.Snapshotter, ctrl.snapshotterName)
-	if class.Snapshotter != ctrl.snapshotterName {
-		klog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Snapshotter, ctrl.snapshotterName)
+	klog.V(5).Infof("VolumeSnapshotClass Driver [%s] Snapshot Controller driverName [%s]", class.Driver, ctrl.driverName)
+	if class.Driver != ctrl.driverName {
+		klog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Driver, ctrl.driverName)
 		return nil, fmt.Errorf("volumeSnapshotClass does not match with the snapshotter for controller")
 	}
 	return newSnapshot, nil
@@ -432,11 +424,11 @@ func (ctrl *csiSnapshotController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot
 	_ = ctrl.snapshotStore.Delete(snapshot)
 	klog.V(4).Infof("snapshot %q deleted", snapshotKey(snapshot))
 
-	snapshotContentName := snapshot.Spec.SnapshotContentName
-	if snapshotContentName == "" {
+	if snapshot.Spec.VolumeSnapshotContentName == nil || *snapshot.Spec.VolumeSnapshotContentName == "" {
 		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", snapshotKey(snapshot))
 		return
 	}
+	snapshotContentName := *snapshot.Spec.VolumeSnapshotContentName
 	// sync the content when its snapshot is deleted.  Explicitly sync'ing the
 	// content here in response to snapshot deletion prevents the content from
 	// waiting until the next sync period for its Release.

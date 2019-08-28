@@ -46,7 +46,7 @@ import (
 //
 // The fundamental key to this design is the bi-directional "pointer" between
 // VolumeSnapshots and VolumeSnapshotContents, which is represented here
-// as snapshot.Spec.SnapshotContentName and content.Spec.VolumeSnapshotRef.
+// as snapshot.Spec.VolumeSnapshotContentName and content.Spec.VolumeSnapshotRef.
 // The bi-directionality is complicated to manage in a transactionless system, but
 // without it we can't ensure sane behavior in the face of different forms of
 // trouble.  For example, a rogue HA controller instance could end up racing
@@ -201,7 +201,7 @@ func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) 
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorSnapshotSourceFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
 	}
 
-	if !snapshot.Status.ReadyToUse {
+	if snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
 		return ctrl.syncUnreadySnapshot(snapshot)
 	}
 	return ctrl.syncReadySnapshot(snapshot)
@@ -210,13 +210,13 @@ func (ctrl *csiSnapshotController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) 
 // syncReadySnapshot checks the snapshot which has been bound to snapshot content successfully before.
 // If there is any problem with the binding (e.g., snapshot points to a non-exist snapshot content), update the snapshot status and emit event.
 func (ctrl *csiSnapshotController) syncReadySnapshot(snapshot *crdv1.VolumeSnapshot) error {
-	if snapshot.Spec.SnapshotContentName == "" {
+	if snapshot.Spec.VolumeSnapshotContentName == nil || *snapshot.Spec.VolumeSnapshotContentName == "" {
 		if err := ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotLost", "Bound snapshot has lost reference to VolumeSnapshotContent"); err != nil {
 			return err
 		}
 		return nil
 	}
-	obj, found, err := ctrl.contentStore.GetByKey(snapshot.Spec.SnapshotContentName)
+	obj, found, err := ctrl.contentStore.GetByKey(*snapshot.Spec.VolumeSnapshotContentName)
 	if err != nil {
 		return err
 	}
@@ -228,7 +228,7 @@ func (ctrl *csiSnapshotController) syncReadySnapshot(snapshot *crdv1.VolumeSnaps
 	} else {
 		content, ok := obj.(*crdv1.VolumeSnapshotContent)
 		if !ok {
-			return fmt.Errorf("Cannot convert object from snapshot content store to VolumeSnapshotContent %q!?: %#v", snapshot.Spec.SnapshotContentName, obj)
+			return fmt.Errorf("Cannot convert object from snapshot content store to VolumeSnapshotContent %q!?: %#v", *snapshot.Spec.VolumeSnapshotContentName, obj)
 		}
 
 		klog.V(5).Infof("syncReadySnapshot[%s]: VolumeSnapshotContent %q found", snapshotKey(snapshot), content.Name)
@@ -249,16 +249,16 @@ func (ctrl *csiSnapshotController) syncUnreadySnapshot(snapshot *crdv1.VolumeSna
 	uniqueSnapshotName := snapshotKey(snapshot)
 	klog.V(5).Infof("syncUnreadySnapshot %s", uniqueSnapshotName)
 
-	if snapshot.Spec.SnapshotContentName != "" {
-		contentObj, found, err := ctrl.contentStore.GetByKey(snapshot.Spec.SnapshotContentName)
+	if snapshot.Spec.VolumeSnapshotContentName != nil && *snapshot.Spec.VolumeSnapshotContentName != "" {
+		contentObj, found, err := ctrl.contentStore.GetByKey(*snapshot.Spec.VolumeSnapshotContentName)
 		if err != nil {
 			return err
 		}
 		if !found {
 			// snapshot is bound to a non-existing content.
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
-			klog.V(4).Infof("synchronizing unready snapshot[%s]: snapshotcontent %q requested and not found, will try again next time", uniqueSnapshotName, snapshot.Spec.SnapshotContentName)
-			return fmt.Errorf("snapshot %s is bound to a non-existing content %s", uniqueSnapshotName, snapshot.Spec.SnapshotContentName)
+			klog.V(4).Infof("synchronizing unready snapshot[%s]: snapshotcontent %q requested and not found, will try again next time", uniqueSnapshotName, *snapshot.Spec.VolumeSnapshotContentName)
+			return fmt.Errorf("snapshot %s is bound to a non-existing content %s", uniqueSnapshotName, *snapshot.Spec.VolumeSnapshotContentName)
 		}
 		content, ok := contentObj.(*crdv1.VolumeSnapshotContent)
 		if !ok {
@@ -276,7 +276,7 @@ func (ctrl *csiSnapshotController) syncUnreadySnapshot(snapshot *crdv1.VolumeSna
 			return err
 		}
 		return nil
-	} else { // snapshot.Spec.SnapshotContentName == nil
+	} else { // snapshot.Spec.VolumeSnapshotContentName == nil
 		if contentObj := ctrl.getMatchSnapshotContent(snapshot); contentObj != nil {
 			klog.V(5).Infof("Find VolumeSnapshotContent object %s for snapshot %s", contentObj.Name, uniqueSnapshotName)
 			newSnapshot, err := ctrl.bindandUpdateVolumeSnapshot(contentObj, snapshot)
@@ -307,9 +307,7 @@ func (ctrl *csiSnapshotController) getMatchSnapshotContent(snapshot *crdv1.Volum
 		if content.Spec.VolumeSnapshotRef != nil &&
 			content.Spec.VolumeSnapshotRef.Name == snapshot.Name &&
 			content.Spec.VolumeSnapshotRef.Namespace == snapshot.Namespace &&
-			content.Spec.VolumeSnapshotRef.UID == snapshot.UID &&
-			content.Spec.VolumeSnapshotClassName != nil && snapshot.Spec.VolumeSnapshotClassName != nil &&
-			*(content.Spec.VolumeSnapshotClassName) == *(snapshot.Spec.VolumeSnapshotClassName) {
+			content.Spec.VolumeSnapshotRef.UID == snapshot.UID {
 			found = true
 			snapshotContentObj = content
 			break
@@ -422,7 +420,8 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 		Message: message,
 	}
 	snapshotClone.Status.Error = statusError
-	snapshotClone.Status.ReadyToUse = false
+	ready := false
+	snapshotClone.Status.ReadyToUse = &ready
 	newSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(snapshotClone)
 
 	if err != nil {
@@ -443,7 +442,7 @@ func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *
 
 // Stateless functions
 func getSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
-	return fmt.Sprintf("bound to: %q, Completed: %v", snapshot.Spec.SnapshotContentName, snapshot.Status.ReadyToUse)
+	return fmt.Sprintf("bound to: %q, Completed: %v", *snapshot.Spec.VolumeSnapshotContentName, *snapshot.Status.ReadyToUse)
 }
 
 // IsSnapshotBound returns true/false if snapshot is bound
@@ -465,7 +464,7 @@ func (ctrl *csiSnapshotController) isSnapshotContentBeingUsed(content *crdv1.Vol
 		}
 
 		// Check if the snapshot content is bound to the snapshot
-		if IsSnapshotBound(snapshotObj, content) && snapshotObj.Spec.SnapshotContentName == content.Name {
+		if IsSnapshotBound(snapshotObj, content) && *snapshotObj.Spec.VolumeSnapshotContentName == content.Name {
 			klog.Infof("isSnapshotContentBeingUsed: VolumeSnapshot %s is bound to volumeSnapshotContent [%s]", snapshotObj.Name, content.Name)
 			return true
 		}
@@ -503,13 +502,11 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotRef.UID != snapshot.UID {
 		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
-	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
+	} else if content.Spec.VolumeSnapshotRef.UID != "" {
 		return content, nil
 	}
 	contentClone := content.DeepCopy()
 	contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
-	className := *(snapshot.Spec.VolumeSnapshotClassName)
-	contentClone.Spec.VolumeSnapshotClassName = &className
 	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
@@ -654,10 +651,6 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		return nil, err
 	}
 	// Create VolumeSnapshotContent in the database
-	volumeRef, err := ref.GetReference(scheme.Scheme, volume)
-	if err != nil {
-		return nil, err
-	}
 	snapshotRef, err := ref.GetReference(scheme.Scheme, snapshot)
 	if err != nil {
 		return nil, err
@@ -673,8 +666,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 			Name: contentName,
 		},
 		Spec: crdv1.VolumeSnapshotContentSpec{
-			VolumeSnapshotRef:   snapshotRef,
-			PersistentVolumeRef: volumeRef,
+			VolumeSnapshotRef: snapshotRef,
 			VolumeSnapshotSource: crdv1.VolumeSnapshotSource{
 				CSI: &crdv1.CSIVolumeSnapshotSource{
 					Driver:         driverName,
@@ -683,8 +675,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 					RestoreSize:    &size,
 				},
 			},
-			VolumeSnapshotClassName: &(class.Name),
-			DeletionPolicy:          class.DeletionPolicy,
+			DeletionPolicy: class.DeletionPolicy,
 		},
 	}
 	klog.V(3).Infof("volume snapshot content %v", snapshotContent)
@@ -736,7 +727,7 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
-	snapshotClassName := content.Spec.VolumeSnapshotClassName
+	/*snapshotClassName := content.Spec.VolumeSnapshotClassName
 	if snapshotClassName != nil {
 		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
 			// Resolve snapshotting secret credentials.
@@ -750,7 +741,7 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 				return err
 			}
 		}
-	}
+	}*/
 
 	err := ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
 	if err != nil {
@@ -777,11 +768,11 @@ func (ctrl *csiSnapshotController) bindandUpdateVolumeSnapshot(snapshotContent *
 	// Copy the snapshot object before updating it
 	snapshotCopy := snapshotObj.DeepCopy()
 
-	if snapshotObj.Spec.SnapshotContentName == snapshotContent.Name {
+	if snapshotObj.Spec.VolumeSnapshotContentName != nil && *snapshotObj.Spec.VolumeSnapshotContentName == snapshotContent.Name {
 		klog.Infof("bindVolumeSnapshotContentToVolumeSnapshot: VolumeSnapshot %s already bind to volumeSnapshotContent [%s]", snapshot.Name, snapshotContent.Name)
 	} else {
 		klog.Infof("bindVolumeSnapshotContentToVolumeSnapshot: before bind VolumeSnapshot %s to volumeSnapshotContent [%s]", snapshot.Name, snapshotContent.Name)
-		snapshotCopy.Spec.SnapshotContentName = snapshotContent.Name
+		snapshotCopy.Spec.VolumeSnapshotContentName = &snapshotContent.Name
 		updateSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Update(snapshotCopy)
 		if err != nil {
 			klog.Infof("bindVolumeSnapshotContentToVolumeSnapshot: Error binding VolumeSnapshot %s to volumeSnapshotContent [%s]. Error [%#v]", snapshot.Name, snapshotContent.Name, err)
@@ -832,7 +823,8 @@ func (ctrl *csiSnapshotController) updateSnapshotStatus(snapshot *crdv1.VolumeSn
 	snapshotClone := snapshot.DeepCopy()
 	if readyToUse {
 		if bound {
-			status.ReadyToUse = true
+			ready := true
+			status.ReadyToUse = &ready
 			// Remove the error if checking snapshot is already bound and ready
 			status.Error = nil
 			change = true
@@ -934,7 +926,7 @@ func (ctrl *csiSnapshotController) SetDefaultSnapshotClass(snapshot *crdv1.Volum
 	defaultClasses := []*crdv1.VolumeSnapshotClass{}
 
 	for _, class := range list {
-		if IsDefaultAnnotation(class.ObjectMeta) && storageclass.Provisioner == class.Snapshotter && ctrl.snapshotterName == class.Snapshotter {
+		if IsDefaultAnnotation(class.ObjectMeta) && storageclass.Provisioner == class.Driver && ctrl.driverName == class.Driver {
 			defaultClasses = append(defaultClasses, class)
 			klog.V(5).Infof("get defaultClass added: %s", class.Name)
 		}
@@ -1156,7 +1148,7 @@ func (ctrl *csiSnapshotController) isSnapshotSourceBeingUsed(snapshot *crdv1.Vol
 			klog.V(4).Infof("Skipping static bound snapshot %s when checking PVC %s/%s", snap.Name, pvc.Namespace, pvc.Name)
 			continue
 		}
-		if pvc.Name == snap.Spec.Source.Name && snap.Status.ReadyToUse == false {
+		if pvc.Name == snap.Spec.Source.Name && (snap.Status.ReadyToUse == nil || *snap.Status.ReadyToUse == false) {
 			klog.V(2).Infof("Keeping PVC %s/%s, it is used by snapshot %s/%s", pvc.Namespace, pvc.Name, snap.Namespace, snap.Name)
 			return true
 		}
