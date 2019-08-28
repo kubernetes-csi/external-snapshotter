@@ -18,7 +18,6 @@ package v1beta1
 
 import (
 	core_v1 "k8s.io/api/core/v1"
-	storage "k8s.io/api/storage/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -127,7 +126,7 @@ type VolumeSnapshotStatus struct {
 	// to decide whether they should continue on waiting for the snapshot to be created
 	// based on the type of error reported.
 	// +optional
-	Error *storage.VolumeError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeError"`
+	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 }
 
 // +genclient
@@ -282,3 +281,17 @@ const (
 	// The default policy is Retain if not specified.
 	VolumeSnapshotContentRetain DeletionPolicy = "Retain"
 )
+
+// VolumeSnapshotError describes an error encountered during snapshot creation.
+type VolumeSnapshotError struct {
+	// time is the timestamp when the error was encountered.
+	// +optional
+	Time *metav1.Time `json:"time,omitempty" protobuf:"bytes,1,opt,name=time"`
+
+	// message is a string detailing the encountered error during snapshot
+	// creation if specified.
+	// NOTE: message maybe logged, thus it should not contain sensitive
+	// information.
+	// +optional
+	Message *string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
+}

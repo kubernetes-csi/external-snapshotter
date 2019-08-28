@@ -94,12 +94,12 @@ spec:
                 reported.
               properties:
                 message:
-                  description: String detailing the error encountered during snapshot
-                    creation. This string may be logged, so it should not
-                    contain sensitive information.
+                  description: 'message is a string detailing the encountered error
+                    during snapshot creation if specified. NOTE: message maybe logged,
+                    thus it should not contain sensitive information.'
                   type: string
                 time:
-                  description: Time the error was encountered.
+                  description: time is the timestamp when the error was encountered.
                   format: date-time
                   type: string
               type: object
