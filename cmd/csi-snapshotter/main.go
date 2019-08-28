@@ -43,7 +43,6 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions"
-	apiextensionsclient "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	coreinformers "k8s.io/client-go/informers"
 )
 
@@ -118,20 +117,6 @@ func main() {
 
 	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, *resyncPeriod)
-
-	// Create CRD resource
-	aeclientset, err := apiextensionsclient.NewForConfig(config)
-	if err != nil {
-		klog.Error(err.Error())
-		os.Exit(1)
-	}
-
-	// initialize CRD resource if it does not exist
-	err = CreateCRD(aeclientset)
-	if err != nil {
-		klog.Error(err.Error())
-		os.Exit(1)
-	}
 
 	// Add Snapshot types to the defualt Kubernetes so events can be logged for them
 	snapshotscheme.AddToScheme(scheme.Scheme)

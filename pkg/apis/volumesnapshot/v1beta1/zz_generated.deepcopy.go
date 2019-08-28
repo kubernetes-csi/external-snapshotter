@@ -122,7 +122,7 @@ func (in *VolumeSnapshotClass) DeepCopyObject() runtime.Object {
 func (in *VolumeSnapshotClassList) DeepCopyInto(out *VolumeSnapshotClassList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]VolumeSnapshotClass, len(*in))
@@ -182,7 +182,7 @@ func (in *VolumeSnapshotContent) DeepCopyObject() runtime.Object {
 func (in *VolumeSnapshotContentList) DeepCopyInto(out *VolumeSnapshotContentList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]VolumeSnapshotContent, len(*in))
@@ -220,16 +220,6 @@ func (in *VolumeSnapshotContentSpec) DeepCopyInto(out *VolumeSnapshotContentSpec
 		*out = new(v1.ObjectReference)
 		**out = **in
 	}
-	if in.PersistentVolumeRef != nil {
-		in, out := &in.PersistentVolumeRef, &out.PersistentVolumeRef
-		*out = new(v1.ObjectReference)
-		**out = **in
-	}
-	if in.VolumeSnapshotClassName != nil {
-		in, out := &in.VolumeSnapshotClassName, &out.VolumeSnapshotClassName
-		*out = new(string)
-		**out = **in
-	}
 	if in.DeletionPolicy != nil {
 		in, out := &in.DeletionPolicy, &out.DeletionPolicy
 		*out = new(DeletionPolicy)
@@ -252,7 +242,7 @@ func (in *VolumeSnapshotContentSpec) DeepCopy() *VolumeSnapshotContentSpec {
 func (in *VolumeSnapshotList) DeepCopyInto(out *VolumeSnapshotList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]VolumeSnapshot, len(*in))
@@ -310,6 +300,11 @@ func (in *VolumeSnapshotSpec) DeepCopyInto(out *VolumeSnapshotSpec) {
 		*out = new(v1.TypedLocalObjectReference)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.VolumeSnapshotContentName != nil {
+		in, out := &in.VolumeSnapshotContentName, &out.VolumeSnapshotContentName
+		*out = new(string)
+		**out = **in
+	}
 	if in.VolumeSnapshotClassName != nil {
 		in, out := &in.VolumeSnapshotClassName, &out.VolumeSnapshotClassName
 		*out = new(string)
@@ -334,6 +329,11 @@ func (in *VolumeSnapshotStatus) DeepCopyInto(out *VolumeSnapshotStatus) {
 	if in.CreationTime != nil {
 		in, out := &in.CreationTime, &out.CreationTime
 		*out = (*in).DeepCopy()
+	}
+	if in.ReadyToUse != nil {
+		in, out := &in.ReadyToUse, &out.ReadyToUse
+		*out = new(bool)
+		**out = **in
 	}
 	if in.RestoreSize != nil {
 		in, out := &in.RestoreSize, &out.RestoreSize
