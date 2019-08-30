@@ -26,7 +26,7 @@ import (
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -325,15 +325,7 @@ func (ctrl *csiSnapshotController) contentWorker() {
 
 // verify whether the driver specified in VolumeSnapshotContent matches the controller's driver name
 func (ctrl *csiSnapshotController) isDriverMatch(content *crdv1.VolumeSnapshotContent) bool {
-	if content.Spec.VolumeSnapshotSource.CSI == nil {
-		// Skip this snapshot content if it not a CSI snapshot
-		return false
-	}
-	if content.Spec.VolumeSnapshotSource.CSI.Driver != ctrl.driverName {
-		// Skip this snapshot content if the driver does not match
-		return false
-	}
-	return true
+	return content.Spec.Driver == ctrl.driverName
 }
 
 // checkAndUpdateSnapshotClass gets the VolumeSnapshotClass from VolumeSnapshot. If it is not set,

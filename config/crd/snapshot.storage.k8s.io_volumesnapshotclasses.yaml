@@ -36,7 +36,8 @@ spec:
           - Retain
           type: string
         driver:
-          description: driver is the name of the driver that handles this VolumeSnapshotClass.
+          description: driver is the name of the storage driver that handles this
+            VolumeSnapshotClass.
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this
