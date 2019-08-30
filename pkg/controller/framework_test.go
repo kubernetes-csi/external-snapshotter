@@ -37,7 +37,6 @@ import (
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -465,7 +464,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		c = c.DeepCopy()
 		c.ResourceVersion = ""
 		if c.Status.Error != nil {
-			c.Status.Error.Time = metav1.Time{}
+			c.Status.Error.Time = &metav1.Time{}
 		}
 		expectedMap[c.Name] = c
 	}
@@ -475,7 +474,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		c = c.DeepCopy()
 		c.ResourceVersion = ""
 		if c.Status.Error != nil {
-			c.Status.Error.Time = metav1.Time{}
+			c.Status.Error.Time = &metav1.Time{}
 		}
 		gotMap[c.Name] = c
 	}
@@ -832,7 +831,7 @@ func newContentWithUnmatchDriverArray(name, snapshotHandle, boundToSnapshotUID, 
 	}
 }
 
-func newSnapshot(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *storagev1beta1.VolumeError, creationTime *metav1.Time, size *resource.Quantity) *crdv1.VolumeSnapshot {
+func newSnapshot(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *crdv1.VolumeSnapshotError, creationTime *metav1.Time, size *resource.Quantity) *crdv1.VolumeSnapshot {
 	snapshot := crdv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -862,7 +861,7 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 	return withSnapshotFinalizer(&snapshot)
 }
 
-func newSnapshotArray(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *storagev1beta1.VolumeError, creationTime *metav1.Time, size *resource.Quantity) []*crdv1.VolumeSnapshot {
+func newSnapshotArray(name, className, boundToContent, snapshotUID, claimName string, ready bool, err *crdv1.VolumeSnapshotError, creationTime *metav1.Time, size *resource.Quantity) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
 		newSnapshot(name, className, boundToContent, snapshotUID, claimName, ready, err, creationTime, size),
 	}
@@ -972,10 +971,10 @@ func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, bo
 	}
 }
 
-func newVolumeError(message string) *storagev1beta1.VolumeError {
-	return &storagev1beta1.VolumeError{
-		Time:    metav1.Time{},
-		Message: message,
+func newVolumeError(message string) *crdv1.VolumeSnapshotError {
+	return &crdv1.VolumeSnapshotError{
+		Time:    &metav1.Time{},
+		Message: &message,
 	}
 }
 

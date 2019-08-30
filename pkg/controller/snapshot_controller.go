@@ -24,7 +24,6 @@ import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
-	storage "k8s.io/api/storage/v1beta1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -408,16 +407,16 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatus(snapshot *c
 func (ctrl *csiSnapshotController) updateSnapshotErrorStatusWithEvent(snapshot *crdv1.VolumeSnapshot, eventtype, reason, message string) error {
 	klog.V(5).Infof("updateSnapshotStatusWithEvent[%s]", snapshotKey(snapshot))
 
-	if snapshot.Status.Error != nil && snapshot.Status.Error.Message == message {
+	if snapshot.Status.Error != nil && snapshot.Status.Error.Message != nil && *snapshot.Status.Error.Message == message {
 		klog.V(4).Infof("updateSnapshotStatusWithEvent[%s]: the same error %v is already set", snapshot.Name, snapshot.Status.Error)
 		return nil
 	}
 	snapshotClone := snapshot.DeepCopy()
-	statusError := &storage.VolumeError{
-		Time: metav1.Time{
+	statusError := &crdv1.VolumeSnapshotError{
+		Time: &metav1.Time{
 			Time: time.Now(),
 		},
-		Message: message,
+		Message: &message,
 	}
 	snapshotClone.Status.Error = statusError
 	ready := false
@@ -611,8 +610,8 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
 	klog.Infof("createSnapshot: Creating snapshot %s through the plugin ...", snapshotKey(snapshot))
 
-	if snapshot.Status.Error != nil && !isControllerUpdateFailError(snapshot.Status.Error) {
-		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", snapshot.Status.Error.Message)
+	if snapshot.Status.Error != nil && snapshot.Status.Error.Message != nil && !isControllerUpdateFailError(snapshot.Status.Error) {
+		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *snapshot.Status.Error.Message)
 		return snapshot, nil
 	}
 
@@ -994,9 +993,9 @@ func (e controllerUpdateError) Error() string {
 	return e.message
 }
 
-func isControllerUpdateFailError(err *storage.VolumeError) bool {
-	if err != nil {
-		if strings.Contains(err.Message, controllerUpdateFailMsg) {
+func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
+	if err != nil && err.Message != nil {
+		if strings.Contains(*err.Message, controllerUpdateFailMsg) {
 			return true
 		}
 	}
