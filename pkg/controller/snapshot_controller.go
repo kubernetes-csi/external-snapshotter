@@ -743,24 +743,24 @@ func (ctrl *csiSnapshotController) deleteSnapshotContentOperation(content *crdv1
 
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
-  /* TODO(@Xing-yang): secrete ref retrivial needs to be implemented here
-  snapshotClassName := content.Spec.VolumeSnapshotClassName
-	if snapshotClassName != nil {
-		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
-			// Resolve snapshotting secret credentials.
-			// No VolumeSnapshot is provided when resolving delete secret names, since the VolumeSnapshot may or may not exist at delete time.
-			snapshotterSecretRef, err := getSecretReference(snapshotClass.Parameters, content.Name, nil)
-			if err != nil {
-				return err
+	/* TODO(@Xing-yang): secrete ref retrivial needs to be implemented here
+	  	snapshotClassName := content.Spec.VolumeSnapshotClassName
+		if snapshotClassName != nil {
+			if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
+				// Resolve snapshotting secret credentials.
+				// No VolumeSnapshot is provided when resolving delete secret names, since the VolumeSnapshot may or may not exist at delete time.
+				snapshotterSecretRef, err := getSecretReference(snapshotClass.Parameters, content.Name, nil)
+				if err != nil {
+					return err
+				}
+				snapshotterCredentials, err = getCredentials(ctrl.client, snapshotterSecretRef)
+				if err != nil {
+					return err
+				}
 			}
-			snapshotterCredentials, err = getCredentials(ctrl.client, snapshotterSecretRef)
-			if err != nil {
-				return err
-			}
-		}
-	}*/
+		}*/
 
-	err = ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
+	err := ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to delete snapshot")
 		return fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)

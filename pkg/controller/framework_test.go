@@ -784,7 +784,6 @@ func newContent(name, snapshotHandle, boundToSnapshotUID, boundToSnapshotName st
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
 			ResourceVersion: "1",
-			Annotations:     annotations,
 		},
 		Spec: crdv1.VolumeSnapshotContentSpec{
 			RestoreSize:    size,

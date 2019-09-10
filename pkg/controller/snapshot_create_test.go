@@ -114,7 +114,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			errors: noerrors,
 			test:   testSyncSnapshot,
 		},
-		{
+		/*{
 			name:              "6-3 - successful create snapshot with snapshot class valid-secret-class",
 			initialContents:   nocontents,
 			expectedContents:  newContentArray("snapcontent-snapuid6-3", "sid6-3", "snapuid6-3", "snap6-3", &deletePolicy, &defaultSize, &timeNowStamp, false),
@@ -165,7 +165,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			},
 			errors: noerrors,
 			test:   testSyncSnapshot,
-		},
+		},*/
 		{
 			name:              "6-5 - successful create snapshot with status uploading",
 			initialContents:   nocontents,

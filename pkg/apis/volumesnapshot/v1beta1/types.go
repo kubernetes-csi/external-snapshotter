@@ -109,9 +109,9 @@ type VolumeSnapshotStatus struct {
 	// In dynamic snapshot creation case, readyToUse will be set to true when underlying storage
 	// system has successfully finished all out-of-bound procedures to make a snapshot ready to consume,
 	// i.e., restoring a PersistentVolumeClaim from the snapshot.
-	// When manually binding to a pre-existing VolumeSnapshotContent object case, readyToUse will be set to
-	// the value returned by CSI "ListSnapshot" gRPC call if the corresponding driver supports, otherwise,
-	// readyToUse field will remain its original value.
+	// When manually binding to a pre-existing VolumeSnapshotContent object, readyToUse will be set to
+	// the value returned by CSI "ListSnapshot" gRPC call if the corresponding driver supports,
+	// otherwise, readyToUse field will remain its original value.
 	// If not specified(i.e., nil), it means the readiness of the snapshot is unknown to system controllers.
 	// NOTE: Controllers MUST NOT rely on this field programmatically.
 	// +optional

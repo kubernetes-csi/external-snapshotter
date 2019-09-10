@@ -322,7 +322,7 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-16 - continue delete with snapshot class that has nonexistent secret",
-			initialContents:     newContentArray("content1-16", validSecretClass, "sid1-16", "vuid1-16", "volume1-16", "snapuid1-16", "snap1-16", &deletePolicy, nil, nil, true, secretAnnotations()),
+			initialContents:     newContentArray("content1-16", "sid1-16", "snapuid1-16", "snap1-16", &deletePolicy, nil, nil, true),
 			expectedContents:    nocontents,
 			initialSnapshots:    nosnapshots,
 			expectedSnapshots:   nosnapshots,
