@@ -101,7 +101,7 @@ configvar CSI_PROW_GO_VERSION_GINKGO "${CSI_PROW_GO_VERSION_BUILD}" "Go version 
 # kind version to use. If the pre-installed version is different,
 # the desired version is downloaded from https://github.com/kubernetes-sigs/kind/releases/download/
 # (if available), otherwise it is built from source.
-configvar CSI_PROW_KIND_VERSION 2555d8e09d5a77ee718414cec9f6083dfa028dc5 "kind"
+configvar CSI_PROW_KIND_VERSION "v0.5.0" "kind"
 
 # ginkgo test runner version to use. If the pre-installed version is
 # different, the desired version is built from source.
@@ -126,19 +126,19 @@ configvar CSI_PROW_BUILD_JOB true "building code in repo enabled"
 # use the same settings as for "latest" Kubernetes. This works
 # as long as there are no breaking changes in Kubernetes, like
 # deprecating or changing the implementation of an alpha feature.
-configvar CSI_PROW_KUBERNETES_VERSION 1.13.3 "Kubernetes"
+configvar CSI_PROW_KUBERNETES_VERSION 1.15.3 "Kubernetes"
 
 # This is a hack to workaround the issue that each version
 # of kind currently only supports specific patch versions of
 # Kubernetes. We need to override CSI_PROW_KUBERNETES_VERSION
 # passed in by our CI/pull jobs to the versions that
-# kind v0.4.0 supports.
+# kind v0.5.0 supports.
 #
 # If the version is prefixed with "release-", then nothing
 # is overridden.
-override_k8s_version "1.13.7"
-override_k8s_version "1.14.3"
-override_k8s_version "1.15.0"
+override_k8s_version "1.13.10"
+override_k8s_version "1.14.6"
+override_k8s_version "1.15.3"
 
 # CSI_PROW_KUBERNETES_VERSION reduced to first two version numbers and
 # with underscore (1_13 instead of 1.13.3) and in uppercase (LATEST
@@ -222,6 +222,10 @@ configvar CSI_PROW_SANITY_IMPORT_PATH github.com/kubernetes-csi/csi-test "csi-te
 configvar CSI_PROW_SANITY_SERVICE "hostpath-service" "Kubernetes TCP service name that exposes csi.sock"
 configvar CSI_PROW_SANITY_POD "csi-hostpathplugin-0" "Kubernetes pod with CSI driver"
 configvar CSI_PROW_SANITY_CONTAINER "hostpath" "Kubernetes container with CSI driver"
+
+# The version of dep to use for 'make test-vendor'. Ignored if the project doesn't
+# use dep. Only binary releases of dep are supported (https://github.com/golang/dep/releases).
+configvar CSI_PROW_DEP_VERSION v0.5.1 "golang dep version to be used for vendor checking"
 
 # Each job can run one or more of the following tests, identified by
 # a single word:
@@ -396,6 +400,15 @@ install_ginkgo () {
     mv "$GOPATH/bin/ginkgo" "${CSI_PROW_BIN}"
 }
 
+# Ensure that we have the desired version of dep.
+install_dep () {
+    if dep version 2>/dev/null | grep -q "version:.*${CSI_PROW_DEP_VERSION}$"; then
+        return
+    fi
+    run curl --fail --location -o "${CSI_PROW_WORK}/bin/dep" "https://github.com/golang/dep/releases/download/v0.5.4/dep-linux-amd64" &&
+        chmod u+x "${CSI_PROW_WORK}/bin/dep"
+}
+
 # This checks out a repo ("https://github.com/kubernetes/kubernetes")
 # in a certain location ("$GOPATH/src/k8s.io/kubernetes") at
 # a certain revision (a hex commit hash, v1.13.1, master). It's okay
@@ -508,6 +521,7 @@ kind: Cluster
 apiVersion: kind.sigs.k8s.io/v1alpha3
 nodes:
 - role: control-plane
+- role: worker
 EOF
 
     # kubeadm has API dependencies between apiVersion and Kubernetes version
@@ -936,6 +950,10 @@ main () {
         # changes in "release-tools" in a PR (that fails the "is release-tools unmodified"
         # test).
         if tests_enabled "unit"; then
+            if [ -f Gopkg.toml ] && ! install_dep; then
+                warn "installing 'dep' failed, cannot test vendoring"
+                ret=1
+            fi
             if ! run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make -k test 2>&1 | make_test_to_junit; then
                 warn "'make test' failed, proceeding anyway"
                 ret=1
