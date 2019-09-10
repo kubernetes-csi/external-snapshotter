@@ -65,6 +65,11 @@ const (
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-protection"
 	VolumeSnapshotFinalizer        = "snapshot.storage.kubernetes.io/volumesnapshot-protection"
+
+	// Annotation for secret name and namespace will be added to the content
+	// and used at snapshot content deletion time.
+	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
+	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 )
 
 var snapshotterSecretParams = deprecatedSecretParamsMap{
@@ -217,7 +222,6 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap
 // - ${volumesnapshotcontent.name}
 // - ${volumesnapshot.namespace}
 // - ${volumesnapshot.name}
-// - ${volumesnapshot.annotations['ANNOTATION_KEY']} (e.g. ${pvc.annotations['example.com/snapshot-create-secret-name']})
 //
 // supported tokens for namespace resolution:
 // - ${volumesnapshotcontent.name}
@@ -262,16 +266,12 @@ func getSecretReference(snapshotClassParams map[string]string, snapContentName s
 	}
 	ref.Namespace = resolvedNamespace
 
-	// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace,
-	// or a VolumeSnapshot annotation.
+	// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace.
 	// Note that VolumeSnapshot name and annotations are under the VolumeSnapshot user's control.
 	nameParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
 	if snapshot != nil {
 		nameParams["volumesnapshot.name"] = snapshot.Name
 		nameParams["volumesnapshot.namespace"] = snapshot.Namespace
-		for k, v := range snapshot.Annotations {
-			nameParams["volumesnapshot.annotations['"+k+"']"] = v
-		}
 	}
 	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
 	if err != nil {

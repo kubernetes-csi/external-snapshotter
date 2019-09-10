@@ -784,6 +784,7 @@ func newContent(name, snapshotHandle, boundToSnapshotUID, boundToSnapshotName st
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
 			ResourceVersion: "1",
+			Annotations:     annotations,
 		},
 		Spec: crdv1.VolumeSnapshotContentSpec{
 			RestoreSize:    size,
@@ -1263,6 +1264,28 @@ func secret() *v1.Secret {
 	}
 }
 
+func secretAnnotations() map[string]string {
+	return map[string]string{
+		AnnDeletionSecretRefName:      "secret",
+		AnnDeletionSecretRefNamespace: "default",
+	}
+}
+
+func emptyNamespaceSecretAnnotations() map[string]string {
+	return map[string]string{
+		AnnDeletionSecretRefName:      "name",
+		AnnDeletionSecretRefNamespace: "",
+	}
+}
+
+// this refers to emptySecret(), which is missing data.
+func emptyDataSecretAnnotations() map[string]string {
+	return map[string]string{
+		AnnDeletionSecretRefName:      "emptysecret",
+		AnnDeletionSecretRefNamespace: "default",
+	}
+}
+
 type listCall struct {
 	snapshotID string
 	// information to return
@@ -1344,7 +1367,7 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
 	if f.deleteCallCounter >= len(f.deleteCalls) {
 		f.t.Errorf("Unexpected CSI Delete Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return fmt.Errorf("unexpected call")
+		return fmt.Errorf("unexpected DeleteSnapshot call")
 	}
 	call := f.deleteCalls[f.deleteCallCounter]
 	f.deleteCallCounter++

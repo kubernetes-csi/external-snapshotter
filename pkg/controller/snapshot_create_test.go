@@ -365,6 +365,18 @@ func TestCreateSnapshotSync(t *testing.T) {
 			expectedEvents: []string{"Warning CreateSnapshotContentFailed"},
 			test:           testSyncSnapshot,
 		},
+		{
+			name:              "7-10 - fail create snapshot with secret not found",
+			initialContents:   nocontents,
+			expectedContents:  nocontents,
+			initialSnapshots:  newSnapshotArray("snap7-10", validSecretClass, "", "snapuid7-10", "claim7-10", false, nil, nil, nil),
+			expectedSnapshots: newSnapshotArray("snap7-10", validSecretClass, "", "snapuid7-10", "claim7-10", false, newVolumeError("Failed to create snapshot: error getting secret secret in namespace default: cannot find secret secret"), nil, nil),
+			initialClaims:     newClaimArray("claim7-10", "pvc-uid7-10", "1Gi", "volume7-10", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume7-10", "pv-uid7-10", "pv-handle7-10", "1Gi", "pvc-uid7-10", "claim7-10", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{}, // no initial secret created
+			errors:            noerrors,
+			test:              testSyncSnapshot,
+		},
 	}
 	runSyncTests(t, tests, snapshotClasses)
 }

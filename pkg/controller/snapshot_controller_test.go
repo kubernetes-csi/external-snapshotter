@@ -81,7 +81,6 @@ func TestControllerCacheParsingError(t *testing.T) {
 	c := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 	// There must be something in the cache to compare with
 	storeVersion(t, "Step1", c, "1", true)
-
 	content := newContent("contentName", "sid1-1", "snapuid1-1", "snap1-1", nil, nil, nil, false)
 	content.ResourceVersion = "xxx"
 	_, err := storeObjectUpdate(c, content, "content")
