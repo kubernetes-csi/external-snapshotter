@@ -9,7 +9,9 @@ spec:
   group: snapshot.storage.k8s.io
   names:
     kind: VolumeSnapshotClass
+    listKind: VolumeSnapshotClassList
     plural: volumesnapshotclasses
+    singular: volumesnapshotclass
   scope: Cluster
   validation:
     openAPIV3Schema:
@@ -24,6 +26,13 @@ spec:
             internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
           type: string
         deletionPolicy:
+          allOf:
+          - enum:
+            - Delete
+            - Retain
+          - enum:
+            - Delete
+            - Retain
           description: deletionPolicy determines whether a VolumeSnapshotContent created
             through the VolumeSnapshotClass should be deleted when its bound VolumeSnapshot
             is deleted. Supported values are "Retain" and "Delete". "Retain" means
@@ -31,9 +40,6 @@ spec:
             storage system are kept. "Delete" means that the VolumeSnapshotContent
             and its physical snapshot on underlying storage system are deleted. If
             not specified, the default value is "Delete"
-          enum:
-          - Delete
-          - Retain
           type: string
         driver:
           description: driver is the name of the storage driver that handles this

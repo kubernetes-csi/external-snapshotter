@@ -9,13 +9,14 @@ spec:
   group: snapshot.storage.k8s.io
   names:
     kind: VolumeSnapshot
+    listKind: VolumeSnapshotList
     plural: volumesnapshots
+    singular: volumesnapshot
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
-      description: VolumeSnapshot is a user's request for taking a point-in-time snapshot
-        of a PersistentVolumeClaim. Upon successful creation of a snapshot by the
-        underlying storage system, it is bound to a corresponding VolumeSnapshotContent.
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -32,30 +33,21 @@ spec:
           type: object
         spec:
           description: 'spec defines the desired characteristics of a snapshot requested
-            by a user. More info: https:s//kubernetes.io/docs/concepts/storage/volume-snapshots#volumesnapshots'
+            by a user. More info: https://kubernetes.io/docs/concepts/storage/volume-snapshots#volumesnapshots'
           properties:
             source:
-              description: source specifies where a snapshot should be created from.
-                Currently, PersistentVolumeClaim is the only supported source type.
-                If specified, and volumeSnapshotContentName is not specified(i.e.,
-                nil), snapshot will be dynamically created from the given source.
-                If both source and volumeSnapshotContentName are not specified, dynamic
-                snapshot creation will fail.
+              description: source specifies where a snapshot will be created from.
               properties:
-                apiGroup:
-                  description: APIGroup is the group for the resource being referenced.
-                    If APIGroup is not specified, the specified Kind must be in the
-                    core API group. For any other third-party types, APIGroup is required.
+                persistentVolumeClaimName:
+                  description: persistentVolumeClaimName specifies the name of the
+                    PersistentVolumeClaim object in the same namespace as the VolumeSnapshot
+                    object where the snapshot should be dynamically taken from.
                   type: string
-                kind:
-                  description: Kind is the type of resource being referenced
+                volumeSnapshotContentName:
+                  description: volumeSnapshotContentName specifies the name of a pre-existing
+                    VolumeSnapshotContent object a user asks to statically bind the
+                    VolumeSnapshot object to.
                   type: string
-                name:
-                  description: Name is the name of resource being referenced
-                  type: string
-              required:
-              - kind
-              - name
               type: object
             volumeSnapshotClassName:
               description: 'volumeSnapshotClassName is the name of the VolumeSnapshotClass
@@ -64,29 +56,29 @@ spec:
                 default snapshot class, dynamic snapshot creation will fail. More
                 info: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes'
               type: string
-            volumeSnapshotContentName:
-              description: volumeSnapshotContentName is the name of the VolumeSnapshotContent
-                object backing the VolumeSnapshot. To request a pre-existing VolumeSnapshotContent
-                object, this field MUST be specified during VolumeSnapshot object
-                creation. Otherwise, a snapshot will be dynamically created, and this
-                field will be populated afterwards.
-              type: string
           type: object
         status:
           description: 'status represents the current information of a snapshot. NOTE:
             status can be modified by sources other than system controllers, and must
-            not be depended upon for accuracy. Controllers should only be using information
+            not be depended upon for accuracy. Controllers should only use information
             from the VolumeSnapshotContent object after verifying that the binding
             is accurate and complete.'
           properties:
+            boundVolumeSnapshotContentName:
+              description: boundVolumeSnapshotContentName represents the name of the
+                VolumeSnapshotContent object which the VolumeSnapshot object is bound
+                to. If not specified(i.e., nil), it means the VolumeSnapshot object
+                has not been successfully bound to a VolumeSnapshotContent object
+                yet.
+              type: string
             creationTime:
-              description: 'creationTime, if not nil, represents the timestamp when
-                the snapshot was successfully cut by the underlying storage system.
-                When dynamically creating a snapshot, this will be filled in upon
-                creation. For pre-existing snapshot, it will be filled in once the
-                VolumeSnapshot object has been successfully bound to a VolumeSnapshotContent
-                object and the underlying storage system has the information available.
-                NOTE: Controllers MUST NOT rely on this field programmatically.'
+              description: creationTime, if not nil, represents the timestamp when
+                the point-in-time snapshot was successfully cut on the underlying
+                storage system. In dynamic snapshot creation case, it will be filled
+                in upon snapshot creation. For a pre-existing snapshot, it will be
+                filled in once the VolumeSnapshot object has been successfully bound
+                to a VolumeSnapshotContent object and the underlying storage system
+                has the information available.
               format: date-time
               type: string
             error:
@@ -98,8 +90,8 @@ spec:
               properties:
                 message:
                   description: 'message is a string detailing the encountered error
-                    during snapshot creation if specified. NOTE: message maybe logged,
-                    thus it should not contain sensitive information.'
+                    during snapshot creation if specified. NOTE: message may be logged,
+                    and it should not contain sensitive information.'
                   type: string
                 time:
                   description: time is the timestamp when the error was encountered.
@@ -107,27 +99,26 @@ spec:
                   type: string
               type: object
             readyToUse:
-              description: 'readyToUse is an informational flag which provides transparency
-                to users. In dynamic snapshot creation case, readyToUse will be set
-                to true when underlying storage system has successfully finished all
-                out-of-bound procedures to make a snapshot ready to consume, i.e.,
-                restoring a PersistentVolumeClaim from the snapshot. When manually
-                binding to a pre-existing VolumeSnapshotContent object case, readyToUse
-                will be set to the value returned by CSI "ListSnapshot" gRPC call
-                if the corresponding driver supports, otherwise, readyToUse field
-                will remain its original value. If not specified(i.e., nil), it means
-                the readiness of the snapshot is unknown to system controllers. NOTE:
-                Controllers MUST NOT rely on this field programmatically.'
+              description: readyToUse is an informational flag which provides transparency
+                to users. Default to "False". In dynamic snapshot creation case, readyToUse
+                will be set to true when underlying storage system has successfully
+                finished all out-of-bound procedures to make a snapshot ready to be
+                used to restore a volume. In manually binding to a pre-existing snapshot
+                case, readyToUse will be set to the value returned by CSI "ListSnapshot"
+                gRPC call if the corresponding driver exists and supports, otherwise,
+                this field will be set to "True". Required.
               type: boolean
             restoreSize:
-              description: 'restoreSize specifies the number of bytes that the snapshot''s
-                data would consume when restored to a volume. When restoring a volume
-                from a snapshot, the volume size needs to be equal to or larger than
-                the restoreSize if it is specified. Otherwise the restoration will
-                fail. The field could be nil if the underlying storage system does
-                not have the information available. NOTE: Controllers MUST NOT rely
-                on this field programmatically.'
+              description: restoreSize represents the complete size of the snapshot
+                in bytes. The purpose of this field is to give user guidance on how
+                much space is needed to create a volume from this snapshot. When restoring
+                a volume from a snapshot, the size of the volume MUST NOT be less
+                than the restoreSize. Otherwise the restoration will fail. If this
+                field is not specified, it indicates that underlying storage system
+                does not have the information available.
               type: string
+          required:
+          - readyToUse
           type: object
       type: object
   version: v1beta1
