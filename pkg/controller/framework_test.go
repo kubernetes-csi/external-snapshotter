@@ -788,7 +788,7 @@ func newContent(name, snapshotHandle, boundToSnapshotUID, boundToSnapshotName st
 		Spec: crdv1.VolumeSnapshotContentSpec{
 			RestoreSize:    size,
 			Driver:         mockDriverName,
-			SnapshotHandle: snapshotHandle,
+			SnapshotHandle: &snapshotHandle,
 			CreationTime:   creationTime,
 			DeletionPolicy: deletionPolicy,
 		},
@@ -833,8 +833,7 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 			SelfLink:        "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + name,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
-			VolumeSnapshotClassName:   &className,
-			VolumeSnapshotContentName: &boundToContent,
+			VolumeSnapshotClassName: &className,
 		},
 		Status: crdv1.VolumeSnapshotStatus{
 			CreationTime: creationTime,
@@ -844,9 +843,12 @@ func newSnapshot(name, className, boundToContent, snapshotUID, claimName string,
 		},
 	}
 	if claimName != noClaim {
-		snapshot.Spec.Source = &v1.TypedLocalObjectReference{
-			Name: claimName,
-			Kind: "PersistentVolumeClaim",
+		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
+			PersistentVolumeClaimName: &claimName,
+		}
+	} else {
+		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
+			VolumeSnapshotContentName: &boundToContent,
 		}
 	}
 

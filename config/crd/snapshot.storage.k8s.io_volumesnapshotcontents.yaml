@@ -60,8 +60,12 @@ spec:
                 "Retain" and "Delete". "Retain" means that the VolumeSnapshotContent
                 and its physical snapshot on underlying storage system are kept. "Delete"
                 means that the VolumeSnapshotContent and its physical snapshot on
-                underlying storage system are deleted. If not specified, the default
-                value is "Retain"
+                underlying storage system are deleted. In dynamic snapshot creation
+                case, this field will be filled in with the "DeletionPolicy" field
+                defined in the VolumeSnapshotClass a VolumeSnapshot refers to. For
+                pre-existing snapshots, users could specify this field when creating
+                the VolumeSnapshotContent object, if user has not specified, this
+                field will be defaulted to "Retain"
               type: string
             driver:
               description: driver is the name of the CSI driver used to create the
@@ -150,15 +154,13 @@ spec:
               type: object
             readyToUse:
               description: readyToUse indicates if a snapshot is ready to be used
-                as a source to restore a volume. In dynamic snapshot creation case,
-                this field will be filled in with the value returned from CSI CreateSnapshotRequest
+                to restore a volume. In dynamic snapshot creation case, this field
+                will be filled in with the value returned from CSI CreateSnapshotRequest
                 call. For pre-existing snapshot, this field will be updated with the
-                value returned from CSI ListSnapshotRequest if the functionality is
-                supported by the corresponding driver. Otherwise, this field will
-                be set to "True". Required.
+                value returned from CSI ListSnapshots if the functionality is supported
+                by the corresponding driver. If not specified, it means the readiness
+                of a snapshot is unknown to system controllers.
               type: boolean
-          required:
-          - readyToUse
           type: object
       required:
       - spec

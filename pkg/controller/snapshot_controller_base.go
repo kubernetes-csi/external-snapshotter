@@ -416,11 +416,11 @@ func (ctrl *csiSnapshotController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot
 	_ = ctrl.snapshotStore.Delete(snapshot)
 	klog.V(4).Infof("snapshot %q deleted", snapshotKey(snapshot))
 
-	if snapshot.Spec.VolumeSnapshotContentName == nil || *snapshot.Spec.VolumeSnapshotContentName == "" {
+	if snapshot.Status.BoundVolumeSnapshotContentName == nil {
 		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", snapshotKey(snapshot))
 		return
 	}
-	snapshotContentName := *snapshot.Spec.VolumeSnapshotContentName
+	snapshotContentName := *snapshot.Status.BoundVolumeSnapshotContentName
 	// sync the content when its snapshot is deleted.  Explicitly sync'ing the
 	// content here in response to snapshot deletion prevents the content from
 	// waiting until the next sync period for its Release.

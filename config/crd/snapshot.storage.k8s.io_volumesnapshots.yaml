@@ -17,6 +17,9 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: VolumeSnapshot is a user's request for taking a point-in-time snapshot
+        of a PersistentVolumeClaim. Upon successful creation of a snapshot by the
+        underlying storage system, it is bound to a corresponding VolumeSnapshotContent.
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
@@ -37,6 +40,7 @@ spec:
           properties:
             source:
               description: source specifies where a snapshot will be created from.
+                Required.
               properties:
                 persistentVolumeClaimName:
                   description: persistentVolumeClaimName specifies the name of the
@@ -56,6 +60,8 @@ spec:
                 default snapshot class, dynamic snapshot creation will fail. More
                 info: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes'
               type: string
+          required:
+          - source
           type: object
         status:
           description: 'status represents the current information of a snapshot. NOTE:
@@ -99,14 +105,16 @@ spec:
                   type: string
               type: object
             readyToUse:
-              description: readyToUse is an informational flag which provides transparency
-                to users. Default to "False". In dynamic snapshot creation case, readyToUse
-                will be set to true when underlying storage system has successfully
-                finished all out-of-bound procedures to make a snapshot ready to be
-                used to restore a volume. In manually binding to a pre-existing snapshot
-                case, readyToUse will be set to the value returned by CSI "ListSnapshot"
-                gRPC call if the corresponding driver exists and supports, otherwise,
-                this field will be set to "True". Required.
+              description: 'readyToUse is an informational flag which provides transparency
+                to users. In dynamic snapshot creation case, readyToUse will be set
+                to true when underlying storage system has successfully finished all
+                out-of-bound procedures to make a snapshot ready to be used to restore
+                a volume. In manually binding to a pre-existing snapshot case, readyToUse
+                will be set to the value returned by CSI "ListSnapshots" gRPC call
+                if the corresponding driver exists and supports, otherwise,this field
+                will be set to "True". If not specified, it means the readiness of
+                a snapshot is unknown to system controllers. TODO(xiangqian): ListSnapshots
+                may be ignored for pre-existing snapshots.'
               type: boolean
             restoreSize:
               description: restoreSize represents the complete size of the snapshot
@@ -117,8 +125,6 @@ spec:
                 field is not specified, it indicates that underlying storage system
                 does not have the information available.
               type: string
-          required:
-          - readyToUse
           type: object
       type: object
   version: v1beta1

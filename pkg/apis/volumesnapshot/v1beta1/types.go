@@ -32,7 +32,6 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:subresource:status
-
 type VolumeSnapshot struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -55,7 +54,6 @@ type VolumeSnapshot struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-
 // VolumeSnapshotList is a list of VolumeSnapshot objects
 type VolumeSnapshotList struct {
 	metav1.TypeMeta `json:",inline"`
@@ -69,15 +67,15 @@ type VolumeSnapshotList struct {
 // VolumeSnapshotSpec describes the common attributes of a volume snapshot
 type VolumeSnapshotSpec struct {
 	// source specifies where a snapshot will be created from.
-	// +optional
-	Source *VolumeSnapshotSource `json:"source,omitempty" protobuf:"bytes,1,opt,name=source"`
+	// Required.
+	Source VolumeSnapshotSource `json:"source" protobuf:"bytes,1,opt,name=source"`
 
 	// volumeSnapshotClassName is the name of the VolumeSnapshotClass requested by the VolumeSnapshot.
 	// If not specified, the default snapshot class will be used if one exists.
 	// If not specified, and there is no default snapshot class, dynamic snapshot creation will fail.
 	// More info: https://kubernetes.io/docs/concepts/storage/volume-snapshot-classes
 	// +optional
-	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty" protobuf:"bytes,3,opt,name=volumeSnapshotClassName"`
+	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotClassName"`
 }
 
 // VolumeSnapshotSource represents the source of a snapshot
@@ -87,7 +85,7 @@ type VolumeSnapshotSource struct {
 	// object in the same namespace as the VolumeSnapshot object where the
 	// snapshot should be dynamically taken from.
 	// +optional
-	PersistentVolumeClaimName *string `json:"persistentVolumeClaimName,omitempty" protobuf:"bytes,2,opt,name=persistentVolumeClaimName"`
+	PersistentVolumeClaimName *string `json:"persistentVolumeClaimName,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeClaimName"`
 
 	// volumeSnapshotContentName specifies the name of a pre-existing VolumeSnapshotContent
 	// object a user asks to statically bind the VolumeSnapshot object to.
@@ -105,7 +103,7 @@ type VolumeSnapshotStatus struct {
 	// If not specified(i.e., nil), it means the VolumeSnapshot object has not been
 	// successfully bound to a VolumeSnapshotContent object yet.
 	// +optional
-	BoundVolumeSnapshotContentName *string `json:"boundVolumeSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=boundVolumeSnapshotContentName"`
+	BoundVolumeSnapshotContentName *string `json:"boundVolumeSnapshotContentName,omitempty" protobuf:"bytes,1,opt,name=boundVolumeSnapshotContentName"`
 
 	// creationTime, if not nil, represents the timestamp when the point-in-time
 	// snapshot was successfully cut on the underlying storage system.
@@ -114,18 +112,19 @@ type VolumeSnapshotStatus struct {
 	// been successfully bound to a VolumeSnapshotContent object and the underlying
 	// storage system has the information available.
 	// +optional
-	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,1,opt,name=creationTime"`
+	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
 
 	// readyToUse is an informational flag which provides transparency to users.
-	// Default to "False".
 	// In dynamic snapshot creation case, readyToUse will be set to true when underlying storage
 	// system has successfully finished all out-of-bound procedures to make a snapshot ready to
 	// be used to restore a volume.
 	// In manually binding to a pre-existing snapshot case, readyToUse will be set to
-	// the value returned by CSI "ListSnapshot" gRPC call if the corresponding driver exists and supports,
-	// otherwise, this field will be set to "True".
-	// Required.
-	ReadyToUse bool `json:"readyToUse" protobuf:"varint,3,opt,name=readyToUse"`
+	// the value returned by CSI "ListSnapshots" gRPC call if the corresponding driver exists and supports,
+	// otherwise,this field will be set to "True".
+	// If not specified, it means the readiness of a snapshot is unknown to system controllers.
+	// TODO(xiangqian): ListSnapshots may be ignored for pre-existing snapshots.
+	// +optional
+	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,3,opt,name=readyToUse"`
 
 	// restoreSize represents the complete size of the snapshot in bytes.
 	// The purpose of this field is to give user guidance on how much space is
@@ -135,14 +134,14 @@ type VolumeSnapshotStatus struct {
 	// If this field is not specified, it indicates that underlying storage system
 	// does not have the information available.
 	// +optional
-	RestoreSize *resource.Quantity `json:"restoreSize,omitempty" protobuf:"bytes,2,opt,name=restoreSize"`
+	RestoreSize *resource.Quantity `json:"restoreSize,omitempty" protobuf:"bytes,4,opt,name=restoreSize"`
 
 	// error is the latest observed error during snapshot creation, if any.
 	// This field could be helpful to upper level controllers(i.e., application controller)
 	// to decide whether they should continue on waiting for the snapshot to be created
 	// based on the type of error reported.
 	// +optional
-	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
+	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,5,opt,name=error,casttype=VolumeSnapshotError"`
 }
 
 // +genclient
@@ -234,7 +233,6 @@ type VolumeSnapshotContentList struct {
 
 // VolumeSnapshotContentSpec is the specification of a VolumeSnapshotContent
 type VolumeSnapshotContentSpec struct {
-
 	// volumeSnapshotRef specifies the VolumeSnapshot object that this VolumeSnapshotContent is bound with.
 	// The VolumeSnapshot.Spec.VolumeSnapshotContentName field must reference this VolumeSnapshotContent name
 	// for the bidirectional binding to be considered valid.
@@ -245,29 +243,32 @@ type VolumeSnapshotContentSpec struct {
 	// the volumeSnapshotRef.UID should be left empty to avoid triggering deletion policy.
 	// The UID field will be populated once binding is considered valid.
 	// +optional
-	VolumeSnapshotRef *core_v1.ObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
+	VolumeSnapshotRef *core_v1.ObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,1,opt,name=volumeSnapshotRef"`
 
 	// deletionPolicy determines whether this VolumeSnapshotContent and its physical snapshot on
 	// the underlying storage system should be deleted when its VolumeSnapshot is deleted.
 	// Supported values are "Retain" and "Delete".
 	// "Retain" means that the VolumeSnapshotContent and its physical snapshot on underlying storage system are kept.
 	// "Delete" means that the VolumeSnapshotContent and its physical snapshot on underlying storage system are deleted.
-	// If not specified, the default value is "Retain"
+	// In dynamic snapshot creation case, this field will be filled in with the "DeletionPolicy" field defined in the
+	// VolumeSnapshotClass a VolumeSnapshot refers to.
+	// For pre-existing snapshots, users could specify this field when creating the VolumeSnapshotContent object, if
+	// user has not specified, this field will be defaulted to "Retain"
 	// +kubebuilder:validation:Enum=Delete;Retain
 	// +optional
-	DeletionPolicy *DeletionPolicy `json:"deletionPolicy,omitempty" protobuf:"bytes,5,opt,name=deletionPolicy"`
+	DeletionPolicy *DeletionPolicy `json:"deletionPolicy,omitempty" protobuf:"bytes,2,opt,name=deletionPolicy"`
 
 	// driver is the name of the CSI driver used to create the physical snapshot on
 	// the underlying storage system.
 	// This MUST be the same as the name returned by the CSI GetPluginName() call for
 	// that driver.
 	// Required.
-	Driver string `json:"driver" protobuf:"bytes,1,opt,name=driver"`
+	Driver string `json:"driver" protobuf:"bytes,3,opt,name=driver"`
 
 	// snapshotHandle is the snapshot id returned by the CSI driver in the CreateSnapshotResponse
 	// and is used as the snapshot identifier for all subsequent CSI calls.
 	// +optional
-	SnapshotHandle *string `json:"snapshotHandle,omitempty" protobuf:"bytes,2,opt,name=snapshotHandle"`
+	SnapshotHandle *string `json:"snapshotHandle,omitempty" protobuf:"bytes,4,opt,name=snapshotHandle"`
 
 	// creationTime is the timestamp when the point-in-time snapshot is taken
 	// by the underlying storage system. This timestamp is returned by the CSI
@@ -276,7 +277,7 @@ type VolumeSnapshotContentSpec struct {
 	// On Unix, the command `date +%s%N` returns the current time in nanoseconds
 	// since 1970-01-01 00:00:00 UTC.
 	// +optional
-	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,3,opt,name=creationTime"`
+	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,5,opt,name=creationTime"`
 
 	// restoreSize specifies the complete size of the snapshot in bytes.
 	// When restoring a volume from this snapshot, the size of the volume MUST NOT
@@ -285,22 +286,23 @@ type VolumeSnapshotContentSpec struct {
 	// If this field is not set, it indicates that the size is unknown.
 	// +kubebuilder:validation:Minimum=0
 	// +optional
-	RestoreSize *int64 `json:"restoreSize,omitempty" protobuf:"bytes,4,opt,name=restoreSize"`
+	RestoreSize *int64 `json:"restoreSize,omitempty" protobuf:"bytes,6,opt,name=restoreSize"`
 }
 
 // VolumeSnapshotContentStatus is the status of a VolumeSnapshotContent object
 type VolumeSnapshotContentStatus struct {
-	// readyToUse indicates if a snapshot is ready to be used as a source to restore a volume.
+	// readyToUse indicates if a snapshot is ready to be used to restore a volume.
 	// In dynamic snapshot creation case, this field will be filled in with the value returned
 	// from CSI CreateSnapshotRequest call.
 	// For pre-existing snapshot, this field will be updated with the value returned
-	// from CSI ListSnapshotRequest if the functionality is supported by the corresponding
-	// driver. Otherwise, this field will be set to "True".
-	// Required.
-	ReadyToUse bool `json:"readyToUse" protobuf:"varint,3,opt,name=readyToUse"`
+	// from CSI ListSnapshots if the functionality is supported by the corresponding
+	// driver.
+	// If not specified, it means the readiness of a snapshot is unknown to system controllers.
+	// +optional.
+	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,1,opt,name=readyToUse"`
 	// error is the latest observed error during snapshot creation, if any.
 	// +optional
-	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
+	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,2,opt,name=error,casttype=VolumeSnapshotError"`
 }
 
 // DeletionPolicy describes a policy for end-of-life maintenance of volume snapshot contents
