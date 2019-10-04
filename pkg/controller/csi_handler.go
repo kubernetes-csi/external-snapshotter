@@ -78,7 +78,7 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	err := handler.snapshotter.DeleteSnapshot(ctx, *content.Spec.SnapshotHandle, snapshotterCredentials)
+	err := handler.snapshotter.DeleteSnapshot(ctx, *content.Status.SnapshotHandle, snapshotterCredentials)
 	if err != nil {
 		return fmt.Errorf("failed to delete snapshot content %s: %q", content.Name, err)
 	}
@@ -90,7 +90,7 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, *content.Spec.SnapshotHandle)
+	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, *content.Status.SnapshotHandle)
 	if err != nil {
 		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot content %s: %q", content.Name, err)
 	}

@@ -37,15 +37,6 @@ spec:
           description: spec defines properties of a VolumeSnapshotContent created
             by the underlying storage system.
           properties:
-            creationTime:
-              description: creationTime is the timestamp when the point-in-time snapshot
-                is taken by the underlying storage system. This timestamp is returned
-                by the CSI driver after the snapshot is cut. The format of this field
-                is a Unix nanoseconds time encoded as an int64. On Unix, the command
-                `date +%s%N` returns the current time in nanoseconds since 1970-01-01
-                00:00:00 UTC.
-              format: int64
-              type: integer
             deletionPolicy:
               allOf:
               - enum:
@@ -56,16 +47,15 @@ spec:
                 - Retain
               description: deletionPolicy determines whether this VolumeSnapshotContent
                 and its physical snapshot on the underlying storage system should
-                be deleted when its VolumeSnapshot is deleted. Supported values are
-                "Retain" and "Delete". "Retain" means that the VolumeSnapshotContent
+                be deleted when its bound VolumeSnapshot is deleted. Supported values
+                are "Retain" and "Delete". "Retain" means that the VolumeSnapshotContent
                 and its physical snapshot on underlying storage system are kept. "Delete"
                 means that the VolumeSnapshotContent and its physical snapshot on
                 underlying storage system are deleted. In dynamic snapshot creation
                 case, this field will be filled in with the "DeletionPolicy" field
-                defined in the VolumeSnapshotClass a VolumeSnapshot refers to. For
-                pre-existing snapshots, users could specify this field when creating
-                the VolumeSnapshotContent object, if user has not specified, this
-                field will be defaulted to "Retain"
+                defined in the VolumeSnapshotClass the VolumeSnapshot refers to. For
+                pre-existing snapshots, users MUST specify this field when creating
+                the VolumeSnapshotContent object. Required.
               type: string
             driver:
               description: driver is the name of the CSI driver used to create the
@@ -73,31 +63,29 @@ spec:
                 same as the name returned by the CSI GetPluginName() call for that
                 driver. Required.
               type: string
-            restoreSize:
-              description: restoreSize specifies the complete size of the snapshot
-                in bytes. When restoring a volume from this snapshot, the size of
-                the volume MUST NOT be smaller than the restoreSize if it is specified.
-                Otherwise the restoration will fail. If this field is not set, it
-                indicates that the size is unknown.
-              format: int64
-              minimum: 0
-              type: integer
-            snapshotHandle:
-              description: snapshotHandle is the snapshot id returned by the CSI driver
-                in the CreateSnapshotResponse and is used as the snapshot identifier
-                for all subsequent CSI calls.
+            snapshotClassName:
+              description: name of the SnapshotClass to which this snapshot belongs.
               type: string
+            source:
+              description: source specifies from where a snapshot will be created.
+                Required.
+              properties:
+                snapshotHandle:
+                  description: snapshotHandle specifies the CSI name of a pre-existing
+                    snapshot on the underlying storage system.
+                  type: string
+                volumeHandle:
+                  description: volumeHandle specifies the CSI name of the volume from
+                    which a snapshot should be dynamically taken from.
+                  type: string
+              type: object
             volumeSnapshotRef:
-              description: volumeSnapshotRef specifies the VolumeSnapshot object that
-                this VolumeSnapshotContent is bound with. The VolumeSnapshot.Spec.VolumeSnapshotContentName
-                field must reference this VolumeSnapshotContent name for the bidirectional
-                binding to be considered valid. If the referenced VolumeSnapshot object
-                does not exist(i.e., deleted by user) AND the UID of the referent
-                is not empty(i.e., volumeSnapshotRef.UID != ""), then the VolumeSnapshotContent.Spec.DeletionPolicy
-                is triggered. To manually bind a pre-existing VolumeSnapshotContent
-                object to a VolumeSnapshot object, the volumeSnapshotRef.UID should
-                be left empty to avoid triggering deletion policy. The UID field will
-                be populated once binding is considered valid.
+              description: volumeSnapshotRef specifies the VolumeSnapshot object to
+                which this VolumeSnapshotContent object is bound. VolumeSnapshot.Spec.VolumeSnapshotContentName
+                field must reference to this VolumeSnapshotContent's name for the
+                bidirectional binding to be valid. For a pre-existing VolumeSnapshotContent
+                object, name and namespace of the VolumeSnapshot object MUST be provided
+                for binding to happen. Required.
               properties:
                 apiVersion:
                   description: API version of the referent.
@@ -133,11 +121,23 @@ spec:
                   type: string
               type: object
           required:
+          - deletionPolicy
           - driver
+          - source
+          - volumeSnapshotRef
           type: object
         status:
           description: status represents the current information of a snapshot.
           properties:
+            creationTime:
+              description: creationTime is the timestamp when the point-in-time snapshot
+                is taken by the underlying storage system. This timestamp is returned
+                by the CSI driver after the snapshot is cut. The format of this field
+                is a Unix nanoseconds time encoded as an int64. On Unix, the command
+                `date +%s%N` returns the current time in nanoseconds since 1970-01-01
+                00:00:00 UTC.
+              format: int64
+              type: integer
             error:
               description: error is the latest observed error during snapshot creation,
                 if any.
@@ -155,12 +155,25 @@ spec:
             readyToUse:
               description: readyToUse indicates if a snapshot is ready to be used
                 to restore a volume. In dynamic snapshot creation case, this field
-                will be filled in with the value returned from CSI CreateSnapshotRequest
-                call. For pre-existing snapshot, this field will be updated with the
-                value returned from CSI ListSnapshots if the functionality is supported
-                by the corresponding driver. If not specified, it means the readiness
-                of a snapshot is unknown to system controllers.
+                will be filled in with the value returned from CSI "CreateSnapshotRequest"
+                gRPC call. For pre-existing snapshot, this field will be updated with
+                the value returned from CSI "ListSnapshots" gRPC call if the corresponding
+                driver supports. If not specified, it means the readiness of a snapshot
+                is unknown.
               type: boolean
+            restoreSize:
+              description: restoreSize represents the complete size of the snapshot
+                in bytes. When restoring a volume from this snapshot, the size of
+                the volume MUST NOT be smaller than the restoreSize if it is specified.
+                Otherwise the restoration will fail. If not specified, it indicates
+                that the size is unknown.
+              format: int64
+              minimum: 0
+              type: integer
+            snapshotHandle:
+              description: snapshotHandle is the CSI name of a snapshot on the underlying
+                storage system.
+              type: string
           type: object
       required:
       - spec

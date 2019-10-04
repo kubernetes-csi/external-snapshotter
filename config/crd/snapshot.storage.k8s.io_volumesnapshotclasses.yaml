@@ -38,8 +38,7 @@ spec:
             is deleted. Supported values are "Retain" and "Delete". "Retain" means
             that the VolumeSnapshotContent and its physical snapshot on underlying
             storage system are kept. "Delete" means that the VolumeSnapshotContent
-            and its physical snapshot on underlying storage system are deleted. If
-            not specified, the default value is "Delete"
+            and its physical snapshot on underlying storage system are deleted. Required.
           type: string
         driver:
           description: driver is the name of the storage driver that handles this
@@ -60,6 +59,7 @@ spec:
             parameters for creating snapshots. These values are opaque to Kubernetes.
           type: object
       required:
+      - deletionPolicy
       - driver
       type: object
   version: v1beta1

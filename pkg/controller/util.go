@@ -88,7 +88,7 @@ func snapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
 }
 
-func snapshotRefKey(vsref *v1.ObjectReference) string {
+func snapshotRefKey(vsref v1.ObjectReference) string {
 	return fmt.Sprintf("%s/%s", vsref.Namespace, vsref.Name)
 }
 

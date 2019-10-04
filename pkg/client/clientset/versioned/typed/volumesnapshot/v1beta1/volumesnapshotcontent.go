@@ -39,6 +39,7 @@ type VolumeSnapshotContentsGetter interface {
 type VolumeSnapshotContentInterface interface {
 	Create(*v1beta1.VolumeSnapshotContent) (*v1beta1.VolumeSnapshotContent, error)
 	Update(*v1beta1.VolumeSnapshotContent) (*v1beta1.VolumeSnapshotContent, error)
+	UpdateStatus(*v1beta1.VolumeSnapshotContent) (*v1beta1.VolumeSnapshotContent, error)
 	Delete(name string, options *v1.DeleteOptions) error
 	DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error
 	Get(name string, options v1.GetOptions) (*v1beta1.VolumeSnapshotContent, error)
@@ -119,6 +120,21 @@ func (c *volumeSnapshotContents) Update(volumeSnapshotContent *v1beta1.VolumeSna
 	err = c.client.Put().
 		Resource("volumesnapshotcontents").
 		Name(volumeSnapshotContent.Name).
+		Body(volumeSnapshotContent).
+		Do().
+		Into(result)
+	return
+}
+
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+
+func (c *volumeSnapshotContents) UpdateStatus(volumeSnapshotContent *v1beta1.VolumeSnapshotContent) (result *v1beta1.VolumeSnapshotContent, err error) {
+	result = &v1beta1.VolumeSnapshotContent{}
+	err = c.client.Put().
+		Resource("volumesnapshotcontents").
+		Name(volumeSnapshotContent.Name).
+		SubResource("status").
 		Body(volumeSnapshotContent).
 		Do().
 		Into(result)

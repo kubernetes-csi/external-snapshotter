@@ -94,6 +94,17 @@ func (c *FakeVolumeSnapshotContents) Update(volumeSnapshotContent *v1beta1.Volum
 	return obj.(*v1beta1.VolumeSnapshotContent), err
 }
 
+// UpdateStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+func (c *FakeVolumeSnapshotContents) UpdateStatus(volumeSnapshotContent *v1beta1.VolumeSnapshotContent) (*v1beta1.VolumeSnapshotContent, error) {
+	obj, err := c.Fake.
+		Invokes(testing.NewRootUpdateSubresourceAction(volumesnapshotcontentsResource, "status", volumeSnapshotContent), &v1beta1.VolumeSnapshotContent{})
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta1.VolumeSnapshotContent), err
+}
+
 // Delete takes name of the volumeSnapshotContent and deletes it. Returns an error if one occurs.
 func (c *FakeVolumeSnapshotContents) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
