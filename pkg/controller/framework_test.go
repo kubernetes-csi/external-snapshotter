@@ -775,7 +775,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 }
 
 func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
-	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
+	deletionPolicy crdv1.DeletionPolicy, creationTime, size *int64,
 	withFinalizer bool) *crdv1.VolumeSnapshotContent {
 	content := crdv1.VolumeSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
@@ -830,14 +830,14 @@ func newContentArray(contentName, boundToSnapshotUID, boundToSnapshotName, snaps
 	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
 	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
 	return []*crdv1.VolumeSnapshotContent{
-		newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, size, creationTime, withFinalizer),
+		newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, creationTime, size, withFinalizer),
 	}
 }
 
 func newContentArrayWithReadyToUse(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
-	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64, readyToUse *bool,
+	deletionPolicy crdv1.DeletionPolicy, creationTime, size *int64, readyToUse *bool,
 	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
-	content := newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, size, creationTime, withFinalizer)
+	content := newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, creationTime, size, withFinalizer)
 	content.Status.ReadyToUse = readyToUse
 	return []*crdv1.VolumeSnapshotContent{
 		content,
@@ -881,9 +881,7 @@ func newSnapshot(
 		snapshot.Status.BoundVolumeSnapshotContentName = &boundContentName
 	}
 
-	if snapshotClassName != "" {
-		snapshot.Spec.VolumeSnapshotClassName = &snapshotClassName
-	}
+	snapshot.Spec.VolumeSnapshotClassName = &snapshotClassName
 
 	if pvcName != "" {
 		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
@@ -1406,7 +1404,6 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	if err != nil {
 		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
 	}
-
 	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
 }
 

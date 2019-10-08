@@ -56,8 +56,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: classGold,
 		},
-		Driver:     mockDriverName,
-		Parameters: class1Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class1Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -66,8 +67,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: classSilver,
 		},
-		Driver:     mockDriverName,
-		Parameters: class2Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class2Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -76,8 +78,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: emptySecretClass,
 		},
-		Driver:     mockDriverName,
-		Parameters: class4Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class4Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -86,8 +89,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: invalidSecretClass,
 		},
-		Driver:     mockDriverName,
-		Parameters: class3Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class3Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -96,8 +100,9 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: validSecretClass,
 		},
-		Driver:     mockDriverName,
-		Parameters: class5Parameters,
+		Driver:         mockDriverName,
+		Parameters:     class5Parameters,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -107,7 +112,8 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Name:        defaultClass,
 			Annotations: map[string]string{IsDefaultSnapshotClassAnnotation: "true"},
 		},
-		Driver: mockDriverName,
+		Driver:         mockDriverName,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 }
 

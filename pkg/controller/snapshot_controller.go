@@ -157,9 +157,6 @@ func (ctrl *csiSnapshotController) syncContent(content *crdv1.VolumeSnapshotCont
 			ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotUnknownDeletionPolicy", "Volume Snapshot Content has unrecognized deletion policy")
 		}
 		return nil
-		// By default, we use Retain policy if it is not set by users
-		klog.V(4).Infof("VolumeSnapshotContent[%s]: by default the policy is Retain", content.Name)
-
 	}
 	return nil
 }
@@ -274,20 +271,35 @@ func (ctrl *csiSnapshotController) syncUnreadySnapshot(snapshot *crdv1.VolumeSna
 		}
 		return nil
 	} else { // snapshot.Source.Spec.VolumeSnapshotContentName == nil
+		// find a matching volume snapshot content
 		if contentObj := ctrl.getMatchSnapshotContent(snapshot); contentObj != nil {
 			klog.V(5).Infof("Find VolumeSnapshotContent object %s for snapshot %s", contentObj.Name, uniqueSnapshotName)
 			newSnapshot, err := ctrl.bindandUpdateVolumeSnapshot(contentObj, snapshot)
 			if err != nil {
 				return err
 			}
+			if err = ctrl.checkandUpdateBoundSnapshotStatus(newSnapshot, contentObj); err != nil {
+				return err
+			}
 			klog.V(5).Infof("bindandUpdateVolumeSnapshot %v", newSnapshot)
-			return nil
-		} else if snapshot.Status.Error == nil || isControllerUpdateFailError(snapshot.Status.Error) { // Try to create snapshot if no error status is set
+		} else if snapshot.Status.BoundVolumeSnapshotContentName != nil {
+			contentObj, found, err := ctrl.contentStore.GetByKey(*snapshot.Status.BoundVolumeSnapshotContentName)
+			if err != nil {
+				return err
+			}
+			if !found {
+				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
+				return fmt.Errorf("snapshot %s is bound to a non-existing content %s", uniqueSnapshotName, *snapshot.Status.BoundVolumeSnapshotContentName)
+			} else {
+				content, _ := contentObj.(*crdv1.VolumeSnapshotContent)
+				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "InvalidSnapshotBinding", fmt.Sprintf("Snapshot is bound to a VolumeSnapshotContent which is bound to other Snapshot"))
+				return fmt.Errorf("snapshot %s is bound, but VolumeSnapshotContent %s is not bound to the VolumeSnapshot correctly", uniqueSnapshotName, content.Name)
+			}
+		} else if snapshot.Status.Error == nil || isControllerUpdateFailError(snapshot.Status.Error) {
 			if err := ctrl.createSnapshot(snapshot); err != nil {
 				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot with error %v", err))
 				return err
 			}
-			return nil
 		}
 		return nil
 	}
@@ -524,7 +536,6 @@ func (ctrl *csiSnapshotController) checkandBindSnapshotContent(snapshot *crdv1.V
 
 func (ctrl *csiSnapshotController) getCreateSnapshotInput(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *v1.PersistentVolume, string, *v1.SecretReference, error) {
 	className := snapshot.Spec.VolumeSnapshotClassName
-	klog.V(5).Infof("getCreateSnapshotInput [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
 	var class *crdv1.VolumeSnapshotClass
 	var err error
 	if className != nil {
@@ -837,7 +848,6 @@ func (ctrl *csiSnapshotController) updateSnapshotContentStatus(
 		if err != nil {
 			return newControllerUpdateError(content.Name, err.Error())
 		}
-		return nil
 	}
 	return nil
 }
