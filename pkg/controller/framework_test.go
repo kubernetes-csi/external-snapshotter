@@ -875,7 +875,15 @@ func newClaimArray(name, claimUID, capacity, boundToVolume string, phase v1.Pers
 }
 
 // newVolume returns a new volume with given attributes
-func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, annotations ...string) *v1.PersistentVolume {
+func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, driver string, namespace string, annotations ...string) *v1.PersistentVolume {
+	inDriverName := mockDriverName
+	if driver != "" {
+		inDriverName = driver
+	}
+	inNamespace := testNamespace
+	if namespace != "" {
+		inNamespace = namespace
+	}
 	volume := v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -889,7 +897,7 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 			},
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				CSI: &v1.CSIPersistentVolumeSource{
-					Driver:       mockDriverName,
+					Driver:       inDriverName,
 					VolumeHandle: volumeHandle,
 				},
 			},
@@ -907,7 +915,7 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 			Kind:       "PersistentVolumeClaim",
 			APIVersion: "v1",
 			UID:        types.UID(boundToClaimUID),
-			Namespace:  testNamespace,
+			Namespace:  inNamespace,
 			Name:       boundToClaimName,
 		}
 	}
@@ -917,9 +925,9 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 
 // newVolumeArray returns array with a single volume that would be returned by
 // newVolume() with the same parameters.
-func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string) []*v1.PersistentVolume {
+func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, driver string, namespace string) []*v1.PersistentVolume {
 	return []*v1.PersistentVolume{
-		newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName, phase, reclaimPolicy, class),
+		newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName, phase, reclaimPolicy, class, driver, namespace),
 	}
 }
 
