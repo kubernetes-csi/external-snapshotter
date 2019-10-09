@@ -70,12 +70,12 @@ func TestSync(t *testing.T) {
 			initialSnapshots:  newSnapshotArray("snap2-3", validSecretClass, "content2-3", "snapuid2-3", "claim2-3", false, nil, metaTimeNow, nil),
 			expectedSnapshots: newSnapshotArray("snap2-3", validSecretClass, "content2-3", "snapuid2-3", "claim2-3", false, nil, metaTimeNow, nil),
 			initialClaims:     newClaimArray("claim2-3", "pvc-uid2-3", "1Gi", "volume2-3", v1.ClaimBound, &classEmpty),
-			initialVolumes:    newVolumeArray("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialVolumes:    newVolumeArray("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 			initialSecrets:    []*v1.Secret{secret()},
 			expectedCreateCalls: []createCall{
 				{
 					snapshotName: "snapshot-snapuid2-3",
-					volume:       newVolume("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					volume:       newVolume("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 					parameters:   class5Parameters,
 					secrets:      map[string]string{"foo": "bar"},
 					// information to return
@@ -105,12 +105,12 @@ func TestSync(t *testing.T) {
 			initialSnapshots:  newSnapshotArray("snap2-5", validSecretClass, "content2-5", "snapuid2-5", "claim2-5", false, nil, metaTimeNow, nil),
 			expectedSnapshots: newSnapshotArray("snap2-5", validSecretClass, "content2-5", "snapuid2-5", "claim2-5", true, nil, metaTimeNow, nil),
 			initialClaims:     newClaimArray("claim2-5", "pvc-uid2-5", "1Gi", "volume2-5", v1.ClaimBound, &classEmpty),
-			initialVolumes:    newVolumeArray("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialVolumes:    newVolumeArray("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 			initialSecrets:    []*v1.Secret{secret()},
 			expectedCreateCalls: []createCall{
 				{
 					snapshotName: "snapshot-snapuid2-5",
-					volume:       newVolume("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					volume:       newVolume("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 					parameters:   class5Parameters,
 					secrets:      map[string]string{"foo": "bar"},
 					// information to return
@@ -146,12 +146,12 @@ func TestSync(t *testing.T) {
 			expectedSnapshots: newSnapshotArray("snap2-7", validSecretClass, "content2-7", "snapuid2-7", "claim2-7", false, newVolumeError("Failed to check and update snapshot: mock create snapshot error"), metaTimeNow, nil),
 			expectedEvents:    []string{"Warning SnapshotCheckandUpdateFailed"},
 			initialClaims:     newClaimArray("claim2-7", "pvc-uid2-7", "1Gi", "volume2-7", v1.ClaimBound, &classEmpty),
-			initialVolumes:    newVolumeArray("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialVolumes:    newVolumeArray("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 			initialSecrets:    []*v1.Secret{secret()},
 			expectedCreateCalls: []createCall{
 				{
 					snapshotName: "snapshot-snapuid2-7",
-					volume:       newVolume("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					volume:       newVolume("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 					parameters:   class5Parameters,
 					secrets:      map[string]string{"foo": "bar"},
 					// information to return
@@ -169,12 +169,12 @@ func TestSync(t *testing.T) {
 			expectedSnapshots: newSnapshotArray("snap2-8", validSecretClass, "content2-8", "snapuid2-8", "claim2-8", false, newVolumeError("Failed to check and update snapshot: snapshot controller failed to update default/snap2-8 on API server: mock update error"), metaTimeNow, nil),
 			expectedEvents:    []string{"Warning SnapshotCheckandUpdateFailed"},
 			initialClaims:     newClaimArray("claim2-8", "pvc-uid2-8", "1Gi", "volume2-8", v1.ClaimBound, &classEmpty),
-			initialVolumes:    newVolumeArray("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialVolumes:    newVolumeArray("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 			initialSecrets:    []*v1.Secret{secret()},
 			expectedCreateCalls: []createCall{
 				{
 					snapshotName: "snapshot-snapuid2-8",
-					volume:       newVolume("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+					volume:       newVolume("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
 					parameters:   class5Parameters,
 					secrets:      map[string]string{"foo": "bar"},
 					// information to return
