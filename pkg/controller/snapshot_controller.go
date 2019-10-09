@@ -844,9 +844,38 @@ func (ctrl *csiSnapshotController) getVolumeFromVolumeSnapshot(snapshot *crdv1.V
 		return nil, fmt.Errorf("failed to retrieve PV %s from the API server: %q", pvName, err)
 	}
 
+	// Verify binding between PV/PVC is still valid
+	bound := ctrl.IsVolumeBoundToClaim(pv, pvc)
+	if bound == false {
+		glog.Warningf("binding between PV %s and PVC %s is broken", pvName, pvc.Name)
+		return nil, fmt.Errorf("claim in dataSource not bound or invalid")
+	}
+
+	// Verify driver for PVC is the same as driver for VolumeSnapshot
+	if pv.Spec.PersistentVolumeSource.CSI == nil || pv.Spec.PersistentVolumeSource.CSI.Driver != ctrl.snapshotterName {
+		glog.Warningf("driver for PV %s is different from driver %s for snapshot %s", pvName, ctrl.snapshotterName, snapshot.Name)
+		return nil, fmt.Errorf("claim in dataSource not bound or invalid")
+	}
+
 	glog.V(5).Infof("getVolumeFromVolumeSnapshot: snapshot [%s] PV name [%s]", snapshot.Name, pvName)
 
 	return pv, nil
+}
+
+// IsVolumeBoundToClaim returns true, if given volume is pre-bound or bound
+// to specific claim. Both claim.Name and claim.Namespace must be equal.
+// If claim.UID is present in volume.Spec.ClaimRef, it must be equal too.
+func (ctrl *csiSnapshotController) IsVolumeBoundToClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) bool {
+	if volume.Spec.ClaimRef == nil {
+		return false
+	}
+	if claim.Name != volume.Spec.ClaimRef.Name || claim.Namespace != volume.Spec.ClaimRef.Namespace {
+		return false
+	}
+	if volume.Spec.ClaimRef.UID != "" && claim.UID != volume.Spec.ClaimRef.UID {
+		return false
+	}
+	return true
 }
 
 func (ctrl *csiSnapshotController) getStorageClassFromVolumeSnapshot(snapshot *crdv1.VolumeSnapshot) (*storagev1.StorageClass, error) {
