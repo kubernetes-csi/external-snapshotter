@@ -997,6 +997,9 @@ main () {
         if tests_need_non_alpha_cluster; then
             start_cluster || die "starting the non-alpha cluster failed"
 
+            echo "deploying volume snapshot CRDs"
+            kubectl apply -f $(pwd)/deploy/kubernetes/crd
+
             # Installing the driver might be disabled.
             if install_hostpath "$images"; then
                 collect_cluster_info

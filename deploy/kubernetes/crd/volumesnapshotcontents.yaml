@@ -1,0 +1,139 @@
+
+---
+apiVersion: apiextensions.k8s.io/v1beta1
+kind: CustomResourceDefinition
+metadata:
+  creationTimestamp: null
+  name: volumesnapshotcontents.snapshot.storage.k8s.io
+spec:
+  group: snapshot.storage.k8s.io
+  names:
+    kind: VolumeSnapshotContent
+    plural: volumesnapshotcontents
+  scope: Cluster
+  validation:
+    openAPIV3Schema:
+      description: VolumeSnapshotContent represents the actual "on-disk" snapshot
+        object in the underlying storage system
+      properties:
+        apiVersion:
+          description: 'APIVersion defines the versioned schema of this representation
+            of an object. Servers should convert recognized schemas to the latest
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+          type: string
+        kind:
+          description: 'Kind is a string value representing the REST resource this
+            object represents. Servers may infer this from the endpoint the client
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+          type: string
+        metadata:
+          description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+          type: object
+        spec:
+          description: spec defines properties of a VolumeSnapshotContent created
+            by underlying storage system.
+          properties:
+            csi:
+              description: csi represents a volume snapshot created by a CSI(Container
+                Storage Interface) driver.
+              properties:
+                creationTime:
+                  description: creationTime is the timestamp when the point-in-time
+                    snapshot is taken by the underlying storage system. This timestamp
+                    is returned by the CSI driver after the snapshot is cut. The format
+                    of this field is a Unix nanoseconds time encoded as an int64.
+                    On Unix, the command `date +%s%N` returns the current time in
+                    nanoseconds (aka, epoch time) since 1970-01-01 00:00:00 UTC.
+                  format: int64
+                  type: integer
+                driver:
+                  description: driver is the name of the CSI driver used to create
+                    the physical snapshot on the underlying storage system. This MUST
+                    be the same name returned by the CSI GetPluginName() call for
+                    that driver. Required.
+                  type: string
+                restoreSize:
+                  description: restoreSize specifies the number of bytes that the
+                    snapshot's data would consume when restored to a volume. When
+                    restoring a volume from a snapshot, the volume size needs to be
+                    equal to or larger than the RestoreSize if it is specified.
+                  format: int64
+                  type: integer
+                snapshotHandle:
+                  description: snapshotHandle is the snapshot id returned by the CSI
+                    driver in the CreateSnapshotResponse and is used as the snapshot
+                    identifier for all subsequent CSI calls. Required.
+                  type: string
+              required:
+              - driver
+              - snapshotHandle
+              type: object
+            deletionPolicy:
+              description: deletionPolicy determines whether this VolumeSnapshotContent
+                and its bound physical snapshot on the underlying storage system should
+                be deleted when its VolumeSnapshot is deleted. Supported values are
+                "Retain" and "Delete". "Retain" means that the VolumeSnapshotContent
+                and its physical snapshot on underlying storage system are kept. "Delete"
+                means that the VolumeSnapshotContent and its physical snapshot on
+                underlying storage system are deleted. If not specified, the default
+                value is "Retain"
+              enum:
+              - Delete
+              - Retain
+              type: string
+            volumeSnapshotRef:
+              description: volumeSnapshotRef specifies the VolumeSnapshot object that
+                this VolumeSnapshotContent is bound with. The VolumeSnapshot.Spec.VolumeSnapshotContentName
+                field must reference this VolumeSnapshotContent name for the binding
+                to be considered valid(a.k.a bi-directional binding). If the referenced
+                VolumeSnapshot object does not exist(i.e., deleted by user), then
+                the VolumeSnapshotContent.Spec.DeletionPolicy is triggered.
+              properties:
+                apiVersion:
+                  description: API version of the referent.
+                  type: string
+                fieldPath:
+                  description: 'If referring to a piece of an object instead of an
+                    entire object, this string should contain a valid JSON/Go field
+                    access statement, such as desiredState.manifest.containers[2].
+                    For example, if the object reference is to a container within
+                    a pod, this would take on a value like: "spec.containers{name}"
+                    (where "name" refers to the name of the container that triggered
+                    the event) or if no container name is specified "spec.containers[2]"
+                    (container with index 2 in this pod). This syntax is chosen only
+                    to have some well-defined way of referencing a part of an object.
+                    TODO: this design is not final and this field is subject to change
+                    in the future.'
+                  type: string
+                kind:
+                  description: 'Kind of the referent. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+                  type: string
+                name:
+                  description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names'
+                  type: string
+                namespace:
+                  description: 'Namespace of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/'
+                  type: string
+                resourceVersion:
+                  description: 'Specific resourceVersion to which this reference is
+                    made, if any. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#concurrency-control-and-consistency'
+                  type: string
+                uid:
+                  description: 'UID of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#uids'
+                  type: string
+              type: object
+          type: object
+      required:
+      - spec
+      type: object
+  version: v1beta1
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
