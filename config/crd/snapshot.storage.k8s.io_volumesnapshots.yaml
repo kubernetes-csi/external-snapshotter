@@ -41,17 +41,18 @@ spec:
           properties:
             source:
               description: source specifies where a snapshot will be created from.
-                Required.
+                This field is immutable after creation. Required.
               properties:
                 persistentVolumeClaimName:
                   description: persistentVolumeClaimName specifies the name of the
                     PersistentVolumeClaim object in the same namespace as the VolumeSnapshot
-                    object where the snapshot should be dynamically taken from.
+                    object where the snapshot should be dynamically taken from. This
+                    field is immutable once specified.
                   type: string
                 volumeSnapshotContentName:
                   description: volumeSnapshotContentName specifies the name of a pre-existing
                     VolumeSnapshotContent object a user asks to statically bind the
-                    VolumeSnapshot object to.
+                    VolumeSnapshot object to. This field is immutable once specified.
                   type: string
               type: object
             volumeSnapshotClassName:
@@ -72,11 +73,14 @@ spec:
             is accurate and complete.'
           properties:
             boundVolumeSnapshotContentName:
-              description: boundVolumeSnapshotContentName represents the name of the
-                VolumeSnapshotContent object to which the VolumeSnapshot object is
-                bound. If not specified, it indicates that the VolumeSnapshot object
+              description: 'boundVolumeSnapshotContentName represents the name of
+                the VolumeSnapshotContent object to which the VolumeSnapshot object
+                is bound. If not specified, it indicates that the VolumeSnapshot object
                 has not been successfully bound to a VolumeSnapshotContent object
-                yet.
+                yet. NOTE: Specified boundVolumeSnapshotContentName alone does not
+                mean binding       is valid. Controllers MUST always verify bidirectional
+                binding between       VolumeSnapshot and VolumeSnapshotContent to
+                avoid possible security issues.'
               type: string
             creationTime:
               description: creationTime, if not nil, represents the timestamp when

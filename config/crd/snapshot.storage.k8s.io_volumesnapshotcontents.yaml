@@ -35,7 +35,7 @@ spec:
           type: object
         spec:
           description: spec defines properties of a VolumeSnapshotContent created
-            by the underlying storage system.
+            by the underlying storage system. Required.
           properties:
             deletionPolicy:
               allOf:
@@ -68,15 +68,17 @@ spec:
               type: string
             source:
               description: source specifies from where a snapshot will be created.
-                Required.
+                This field is immutable after creation. Required.
               properties:
                 snapshotHandle:
                   description: snapshotHandle specifies the CSI name of a pre-existing
-                    snapshot on the underlying storage system.
+                    snapshot on the underlying storage system. This field is immutable
+                    once specified.
                   type: string
                 volumeHandle:
                   description: volumeHandle specifies the CSI name of the volume from
-                    which a snapshot should be dynamically taken from.
+                    which a snapshot should be dynamically taken from. This field
+                    is immutable once specified.
                   type: string
               type: object
             volumeSnapshotRef:
@@ -85,7 +87,7 @@ spec:
                 field must reference to this VolumeSnapshotContent's name for the
                 bidirectional binding to be valid. For a pre-existing VolumeSnapshotContent
                 object, name and namespace of the VolumeSnapshot object MUST be provided
-                for binding to happen. Required.
+                for binding to happen. This field is immutable after creation. Required.
               properties:
                 apiVersion:
                   description: API version of the referent.
@@ -177,7 +179,6 @@ spec:
           type: object
       required:
       - spec
-      - status
       type: object
   version: v1beta1
   versions:

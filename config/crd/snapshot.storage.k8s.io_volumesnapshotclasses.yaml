@@ -42,7 +42,7 @@ spec:
           type: string
         driver:
           description: driver is the name of the storage driver that handles this
-            VolumeSnapshotClass.
+            VolumeSnapshotClass. Required.
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this

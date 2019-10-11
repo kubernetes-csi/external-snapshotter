@@ -196,11 +196,11 @@ func TestSync(t *testing.T) {
 			test: testSyncSnapshot,
 		},
 		{
-			name:              "2-9 - bind when snapshot and content matches, fail on status update as there is not pvc provided",
+			name:              "2-9 - fail on status update as there is not pvc provided",
 			initialContents:   newContentArray("content2-9", "snapuid2-9", "snap2-9", "sid2-9", validSecretClass, "", "", deletionPolicy, nil, nil, false),
 			expectedContents:  newContentArray("content2-9", "snapuid2-9", "snap2-9", "sid2-9", validSecretClass, "", "", deletionPolicy, nil, nil, false),
 			initialSnapshots:  newSnapshotArray("snap2-9", "snapuid2-9", "claim2-9", "", validSecretClass, "", &False, nil, nil, nil),
-			expectedSnapshots: newSnapshotArray("snap2-9", "snapuid2-9", "claim2-9", "", validSecretClass, "content2-9", &False, nil, nil, newVolumeError("Failed to check and update snapshot: failed to get input parameters to create snapshot snap2-9: \"failed to retrieve PVC claim2-9 from the lister: \\\"persistentvolumeclaim \\\\\\\"claim2-9\\\\\\\" not found\\\"\"")),
+			expectedSnapshots: newSnapshotArray("snap2-9", "snapuid2-9", "claim2-9", "", validSecretClass, "", &False, nil, nil, newVolumeError("Failed to check and update snapshot: failed to get input parameters to create snapshot snap2-9: \"failed to retrieve PVC claim2-9 from the lister: \\\"persistentvolumeclaim \\\\\\\"claim2-9\\\\\\\" not found\\\"\"")),
 			errors:            noerrors,
 			test:              testSyncSnapshot,
 		},
