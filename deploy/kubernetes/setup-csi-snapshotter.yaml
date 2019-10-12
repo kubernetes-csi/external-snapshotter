@@ -72,33 +72,32 @@ spec:
       serviceAccount: csi-snapshotter
       containers:
         - name: csi-provisioner
-          image: quay.io/k8scsi/csi-provisioner:v1.1.0
+          image: test-provisioner:beta #quay.io/k8scsi/csi-provisioner:v1.3.0
           args:
-            - "--provisioner=csi-hostpath"
+            - "--v=5" #- "--provisioner=csi-hostpath"
             - "--csi-address=$(ADDRESS)"
-            - "--connection-timeout=15s"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent #Always
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
-        - name: csi-snapshotter
-          image: quay.io/k8scsi/csi-snapshotter:v1.1.0
+        - name: sidecar-csi-snapshotter
+          image: sidecar-snapshotter:v1beta1 #quay.io/k8scsi/csi-snapshotter:v1.1.0
           args:
+            - "--v=5"
             - "--csi-address=$(ADDRESS)"
-            - "--connection-timeout=15s"
             - "--leader-election=false"
           env:
             - name: ADDRESS
               value: /csi/csi.sock
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent #Always
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
         - name: hostpath
-          image: quay.io/k8scsi/hostpathplugin:v1.1.0
+          image: hostpath:test #quay.io/k8scsi/hostpathplugin:v1.1.0
           args:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
@@ -111,7 +110,7 @@ spec:
                 fieldRef:
                   apiVersion: v1
                   fieldPath: spec.nodeName
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent #Always
           securityContext:
             privileged: true
           volumeMounts:
