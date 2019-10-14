@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
@@ -118,7 +119,7 @@ func TestCreateSnapshot(t *testing.T) {
 	type snapshotResult struct {
 		driverName string
 		snapshotId string
-		timestamp  int64
+		timestamp  time.Time
 		size       int64
 		readyToUse bool
 	}
@@ -127,7 +128,7 @@ func TestCreateSnapshot(t *testing.T) {
 		size:       1000,
 		driverName: driverName,
 		snapshotId: defaultID,
-		timestamp:  createTime.UnixNano(),
+		timestamp:  createTime,
 		readyToUse: true,
 	}
 
@@ -369,41 +370,56 @@ func TestGetSnapshotStatus(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		snapshotID     string
-		input          *csi.ListSnapshotsRequest
-		output         *csi.ListSnapshotsResponse
-		injectError    codes.Code
-		expectError    bool
-		expectReady    bool
-		expectCreateAt int64
-		expectSize     int64
+		name                   string
+		snapshotID             string
+		listSnapshotsSupported bool
+		input                  *csi.ListSnapshotsRequest
+		output                 *csi.ListSnapshotsResponse
+		injectError            codes.Code
+		expectError            bool
+		expectReady            bool
+		expectCreateAt         time.Time
+		expectSize             int64
 	}{
 		{
-			name:           "success",
-			snapshotID:     defaultID,
-			input:          defaultRequest,
-			output:         defaultResponse,
-			expectError:    false,
-			expectReady:    true,
-			expectCreateAt: createTime.UnixNano(),
-			expectSize:     size,
+			name:                   "success",
+			snapshotID:             defaultID,
+			listSnapshotsSupported: true,
+			input:                  defaultRequest,
+			output:                 defaultResponse,
+			expectError:            false,
+			expectReady:            true,
+			expectCreateAt:         createTime,
+			expectSize:             size,
 		},
 		{
-			name:        "gRPC transient error",
-			snapshotID:  defaultID,
-			input:       defaultRequest,
-			output:      nil,
-			injectError: codes.DeadlineExceeded,
-			expectError: true,
+			name:                   "ListSnapshots not supported",
+			snapshotID:             defaultID,
+			listSnapshotsSupported: false,
+			input:                  defaultRequest,
+			output:                 defaultResponse,
+			expectError:            false,
+			expectReady:            true,
+			expectCreateAt:         time.Time{},
+			expectSize:             0,
 		},
 		{
-			name:        "gRPC final error",
-			snapshotID:  defaultID,
-			input:       defaultRequest,
-			output:      nil,
-			injectError: codes.NotFound,
-			expectError: true,
+			name:                   "gRPC transient error",
+			snapshotID:             defaultID,
+			listSnapshotsSupported: true,
+			input:                  defaultRequest,
+			output:                 nil,
+			injectError:            codes.DeadlineExceeded,
+			expectError:            true,
+		},
+		{
+			name:                   "gRPC final error",
+			snapshotID:             defaultID,
+			listSnapshotsSupported: true,
+			input:                  defaultRequest,
+			output:                 nil,
+			injectError:            codes.NotFound,
+			expectError:            true,
 		},
 	}
 
@@ -424,8 +440,25 @@ func TestGetSnapshotStatus(t *testing.T) {
 		}
 
 		// Setup expectation
+		listSnapshotsCap := &csi.ControllerServiceCapability{
+			Type: &csi.ControllerServiceCapability_Rpc{
+				Rpc: &csi.ControllerServiceCapability_RPC{
+					Type: csi.ControllerServiceCapability_RPC_LIST_SNAPSHOTS,
+				},
+			},
+		}
+
+		var controllerCapabilities []*csi.ControllerServiceCapability
+		if test.listSnapshotsSupported {
+			controllerCapabilities = append(controllerCapabilities, listSnapshotsCap)
+		}
 		if in != nil {
-			controllerServer.EXPECT().ListSnapshots(gomock.Any(), in).Return(out, injectedErr).Times(1)
+			controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), gomock.Any()).Return(&csi.ControllerGetCapabilitiesResponse{
+				Capabilities: controllerCapabilities,
+			}, nil).Times(1)
+			if test.listSnapshotsSupported {
+				controllerServer.EXPECT().ListSnapshots(gomock.Any(), in).Return(out, injectedErr).Times(1)
+			}
 		}
 
 		s := NewSnapshotter(csiConn)

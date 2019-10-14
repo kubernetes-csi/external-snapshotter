@@ -38,8 +38,12 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 				Plural: crdv1.VolumeSnapshotClassResourcePlural,
 				Kind:   reflect.TypeOf(crdv1.VolumeSnapshotClass{}).Name(),
 			},
+			Subresources: &apiextensionsv1beta1.CustomResourceSubresources{
+				Status: &apiextensionsv1beta1.CustomResourceSubresourceStatus{},
+			},
 		},
 	}
+
 	res, err := clientset.ApiextensionsV1beta1().CustomResourceDefinitions().Create(crd)
 
 	if err != nil && !apierrors.IsAlreadyExists(err) {
@@ -79,6 +83,9 @@ func CreateCRD(clientset apiextensionsclient.Interface) error {
 			Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
 				Plural: crdv1.VolumeSnapshotResourcePlural,
 				Kind:   reflect.TypeOf(crdv1.VolumeSnapshot{}).Name(),
+			},
+			Subresources: &apiextensionsv1beta1.CustomResourceSubresources{
+				Status: &apiextensionsv1beta1.CustomResourceSubresourceStatus{},
 			},
 		},
 	}
