@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	sysruntime "runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -53,6 +54,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
+	"k8s.io/kubernetes/pkg/util/slice"
 )
 
 // This is a unit test framework for snapshot controller.
@@ -110,7 +112,8 @@ type controllerTest struct {
 	// List of expected CSI list snapshot calls
 	expectedListCalls []listCall
 	// Function to call as the test.
-	test testCall
+	test          testCall
+	expectSuccess bool
 }
 
 type testCall func(ctrl *csiSnapshotController, reactor *snapshotReactor, test controllerTest) error
@@ -175,6 +178,11 @@ func withSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) *crdv1.VolumeSnapshot
 func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
 	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
 	return content
+}
+
+func withPVCFinalizer(pvc *v1.PersistentVolumeClaim) *v1.PersistentVolumeClaim {
+	pvc.ObjectMeta.Finalizers = append(pvc.ObjectMeta.Finalizers, PVCFinalizer)
+	return pvc
 }
 
 // React is a callback called by fake kubeClient from the controller.
@@ -330,6 +338,32 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		}
 		klog.V(4).Infof("GetClaim: claim %s not found", name)
 		return true, nil, fmt.Errorf("cannot find claim %s", name)
+
+	case action.Matches("update", "persistentvolumeclaims"):
+		obj := action.(core.UpdateAction).GetObject()
+		claim := obj.(*v1.PersistentVolumeClaim)
+
+		// Check and bump object version
+		storedClaim, found := r.claims[claim.Name]
+		if found {
+			storedVer, _ := strconv.Atoi(storedClaim.ResourceVersion)
+			requestedVer, _ := strconv.Atoi(claim.ResourceVersion)
+			if storedVer != requestedVer {
+				return true, obj, errVersionConflict
+			}
+			// Don't modify the existing object
+			claim = claim.DeepCopy()
+			claim.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update claim %s: claim not found", claim.Name)
+		}
+
+		// Store the updated object to appropriate places.
+		r.claims[claim.Name] = claim
+		r.changedObjects = append(r.changedObjects, claim)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated claim %s", claim.Name)
+		return true, claim, nil
 
 	case action.Matches("get", "storageclasses"):
 		name := action.(core.GetAction).GetName()
@@ -550,6 +584,9 @@ func (r *snapshotReactor) syncAll() {
 	for _, v := range r.contents {
 		r.changedObjects = append(r.changedObjects, v)
 	}
+	for _, pvc := range r.claims {
+		r.changedObjects = append(r.changedObjects, pvc)
+	}
 	r.changedSinceLastSync = 0
 }
 
@@ -699,6 +736,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshots", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
+	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
 	kubeClient.AddReactor("get", "storageclasses", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
@@ -728,9 +766,9 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		clientset,
 		kubeClient,
 		mockDriverName,
-		informerFactory.Volumesnapshot().V1alpha1().VolumeSnapshots(),
-		informerFactory.Volumesnapshot().V1alpha1().VolumeSnapshotContents(),
-		informerFactory.Volumesnapshot().V1alpha1().VolumeSnapshotClasses(),
+		informerFactory.Snapshot().V1alpha1().VolumeSnapshots(),
+		informerFactory.Snapshot().V1alpha1().VolumeSnapshotContents(),
+		informerFactory.Snapshot().V1alpha1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		3,
 		5*time.Millisecond,
@@ -746,6 +784,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	ctrl.contentListerSynced = alwaysReady
 	ctrl.snapshotListerSynced = alwaysReady
 	ctrl.classListerSynced = alwaysReady
+	ctrl.pvcListerSynced = alwaysReady
 
 	return ctrl, nil
 }
@@ -845,7 +884,7 @@ func newSnapshotArray(name, className, boundToContent, snapshotUID, claimName st
 }
 
 // newClaim returns a new claim with given attributes
-func newClaim(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string) *v1.PersistentVolumeClaim {
+func newClaim(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string, bFinalizer bool) *v1.PersistentVolumeClaim {
 	claim := v1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -877,6 +916,9 @@ func newClaim(name, claimUID, capacity, boundToVolume string, phase v1.Persisten
 		claim.Status.Capacity = claim.Spec.Resources.Requests
 	}
 
+	if bFinalizer {
+		return withPVCFinalizer(&claim)
+	}
 	return &claim
 }
 
@@ -884,12 +926,28 @@ func newClaim(name, claimUID, capacity, boundToVolume string, phase v1.Persisten
 // newClaim() with the same parameters.
 func newClaimArray(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string) []*v1.PersistentVolumeClaim {
 	return []*v1.PersistentVolumeClaim{
-		newClaim(name, claimUID, capacity, boundToVolume, phase, class),
+		newClaim(name, claimUID, capacity, boundToVolume, phase, class, false),
+	}
+}
+
+// newClaimArrayFinalizer returns array with a single claim that would be returned by
+// newClaim() with the same parameters plus finalizer.
+func newClaimArrayFinalizer(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string) []*v1.PersistentVolumeClaim {
+	return []*v1.PersistentVolumeClaim{
+		newClaim(name, claimUID, capacity, boundToVolume, phase, class, true),
 	}
 }
 
 // newVolume returns a new volume with given attributes
-func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, annotations ...string) *v1.PersistentVolume {
+func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, driver string, namespace string, annotations ...string) *v1.PersistentVolume {
+	inDriverName := mockDriverName
+	if driver != "" {
+		inDriverName = driver
+	}
+	inNamespace := testNamespace
+	if namespace != "" {
+		inNamespace = namespace
+	}
 	volume := v1.PersistentVolume{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            name,
@@ -903,7 +961,7 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 			},
 			PersistentVolumeSource: v1.PersistentVolumeSource{
 				CSI: &v1.CSIPersistentVolumeSource{
-					Driver:       mockDriverName,
+					Driver:       inDriverName,
 					VolumeHandle: volumeHandle,
 				},
 			},
@@ -921,7 +979,7 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 			Kind:       "PersistentVolumeClaim",
 			APIVersion: "v1",
 			UID:        types.UID(boundToClaimUID),
-			Namespace:  testNamespace,
+			Namespace:  inNamespace,
 			Name:       boundToClaimName,
 		}
 	}
@@ -931,9 +989,9 @@ func newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundTo
 
 // newVolumeArray returns array with a single volume that would be returned by
 // newVolume() with the same parameters.
-func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string) []*v1.PersistentVolume {
+func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string, driver string, namespace string) []*v1.PersistentVolume {
 	return []*v1.PersistentVolume{
-		newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName, phase, reclaimPolicy, class),
+		newVolume(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName, phase, reclaimPolicy, class, driver, namespace),
 	}
 }
 
@@ -959,6 +1017,14 @@ func testSyncSnapshotError(ctrl *csiSnapshotController, reactor *snapshotReactor
 
 func testSyncContent(ctrl *csiSnapshotController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.syncContent(test.initialContents[0])
+}
+
+func testAddPVCFinalizer(ctrl *csiSnapshotController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.ensureSnapshotSourceFinalizer(test.initialSnapshots[0])
+}
+
+func testRemovePVCFinalizer(ctrl *csiSnapshotController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.checkandRemoveSnapshotSourceFinalizer(test.initialSnapshots[0])
 }
 
 var (
@@ -1097,6 +1163,113 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 	}
 }
 
+// This tests ensureSnapshotSourceFinalizer and checkandRemoveSnapshotSourceFinalizer
+func runPVCFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
+	snapshotscheme.AddToScheme(scheme.Scheme)
+	for _, test := range tests {
+		klog.V(4).Infof("starting test %q", test.name)
+
+		// Initialize the controller
+		kubeClient := &kubefake.Clientset{}
+		client := &fake.Clientset{}
+
+		ctrl, err := newTestController(kubeClient, client, nil, t, test)
+		if err != nil {
+			t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
+		}
+
+		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+		for _, snapshot := range test.initialSnapshots {
+			ctrl.snapshotStore.Add(snapshot)
+			reactor.snapshots[snapshot.Name] = snapshot
+		}
+		for _, content := range test.initialContents {
+			if ctrl.isDriverMatch(test.initialContents[0]) {
+				ctrl.contentStore.Add(content)
+				reactor.contents[content.Name] = content
+			}
+		}
+
+		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		for _, claim := range test.initialClaims {
+			reactor.claims[claim.Name] = claim
+			pvcIndexer.Add(claim)
+		}
+		ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
+
+		for _, volume := range test.initialVolumes {
+			reactor.volumes[volume.Name] = volume
+		}
+		for _, storageClass := range test.initialStorageClasses {
+			reactor.storageClasses[storageClass.Name] = storageClass
+		}
+		for _, secret := range test.initialSecrets {
+			reactor.secrets[secret.Name] = secret
+		}
+
+		// Inject classes into controller via a custom lister.
+		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		for _, class := range snapshotClasses {
+			indexer.Add(class)
+		}
+		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+
+		// Run the tested functions
+		err = test.test(ctrl, reactor, test)
+		if err != nil {
+			t.Errorf("Test %q failed: %v", test.name, err)
+		}
+
+		// Verify PVCFinalizer tests results
+		evaluatePVCFinalizerTests(ctrl, reactor, test, t)
+	}
+}
+
+// Evaluate PVCFinalizer tests results
+func evaluatePVCFinalizerTests(ctrl *csiSnapshotController, reactor *snapshotReactor, test controllerTest, t *testing.T) {
+	// Evaluate results
+	bHasPVCFinalizer := false
+	name := sysruntime.FuncForPC(reflect.ValueOf(test.test).Pointer()).Name()
+	index := strings.LastIndex(name, ".")
+	if index == -1 {
+		t.Errorf("Test %q: failed to test finalizer - invalid test call name [%s]", test.name, name)
+		return
+	}
+	names := []rune(name)
+	funcName := string(names[index+1 : len(name)])
+	klog.V(4).Infof("test %q: PVCFinalizer test func name: [%s]", test.name, funcName)
+
+	if funcName == "testAddPVCFinalizer" {
+		for _, pvc := range reactor.claims {
+			if test.initialClaims[0].Name == pvc.Name {
+				if !slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, PVCFinalizer, nil) && slice.ContainsString(pvc.ObjectMeta.Finalizers, PVCFinalizer, nil) {
+					klog.V(4).Infof("test %q succeeded. PVCFinalizer is added to PVC %s", test.name, pvc.Name)
+					bHasPVCFinalizer = true
+				}
+				break
+			}
+		}
+		if test.expectSuccess && !bHasPVCFinalizer {
+			t.Errorf("Test %q: failed to add finalizer to PVC %s", test.name, test.initialClaims[0].Name)
+		}
+	}
+	bHasPVCFinalizer = true
+	if funcName == "testRemovePVCFinalizer" {
+		for _, pvc := range reactor.claims {
+			if test.initialClaims[0].Name == pvc.Name {
+				if slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, PVCFinalizer, nil) && !slice.ContainsString(pvc.ObjectMeta.Finalizers, PVCFinalizer, nil) {
+					klog.V(4).Infof("test %q succeeded. PVCFinalizer is removed from PVC %s", test.name, pvc.Name)
+					bHasPVCFinalizer = false
+				}
+				break
+			}
+		}
+		if test.expectSuccess && bHasPVCFinalizer {
+			t.Errorf("Test %q: failed to remove finalizer from PVC %s", test.name, test.initialClaims[0].Name)
+		}
+	}
+}
+
 func getSize(size int64) *resource.Quantity {
 	return resource.NewQuantity(size, resource.BinarySI)
 }
@@ -1126,7 +1299,7 @@ type listCall struct {
 	snapshotID string
 	// information to return
 	readyToUse bool
-	createTime int64
+	createTime time.Time
 	size       int64
 	err        error
 }
@@ -1144,12 +1317,12 @@ type createCall struct {
 	parameters   map[string]string
 	secrets      map[string]string
 	// information to return
-	driverName string
-	snapshotId string
-	timestamp  int64
-	size       int64
-	readyToUse bool
-	err        error
+	driverName   string
+	snapshotId   string
+	creationTime time.Time
+	size         int64
+	readyToUse   bool
+	err          error
 }
 
 // Fake SnapShotter implementation that check that Attach/Detach is called
@@ -1164,10 +1337,10 @@ type fakeSnapshotter struct {
 	t                 *testing.T
 }
 
-func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, int64, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
-		return "", "", 0, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
 	}
 	call := f.createCalls[f.createCallCounter]
 	f.createCallCounter++
@@ -1194,10 +1367,10 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	}
 
 	if err != nil {
-		return "", "", 0, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
 	}
 
-	return call.driverName, call.snapshotId, call.timestamp, call.size, call.readyToUse, call.err
+	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
 }
 
 func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
@@ -1226,10 +1399,10 @@ func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string,
 	return call.err
 }
 
-func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, int64, int64, error) {
+func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return false, 0, 0, fmt.Errorf("unexpected call")
+		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
 	}
 	call := f.listCalls[f.listCallCounter]
 	f.listCallCounter++
@@ -1241,7 +1414,7 @@ func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID stri
 	}
 
 	if err != nil {
-		return false, 0, 0, fmt.Errorf("unexpected call")
+		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
 	}
 
 	return call.readyToUse, call.createTime, call.size, call.err

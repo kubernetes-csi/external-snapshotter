@@ -62,7 +62,6 @@
     "ptypes",
     "ptypes/any",
     "ptypes/duration",
-    "ptypes/timestamp",
     "ptypes/wrappers",
   ]
   pruneopts = "NUT"
@@ -754,7 +753,6 @@
     "github.com/container-storage-interface/spec/lib/go/csi",
     "github.com/golang/mock/gomock",
     "github.com/golang/protobuf/ptypes",
-    "github.com/golang/protobuf/ptypes/timestamp",
     "github.com/kubernetes-csi/csi-lib-utils/connection",
     "github.com/kubernetes-csi/csi-lib-utils/leaderelection",
     "github.com/kubernetes-csi/csi-lib-utils/rpc",

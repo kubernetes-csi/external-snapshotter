@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
-	volumesnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/typed/volumesnapshot/v1alpha1"
-	fakevolumesnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/typed/volumesnapshot/v1alpha1/fake"
+	snapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/typed/volumesnapshot/v1alpha1"
+	fakesnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/typed/volumesnapshot/v1alpha1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -71,12 +71,7 @@ func (c *Clientset) Discovery() discovery.DiscoveryInterface {
 
 var _ clientset.Interface = &Clientset{}
 
-// VolumesnapshotV1alpha1 retrieves the VolumesnapshotV1alpha1Client
-func (c *Clientset) VolumesnapshotV1alpha1() volumesnapshotv1alpha1.VolumesnapshotV1alpha1Interface {
-	return &fakevolumesnapshotv1alpha1.FakeVolumesnapshotV1alpha1{Fake: &c.Fake}
-}
-
-// Volumesnapshot retrieves the VolumesnapshotV1alpha1Client
-func (c *Clientset) Volumesnapshot() volumesnapshotv1alpha1.VolumesnapshotV1alpha1Interface {
-	return &fakevolumesnapshotv1alpha1.FakeVolumesnapshotV1alpha1{Fake: &c.Fake}
+// SnapshotV1alpha1 retrieves the SnapshotV1alpha1Client
+func (c *Clientset) SnapshotV1alpha1() snapshotv1alpha1.SnapshotV1alpha1Interface {
+	return &fakesnapshotv1alpha1.FakeSnapshotV1alpha1{Fake: &c.Fake}
 }

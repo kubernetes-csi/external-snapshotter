@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -172,9 +172,9 @@ type SharedInformerFactory interface {
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)
 	WaitForCacheSync(stopCh <-chan struct{}) map[reflect.Type]bool
 
-	Volumesnapshot() volumesnapshot.Interface
+	Snapshot() volumesnapshot.Interface
 }
 
-func (f *sharedInformerFactory) Volumesnapshot() volumesnapshot.Interface {
+func (f *sharedInformerFactory) Snapshot() volumesnapshot.Interface {
 	return volumesnapshot.New(f, f.namespace, f.tweakListOptions)
 }

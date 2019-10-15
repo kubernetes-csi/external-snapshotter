@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -61,13 +61,13 @@ func NewFilteredVolumeSnapshotInformer(client versioned.Interface, namespace str
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.VolumesnapshotV1alpha1().VolumeSnapshots(namespace).List(options)
+				return client.SnapshotV1alpha1().VolumeSnapshots(namespace).List(options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.VolumesnapshotV1alpha1().VolumeSnapshots(namespace).Watch(options)
+				return client.SnapshotV1alpha1().VolumeSnapshots(namespace).Watch(options)
 			},
 		},
 		&volumesnapshotv1alpha1.VolumeSnapshot{},

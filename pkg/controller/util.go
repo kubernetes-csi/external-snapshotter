@@ -75,6 +75,9 @@ var snapshotterSecretParams = deprecatedSecretParamsMap{
 	secretNamespaceKey:           prefixedSnapshotterSecretNamespaceKey,
 }
 
+// Name of finalizer on PVCs that have been used as a source to create VolumeSnapshots
+const PVCFinalizer = "snapshot.storage.kubernetes.io/pvc-protection"
+
 func snapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
 }
