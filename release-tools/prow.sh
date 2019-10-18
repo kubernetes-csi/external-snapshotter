@@ -183,8 +183,11 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #
 # When no deploy script is found (nothing in `deploy` directory,
 # CSI_PROW_HOSTPATH_REPO=none), nothing gets deployed.
-configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0-rc2" "hostpath driver"
-configvar CSI_PROW_HOSTPATH_REPO https://github.com/kubernetes-csi/csi-driver-host-path "hostpath repo"
+
+configvar CSI_PROW_HOSTPATH_VERSION "skip_snapshotter_alpha_rc8" "hostpath driver"
+configvar CSI_PROW_HOSTPATH_REPO https://github.com/ggriffiths/csi-driver-host-path "hostpath repo"
+#configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0-rc8" "hostpath driver"
+#configvar CSI_PROW_HOSTPATH_REPO https://github.com/kubernetes-csi/csi-driver-host-path "hostpath repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
 configvar CSI_PROW_HOSTPATH_DRIVER_NAME "hostpath.csi.k8s.io" "the hostpath driver name"
 
@@ -242,7 +245,8 @@ configvar CSI_PROW_DEP_VERSION v0.5.1 "golang dep version to be used for vendor 
 # thus only makes sense in repos which provide their own CSI
 # driver. Repos can enable sanity testing by setting
 # CSI_PROW_TESTS_SANITY=sanity.
-configvar CSI_PROW_TESTS "unit parallel serial parallel-alpha serial-alpha sanity" "tests to run"
+#configvar CSI_PROW_TESTS "unit parallel serial parallel-alpha serial-alpha sanity" "tests to run"
+configvar CSI_PROW_TESTS "unit parallel serial sanity" "tests to run"
 tests_enabled () {
     local t1 t2
     # We want word-splitting here, so ignore: Quote to prevent word splitting, or split robustly with mapfile or read -a.
