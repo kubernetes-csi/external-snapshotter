@@ -14,21 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package common_controller
 
 import (
 	"testing"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
 	"k8s.io/client-go/tools/cache"
 )
 
 var deletionPolicy = crdv1.VolumeSnapshotContentDelete
 
 func storeVersion(t *testing.T, prefix string, c cache.Store, version string, expectedReturn bool) {
-	content := newContent("contentName", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "pv-handle-1-1", deletionPolicy, nil, nil, false)
+	content := newContent("contentName", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "pv-handle-1-1", deletionPolicy, nil, nil, false, true)
 	content.ResourceVersion = version
-	ret, err := storeObjectUpdate(c, content, "content")
+	ret, err := utils.StoreObjectUpdate(c, content, "content")
 	if err != nil {
 		t.Errorf("%s: expected storeObjectUpdate to succeed, got: %v", prefix, err)
 	}
@@ -84,9 +85,9 @@ func TestControllerCacheParsingError(t *testing.T) {
 	c := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 	// There must be something in the cache to compare with
 	storeVersion(t, "Step1", c, "1", true)
-	content := newContent("contentName", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "pv-handle-1-1", deletionPolicy, nil, nil, false)
+	content := newContent("contentName", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "pv-handle-1-1", deletionPolicy, nil, nil, false, true)
 	content.ResourceVersion = "xxx"
-	_, err := storeObjectUpdate(c, content, "content")
+	_, err := utils.StoreObjectUpdate(c, content, "content")
 	if err == nil {
 		t.Errorf("Expected parsing error, got nil instead")
 	}

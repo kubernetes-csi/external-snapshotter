@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package utils
 
 import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
@@ -37,11 +37,11 @@ func TestGetSecretReference(t *testing.T) {
 			expectRef: nil,
 		},
 		"empty err": {
-			params:    map[string]string{snapshotterSecretNameKey: "", snapshotterSecretNamespaceKey: ""},
+			params:    map[string]string{SnapshotterSecretNameKey: "", SnapshotterSecretNamespaceKey: ""},
 			expectErr: true,
 		},
 		"[deprecated] name, no namespace": {
-			params:    map[string]string{snapshotterSecretNameKey: "foo"},
+			params:    map[string]string{SnapshotterSecretNameKey: "foo"},
 			expectErr: true,
 		},
 		"namespace, no name": {
@@ -54,7 +54,7 @@ func TestGetSecretReference(t *testing.T) {
 			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
 		},
 		"[deprecated] simple - valid, no pvc": {
-			params:    map[string]string{snapshotterSecretNameKey: "name", snapshotterSecretNamespaceKey: "ns"},
+			params:    map[string]string{SnapshotterSecretNameKey: "name", SnapshotterSecretNamespaceKey: "ns"},
 			snapshot:  nil,
 			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
 		},
@@ -65,7 +65,25 @@ func TestGetSecretReference(t *testing.T) {
 			expectErr: true,
 		},
 		"[deprecated] simple - invalid namespace": {
-			params:    map[string]string{snapshotterSecretNameKey: "name", snapshotterSecretNamespaceKey: "bad ns"},
+			params:    map[string]string{SnapshotterSecretNameKey: "name", SnapshotterSecretNamespaceKey: "bad ns"},
+			snapshot:  &crdv1.VolumeSnapshot{},
+			expectRef: nil,
+			expectErr: true,
+		},
+		"template - invalid namespace tokens": {
+			params: map[string]string{
+				SnapshotterSecretNameKey:      "myname",
+				SnapshotterSecretNamespaceKey: "mynamespace${bar}",
+			},
+			snapshot:  &crdv1.VolumeSnapshot{},
+			expectRef: nil,
+			expectErr: true,
+		},
+		"template - invalid name tokens": {
+			params: map[string]string{
+				SnapshotterSecretNameKey:      "myname${foo}",
+				SnapshotterSecretNamespaceKey: "mynamespace",
+			},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: nil,
 			expectErr: true,
@@ -86,29 +104,11 @@ func TestGetSecretReference(t *testing.T) {
 			expectRef: nil,
 			expectErr: true,
 		},
-		"template - invalid namespace tokens": {
-			params: map[string]string{
-				snapshotterSecretNameKey:      "myname",
-				snapshotterSecretNamespaceKey: "mynamespace${bar}",
-			},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: nil,
-			expectErr: true,
-		},
-		"template - invalid name tokens": {
-			params: map[string]string{
-				snapshotterSecretNameKey:      "myname${foo}",
-				snapshotterSecretNamespaceKey: "mynamespace",
-			},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: nil,
-			expectErr: true,
-		},
 	}
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			ref, err := getSecretReference(tc.params, tc.snapContentName, tc.snapshot)
+			ref, err := GetSecretReference(tc.params, tc.snapContentName, tc.snapshot)
 			if err != nil {
 				if tc.expectErr {
 					return
@@ -155,12 +155,12 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 		{
 			name: "all known deprecated params not stripped",
 			params: map[string]string{
-				snapshotterSecretNameKey:      "csiBar",
-				snapshotterSecretNamespaceKey: "csiBar",
+				SnapshotterSecretNameKey:      "csiBar",
+				SnapshotterSecretNamespaceKey: "csiBar",
 			},
 			expectedParams: map[string]string{
-				snapshotterSecretNameKey:      "csiBar",
-				snapshotterSecretNamespaceKey: "csiBar",
+				SnapshotterSecretNameKey:      "csiBar",
+				SnapshotterSecretNamespaceKey: "csiBar",
 			},
 		},
 		{
@@ -176,7 +176,7 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 	}
 	for _, tc := range testcases {
 		t.Logf("test: %v", tc.name)
-		newParams, err := removePrefixedParameters(tc.params)
+		newParams, err := RemovePrefixedParameters(tc.params)
 		if err != nil {
 			if tc.expectErr {
 				continue

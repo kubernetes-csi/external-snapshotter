@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"time"
 
 	"google.golang.org/grpc"
@@ -34,11 +33,9 @@ import (
 	"k8s.io/klog"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
-	controller "github.com/kubernetes-csi/external-snapshotter/pkg/sidecar-controller"
-	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
+	controller "github.com/kubernetes-csi/external-snapshotter/pkg/common-controller"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/scheme"
@@ -49,20 +46,15 @@ import (
 const (
 	// Number of worker threads
 	threads = 10
-
-	// Default timeout of short CSI calls like GetPluginInfo
-	defaultCSITimeout = time.Minute
 )
 
 // Command line flags
 var (
-	kubeconfig             = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
-	csiAddress             = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
-	resyncPeriod           = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
-	snapshotNamePrefix     = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
-	snapshotNameUUIDLength = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
-	showVersion            = flag.Bool("version", false, "Show version.")
-	csiTimeout             = flag.Duration("timeout", defaultCSITimeout, "The timeout for any RPCs to the CSI driver. Default is 1 minute.")
+	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
+	createSnapshotContentRetryCount = flag.Int("create-snapshotcontent-retrycount", 5, "Number of retries when we create a snapshot content object for a snapshot.")
+	createSnapshotContentInterval   = flag.Duration("create-snapshotcontent-interval", 10*time.Second, "Interval between retries when we create a snapshot content object for a snapshot.")
+	resyncPeriod                    = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
+	showVersion                     = flag.Bool("version", false, "Show version.")
 
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
@@ -70,7 +62,6 @@ var (
 
 var (
 	version = "unknown"
-	prefix  = "external-snapshotter-leader"
 )
 
 func main() {
@@ -109,62 +100,18 @@ func main() {
 	// Add Snapshot types to the defualt Kubernetes so events can be logged for them
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
-	// Connect to CSI.
-	csiConn, err := connection.Connect(*csiAddress, connection.OnConnectionLoss(connection.ExitOnConnectionLoss()))
-	if err != nil {
-		klog.Errorf("error connecting to CSI driver: %v", err)
-		os.Exit(1)
-	}
+	klog.V(2).Infof("Start NewCSISnapshotController with kubeconfig [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%d] resyncPeriod [%+v]", *kubeconfig, *createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod)
 
-	// Pass a context with a timeout
-	ctx, cancel := context.WithTimeout(context.Background(), *csiTimeout)
-	defer cancel()
-
-	// Find driver name
-	driverName, err := csirpc.GetDriverName(ctx, csiConn)
-	if err != nil {
-		klog.Errorf("error getting CSI driver name: %v", err)
-		os.Exit(1)
-	}
-
-	klog.V(2).Infof("CSI driver name: %q", driverName)
-
-	// Check it's ready
-	if err = csirpc.ProbeForever(csiConn, *csiTimeout); err != nil {
-		klog.Errorf("error waiting for CSI driver to be ready: %v", err)
-		os.Exit(1)
-	}
-
-	// Find out if the driver supports create/delete snapshot.
-	supportsCreateSnapshot, err := supportsControllerCreateSnapshot(ctx, csiConn)
-	if err != nil {
-		klog.Errorf("error determining if driver supports create/delete snapshot operations: %v", err)
-		os.Exit(1)
-	}
-	if !supportsCreateSnapshot {
-		klog.Errorf("CSI driver %s does not support ControllerCreateSnapshot", driverName)
-		os.Exit(1)
-	}
-
-	if len(*snapshotNamePrefix) == 0 {
-		klog.Error("Snapshot name prefix cannot be of length 0")
-		os.Exit(1)
-	}
-
-	klog.V(2).Infof("Start NewCSISnapshotSideCarController with snapshotter [%s] kubeconfig [%s] csiTimeout [%+v] csiAddress [%s] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", driverName, *kubeconfig, *csiTimeout, *csiAddress, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
-
-	snapShotter := snapshotter.NewSnapshotter(csiConn)
-	ctrl := controller.NewCSISnapshotSideCarController(
+	ctrl := controller.NewCSISnapshotCommonController(
 		snapClient,
 		kubeClient,
-		driverName,
+		factory.Snapshot().V1beta1().VolumeSnapshots(),
 		factory.Snapshot().V1beta1().VolumeSnapshotContents(),
 		factory.Snapshot().V1beta1().VolumeSnapshotClasses(),
-		snapShotter,
-		*csiTimeout,
+		coreFactory.Core().V1().PersistentVolumeClaims(),
+		*createSnapshotContentRetryCount,
+		*createSnapshotContentInterval,
 		*resyncPeriod,
-		*snapshotNamePrefix,
-		*snapshotNameUUIDLength,
 	)
 
 	run := func(context.Context) {
@@ -184,7 +131,7 @@ func main() {
 	if !*leaderElection {
 		run(context.TODO())
 	} else {
-		lockName := fmt.Sprintf("%s-%s", prefix, strings.Replace(driverName, "/", "-", -1))
+		lockName := "snapshot-controller-leader"
 		le := leaderelection.NewLeaderElection(kubeClient, lockName, run)
 		if *leaderElectionNamespace != "" {
 			le.WithNamespace(*leaderElectionNamespace)

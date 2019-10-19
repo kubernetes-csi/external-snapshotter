@@ -174,10 +174,10 @@ k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/types
 k8s.io/apimachinery/pkg/labels
 k8s.io/apimachinery/pkg/api/errors
+k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/api/meta
 k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/validation
-k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/runtime/serializer/streaming
 k8s.io/apimachinery/pkg/util/net
 k8s.io/apimachinery/pkg/util/errors
@@ -407,8 +407,8 @@ k8s.io/klog
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/kubernetes v1.14.0
 k8s.io/kubernetes/pkg/util/goroutinemap
-k8s.io/kubernetes/pkg/util/goroutinemap/exponentialbackoff
 k8s.io/kubernetes/pkg/util/slice
+k8s.io/kubernetes/pkg/util/goroutinemap/exponentialbackoff
 # k8s.io/utils v0.0.0-20190809000727-6c36bc71fc4a
 k8s.io/utils/integer
 k8s.io/utils/buffer
