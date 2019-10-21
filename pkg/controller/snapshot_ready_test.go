@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi/v0"
+	"k8s.io/api/core/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -78,8 +79,11 @@ func TestSync(t *testing.T) {
 					},
 				},
 			},
-			errors: noerrors,
-			test:   testSyncSnapshot,
+			initialClaims:  newClaimArray("claim2-3", "pvc-uid2-3", "1Gi", "volume2-3", v1.ClaimBound, &classEmpty),
+			initialVolumes: newVolumeArray("volume2-3", "pv-uid2-3", "pv-handle2-3", "1Gi", "pvc-uid2-3", "claim2-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
+			initialSecrets: []*v1.Secret{secret()},
+			errors:         noerrors,
+			test:           testSyncSnapshot,
 		},
 		{
 			// nothing changed
@@ -115,8 +119,11 @@ func TestSync(t *testing.T) {
 					},
 				},
 			},
-			errors: noerrors,
-			test:   testSyncSnapshot,
+			initialClaims:  newClaimArray("claim2-5", "pvc-uid2-5", "1Gi", "volume2-5", v1.ClaimBound, &classEmpty),
+			initialVolumes: newVolumeArray("volume2-5", "pv-uid2-5", "pv-handle2-5", "1Gi", "pvc-uid2-5", "claim2-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
+			initialSecrets: []*v1.Secret{secret()},
+			errors:         noerrors,
+			test:           testSyncSnapshot,
 		},
 		{
 			name:              "2-6 - snapshot and content bound, status -> error uploading",
@@ -150,8 +157,11 @@ func TestSync(t *testing.T) {
 					err:        errors.New("mock driver get status error"),
 				},
 			},
-			errors: noerrors,
-			test:   testSyncSnapshot,
+			initialClaims:  newClaimArray("claim2-7", "pvc-uid2-7", "1Gi", "volume2-7", v1.ClaimBound, &classEmpty),
+			initialVolumes: newVolumeArray("volume2-7", "pv-uid2-7", "pv-handle2-7", "1Gi", "pvc-uid2-7", "claim2-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
+			initialSecrets: []*v1.Secret{secret()},
+			errors:         noerrors,
+			test:           testSyncSnapshot,
 		},
 		{
 			name:              "2-8 - snapshot and content bound, apiserver update status error",
@@ -169,6 +179,9 @@ func TestSync(t *testing.T) {
 					},
 				},
 			},
+			initialClaims:  newClaimArray("claim2-8", "pvc-uid2-8", "1Gi", "volume2-8", v1.ClaimBound, &classEmpty),
+			initialVolumes: newVolumeArray("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty, mockDriverName, testNamespace),
+			initialSecrets: []*v1.Secret{secret()},
 			errors: []reactorError{
 				// Inject error to the first client.VolumesnapshotV1alpha1().VolumeSnapshots().Update call.
 				// All other calls will succeed.
