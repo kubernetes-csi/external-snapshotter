@@ -19,7 +19,7 @@ package controller
 import (
 	"testing"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 // Test single call to ensureSnapshotSourceFinalizer and checkandRemoveSnapshotSourceFinalizer,
@@ -29,35 +29,35 @@ func TestPVCFinalizer(t *testing.T) {
 	tests := []controllerTest{
 		{
 			name:             "1-1 - successful add PVC finalizer",
-			initialSnapshots: newSnapshotArray("snap6-2", classSilver, "", "snapuid6-2", "claim6-2", false, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testAddPVCFinalizer,
 			expectSuccess:    true,
 		},
 		{
 			name:             "1-2 - won't add PVC finalizer; already added",
-			initialSnapshots: newSnapshotArray("snap6-2", classSilver, "", "snapuid6-2", "claim6-2", false, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
 			initialClaims:    newClaimArrayFinalizer("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testAddPVCFinalizer,
 			expectSuccess:    false,
 		},
 		{
 			name:             "1-3 - successful remove PVC finalizer",
-			initialSnapshots: newSnapshotArray("snap6-2", classSilver, "", "snapuid6-2", "claim6-2", false, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
 			initialClaims:    newClaimArrayFinalizer("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemovePVCFinalizer,
 			expectSuccess:    true,
 		},
 		{
 			name:             "1-4 - won't remove PVC finalizer; already removed",
-			initialSnapshots: newSnapshotArray("snap6-2", classSilver, "", "snapuid6-2", "claim6-2", false, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemovePVCFinalizer,
 			expectSuccess:    false,
 		},
 		{
 			name:             "1-5 - won't remove PVC finalizer; PVC in-use",
-			initialSnapshots: newSnapshotArray("snap6-2", classSilver, "", "snapuid6-2", "claim6-2", false, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemovePVCFinalizer,
 			expectSuccess:    false,

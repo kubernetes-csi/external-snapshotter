@@ -20,8 +20,12 @@ import (
 	"fmt"
 	"strings"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1alpha1"
-	"k8s.io/api/core/v1"
+	"os"
+	"strconv"
+	"time"
+
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -30,9 +34,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/slice"
-	"os"
-	"strconv"
-	"time"
 )
 
 var (
@@ -87,7 +88,7 @@ func snapshotKey(vs *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("%s/%s", vs.Namespace, vs.Name)
 }
 
-func snapshotRefKey(vsref *v1.ObjectReference) string {
+func snapshotRefKey(vsref v1.ObjectReference) string {
 	return fmt.Sprintf("%s/%s", vsref.Namespace, vsref.Name)
 }
 
@@ -152,8 +153,8 @@ func storeObjectUpdate(store cache.Store, obj interface{}, className string) (bo
 func GetSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) string {
 	// If VolumeSnapshot object has SnapshotContentName, use it directly.
 	// This might be the case for static provisioning.
-	if len(snapshot.Spec.SnapshotContentName) > 0 {
-		return snapshot.Spec.SnapshotContentName
+	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
+		return *snapshot.Spec.Source.VolumeSnapshotContentName
 	}
 	// Construct SnapshotContentName for dynamic provisioning.
 	return "snapcontent-" + string(snapshot.UID)
