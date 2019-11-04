@@ -85,6 +85,12 @@ get_versioned_variable () {
     echo "$value"
 }
 
+# If we have a vendor directory, then use it. We must be careful to only
+# use this for "make" invocations inside the project's repo itself because
+# setting it globally can break other go usages (like "go get <some command>"
+# which is disabled with GOFLAGS=-mod=vendor).
+configvar GOFLAGS_VENDOR "$( [ -d vendor ] && echo '-mod=vendor' )" "Go flags for using the vendor directory"
+
 # Go versions can be specified seperately for different tasks
 # If the pre-installed Go is missing or a different
 # version, the required version here will get installed
@@ -101,7 +107,8 @@ configvar CSI_PROW_GO_VERSION_GINKGO "${CSI_PROW_GO_VERSION_BUILD}" "Go version 
 # kind version to use. If the pre-installed version is different,
 # the desired version is downloaded from https://github.com/kubernetes-sigs/kind/releases/download/
 # (if available), otherwise it is built from source.
-configvar CSI_PROW_KIND_VERSION "v0.5.0" "kind"
+# TODO: https://github.com/kubernetes-csi/csi-release-tools/issues/39
+configvar CSI_PROW_KIND_VERSION "86bc23d84ac12dcb56a0528890736e2c347c2dc3" "kind"
 
 # ginkgo test runner version to use. If the pre-installed version is
 # different, the desired version is built from source.
@@ -136,7 +143,6 @@ configvar CSI_PROW_KUBERNETES_VERSION 1.15.3 "Kubernetes"
 #
 # If the version is prefixed with "release-", then nothing
 # is overridden.
-override_k8s_version "1.13.10"
 override_k8s_version "1.14.6"
 override_k8s_version "1.15.3"
 
@@ -183,7 +189,7 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #
 # When no deploy script is found (nothing in `deploy` directory,
 # CSI_PROW_HOSTPATH_REPO=none), nothing gets deployed.
-configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0-rc2" "hostpath driver"
+configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0" "hostpath driver"
 configvar CSI_PROW_HOSTPATH_REPO https://github.com/kubernetes-csi/csi-driver-host-path "hostpath repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
 configvar CSI_PROW_HOSTPATH_DRIVER_NAME "hostpath.csi.k8s.io" "the hostpath driver name"
@@ -200,9 +206,10 @@ configvar CSI_PROW_HOSTPATH_CANARY "" "hostpath image"
 # all generated files are present.
 #
 # CSI_PROW_E2E_REPO=none disables E2E testing.
-configvar CSI_PROW_E2E_VERSION_1_13 v1.14.0 "E2E version for Kubernetes 1.13.x" # we can't use the one from 1.13.x because it didn't have --storage.testdriver
+# TOOO: remove versioned variables and make e2e version match k8s version
 configvar CSI_PROW_E2E_VERSION_1_14 v1.14.0 "E2E version for Kubernetes 1.14.x"
 configvar CSI_PROW_E2E_VERSION_1_15 v1.15.0 "E2E version for Kubernetes 1.15.x"
+configvar CSI_PROW_E2E_VERSION_1_16 v1.16.0 "E2E version for Kubernetes 1.16.x"
 # TODO: add new CSI_PROW_E2E_VERSION entry for future Kubernetes releases
 configvar CSI_PROW_E2E_VERSION_LATEST master "E2E version for Kubernetes master" # testing against Kubernetes master is already tracking a moving target, so we might as well use a moving E2E version
 configvar CSI_PROW_E2E_REPO_LATEST https://github.com/kubernetes/kubernetes "E2E repo for Kubernetes >= 1.13.x" # currently the same for all versions
@@ -292,11 +299,6 @@ regex_join () {
 # alpha in previous Kubernetes releases. This was considered too
 # error prone. Therefore we use E2E tests that match the Kubernetes
 # version that is getting tested.
-#
-# However, for 1.13.x testing we have to use the E2E tests from 1.14
-# because 1.13 didn't have --storage.testdriver yet, so for that (and only
-# that version) we have to define alpha tests differently.
-configvar CSI_PROW_E2E_ALPHA_1_13 '\[Feature: \[Testpattern:.Dynamic.PV..block.volmode.\] should.create.and.delete.block.persistent.volumes' "alpha tests for Kubernetes 1.13" # Raw block was an alpha feature in 1.13.
 configvar CSI_PROW_E2E_ALPHA_LATEST '\[Feature:' "alpha tests for Kubernetes >= 1.14" # there's no need to update this, adding a new case for CSI_PROW_E2E for a new Kubernetes is enough
 configvar CSI_PROW_E2E_ALPHA "$(get_versioned_variable CSI_PROW_E2E_ALPHA "${csi_prow_kubernetes_version_suffix}")" "alpha tests"
 
@@ -312,12 +314,12 @@ configvar CSI_PROW_E2E_ALPHA "$(get_versioned_variable CSI_PROW_E2E_ALPHA "${csi
 # kubernetes-csi components must be updated, either by disabling
 # the failing test for "latest" or by updating the test and not running
 # it anymore for older releases.
-configvar CSI_PROW_E2E_ALPHA_GATES_1_13 'VolumeSnapshotDataSource=true,BlockVolume=true,CSIBlockVolume=true' "alpha feature gates for Kubernetes 1.13"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_14 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.14"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_15 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.15"
+configvar CSI_PROW_E2E_ALPHA_GATES_1_16 'VolumeSnapshotDataSource=true' "alpha feature gates for Kubernetes 1.16"
 # TODO: add new CSI_PROW_ALPHA_GATES_xxx entry for future Kubernetes releases and
 # add new gates to CSI_PROW_E2E_ALPHA_GATES_LATEST.
-configvar CSI_PROW_E2E_ALPHA_GATES_LATEST 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for latest Kubernetes"
+configvar CSI_PROW_E2E_ALPHA_GATES_LATEST 'VolumeSnapshotDataSource=true' "alpha feature gates for latest Kubernetes"
 configvar CSI_PROW_E2E_ALPHA_GATES "$(get_versioned_variable CSI_PROW_E2E_ALPHA_GATES "${csi_prow_kubernetes_version_suffix}")" "alpha E2E feature gates"
 
 # Some tests are known to be unusable in a KinD cluster. For example,
@@ -723,22 +725,6 @@ install_sanity () (
     run_with_go "${CSI_PROW_GO_VERSION_SANITY}" go test -c -o "${CSI_PROW_WORK}/csi-sanity" "${CSI_PROW_SANITY_IMPORT_PATH}/cmd/csi-sanity" || die "building csi-sanity failed"
 )
 
-# Whether the hostpath driver supports raw block devices depends on which version
-# we are testing. It would be much nicer if we could determine that by querying the
-# installed driver's capabilities instead of having to do a version check.
-hostpath_supports_block () {
-    local result
-    result="$(docker exec csi-prow-control-plane docker image ls --format='{{.Repository}} {{.Tag}} {{.ID}}' | grep hostpath | while read -r repo tag id; do
-        if [ "$tag" == "v1.0.1" ]; then
-            # Old version because the revision label is missing: didn't have support yet.
-            echo "false"
-            return
-        fi
-    done)"
-    # If not set, then it must be a newer driver with support.
-    echo "${result:-true}"
-}
-
 # The default implementation of this function generates a external
 # driver test configuration for the hostpath driver.
 #
@@ -755,10 +741,14 @@ SnapshotClass:
 DriverInfo:
   Name: ${CSI_PROW_HOSTPATH_DRIVER_NAME}
   Capabilities:
-    block: $(hostpath_supports_block)
+    block: true
     persistence: true
     dataSource: true
     multipods: true
+    nodeExpansion: true
+    controllerExpansion: true
+    snapshotDataSource: true
+    singleNodeVolume: true
 EOF
 }
 
@@ -944,7 +934,7 @@ main () {
     images=
     if ${CSI_PROW_BUILD_JOB}; then
         # A successful build is required for testing.
-        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make all || die "'make all' failed"
+        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make all "GOFLAGS_VENDOR=${GOFLAGS_VENDOR}" || die "'make all' failed"
         # We don't want test failures to prevent E2E testing below, because the failure
         # might have been minor or unavoidable, for example when experimenting with
         # changes in "release-tools" in a PR (that fails the "is release-tools unmodified"
@@ -954,13 +944,13 @@ main () {
                 warn "installing 'dep' failed, cannot test vendoring"
                 ret=1
             fi
-            if ! run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make -k test 2>&1 | make_test_to_junit; then
+            if ! run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make -k test "GOFLAGS_VENDOR=${GOFLAGS_VENDOR}" 2>&1 | make_test_to_junit; then
                 warn "'make test' failed, proceeding anyway"
                 ret=1
             fi
         fi
         # Required for E2E testing.
-        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make container || die "'make container' failed"
+        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make container "GOFLAGS_VENDOR=${GOFLAGS_VENDOR}" || die "'make container' failed"
     fi
 
     if tests_need_kind; then
