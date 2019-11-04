@@ -22,6 +22,9 @@
 # including build.make.
 REGISTRY_NAME=quay.io/k8scsi
 
+# Can be set to -mod=vendor to ensure that the "vendor" directory is used.
+GOFLAGS_VENDOR=
+
 # Revision that gets built into each binary via the main.version
 # string. Uses the `git describe` output based on the most recent
 # version tag with a short revision suffix or, if nothing has been
@@ -57,12 +60,17 @@ else
 TESTARGS =
 endif
 
+ARCH := $(if $(GOARCH),$(GOARCH),$(shell go env GOARCH))
+
 # Specific packages can be excluded from each of the tests below by setting the *_FILTER_CMD variables
 # to something like "| grep -v 'github.com/kubernetes-csi/project/pkg/foobar'". See usage below.
 
-build-%:
+build-%: check-go-version-go
 	mkdir -p bin
-	CGO_ENABLED=0 GOOS=linux go build -a -ldflags '-X main.version=$(REV) -extldflags "-static"' -o ./bin/$* ./cmd/$*
+	CGO_ENABLED=0 GOOS=linux go build $(GOFLAGS_VENDOR) -a -ldflags '-X main.version=$(REV) -extldflags "-static"' -o ./bin/$* ./cmd/$*
+	if [ "$$ARCH" = "amd64" ]; then \
+		CGO_ENABLED=0 GOOS=windows go build $(GOFLAGS_VENDOR) -a -ldflags '-X main.version=$(REV) -extldflags "-static"' -o ./bin/$*.exe ./cmd/$* ; \
+	fi
 
 container-%: build-%
 	docker build -t $*:latest -f $(shell if [ -e ./cmd/$*/Dockerfile ]; then echo ./cmd/$*/Dockerfile; else echo Dockerfile; fi) --label revision=$(REV) .
@@ -92,19 +100,19 @@ push: $(CMDS:%=push-%)
 clean:
 	-rm -rf bin
 
-test:
+test: check-go-version-go
 
 .PHONY: test-go
 test: test-go
 test-go:
 	@ echo; echo "### $@:"
-	go test `go list ./... | grep -v -e 'vendor' -e '/test/e2e$$' $(TEST_GO_FILTER_CMD)` $(TESTARGS)
+	go test $(GOFLAGS_VENDOR) `go list $(GOFLAGS_VENDOR) ./... | grep -v -e 'vendor' -e '/test/e2e$$' $(TEST_GO_FILTER_CMD)` $(TESTARGS)
 
 .PHONY: test-vet
 test: test-vet
 test-vet:
 	@ echo; echo "### $@:"
-	go vet `go list ./... | grep -v vendor $(TEST_VET_FILTER_CMD)`
+	go test $(GOFLAGS_VENDOR) `go list $(GOFLAGS_VENDOR) ./... | grep -v vendor $(TEST_VET_FILTER_CMD)`
 
 .PHONY: test-fmt
 test: test-fmt
@@ -125,32 +133,31 @@ test-fmt:
 # - the fabricated merge commit leaves go.mod, go.sum and vendor dir unchanged
 # - release-tools also didn't change (changing rules or Go version might lead to
 #   a different result and thus must be tested)
+# - import statements not changed (because if they change, go.mod might have to be updated)
+#
+# "git diff" is intelligent enough to annotate changes inside the "import" block in
+# the start of the diff hunk:
+#
+# diff --git a/rpc/common.go b/rpc/common.go
+# index bb4a5c4..5fa4271 100644
+# --- a/rpc/common.go
+# +++ b/rpc/common.go
+# @@ -21,7 +21,6 @@ import (
+#         "fmt"
+#         "time"
+#
+# -       "google.golang.org/grpc"
+#         "google.golang.org/grpc/codes"
+#         "google.golang.org/grpc/status"
+#
+# We rely on that to find such changes.
+#
+# Vendoring is optional when using go.mod.
 .PHONY: test-vendor
 test: test-vendor
 test-vendor:
 	@ echo; echo "### $@:"
-	@ if [ -f Gopkg.toml ]; then \
-		echo "Repo uses 'dep' for vendoring."; \
-		case "$$(dep version 2>/dev/null | grep 'version *:')" in \
-			*v0.[56789]*) dep check && echo "vendor up-to-date" || false;; \
-			*) echo "skipping check, dep >= 0.5 required";; \
-		esac; \
-	  else \
-		echo "Repo uses 'go mod' for vendoring."; \
-		if [ "$${JOB_NAME}" ] && \
-                   ( [ "$${JOB_TYPE}" != "presubmit" ] || \
-                     [ $$(git diff "${PULL_BASE_SHA}..HEAD" -- go.mod go.sum vendor release-tools | wc -l) -eq 0 ] ); then \
-			echo "Skipping vendor check because the Prow pre-submit job does not change vendoring."; \
-		elif ! GO111MODULE=on go mod vendor; then \
-			echo "ERROR: vendor check failed."; \
-			false; \
-		elif [ $$(git status --porcelain -- vendor | wc -l) -gt 0 ]; then \
-			echo "ERROR: vendor directory *not* up-to-date, it did get modified by 'GO111MODULE=on go mod vendor':"; \
-			git status -- vendor; \
-			git diff -- vendor; \
-			false; \
-		fi; \
-	 fi;
+	@ ./release-tools/verify-vendor.sh
 
 .PHONY: test-subtree
 test: test-subtree
@@ -176,3 +183,11 @@ test-shellcheck:
 		./release-tools/verify-shellcheck.sh "$$dir" || ret=1; \
 	done; \
 	exit $$ret
+
+# Targets in the makefile can depend on check-go-version-<path to go binary>
+# to trigger a warning if the x.y version of that binary does not match
+# what the project uses. Make ensures that this is only checked once per
+# invocation.
+.PHONY: check-go-version-%
+check-go-version-%:
+	./release-tools/verify-go-version.sh "$*"
