@@ -588,7 +588,7 @@ func (ctrl *csiSnapshotController) checkandUpdateBoundSnapshotStatusOperation(sn
 		if err != nil {
 			return nil, err
 		}
-		driverName, snapshotID, creationTime, size, readyToUse, err = ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+		snapshotID, creationTime, size, readyToUse, err = ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateBoundSnapshotStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
 			return nil, err
@@ -648,12 +648,12 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		return nil, err
 	}
 
-	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
+	snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(snapshot, volume, class.Parameters, snapshotterCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("failed to take snapshot of the volume, %s: %q", volume.Name, err)
 	}
 
-	klog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, snapshotID, creationTime, size, readyToUse)
+	klog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", ctrl.driverName, snapshotID, creationTime, size, readyToUse)
 
 	var newSnapshot *crdv1.VolumeSnapshot
 	// Update snapshot status with creationTime
@@ -683,7 +683,7 @@ func (ctrl *csiSnapshotController) createSnapshotOperation(snapshot *crdv1.Volum
 		Spec: crdv1.VolumeSnapshotContentSpec{
 			VolumeSnapshotRef:       *snapshotRef,
 			DeletionPolicy:          class.DeletionPolicy,
-			Driver:                  driverName,
+			Driver:                  ctrl.driverName,
 			VolumeSnapshotClassName: &class.Name,
 			Source: crdv1.VolumeSnapshotContentSource{
 				VolumeHandle: &volume.Spec.CSI.VolumeHandle,

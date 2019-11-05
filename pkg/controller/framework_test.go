@@ -1372,10 +1372,10 @@ type fakeSnapshotter struct {
 	t                 *testing.T
 }
 
-func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, time.Time, int64, bool, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
 	}
 	call := f.createCalls[f.createCallCounter]
 	f.createCallCounter++
@@ -1402,9 +1402,9 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	}
 
 	if err != nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
 	}
-	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
+	return call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
 }
 
 func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
