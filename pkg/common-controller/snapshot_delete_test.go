@@ -35,18 +35,18 @@ var class2Parameters = map[string]string{
 }
 
 var class3Parameters = map[string]string{
-	"param3":                       "value3",
-	utils.SnapshotterSecretNameKey: "name",
+	"param3": "value3",
+	//utils.SnapshotterSecretNameKey: "name",
 }
 
 var class4Parameters = map[string]string{
-	utils.SnapshotterSecretNameKey:      "emptysecret",
-	utils.SnapshotterSecretNamespaceKey: "default",
+	//utils.SnapshotterSecretNameKey:      "emptysecret",
+	//utils.SnapshotterSecretNamespaceKey: "default",
 }
 
 var class5Parameters = map[string]string{
-	utils.SnapshotterSecretNameKey:      "secret",
-	utils.SnapshotterSecretNamespaceKey: "default",
+	//utils.SnapshotterSecretNameKey:      "secret",
+	//utils.SnapshotterSecretNamespaceKey: "default",
 }
 
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{

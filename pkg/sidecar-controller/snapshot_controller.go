@@ -219,13 +219,14 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 		return err
 	}
 
+	// Emit the event only when the status change happens
+	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
+
 	_, err = ctrl.storeContentUpdate(newContent)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status: cannot update internal cache %v", content.Name, err)
 		return err
 	}
-	// Emit the event only when the status change happens
-	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
 
 	return nil
 }
@@ -249,7 +250,6 @@ func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.Vol
 		}
 		// For pre-provisioned snapshot, snapshot class is not required
 		klog.V(5).Infof("getCSISnapshotInput for content [%s]: no VolumeSnapshotClassName provided for pre-provisioned snapshot", content.Name)
-		return nil, nil, nil
 	}
 
 	// Resolve snapshotting secret credentials.
@@ -277,9 +277,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 			return nil, err
 		}
 		driverName = content.Spec.Driver
-		if content.Spec.Source.SnapshotHandle != nil {
-			snapshotID = *content.Spec.Source.SnapshotHandle
-		}
+		snapshotID = *content.Spec.Source.SnapshotHandle
 	} else {
 		class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
 		if err != nil {

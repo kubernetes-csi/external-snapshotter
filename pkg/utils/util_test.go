@@ -36,14 +36,6 @@ func TestGetSecretReference(t *testing.T) {
 			params:    nil,
 			expectRef: nil,
 		},
-		"empty err": {
-			params:    map[string]string{SnapshotterSecretNameKey: "", SnapshotterSecretNamespaceKey: ""},
-			expectErr: true,
-		},
-		"[deprecated] name, no namespace": {
-			params:    map[string]string{SnapshotterSecretNameKey: "foo"},
-			expectErr: true,
-		},
 		"namespace, no name": {
 			params:    map[string]string{prefixedSnapshotterSecretNamespaceKey: "foo"},
 			expectErr: true,
@@ -53,37 +45,8 @@ func TestGetSecretReference(t *testing.T) {
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
 		},
-		"[deprecated] simple - valid, no pvc": {
-			params:    map[string]string{SnapshotterSecretNameKey: "name", SnapshotterSecretNamespaceKey: "ns"},
-			snapshot:  nil,
-			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
-		},
 		"simple - invalid name": {
 			params:    map[string]string{prefixedSnapshotterSecretNameKey: "bad name", prefixedSnapshotterSecretNamespaceKey: "ns"},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: nil,
-			expectErr: true,
-		},
-		"[deprecated] simple - invalid namespace": {
-			params:    map[string]string{SnapshotterSecretNameKey: "name", SnapshotterSecretNamespaceKey: "bad ns"},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: nil,
-			expectErr: true,
-		},
-		"template - invalid namespace tokens": {
-			params: map[string]string{
-				SnapshotterSecretNameKey:      "myname",
-				SnapshotterSecretNamespaceKey: "mynamespace${bar}",
-			},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: nil,
-			expectErr: true,
-		},
-		"template - invalid name tokens": {
-			params: map[string]string{
-				SnapshotterSecretNameKey:      "myname${foo}",
-				SnapshotterSecretNamespaceKey: "mynamespace",
-			},
 			snapshot:  &crdv1.VolumeSnapshot{},
 			expectRef: nil,
 			expectErr: true,
@@ -151,17 +114,6 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 				prefixedSnapshotterSecretNamespaceKey: "csiBar",
 			},
 			expectedParams: map[string]string{},
-		},
-		{
-			name: "all known deprecated params not stripped",
-			params: map[string]string{
-				SnapshotterSecretNameKey:      "csiBar",
-				SnapshotterSecretNamespaceKey: "csiBar",
-			},
-			expectedParams: map[string]string{
-				SnapshotterSecretNameKey:      "csiBar",
-				SnapshotterSecretNamespaceKey: "csiBar",
-			},
 		},
 		{
 			name:      "unknown prefixed var",

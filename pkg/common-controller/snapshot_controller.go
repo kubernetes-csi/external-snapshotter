@@ -638,13 +638,14 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 		return err
 	}
 
+	// Emit the event only when the status change happens
+	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
+
 	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshot[%s] error status: cannot update internal cache %v", utils.SnapshotKey(snapshot), err)
 		return err
 	}
-	// Emit the event only when the status change happens
-	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
 
 	return nil
 }
@@ -722,7 +723,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
 	if err != nil {
 		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already.", snapshot.Name, err)
-		return nil
+		return newControllerUpdateError(snapshot.Name, "cannot get claim from snapshot")
 	}
 
 	if pvc.ObjectMeta.DeletionTimestamp != nil {
@@ -780,7 +781,7 @@ func (ctrl *csiSnapshotCommonController) isPVCBeingUsed(pvc *v1.PersistentVolume
 			klog.V(4).Infof("Skipping static bound snapshot %s when checking PVC %s/%s", snap.Name, pvc.Namespace, pvc.Name)
 			continue
 		}
-		if snap.Spec.Source.PersistentVolumeClaimName != nil && pvc.Name == *snap.Spec.Source.PersistentVolumeClaimName && (snap.Status == nil || snap.Status.ReadyToUse == nil || (snap.Status.ReadyToUse != nil && *snap.Status.ReadyToUse == false)) {
+		if snap.Spec.Source.PersistentVolumeClaimName != nil && pvc.Name == *snap.Spec.Source.PersistentVolumeClaimName && !utils.IsSnapshotReady(snap) {
 			klog.V(2).Infof("Keeping PVC %s/%s, it is used by snapshot %s/%s", pvc.Namespace, pvc.Name, snap.Namespace, snap.Name)
 			return true
 		}
@@ -1144,6 +1145,10 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 
 // removeSnapshotFinalizer removes a Finalizer for VolumeSnapshot.
 func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, removeSourceFinalizer bool, removeBoundFinalizer bool) error {
+	if !removeSourceFinalizer && !removeBoundFinalizer {
+		return nil
+	}
+
 	snapshotClone := snapshot.DeepCopy()
 	if removeSourceFinalizer {
 		snapshotClone.ObjectMeta.Finalizers = slice.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil)

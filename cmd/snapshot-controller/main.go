@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2018 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,17 +24,13 @@ import (
 	"os/signal"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog"
 
-	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
-	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 	controller "github.com/kubernetes-csi/external-snapshotter/pkg/common-controller"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
@@ -147,13 +143,4 @@ func buildConfig(kubeconfig string) (*rest.Config, error) {
 		return clientcmd.BuildConfigFromFlags("", kubeconfig)
 	}
 	return rest.InClusterConfig()
-}
-
-func supportsControllerCreateSnapshot(ctx context.Context, conn *grpc.ClientConn) (bool, error) {
-	capabilities, err := csirpc.GetControllerCapabilities(ctx, conn)
-	if err != nil {
-		return false, err
-	}
-
-	return capabilities[csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT], nil
 }

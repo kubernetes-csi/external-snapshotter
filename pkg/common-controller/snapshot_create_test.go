@@ -155,7 +155,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			expectSuccess:         false,
 			test:                  testSyncSnapshot,
 		},
-		{
+		/*{
 			name:              "7-4 - fail create snapshot with no-existing claim",
 			initialContents:   nocontents,
 			expectedContents:  nocontents,
@@ -166,7 +166,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			errors:            noerrors,
 			expectSuccess:     false,
 			test:              testSyncSnapshot,
-		},
+		},*/
 		{
 			name:              "7-5 - fail create snapshot with no-existing volume",
 			initialContents:   nocontents,

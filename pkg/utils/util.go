@@ -39,12 +39,10 @@ var (
 	keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 )
 
-type deprecatedSecretParamsMap struct {
-	name                         string
-	deprecatedSecretNameKey      string
-	deprecatedSecretNamespaceKey string
-	secretNameKey                string
-	secretNamespaceKey           string
+type secretParamsMap struct {
+	name               string
+	secretNameKey      string
+	secretNamespaceKey string
 }
 
 const (
@@ -56,11 +54,6 @@ const (
 
 	prefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
 	prefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
-
-	// [Deprecated] CSI Parameters that are put into fields but
-	// NOT stripped from the parameters passed to CreateSnapshot
-	SnapshotterSecretNameKey      = "csiSnapshotterSecretName"
-	SnapshotterSecretNamespaceKey = "csiSnapshotterSecretNamespace"
 
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
@@ -87,12 +80,10 @@ const (
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 )
 
-var snapshotterSecretParams = deprecatedSecretParamsMap{
-	name:                         "Snapshotter",
-	deprecatedSecretNameKey:      SnapshotterSecretNameKey,
-	deprecatedSecretNamespaceKey: SnapshotterSecretNamespaceKey,
-	secretNameKey:                prefixedSnapshotterSecretNameKey,
-	secretNamespaceKey:           prefixedSnapshotterSecretNamespaceKey,
+var snapshotterSecretParams = secretParamsMap{
+	name:               "Snapshotter",
+	secretNameKey:      prefixedSnapshotterSecretNameKey,
+	secretNamespaceKey: prefixedSnapshotterSecretNamespaceKey,
 }
 
 func SnapshotKey(vs *crdv1.VolumeSnapshot) string {
@@ -183,19 +174,9 @@ func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
 
 // verifyAndGetSecretNameAndNamespaceTemplate gets the values (templates) associated
 // with the parameters specified in "secret" and verifies that they are specified correctly.
-func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap, snapshotClassParams map[string]string) (nameTemplate, namespaceTemplate string, err error) {
+func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshotClassParams map[string]string) (nameTemplate, namespaceTemplate string, err error) {
 	numName := 0
 	numNamespace := 0
-	if t, ok := snapshotClassParams[secret.deprecatedSecretNameKey]; ok {
-		nameTemplate = t
-		numName++
-		klog.Warning(deprecationWarning(secret.deprecatedSecretNameKey, secret.secretNameKey, ""))
-	}
-	if t, ok := snapshotClassParams[secret.deprecatedSecretNamespaceKey]; ok {
-		namespaceTemplate = t
-		numNamespace++
-		klog.Warning(deprecationWarning(secret.deprecatedSecretNamespaceKey, secret.secretNamespaceKey, ""))
-	}
 	if t, ok := snapshotClassParams[secret.secretNameKey]; ok {
 		nameTemplate = t
 		numName++
@@ -205,10 +186,7 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret deprecatedSecretParamsMap
 		numNamespace++
 	}
 
-	if numName > 1 || numNamespace > 1 {
-		// Double specified error
-		return "", "", fmt.Errorf("%s secrets specified in paramaters with both \"csi\" and \"%s\" keys", secret.name, csiParameterPrefix)
-	} else if numName != numNamespace {
+	if numName != numNamespace {
 		// Not both 0 or both 1
 		return "", "", fmt.Errorf("either name and namespace for %s secrets specified, Both must be specified", secret.name)
 	} else if numName == 1 {
@@ -278,9 +256,8 @@ func GetSecretReference(snapshotClassParams map[string]string, snapContentName s
 	}
 	ref.Namespace = resolvedNamespace
 
-	// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace,
-	// or a VolumeSnapshot annotation.
-	// Note that VolumeSnapshot name and annotations are under the VolumeSnapshot user's control.
+	// Secret name template can make use of the VolumeSnapshotContent name, VolumeSnapshot name or namespace.
+	// Note that VolumeSnapshot name and namespace are under the VolumeSnapshot user's control.
 	nameParams := map[string]string{"volumesnapshotcontent.name": snapContentName}
 	if snapshot != nil {
 		nameParams["volumesnapshot.name"] = snapshot.Name
