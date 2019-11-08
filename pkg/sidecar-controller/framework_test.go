@@ -33,7 +33,6 @@ import (
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
 	v1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -50,29 +49,26 @@ import (
 	"k8s.io/klog"
 )
 
-// This is a unit test framework for snapshot controller.
-// It fills the controller with test snapshots/contents and can simulate these
+// This is a unit test framework for snapshot sidecar controller.
+// It fills the controller with test contents and can simulate these
 // scenarios:
-// 1) Call syncSnapshot/syncContent once.
-// 2) Call syncSnapshot/syncContent several times (both simulating "snapshot/content
+// 1) Call syncContent once.
+// 2) Call syncContent several times (both simulating "content
 //    modified" events and periodic sync), until the controller settles down and
 //    does not modify anything.
 // 3) Simulate almost real API server/etcd and call add/update/delete
-//    content/snapshot.
+//    content.
 // In all these scenarios, when the test finishes, the framework can compare
-// resulting snapshots/contents with list of expected snapshots/contents and report
+// resulting contents with list of expected contents and report
 // differences.
 
 // controllerTest contains a single controller test input.
-// Each test has initial set of contents and snapshots that are filled into the
+// Each test has initial set of contents that are filled into the
 // controller before the test starts. The test then contains a reference to
 // function to call as the actual test. Available functions are:
-//   - testSyncSnapshot - calls syncSnapshot on the first snapshot in initialSnapshots.
-//   - testSyncSnapshotError - calls syncSnapshot on the first snapshot in initialSnapshots
-//                          and expects an error to be returned.
 //   - testSyncContent - calls syncContent on the first content in initialContents.
 //   - any custom function for specialized tests.
-// The test then contains list of contents/snapshots that are expected at the end
+// The test then contains list of contents that are expected at the end
 // of the test and list of generated events.
 type controllerTest struct {
 	// Name of the test, for logging
@@ -106,19 +102,17 @@ const mockDriverName = "csi-mock-plugin"
 
 var errVersionConflict = errors.New("VersionError")
 var nocontents []*crdv1.VolumeSnapshotContent
-var nosnapshots []*crdv1.VolumeSnapshot
 var noevents = []string{}
 var noerrors = []reactorError{}
 
 // snapshotReactor is a core.Reactor that simulates etcd and API server. It
 // stores:
 // - Latest version of snapshots contents saved by the controller.
-// - Queue of all saves (to simulate "content/snapshot updated" events). This queue
-//   contains all intermediate state of an object - e.g. a snapshot.VolumeName
-//   is updated first and snapshot.Phase second. This queue will then contain both
+// - Queue of all saves (to simulate "content updated" events). This queue
+//   contains all intermediate state of an object. This queue will then contain both
 //   updates as separate entries.
 // - Number of changes since the last call to snapshotReactor.syncAll().
-// - Optionally, content and snapshot fake watchers which should be the same ones
+// - Optionally, content watcher which should be the same ones
 //   used by the controller. Any time an event function like deleteContentEvent
 //   is called to simulate an event, the reactor's stores are updated and the
 //   controller is sent the event via the fake watcher.
@@ -129,16 +123,11 @@ var noerrors = []reactorError{}
 //   the list.
 type snapshotReactor struct {
 	secrets              map[string]*v1.Secret
-	storageClasses       map[string]*storagev1.StorageClass
-	volumes              map[string]*v1.PersistentVolume
-	claims               map[string]*v1.PersistentVolumeClaim
 	contents             map[string]*crdv1.VolumeSnapshotContent
-	snapshots            map[string]*crdv1.VolumeSnapshot
 	changedObjects       []interface{}
 	changedSinceLastSync int
 	ctrl                 *csiSnapshotSideCarController
 	fakeContentWatch     *watch.FakeWatcher
-	fakeSnapshotWatch    *watch.FakeWatcher
 	lock                 sync.Mutex
 	errors               []reactorError
 }
@@ -146,7 +135,7 @@ type snapshotReactor struct {
 // reactorError is an error that is returned by test reactor (=simulated
 // etcd+/API server) when an action performed by the reactor matches given verb
 // ("get", "update", "create", "delete" or "*"") on given resource
-// ("volumesnapshotcontents", "volumesnapshots" or "*").
+// ("volumesnapshotcontents" or "*").
 type reactorError struct {
 	verb     string
 	resource string
@@ -203,9 +192,9 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		content := obj.(*crdv1.VolumeSnapshotContent)
 
 		// Check and bump object version
-		storedVolume, found := r.contents[content.Name]
+		storedContent, found := r.contents[content.Name]
 		if found {
-			storedVer, _ := strconv.Atoi(storedVolume.ResourceVersion)
+			storedVer, _ := strconv.Atoi(storedContent.ResourceVersion)
 			requestedVer, _ := strconv.Atoi(content.ResourceVersion)
 			if storedVer != requestedVer {
 				return true, obj, errVersionConflict
@@ -314,41 +303,6 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 	return nil
 }
 
-// checkSnapshots compares all expectedSnapshots with set of snapshots at the end of the
-// test and reports differences.
-func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapshot) error {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	expectedMap := make(map[string]*crdv1.VolumeSnapshot)
-	gotMap := make(map[string]*crdv1.VolumeSnapshot)
-	for _, c := range expectedSnapshots {
-		// Don't modify the existing object
-		c = c.DeepCopy()
-		c.ResourceVersion = ""
-		if c.Status.Error != nil {
-			c.Status.Error.Time = &metav1.Time{}
-		}
-		expectedMap[c.Name] = c
-	}
-	for _, c := range r.snapshots {
-		// We must clone the snapshot because of golang race check - it was
-		// written by the controller without any locks on it.
-		c = c.DeepCopy()
-		c.ResourceVersion = ""
-		if c.Status.Error != nil {
-			c.Status.Error.Time = &metav1.Time{}
-		}
-		gotMap[c.Name] = c
-	}
-	if !reflect.DeepEqual(expectedMap, gotMap) {
-		// Print ugly but useful diff of expected and received objects for
-		// easier debugging.
-		return fmt.Errorf("snapshot check failed [A-expected, B-got result]: %s", diff.ObjectDiff(expectedMap, gotMap))
-	}
-	return nil
-}
-
 // checkEvents compares all expectedEvents with events generated during the test
 // and reports differences.
 func checkEvents(t *testing.T, expectedEvents []string, ctrl *csiSnapshotSideCarController) error {
@@ -414,9 +368,6 @@ func (r *snapshotReactor) popChange() interface{} {
 		case *crdv1.VolumeSnapshotContent:
 			vol, _ := obj.(*crdv1.VolumeSnapshotContent)
 			klog.V(4).Infof("reactor queue: %s", vol.Name)
-		case *crdv1.VolumeSnapshot:
-			snapshot, _ := obj.(*crdv1.VolumeSnapshot)
-			klog.V(4).Infof("reactor queue: %s", snapshot.Name)
 		}
 	}
 
@@ -426,22 +377,16 @@ func (r *snapshotReactor) popChange() interface{} {
 	return obj
 }
 
-// syncAll simulates the controller periodic sync of contents and snapshot. It
+// syncAll simulates the controller periodic sync of contents. It
 // simply adds all these objects to the internal queue of updates. This method
-// should be used when the test manually calls syncSnapshot/syncContent. Test that
+// should be used when the test manually calls syncContent. Test that
 // use real controller loop (ctrl.Run()) will get periodic sync automatically.
 func (r *snapshotReactor) syncAll() {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
-	for _, c := range r.snapshots {
-		r.changedObjects = append(r.changedObjects, c)
-	}
 	for _, v := range r.contents {
 		r.changedObjects = append(r.changedObjects, v)
-	}
-	for _, pvc := range r.claims {
-		r.changedObjects = append(r.changedObjects, pvc)
 	}
 	r.changedSinceLastSync = 0
 }
@@ -511,22 +456,6 @@ func (r *snapshotReactor) deleteContentEvent(content *crdv1.VolumeSnapshotConten
 	}
 }
 
-// deleteSnapshotEvent simulates that a snapshot has been deleted in etcd and the
-// controller receives 'snapshot deleted' event.
-func (r *snapshotReactor) deleteSnapshotEvent(snapshot *crdv1.VolumeSnapshot) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	// Remove the snapshot from list of resulting snapshots.
-	delete(r.snapshots, snapshot.Name)
-
-	// Generate deletion event. Cloned content is needed to prevent races (and we
-	// would get a clone from etcd too).
-	if r.fakeSnapshotWatch != nil {
-		r.fakeSnapshotWatch.Delete(snapshot.DeepCopy())
-	}
-}
-
 // addContentEvent simulates that a content has been added in etcd and the
 // controller receives 'content added' event.
 func (r *snapshotReactor) addContentEvent(content *crdv1.VolumeSnapshotContent) {
@@ -555,20 +484,6 @@ func (r *snapshotReactor) modifyContentEvent(content *crdv1.VolumeSnapshotConten
 	}
 }
 
-// addSnapshotEvent simulates that a snapshot has been deleted in etcd and the
-// controller receives 'snapshot added' event.
-func (r *snapshotReactor) addSnapshotEvent(snapshot *crdv1.VolumeSnapshot) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	r.snapshots[snapshot.Name] = snapshot
-	// Generate event. No cloning is needed, this snapshot is not stored in the
-	// controller cache yet.
-	if r.fakeSnapshotWatch != nil {
-		r.fakeSnapshotWatch.Add(snapshot)
-	}
-}
-
 func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, ctrl *csiSnapshotSideCarController, fakeVolumeWatch, fakeClaimWatch *watch.FakeWatcher, errors []reactorError) *snapshotReactor {
 	reactor := &snapshotReactor{
 		secrets:          make(map[string]*v1.Secret),
@@ -580,11 +495,8 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
-	client.AddReactor("update", "volumesnapshots", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
-	client.AddReactor("get", "volumesnapshots", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
-	client.AddReactor("delete", "volumesnapshots", reactor.React)
 
 	return reactor
 }
@@ -765,7 +677,7 @@ func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(c
 		klog.V(4).Infof("reactor:injecting call")
 		injectBeforeOperation(ctrl, reactor)
 
-		// Run the tested function (typically syncSnapshot/syncContent) in a
+		// Run the tested function (typically syncContent) in a
 		// separate goroutine.
 		var testError error
 		var testFinished int32
@@ -798,7 +710,7 @@ func evaluateTestResults(ctrl *csiSnapshotSideCarController, reactor *snapshotRe
 	}
 }
 
-// Test single call to syncSnapshot and syncContent methods.
+// Test single call to syncContent methods.
 // For all tests:
 // 1. Fill in the controller with initial data
 // 2. Call the tested function (syncContent) via
