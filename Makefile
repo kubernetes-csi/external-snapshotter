@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: all csi-snapshotter clean test
+.PHONY: all snapshot-controller csi-snapshotter clean test
 
-CMDS=csi-snapshotter
+CMDS=snapshot-controller csi-snapshotter
 all: build
 include release-tools/build.make
