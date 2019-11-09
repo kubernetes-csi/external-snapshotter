@@ -20,7 +20,7 @@ spec:
       containers:
         - name: snapshot-controller
           # NOTE: replace with official image when released: quay.io/k8scsi/snapshot-controller:v2.0.0
-          image: snapshot-controller:testbeta #quay.io/k8scsi/snapshot-controller:testbeta
+          image: quay.io/k8scsi/snapshot-controller:v2.0.0-rc2
           args:
             - "--v=5"
             - "--leader-election=false"
