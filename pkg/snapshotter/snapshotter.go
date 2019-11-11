@@ -27,14 +27,13 @@ import (
 
 	"google.golang.org/grpc"
 
-	"k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
 
 // Snapshotter implements CreateSnapshot/DeleteSnapshot operations against a remote CSI driver.
 type Snapshotter interface {
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp time.Time, size int64, readyToUse bool, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp time.Time, size int64, readyToUse bool, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
@@ -53,12 +52,8 @@ func NewSnapshotter(conn *grpc.ClientConn) Snapshotter {
 	}
 }
 
-func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
 	klog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
-	if volume.Spec.CSI == nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("CSIPersistentVolumeSource not defined in spec")
-	}
-
 	client := csi.NewControllerClient(s.conn)
 
 	driverName, err := csirpc.GetDriverName(ctx, s.conn)
@@ -67,7 +62,7 @@ func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volu
 	}
 
 	req := csi.CreateSnapshotRequest{
-		SourceVolumeId: volume.Spec.CSI.VolumeHandle,
+		SourceVolumeId: volumeHandle,
 		Name:           snapshotName,
 		Parameters:     parameters,
 		Secrets:        snapshotterCredentials,
@@ -118,6 +113,8 @@ func (s *snapshot) isListSnapshotsSupported(ctx context.Context) (bool, error) {
 }
 
 func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
+	klog.V(5).Infof("GetSnapshotStatus: %s", snapshotID)
+
 	client := csi.NewControllerClient(s.conn)
 
 	// If the driver does not support ListSnapshots, assume the snapshot ID is valid.

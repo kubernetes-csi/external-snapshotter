@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package common_controller
 
 import (
 	"fmt"
@@ -24,9 +24,9 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
 	storageinformers "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions/volumesnapshot/v1beta1"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
-	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
 
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -42,10 +42,9 @@ import (
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 )
 
-type csiSnapshotController struct {
+type csiSnapshotCommonController struct {
 	clientset     clientset.Interface
 	client        kubernetes.Interface
-	driverName    string
 	eventRecorder record.EventRecorder
 	snapshotQueue workqueue.RateLimitingInterface
 	contentQueue  workqueue.RateLimitingInterface
@@ -62,7 +61,6 @@ type csiSnapshotController struct {
 	snapshotStore cache.Store
 	contentStore  cache.Store
 
-	handler Handler
 	// Map of scheduled/running operations.
 	runningOperations goroutinemap.GoRoutineMap
 
@@ -71,43 +69,36 @@ type csiSnapshotController struct {
 	resyncPeriod                    time.Duration
 }
 
-// NewCSISnapshotController returns a new *csiSnapshotController
-func NewCSISnapshotController(
+// NewCSISnapshotController returns a new *csiSnapshotCommonController
+func NewCSISnapshotCommonController(
 	clientset clientset.Interface,
 	client kubernetes.Interface,
-	driverName string,
 	volumeSnapshotInformer storageinformers.VolumeSnapshotInformer,
 	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	createSnapshotContentRetryCount int,
 	createSnapshotContentInterval time.Duration,
-	snapshotter snapshotter.Snapshotter,
-	timeout time.Duration,
 	resyncPeriod time.Duration,
-	snapshotNamePrefix string,
-	snapshotNameUUIDLength int,
-) *csiSnapshotController {
+) *csiSnapshotCommonController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.CoreV1().Events(v1.NamespaceAll)})
 	var eventRecorder record.EventRecorder
-	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", driverName)})
+	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
 
-	ctrl := &csiSnapshotController{
+	ctrl := &csiSnapshotCommonController{
 		clientset:                       clientset,
 		client:                          client,
-		driverName:                      driverName,
 		eventRecorder:                   eventRecorder,
-		handler:                         NewCSIHandler(snapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
 		runningOperations:               goroutinemap.NewGoRoutineMap(true),
 		createSnapshotContentRetryCount: createSnapshotContentRetryCount,
 		createSnapshotContentInterval:   createSnapshotContentInterval,
 		resyncPeriod:                    resyncPeriod,
 		snapshotStore:                   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		contentStore:                    cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-snapshot"),
-		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-content"),
+		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
+		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
 	}
 
 	ctrl.pvcLister = pvcInformer.Lister()
@@ -141,12 +132,12 @@ func NewCSISnapshotController(
 	return ctrl
 }
 
-func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
+func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}) {
 	defer ctrl.snapshotQueue.ShutDown()
 	defer ctrl.contentQueue.ShutDown()
 
-	klog.Infof("Starting CSI snapshotter")
-	defer klog.Infof("Shutting CSI snapshotter")
+	klog.Infof("Starting snapshot controller")
+	defer klog.Infof("Shutting snapshot controller")
 
 	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced, ctrl.pvcListerSynced) {
 		klog.Errorf("Cannot sync caches")
@@ -164,7 +155,7 @@ func (ctrl *csiSnapshotController) Run(workers int, stopCh <-chan struct{}) {
 }
 
 // enqueueSnapshotWork adds snapshot to given work queue.
-func (ctrl *csiSnapshotController) enqueueSnapshotWork(obj interface{}) {
+func (ctrl *csiSnapshotCommonController) enqueueSnapshotWork(obj interface{}) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -181,7 +172,7 @@ func (ctrl *csiSnapshotController) enqueueSnapshotWork(obj interface{}) {
 }
 
 // enqueueContentWork adds snapshot content to given work queue.
-func (ctrl *csiSnapshotController) enqueueContentWork(obj interface{}) {
+func (ctrl *csiSnapshotCommonController) enqueueContentWork(obj interface{}) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -199,7 +190,7 @@ func (ctrl *csiSnapshotController) enqueueContentWork(obj interface{}) {
 
 // snapshotWorker processes items from snapshotQueue. It must run only once,
 // syncSnapshot is not assured to be reentrant.
-func (ctrl *csiSnapshotController) snapshotWorker() {
+func (ctrl *csiSnapshotCommonController) snapshotWorker() {
 	workFunc := func() bool {
 		keyObj, quit := ctrl.snapshotQueue.Get()
 		if quit {
@@ -264,7 +255,7 @@ func (ctrl *csiSnapshotController) snapshotWorker() {
 
 // contentWorker processes items from contentQueue. It must run only once,
 // syncContent is not assured to be reentrant.
-func (ctrl *csiSnapshotController) contentWorker() {
+func (ctrl *csiSnapshotCommonController) contentWorker() {
 	workFunc := func() bool {
 		keyObj, quit := ctrl.contentQueue.Get()
 		if quit {
@@ -283,9 +274,7 @@ func (ctrl *csiSnapshotController) contentWorker() {
 		// The content still exists in informer cache, the event must have
 		// been add/update/sync
 		if err == nil {
-			if ctrl.isDriverMatch(content) {
-				ctrl.updateContent(content)
-			}
+			ctrl.updateContent(content)
 			return false
 		}
 		if !errors.IsNotFound(err) {
@@ -323,22 +312,16 @@ func (ctrl *csiSnapshotController) contentWorker() {
 	}
 }
 
-// verify whether the driver specified in VolumeSnapshotContent matches the controller's driver name
-func (ctrl *csiSnapshotController) isDriverMatch(content *crdv1.VolumeSnapshotContent) bool {
-	return content.Spec.Driver == ctrl.driverName
-}
-
 // checkAndUpdateSnapshotClass gets the VolumeSnapshotClass from VolumeSnapshot. If it is not set,
-// gets it from default VolumeSnapshotClass and sets it. It also detects if snapshotter in the
-// VolumeSnapshotClass is the same as the snapshotter in external controller.
-func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
+// gets it from default VolumeSnapshotClass and sets it.
+func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
 	className := snapshot.Spec.VolumeSnapshotClassName
 	var class *crdv1.VolumeSnapshotClass
 	var err error
 	newSnapshot := snapshot
 	if className != nil {
 		klog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: VolumeSnapshotClassName [%s]", snapshot.Name, *className)
-		class, err = ctrl.GetSnapshotClass(*className)
+		class, err = ctrl.getSnapshotClass(*className)
 		if err != nil {
 			klog.Errorf("checkAndUpdateSnapshotClass failed to getSnapshotClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
@@ -354,20 +337,19 @@ func (ctrl *csiSnapshotController) checkAndUpdateSnapshotClass(snapshot *crdv1.V
 		}
 	}
 
-	klog.V(5).Infof("VolumeSnapshotClass Driver [%s] Snapshot Controller driverName [%s]", class.Driver, ctrl.driverName)
-	if class.Driver != ctrl.driverName {
-		klog.V(4).Infof("Skipping VolumeSnapshot %s for snapshotter [%s] in VolumeSnapshotClass because it does not match with the snapshotter for controller [%s]", snapshotKey(snapshot), class.Driver, ctrl.driverName)
-		return nil, fmt.Errorf("volumeSnapshotClass does not match with the snapshotter for controller")
+	// For pre-provisioned snapshots, we may not have snapshot class
+	if class != nil {
+		klog.V(5).Infof("VolumeSnapshotClass [%s] Driver [%s]", class.Name, class.Driver)
 	}
 	return newSnapshot, nil
 }
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
 // "snapshot updated" and "periodic sync" events.
-func (ctrl *csiSnapshotController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) {
+func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) {
 	// Store the new snapshot version in the cache and do not process it if this is
 	// an old version.
-	klog.V(5).Infof("updateSnapshot %q", snapshotKey(snapshot))
+	klog.V(5).Infof("updateSnapshot %q", utils.SnapshotKey(snapshot))
 	newSnapshot, err := ctrl.storeSnapshotUpdate(snapshot)
 	if err != nil {
 		klog.Errorf("%v", err)
@@ -380,16 +362,16 @@ func (ctrl *csiSnapshotController) updateSnapshot(snapshot *crdv1.VolumeSnapshot
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
 			// recovers from it easily.
-			klog.V(3).Infof("could not sync claim %q: %+v", snapshotKey(snapshot), err)
+			klog.V(3).Infof("could not sync claim %q: %+v", utils.SnapshotKey(snapshot), err)
 		} else {
-			klog.Errorf("could not sync volume %q: %+v", snapshotKey(snapshot), err)
+			klog.Errorf("could not sync volume %q: %+v", utils.SnapshotKey(snapshot), err)
 		}
 	}
 }
 
 // updateContent runs in worker thread and handles "content added",
 // "content updated" and "periodic sync" events.
-func (ctrl *csiSnapshotController) updateContent(content *crdv1.VolumeSnapshotContent) {
+func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnapshotContent) {
 	// Store the new content version in the cache and do not process it if this is
 	// an old version.
 	new, err := ctrl.storeContentUpdate(content)
@@ -412,28 +394,31 @@ func (ctrl *csiSnapshotController) updateContent(content *crdv1.VolumeSnapshotCo
 }
 
 // deleteSnapshot runs in worker thread and handles "snapshot deleted" event.
-func (ctrl *csiSnapshotController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot) {
+func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot) {
 	_ = ctrl.snapshotStore.Delete(snapshot)
-	klog.V(4).Infof("snapshot %q deleted", snapshotKey(snapshot))
+	klog.V(4).Infof("snapshot %q deleted", utils.SnapshotKey(snapshot))
 
-	if snapshot.Status.BoundVolumeSnapshotContentName == nil {
-		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", snapshotKey(snapshot))
+	snapshotContentName := ""
+	if snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil {
+		snapshotContentName = *snapshot.Status.BoundVolumeSnapshotContentName
+	}
+	if snapshotContentName == "" {
+		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", utils.SnapshotKey(snapshot))
 		return
 	}
-	snapshotContentName := *snapshot.Status.BoundVolumeSnapshotContentName
 	// sync the content when its snapshot is deleted.  Explicitly sync'ing the
 	// content here in response to snapshot deletion prevents the content from
 	// waiting until the next sync period for its Release.
-	klog.V(5).Infof("deleteSnapshot[%q]: scheduling sync of content %s", snapshotKey(snapshot), snapshotContentName)
+	klog.V(5).Infof("deleteSnapshot[%q]: scheduling sync of content %s", utils.SnapshotKey(snapshot), snapshotContentName)
 	ctrl.contentQueue.Add(snapshotContentName)
 }
 
 // deleteContent runs in worker thread and handles "content deleted" event.
-func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotContent) {
+func (ctrl *csiSnapshotCommonController) deleteContent(content *crdv1.VolumeSnapshotContent) {
 	_ = ctrl.contentStore.Delete(content)
 	klog.V(4).Infof("content %q deleted", content.Name)
 
-	snapshotName := snapshotRefKey(content.Spec.VolumeSnapshotRef)
+	snapshotName := utils.SnapshotRefKey(&content.Spec.VolumeSnapshotRef)
 	if snapshotName == "" {
 		klog.V(5).Infof("deleteContent[%q]: content not bound", content.Name)
 		return
@@ -448,7 +433,7 @@ func (ctrl *csiSnapshotController) deleteContent(content *crdv1.VolumeSnapshotCo
 // initializeCaches fills all controller caches with initial data from etcd in
 // order to have the caches already filled when first addSnapshot/addContent to
 // perform initial synchronization of the controller.
-func (ctrl *csiSnapshotController) initializeCaches(snapshotLister storagelisters.VolumeSnapshotLister, contentLister storagelisters.VolumeSnapshotContentLister) {
+func (ctrl *csiSnapshotCommonController) initializeCaches(snapshotLister storagelisters.VolumeSnapshotLister, contentLister storagelisters.VolumeSnapshotContentLister) {
 	snapshotList, err := snapshotLister.List(labels.Everything())
 	if err != nil {
 		klog.Errorf("CSISnapshotController can't initialize caches: %v", err)

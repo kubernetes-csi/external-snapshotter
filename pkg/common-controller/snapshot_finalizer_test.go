@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package common_controller
 
 import (
 	"testing"
@@ -22,42 +22,42 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-// Test single call to ensureSnapshotSourceFinalizer and checkandRemoveSnapshotSourceFinalizer,
+// Test single call to ensurePVCFinalizer and checkandRemovePVCFinalizer,
 // expecting PVCFinalizer to be added or removed
 func TestPVCFinalizer(t *testing.T) {
 
 	tests := []controllerTest{
 		{
 			name:             "1-1 - successful add PVC finalizer",
-			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testAddPVCFinalizer,
 			expectSuccess:    true,
 		},
 		{
 			name:             "1-2 - won't add PVC finalizer; already added",
-			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false),
 			initialClaims:    newClaimArrayFinalizer("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testAddPVCFinalizer,
 			expectSuccess:    false,
 		},
 		{
 			name:             "1-3 - successful remove PVC finalizer",
-			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false),
 			initialClaims:    newClaimArrayFinalizer("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemovePVCFinalizer,
 			expectSuccess:    true,
 		},
 		{
 			name:             "1-4 - won't remove PVC finalizer; already removed",
-			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemovePVCFinalizer,
 			expectSuccess:    false,
 		},
 		{
 			name:             "1-5 - won't remove PVC finalizer; PVC in-use",
-			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil),
+			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemovePVCFinalizer,
 			expectSuccess:    false,

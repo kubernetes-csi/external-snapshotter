@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controller
+package sidecar_controller
 
 import (
 	"context"
@@ -24,13 +24,12 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
-
-	v1 "k8s.io/api/core/v1"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
 )
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
 type Handler interface {
-	CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
+	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (bool, time.Time, int64, error)
 }
@@ -58,27 +57,45 @@ func NewCSIHandler(
 	}
 }
 
-func (handler *csiHandler) CreateSnapshot(snapshot *crdv1.VolumeSnapshot, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (handler *csiHandler) CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	snapshotName, err := makeSnapshotName(handler.snapshotNamePrefix, string(snapshot.UID), handler.snapshotNameUUIDLength)
+	if content.Spec.VolumeSnapshotRef.UID == "" {
+		return "", "", time.Time{}, 0, false, fmt.Errorf("cannot create snapshot. Snapshot content %s not bound to a snapshot", content.Name)
+	}
+
+	if content.Spec.Source.VolumeHandle == nil {
+		return "", "", time.Time{}, 0, false, fmt.Errorf("cannot create snapshot. Volume handle not found in snapshot content %s", content.Name)
+	}
+
+	snapshotName, err := makeSnapshotName(handler.snapshotNamePrefix, string(content.Spec.VolumeSnapshotRef.UID), handler.snapshotNameUUIDLength)
 	if err != nil {
 		return "", "", time.Time{}, 0, false, err
 	}
-	newParameters, err := removePrefixedParameters(parameters)
+	newParameters, err := utils.RemovePrefixedParameters(parameters)
 	if err != nil {
 		return "", "", time.Time{}, 0, false, fmt.Errorf("failed to remove CSI Parameters of prefixed keys: %v", err)
 	}
-	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, volume, newParameters, snapshotterCredentials)
+	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, *content.Spec.Source.VolumeHandle, newParameters, snapshotterCredentials)
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	err := handler.snapshotter.DeleteSnapshot(ctx, *content.Status.SnapshotHandle, snapshotterCredentials)
+	var snapshotHandle string
+	var err error
+	if content.Status != nil && content.Status.SnapshotHandle != nil {
+		snapshotHandle = *content.Status.SnapshotHandle
+	} else if content.Spec.Source.SnapshotHandle != nil {
+		snapshotHandle = *content.Spec.Source.SnapshotHandle
+	} else {
+		return fmt.Errorf("failed to delete snapshot content %s: snapshotHandle is missing", content.Name)
+	}
+
+	err = handler.snapshotter.DeleteSnapshot(ctx, snapshotHandle, snapshotterCredentials)
 	if err != nil {
 		return fmt.Errorf("failed to delete snapshot content %s: %q", content.Name, err)
 	}
@@ -90,9 +107,19 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
-	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, *content.Status.SnapshotHandle)
+	var snapshotHandle string
+	var err error
+	if content.Status != nil && content.Status.SnapshotHandle != nil {
+		snapshotHandle = *content.Status.SnapshotHandle
+	} else if content.Spec.Source.SnapshotHandle != nil {
+		snapshotHandle = *content.Spec.Source.SnapshotHandle
+	} else {
+		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot for content %s: snapshotHandle is missing", content.Name)
+	}
+
+	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, snapshotHandle)
 	if err != nil {
-		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot content %s: %q", content.Name, err)
+		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot for content %s: %q", content.Name, err)
 	}
 
 	return csiSnapshotStatus, timestamp, size, nil
