@@ -173,7 +173,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *c
 		contentObj, err := ctrl.checkandUpdateContentStatusOperation(content)
 		if err != nil {
 			ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotContentCheckandUpdateFailed", fmt.Sprintf("Failed to check and update snapshot content: %v", err))
-			klog.Errorf("checkandUpdateContentStatus [%s]: error occured %v", content.Name, err)
+			klog.Errorf("checkandUpdateContentStatus [%s]: error occurred %v", content.Name, err)
 			return err
 		}
 		_, updateErr := ctrl.storeContentUpdate(contentObj)
