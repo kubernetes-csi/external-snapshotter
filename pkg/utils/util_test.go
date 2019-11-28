@@ -142,7 +142,7 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 		}
 		eq := reflect.DeepEqual(newParams, tc.expectedParams)
 		if !eq {
-			t.Fatalf("Stripped paramaters: %v not equal to expected paramaters: %v", newParams, tc.expectedParams)
+			t.Fatalf("Stripped parameters: %v not equal to expected parameters: %v", newParams, tc.expectedParams)
 		}
 	}
 }
