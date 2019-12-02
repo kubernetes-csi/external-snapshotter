@@ -16,6 +16,7 @@ require (
 	k8s.io/api v0.0.0-20191122220107-b5267f2975e0
 	k8s.io/apimachinery v0.0.0-20191121175448-79c2a76c473a
 	k8s.io/client-go v0.0.0-20191122220542-ed16ecbdf3a0
+	k8s.io/code-generator v0.0.0-20191121015212-c4c8f8345c7e
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.14.0
 )
