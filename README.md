@@ -65,11 +65,7 @@ go test -timeout 30s  github.com/kubernetes-csi/external-snapshotter/pkg/control
 
 ## Dependency Management
 
-```bash
-dep ensure
-```
-
-To modify dependencies or versions change `./Gopkg.toml`
+external-snapshotter uses [go modules](https://blog.golang.org/using-go-modules).
 
 ## Community, discussion, contribution, and support
 
