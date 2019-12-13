@@ -18,6 +18,7 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -87,5 +88,55 @@ func TestControllerCacheParsingError(t *testing.T) {
 	_, err := utils.StoreObjectUpdate(c, content, "content")
 	if err == nil {
 		t.Errorf("Expected parsing error, got nil instead")
+	}
+}
+
+// TestShouldDelete tests logic for deleting VolumeSnapshotContent objects.
+func TestShouldDelete(t *testing.T) {
+	// Use an empty controller, since there's no struct
+	// state we need to use in this test.
+	ctrl := &csiSnapshotSideCarController{}
+
+	tests := []struct {
+		name           string
+		expectedReturn bool
+		content        *crdv1.VolumeSnapshotContent
+	}{
+		{
+			name:           "DeletionTimeStamp is nil",
+			expectedReturn: false,
+			content:        newContent("test-content", "snap-uuid", "snapName", "desiredHandle", "default", "desiredHandle", "volHandle", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, nil),
+		},
+		{
+			name:           "Content is not bound",
+			expectedReturn: true,
+			content:        newContent("test-content-not-bound", "", "", "snapshotHandle", "", "", "", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, &timeNowMetav1),
+		},
+		{
+			name:           "AnnVolumeSnapshotBeingDeleted annotation is set. ",
+			expectedReturn: true,
+			// DeletionTime means that annotation is set, and being bound means the other cases are skipped.
+			content: newContent("test-content", "snap-uuid", "snapName", "desiredHandle", "default", "desiredHandle", "volHandle", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, &timeNowMetav1),
+		},
+		{
+			name:           "If no other cases match, then should not delete",
+			expectedReturn: false,
+			// Use an object that does not conform to newContent's logic in order to skip the conditionals inside shouldDelete
+			content: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test-content",
+					DeletionTimestamp: &timeNowMetav1,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		result := ctrl.shouldDelete(test.content)
+
+		if result != test.expectedReturn {
+			t.Errorf("Got %t but expected %t for test: %s", result, test.expectedReturn, test.name)
+		}
+
 	}
 }
