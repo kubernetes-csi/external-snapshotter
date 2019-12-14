@@ -23,7 +23,7 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
@@ -34,20 +34,20 @@ import (
 // Design:
 //
 // This is the sidecar controller that is responsible for creating and deleting a
-// snapshot on the storage infrastructure through a csi volume driver. It watches
-// the VolumeSnapshotContent object which is either created/deleted by the
+// snapshot on the storage system through a csi volume driver. It watches
+// VolumeSnapshotContent objects which have been either created/deleted by the
 // common snapshot controller in the case of dynamic provisioning or by the admin
 // in the case of pre-provisioned snapshots.
 
-// The snapshot creation through csi volume driver should return a snapshot after
-// it is created successfully (however, the snapshot might not be ready to use yet if
-// there is an uploading phase). The creationTime will be updated accordingly
+// The snapshot creation through csi driver should return a snapshot after
+// it is created successfully(however, the snapshot might not be ready to use yet
+// if there is an uploading phase). The creationTime will be updated accordingly
 // on the status of VolumeSnapshotContent.
 // After that, the sidecar controller will keep checking the snapshot status
 // through csi snapshot calls. When the snapshot is ready to use, the sidecar
 // controller set the status "ReadyToUse" to true on the VolumeSnapshotContent object
-// to indicate the snapshot is ready to use. If the creation failed for any reason,
-// the Error status is set accordingly.
+// to indicate the snapshot is ready to be used to restore a volume.
+// If the creation failed for any reason, the Error status is set accordingly.
 
 const controllerUpdateFailMsg = "snapshot controller failed to update"
 
@@ -57,73 +57,50 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 
 	var err error
 	if ctrl.shouldDelete(content) {
-		switch content.Spec.DeletionPolicy {
-		case crdv1.VolumeSnapshotContentRetain:
-			klog.V(4).Infof("VolumeSnapshotContent[%s]: policy is Retain. Keep physical snapshot and remove content finalizer", content.Name)
-			// It is a deletion candidate if DeletionTimestamp is not nil and
-			// VolumeSnapshotContentFinalizer is set.
-			if utils.IsContentDeletionCandidate(content) {
-				// Volume snapshot content is a deletion candidate.
-				// Remove the content finalizer.
-				klog.V(5).Infof("syncContent: Content [%s] is a deletion candidate. Remove finalizer.", content.Name)
-				return ctrl.removeContentFinalizer(content)
-			}
-
-		case crdv1.VolumeSnapshotContentDelete:
-			klog.V(4).Infof("VolumeSnapshotContent[%s]: policy is Delete. Delete physical snapshot", content.Name)
-			err = ctrl.deleteCSISnapshot(content)
-			if err != nil {
-				return err
-			}
-			klog.V(5).Infof("syncContent: check if we should remove Finalizer for VolumeSnapshotContent[%s]", content.Name)
-			// It is a deletion candidate if DeletionTimestamp is not nil and
-			// VolumeSnapshotContentFinalizer is set.
-			if utils.IsContentDeletionCandidate(content) {
-				// Volume snapshot content is a deletion candidate.
-				// Remove the content finalizer.
-				klog.V(5).Infof("syncContent: Content [%s] is a deletion candidate. Remove finalizer.", content.Name)
-				return ctrl.removeContentFinalizer(content)
-			}
-
-		default:
-			// Unknown VolumeSnapshotDeletionPolicy
-			ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotUnknownDeletionPolicy", "Volume Snapshot Content has unrecognized deletion policy")
-		}
 		klog.V(4).Infof("VolumeSnapshotContent[%s]: the policy is %s", content.Name, content.Spec.DeletionPolicy)
+		if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete &&
+			content.Status != nil && content.Status.SnapshotHandle != nil {
+			// issue a CSI deletion call if the snapshot has not been deleted yet from
+			// underlying storage system. Note that the deletion snapshot operation will
+			// update content SnapshotHandle to nil upon a successful deletion. At this
+			// point, the finalizer on content should NOT be removed to avoid leaking.
+			return ctrl.deleteCSISnapshot(content)
+		} else {
+			// otherwise, either the snapshot has been deleted from the underlying
+			// storage system, or the deletion policy is Retain, remove the finalizer
+			// if there is one so that API server could delete the object if there is
+			// no other finalizer.
+			return ctrl.removeContentFinalizer(content)
+		}
 	} else {
-		var err error
-		klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
 		if content.Spec.Source.VolumeHandle != nil && content.Status == nil {
+			klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
 			if err = ctrl.createSnapshot(content); err != nil {
 				ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot with error %v", err))
 				return err
 			}
 		} else {
-
 			if err = ctrl.checkandUpdateContentStatus(content); err != nil {
 				ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotContentStatusUpdateFailed", fmt.Sprintf("Failed to update snapshot content status with error %v", err))
 				return err
 			}
 		}
-
-		return nil
 	}
-
 	return nil
 }
 
 // deleteCSISnapshot starts delete action.
 func (ctrl *csiSnapshotSideCarController) deleteCSISnapshot(content *crdv1.VolumeSnapshotContent) error {
 	operationName := fmt.Sprintf("delete-%s", content.Name)
-	klog.V(5).Infof("Snapshotter is about to delete volume snapshot content and the operation named %s", operationName)
+	klog.V(5).Infof("schedule to delete snapshot, operation named %s", operationName)
 	ctrl.scheduleOperation(operationName, func() error {
 		return ctrl.deleteCSISnapshotOperation(content)
 	})
 	return nil
 }
 
-// scheduleOperation starts given asynchronous operation on given volume. It
-// makes sure the operation is already not running.
+// scheduleOperation starts given asynchronous operation on given snapshot. It
+// makes sure there is no running operation with the same operationName
 func (ctrl *csiSnapshotSideCarController) scheduleOperation(operationName string, operation func() error) {
 	klog.V(5).Infof("scheduleOperation[%s]", operationName)
 
@@ -199,17 +176,17 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 	if content.Status != nil && content.Status.Error != nil && *content.Status.Error.Message == message {
 		klog.V(4).Infof("updateContentStatusWithEvent[%s]: the same error %v is already set", content.Name, content.Status.Error)
 		return nil
-	} else if content.Status == nil {
-		content.Status = &crdv1.VolumeSnapshotContentStatus{}
 	}
 	contentClone := content.DeepCopy()
-	statusError := &crdv1.VolumeSnapshotError{
+	if contentClone.Status == nil {
+		contentClone.Status = &crdv1.VolumeSnapshotContentStatus{}
+	}
+	contentClone.Status.Error = &crdv1.VolumeSnapshotError{
 		Time: &metav1.Time{
 			Time: time.Now(),
 		},
 		Message: &message,
 	}
-	contentClone.Status.Error = statusError
 	ready := false
 	contentClone.Status.ReadyToUse = &ready
 	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().UpdateStatus(contentClone)
@@ -233,7 +210,7 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 
 func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotClass, map[string]string, error) {
 	className := content.Spec.VolumeSnapshotClassName
-	klog.V(5).Infof("getCSISnapshotInput for content [%s]: VolumeSnapshotClassName [%s]", content.Name, *className)
+	klog.V(5).Infof("getCSISnapshotInput for content [%s]", content.Name)
 	var class *crdv1.VolumeSnapshotClass
 	var err error
 	if className != nil {
@@ -358,6 +335,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *cr
 
 	_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
 	if err != nil {
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot class or credentials")
 		return fmt.Errorf("failed to get input parameters to delete snapshot for content %s: %q", content.Name, err)
 	}
 
@@ -366,8 +344,40 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *cr
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to delete snapshot")
 		return fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
 	}
-
+	// the snapshot has been deleted from the underlying storage system, update
+	// content status to remove snapshot handle etc.
+	newContent, err := ctrl.clearVolumeContentStatus(content.Name)
+	if err != nil {
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to clear content status")
+		return err
+	}
+	// update local cache
+	ctrl.updateContentInCacheStore(newContent)
 	return nil
+}
+
+// clearVolumeContentStatus resets all fields to nil related to a snapshot in
+// content.Status. On success, the latest version of the content object will be
+// returned.
+func (ctrl *csiSnapshotSideCarController) clearVolumeContentStatus(
+	contentName string) (*crdv1.VolumeSnapshotContent, error) {
+	klog.V(5).Infof("cleanVolumeSnapshotStatus content [%s]", contentName)
+	// get the latest version from API server
+	content, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Get(contentName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error get snapshot content %s from api server: %v", contentName, err)
+	}
+	if content.Status != nil {
+		content.Status.SnapshotHandle = nil
+		content.Status.ReadyToUse = nil
+		content.Status.CreationTime = nil
+		content.Status.RestoreSize = nil
+	}
+	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().UpdateStatus(content)
+	if err != nil {
+		return nil, newControllerUpdateError(contentName, err.Error())
+	}
+	return newContent, nil
 }
 
 func (ctrl *csiSnapshotSideCarController) updateSnapshotContentStatus(
@@ -497,8 +507,13 @@ func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *
 	return snapshotterCredentials, nil
 }
 
-// removeContentFinalizer removes a Finalizer for VolumeSnapshotContent.
+// removeContentFinalizer removes the VolumeSnapshotContentFinalizer from a
+// content if there exists one.
 func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
+	if !slice.ContainsString(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer, nil) {
+		// the finalizer does not exit, return directly
+		return nil
+	}
 	contentClone := content.DeepCopy()
 	contentClone.ObjectMeta.Finalizers = slice.RemoveString(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer, nil)
 
@@ -507,12 +522,11 @@ func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.V
 		return newControllerUpdateError(content.Name, err.Error())
 	}
 
+	klog.V(5).Infof("Removed protection finalizer from volume snapshot content %s", content.Name)
 	_, err = ctrl.storeContentUpdate(contentClone)
 	if err != nil {
 		klog.Errorf("failed to update content store %v", err)
 	}
-
-	klog.V(5).Infof("Removed protection finalizer from volume snapshot content %s", content.Name)
 	return nil
 }
 
@@ -524,7 +538,7 @@ func (ctrl *csiSnapshotSideCarController) shouldDelete(content *crdv1.VolumeSnap
 	if content.ObjectMeta.DeletionTimestamp == nil {
 		return false
 	}
-	// 1) shouldDelete returns true if content is not bound
+	// 1) shouldDelete returns true if a content is not bound
 	// (VolumeSnapshotRef.UID == "") for pre-provisioned snapshot
 	if content.Spec.Source.SnapshotHandle != nil && content.Spec.VolumeSnapshotRef.UID == "" {
 		return true

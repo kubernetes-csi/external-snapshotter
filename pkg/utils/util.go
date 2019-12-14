@@ -20,8 +20,12 @@ import (
 	"fmt"
 	"strings"
 
+	"os"
+	"strconv"
+	"time"
+
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -30,9 +34,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/slice"
-	"os"
-	"strconv"
-	"time"
 )
 
 var (
@@ -316,13 +317,6 @@ func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[stri
 // NoResyncPeriodFunc Returns 0 for resyncPeriod in case resyncing is not needed.
 func NoResyncPeriodFunc() time.Duration {
 	return 0
-}
-
-// isContentDeletionCandidate checks if a volume snapshot content is a deletion candidate.
-// It is a deletion candidate if DeletionTimestamp is not nil and
-// VolumeSnapshotContentFinalizer is set.
-func IsContentDeletionCandidate(content *crdv1.VolumeSnapshotContent) bool {
-	return content.ObjectMeta.DeletionTimestamp != nil && slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
 }
 
 // needToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
