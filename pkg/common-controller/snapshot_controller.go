@@ -116,9 +116,9 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		// Treat the content as bound to a missing snapshot.
 		snapshot = nil
 	} else {
-		// TODO(xyang): Write a function to check if snapshot.Status is different from content.Status and add snapshot to queue if there is a difference and it is worth triggering an snapshot status update
-		// Check if content status is set to true and update snapshot status if so
-		if snapshot != nil && content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
+		// Check if snapshot.Status is different from content.Status and add snapshot to queue
+		// if there is a difference and it is worth triggering an snapshot status update.
+		if snapshot != nil && ctrl.needsUpdateSnapshotStatus(snapshot, content) {
 			klog.V(4).Infof("synchronizing VolumeSnapshotContent for snapshot [%s]: update snapshot status to true if needed.", snapshotName)
 			// Manually trigger a snapshot status update to happen
 			// right away so that it is in-sync with the content status
@@ -896,6 +896,39 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeSnapshot(snapshotCon
 
 	klog.V(5).Infof("bindandUpdateVolumeSnapshot for snapshot completed [%#v]", snapshotCopy)
 	return snapshotCopy, nil
+}
+
+// needsUpdateSnapshotStatus compares snapshot status with the content status and decide
+// if snapshot status needs to be updated based on content status
+func (ctrl *csiSnapshotCommonController) needsUpdateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
+	klog.V(5).Infof("needsUpdateSnapshotStatus[%s]", utils.SnapshotKey(snapshot))
+
+	if snapshot.Status == nil && content.Status != nil {
+		return true
+	}
+	if snapshot.Status != nil && content.Status == nil {
+		return false
+	}
+	if snapshot.Status == nil && content.Status == nil {
+		return false
+	}
+	if snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return true
+	}
+	if snapshot.Status.CreationTime == nil && content.Status.CreationTime != nil {
+		return true
+	}
+	if snapshot.Status.ReadyToUse == nil && content.Status.ReadyToUse != nil {
+		return true
+	}
+	if snapshot.Status.ReadyToUse != nil && content.Status.ReadyToUse != nil && snapshot.Status.ReadyToUse != content.Status.ReadyToUse {
+		return true
+	}
+	if (snapshot.Status.RestoreSize == nil && content.Status.RestoreSize != nil) || (snapshot.Status.RestoreSize != nil && snapshot.Status.RestoreSize.IsZero() && content.Status.RestoreSize != nil && *content.Status.RestoreSize > 0) {
+		return true
+	}
+
+	return false
 }
 
 // UpdateSnapshotStatus updates snapshot status based on content status
