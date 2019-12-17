@@ -761,8 +761,6 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Snapshot().V1beta1().VolumeSnapshotContents(),
 		informerFactory.Snapshot().V1beta1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
-		3,
-		5*time.Millisecond,
 		60*time.Second,
 	)
 

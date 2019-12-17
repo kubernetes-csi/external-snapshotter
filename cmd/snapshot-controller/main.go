@@ -46,11 +46,9 @@ const (
 
 // Command line flags
 var (
-	kubeconfig                      = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
-	createSnapshotContentRetryCount = flag.Int("create-snapshotcontent-retrycount", 5, "Number of retries when we create a snapshot content object for a snapshot.")
-	createSnapshotContentInterval   = flag.Duration("create-snapshotcontent-interval", 10*time.Second, "Interval between retries when we create a snapshot content object for a snapshot.")
-	resyncPeriod                    = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
-	showVersion                     = flag.Bool("version", false, "Show version.")
+	kubeconfig   = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
+	resyncPeriod = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
+	showVersion  = flag.Bool("version", false, "Show version.")
 
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
@@ -96,7 +94,7 @@ func main() {
 	// Add Snapshot types to the defualt Kubernetes so events can be logged for them
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
-	klog.V(2).Infof("Start NewCSISnapshotController with kubeconfig [%s] createSnapshotContentRetryCount [%d] createSnapshotContentInterval [%d] resyncPeriod [%+v]", *kubeconfig, *createSnapshotContentRetryCount, *createSnapshotContentInterval, *resyncPeriod)
+	klog.V(2).Infof("Start NewCSISnapshotController with kubeconfig [%s] resyncPeriod [%+v]", *kubeconfig, *resyncPeriod)
 
 	ctrl := controller.NewCSISnapshotCommonController(
 		snapClient,
@@ -105,8 +103,6 @@ func main() {
 		factory.Snapshot().V1beta1().VolumeSnapshotContents(),
 		factory.Snapshot().V1beta1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
-		*createSnapshotContentRetryCount,
-		*createSnapshotContentInterval,
 		*resyncPeriod,
 	)
 
