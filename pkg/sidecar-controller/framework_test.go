@@ -553,10 +553,6 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 		Spec: crdv1.VolumeSnapshotContentSpec{
 			Driver:         mockDriverName,
 			DeletionPolicy: deletionPolicy,
-			Source: crdv1.VolumeSnapshotContentSource{
-				SnapshotHandle: &snapshotHandle,
-				VolumeHandle:   &volumeHandle,
-			},
 		},
 		Status: &crdv1.VolumeSnapshotContentStatus{
 			CreationTime: creationTime,

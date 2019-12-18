@@ -25,12 +25,13 @@ func TestSyncContent(t *testing.T) {
 	var tests []controllerTest
 
 	tests = append(tests, controllerTest{
-		name:             "Basic content create ready to use",
-		initialContents:  newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "", retainPolicy, nil, &defaultSize, &False, true),
-		expectedContents: newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "", retainPolicy, nil, &defaultSize, &True, true),
+		name:             "Basic content update ready to use",
+		initialContents:  newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "volume-handle-1-1", retainPolicy, nil, &defaultSize, &False, true),
+		expectedContents: newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "volume-handle-1-1", retainPolicy, nil, &defaultSize, &True, true),
 		expectedEvents:   noevents,
 		expectedCreateCalls: []createCall{
 			{
+				volumeHandle: "volume-handle-1-1",
 				snapshotName: "snapshot-snapuid1-1",
 				driverName:   mockDriverName,
 				snapshotId:   "snapuid1-1",
