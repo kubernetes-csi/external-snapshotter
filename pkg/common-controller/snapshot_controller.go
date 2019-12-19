@@ -126,16 +126,24 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		}
 	}
 
-	// Trigger content deletion if snapshot is nil or snapshot has
-	// deletion timestamp.
+	// NOTE(xyang): Do not trigger content deletion if
+	// snapshot is nil. This is to avoid data loss if
+	// the user copied the yaml files and expect it to work
+	// in a different setup. In this case snapshot is nil.
+	// If we trigger content deletion, it will delete
+	// physical snapshot resource on the storage system
+	// and result in data loss!
+	//
+	// Trigger content deletion if snapshot is not nil
+	// and snapshot has deletion timestamp.
 	// If snapshot has deletion timestamp and finalizers, set
 	// AnnVolumeSnapshotBeingDeleted annotation on the content.
 	// This may trigger the deletion of the content in the
 	// sidecar controller depending on the deletion policy
 	// on the content.
 	// Snapshot won't be deleted until content is deleted
-	// due to the finalizer
-	if snapshot == nil || utils.IsSnapshotDeletionCandidate(snapshot) {
+	// due to the finalizer.
+	if snapshot != nil && utils.IsSnapshotDeletionCandidate(snapshot) {
 		err = ctrl.setAnnVolumeSnapshotBeingDeleted(content)
 		if err != nil {
 			return err
