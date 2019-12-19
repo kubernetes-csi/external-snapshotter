@@ -337,7 +337,7 @@ func NeedToAddSnapshotAsSourceFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
 
 // NeedToAddSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume snapshot.
 func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && IsBoundVolumeSnapshotContentNameSet(snapshot)
 }
 
 func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {

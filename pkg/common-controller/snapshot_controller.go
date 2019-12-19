@@ -290,7 +290,7 @@ func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot 
 // If there is any problem with the binding (e.g., snapshot points to a non-existent snapshot content), update the snapshot status and emit event.
 func (ctrl *csiSnapshotCommonController) syncReadySnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	if !utils.IsBoundVolumeSnapshotContentNameSet(snapshot) {
-		return nil
+		return fmt.Errorf("snapshot %s is not bound to a content.", utils.SnapshotKey(snapshot))
 	}
 	obj, found, err := ctrl.contentStore.GetByKey(*snapshot.Status.BoundVolumeSnapshotContentName)
 	if err != nil {
