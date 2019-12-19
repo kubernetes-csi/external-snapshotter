@@ -207,12 +207,9 @@ func (ctrl *csiSnapshotCommonController) snapshotWorker() {
 			newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
 			if err == nil {
 				klog.V(5).Infof("passed checkAndUpdateSnapshotClass for snapshot %q", key)
-				err = ctrl.updateSnapshot(newSnapshot)
+				ctrl.updateSnapshot(newSnapshot)
 			}
-			if err != nil {
-				ctrl.snapshotQueue.AddRateLimited(key)
-				return false
-			}
+			return false
 		}
 		if err != nil && !errors.IsNotFound(err) {
 			klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
@@ -343,7 +340,7 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
 // "snapshot updated" and "periodic sync" events.
-func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) error {
+func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) {
 	// Store the new snapshot version in the cache and do not process it if this is
 	// an old version.
 	klog.V(5).Infof("updateSnapshot %q", utils.SnapshotKey(snapshot))
@@ -352,7 +349,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSn
 		klog.Errorf("%v", err)
 	}
 	if !newSnapshot {
-		return nil
+		return
 	}
 	err = ctrl.syncSnapshot(snapshot)
 	if err != nil {
@@ -362,10 +359,8 @@ func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSn
 			klog.V(3).Infof("could not sync claim %q: %+v", utils.SnapshotKey(snapshot), err)
 		} else {
 			klog.Errorf("could not sync volume %q: %+v", utils.SnapshotKey(snapshot), err)
-			return err
 		}
 	}
-	return nil
 }
 
 // updateContent runs in worker thread and handles "content added",
