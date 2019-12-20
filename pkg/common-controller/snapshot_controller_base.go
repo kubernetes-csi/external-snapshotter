@@ -42,6 +42,12 @@ import (
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 )
 
+// Number of retries when we create a VolumeSnapshotContent object
+const createSnapshotContentRetryCount = 5
+
+// Interval between retries when we create a VolumeSnapshotContent object
+const createSnapshotContentInterval = 10 * time.Second
+
 type csiSnapshotCommonController struct {
 	clientset     clientset.Interface
 	client        kubernetes.Interface
@@ -77,8 +83,6 @@ func NewCSISnapshotCommonController(
 	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
-	createSnapshotContentRetryCount int,
-	createSnapshotContentInterval time.Duration,
 	resyncPeriod time.Duration,
 ) *csiSnapshotCommonController {
 	broadcaster := record.NewBroadcaster()
