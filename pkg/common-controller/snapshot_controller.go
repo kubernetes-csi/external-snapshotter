@@ -344,6 +344,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 				break
 			}
 			klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
+			time.Sleep(ctrl.createSnapshotContentInterval)
 		}
 
 		if err != nil {
@@ -406,6 +407,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 						break
 					}
 					klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
+					time.Sleep(ctrl.createSnapshotContentInterval)
 				}
 
 				if err != nil {
@@ -865,16 +867,17 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeSnapshot(snapshotCon
 
 	// Copy the snapshot object before updating it
 	snapshotCopy := snapshotObj.DeepCopy()
-
 	// update snapshot status
+	var updateSnapshot *crdv1.VolumeSnapshot
 	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
 		klog.V(5).Infof("bindandUpdateVolumeSnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshotCopy))
-		updateSnapshot, err := ctrl.updateSnapshotStatus(snapshotCopy, snapshotContent)
+		updateSnapshot, err = ctrl.updateSnapshotStatus(snapshotCopy, snapshotContent)
 		if err == nil {
 			snapshotCopy = updateSnapshot
 			break
 		}
 		klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
+		time.Sleep(ctrl.createSnapshotContentInterval)
 	}
 
 	if err != nil {
