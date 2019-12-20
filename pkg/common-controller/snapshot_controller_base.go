@@ -42,6 +42,12 @@ import (
 	"k8s.io/kubernetes/pkg/util/goroutinemap"
 )
 
+// Number of retries when we create a VolumeSnapshotContent object
+const createSnapshotContentRetryCount = 5
+
+// Interval between retries when we create a VolumeSnapshotContent object
+const createSnapshotContentInterval = 10 * time.Second
+
 type csiSnapshotCommonController struct {
 	clientset     clientset.Interface
 	client        kubernetes.Interface
@@ -64,7 +70,9 @@ type csiSnapshotCommonController struct {
 	// Map of scheduled/running operations.
 	runningOperations goroutinemap.GoRoutineMap
 
-	resyncPeriod time.Duration
+	createSnapshotContentRetryCount int
+	createSnapshotContentInterval   time.Duration
+	resyncPeriod                    time.Duration
 }
 
 // NewCSISnapshotController returns a new *csiSnapshotCommonController
@@ -84,15 +92,17 @@ func NewCSISnapshotCommonController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
 
 	ctrl := &csiSnapshotCommonController{
-		clientset:         clientset,
-		client:            client,
-		eventRecorder:     eventRecorder,
-		runningOperations: goroutinemap.NewGoRoutineMap(true),
-		resyncPeriod:      resyncPeriod,
-		snapshotStore:     cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentStore:      cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
-		contentQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
+		clientset:                       clientset,
+		client:                          client,
+		eventRecorder:                   eventRecorder,
+		runningOperations:               goroutinemap.NewGoRoutineMap(true),
+		createSnapshotContentRetryCount: createSnapshotContentRetryCount,
+		createSnapshotContentInterval:   createSnapshotContentInterval,
+		resyncPeriod:                    resyncPeriod,
+		snapshotStore:                   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		contentStore:                    cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
+		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
 	}
 
 	ctrl.pvcLister = pvcInformer.Lister()
