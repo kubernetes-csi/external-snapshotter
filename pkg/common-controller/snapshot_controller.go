@@ -367,10 +367,19 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		return nil
 	} else { // snapshot.Spec.Source.VolumeSnapshotContentName == nil - dynamically creating snapshot
 		klog.V(5).Infof("before getMatchSnapshotContent for snapshot %s", uniqueSnapshotName)
-		if contentObj := ctrl.getMatchSnapshotContent(snapshot); contentObj != nil {
+		var contentObj *crdv1.VolumeSnapshotContent
+		contentObj, _ = ctrl.getContentFromStore(snapshot)
+		// Ignore err from getContentFromStore. If content not found
+		// in the cache store by the content name, try to search it from
+		// the ctrl.contentStore.List()
+		if contentObj == nil {
+			contentObj = ctrl.getMatchSnapshotContent(snapshot)
+		}
+
+		if contentObj != nil {
 			klog.V(5).Infof("Found VolumeSnapshotContent object %s for snapshot %s", contentObj.Name, uniqueSnapshotName)
 			if contentObj.Spec.Source.SnapshotHandle != nil {
-				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotHandleNotFound", fmt.Sprintf("Snapshot handle not found in content %s", contentObj.Name))
+				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotHandleSet", fmt.Sprintf("Snapshot handle should not be set in content %s for dynamic provisioning", uniqueSnapshotName))
 				return fmt.Errorf("snapshotHandle should not be set in the content for dynamic provisioning for snapshot %s", uniqueSnapshotName)
 			}
 			newSnapshot, err := ctrl.bindandUpdateVolumeSnapshot(contentObj, snapshot)
@@ -379,25 +388,6 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 			}
 			klog.V(5).Infof("bindandUpdateVolumeSnapshot %v", newSnapshot)
 			return nil
-		} else if snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil {
-			contentObj, found, err := ctrl.contentStore.GetByKey(*snapshot.Status.BoundVolumeSnapshotContentName)
-			if err != nil {
-				return err
-			}
-			if !found {
-				if snapshot.ObjectMeta.DeletionTimestamp == nil {
-					ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentNotFound", fmt.Sprintf("Content for snapshot %s not found, but deletion timestamp not set on snapshot", uniqueSnapshotName))
-					return fmt.Errorf("content for snapshot %s not found without deletion timestamp on snapshot", uniqueSnapshotName)
-				}
-				// NOTE: this is not an error now because we delete content before the snapshot
-				klog.V(5).Infof("Content for snapshot %s not found. It may be already deleted as expected.", uniqueSnapshotName)
-			} else {
-				klog.V(5).Infof("converting content object for snapshot %s", uniqueSnapshotName)
-				_, ok := contentObj.(*crdv1.VolumeSnapshotContent)
-				if !ok {
-					return fmt.Errorf("expected volume snapshot content, got %+v", contentObj)
-				}
-			}
 		} else if snapshot.Status == nil || snapshot.Status.Error == nil || isControllerUpdateFailError(snapshot.Status.Error) {
 			if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
 				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
