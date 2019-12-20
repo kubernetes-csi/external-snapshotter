@@ -124,9 +124,10 @@ Install CSI Driver:
 The change from v1alpha1 to v1beta1 snapshot APIs is not backward compatible.
 
 If you have already deployed v1alpha1 snapshot APIs and external-snapshotter sidecar controller and want to upgrade to v1beta1, you need to do the following:
-* Delete volume snapshots created using v1alpha1 snapshot CRDs and external-snapshotter sidecar controller.
-* Uninstall v1alpha1 snapshot CRDs, external-snapshotter sidecar controller, and CSI driver.
-* Install v1beta1 snapshot CRDs, snapshot controller, CSI external-snapshotter sidecar and CSI driver.
+* <strong>Note: The underlying snapshots on the storage system will be deleted in the upgrade process!!!</strong>
+1. Delete volume snapshots created using v1alpha1 snapshot CRDs and external-snapshotter sidecar controller.
+2. Uninstall v1alpha1 snapshot CRDs, external-snapshotter sidecar controller, and CSI driver.
+3. Install v1beta1 snapshot CRDs, snapshot controller, CSI external-snapshotter sidecar and CSI driver.
 
 
 ## Testing
