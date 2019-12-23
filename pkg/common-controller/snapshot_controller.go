@@ -235,7 +235,6 @@ func (ctrl *csiSnapshotCommonController) processIfDeletionTimestampSet(snapshot 
 func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent, deleteContent bool) error {
 	klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
-	var err error
 	// Check is snapshot deletionTimestamp is set and any finalizer is on
 	if utils.IsSnapshotDeletionCandidate(snapshot) {
 		// Volume snapshot should be deleted. Check if it's used
@@ -258,7 +257,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 			}
 		}
 
-		if !inUse || (content == nil && err == nil) {
+		if !inUse {
 			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
 			doesContentExist := false
 			if content != nil {
