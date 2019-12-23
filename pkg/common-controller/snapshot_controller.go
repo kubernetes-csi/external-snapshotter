@@ -144,10 +144,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 	// Snapshot won't be deleted until content is deleted
 	// due to the finalizer.
 	if snapshot != nil && utils.IsSnapshotDeletionCandidate(snapshot) {
-		err = ctrl.setAnnVolumeSnapshotBeingDeleted(content)
-		if err != nil {
-			return err
-		}
+		return ctrl.setAnnVolumeSnapshotBeingDeleted(content)
 	}
 
 	return nil
@@ -184,19 +181,19 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 func (ctrl *csiSnapshotCommonController) checkContentAndBoundStatus(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotContent, bool, bool, error) {
 	// If content is deleted already, remove SnapshotBound finalizer
 	content, err := ctrl.getContentFromStore(snapshot)
-	if err != nil {
+	if err != nil || content == nil {
 		return nil, false, false, err
 	}
 	deleteContent := false
 	// It is possible for getContentFromStore to return nil, nil
-	if content != nil && content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete {
+	if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete {
 		klog.V(5).Infof("processFinalizersAndCheckandDeleteContent: Content [%s] deletion policy [%s] is delete.", content.Name, content.Spec.DeletionPolicy)
 		deleteContent = true
 	}
 
 	snapshotBound := false
 	// Check if the snapshot content is bound to the snapshot
-	if content != nil && utils.IsSnapshotBound(snapshot, content) {
+	if utils.IsSnapshotBound(snapshot, content) {
 		klog.Infof("syncSnapshot: VolumeSnapshot %s is bound to volumeSnapshotContent [%s]", snapshot.Name, content.Name)
 		snapshotBound = true
 
@@ -244,7 +241,10 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 		// Volume snapshot should be deleted. Check if it's used
 		// and remove finalizer if it's not.
 		// Check if a volume is being created from snapshot.
-		inUse := ctrl.isVolumeBeingCreatedFromSnapshot(snapshot)
+		inUse := false
+		if content != nil {
+			inUse = ctrl.isVolumeBeingCreatedFromSnapshot(snapshot)
+		}
 
 		klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: set DeletionTimeStamp on content.", utils.SnapshotKey(snapshot))
 		// If content exists, set DeletionTimeStamp on the content;
@@ -904,10 +904,7 @@ func (ctrl *csiSnapshotCommonController) needsUpdateSnapshotStatus(snapshot *crd
 	if snapshot.Status == nil && content.Status != nil {
 		return true
 	}
-	if snapshot.Status != nil && content.Status == nil {
-		return false
-	}
-	if snapshot.Status == nil && content.Status == nil {
+	if content.Status == nil {
 		return false
 	}
 	if snapshot.Status.BoundVolumeSnapshotContentName == nil {
@@ -922,7 +919,10 @@ func (ctrl *csiSnapshotCommonController) needsUpdateSnapshotStatus(snapshot *crd
 	if snapshot.Status.ReadyToUse != nil && content.Status.ReadyToUse != nil && snapshot.Status.ReadyToUse != content.Status.ReadyToUse {
 		return true
 	}
-	if (snapshot.Status.RestoreSize == nil && content.Status.RestoreSize != nil) || (snapshot.Status.RestoreSize != nil && snapshot.Status.RestoreSize.IsZero() && content.Status.RestoreSize != nil && *content.Status.RestoreSize > 0) {
+	if snapshot.Status.RestoreSize == nil && content.Status.RestoreSize != nil {
+		return true
+	}
+	if snapshot.Status.RestoreSize != nil && snapshot.Status.RestoreSize.IsZero() && content.Status.RestoreSize != nil && *content.Status.RestoreSize > 0 {
 		return true
 	}
 
