@@ -17,7 +17,6 @@ limitations under the License.
 package common_controller
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -105,12 +104,6 @@ type controllerTest struct {
 	expectedEvents []string
 	// Errors to produce on matching action
 	errors []reactorError
-	// List of expected CSI Create snapshot calls
-	expectedCreateCalls []createCall
-	// List of expected CSI Delete snapshot calls
-	expectedDeleteCalls []deleteCall
-	// List of expected CSI list snapshot calls
-	expectedListCalls []listCall
 	// Function to call as the test.
 	test          testCall
 	expectSuccess bool
@@ -151,6 +144,7 @@ type snapshotReactor struct {
 	claims               map[string]*v1.PersistentVolumeClaim
 	contents             map[string]*crdv1.VolumeSnapshotContent
 	snapshots            map[string]*crdv1.VolumeSnapshot
+	snapshotClasses      map[string]*crdv1.VolumeSnapshotClass
 	changedObjects       []interface{}
 	changedSinceLastSync int
 	ctrl                 *csiSnapshotCommonController
@@ -171,6 +165,7 @@ type reactorError struct {
 }
 
 func withSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) *crdv1.VolumeSnapshot {
+	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
 	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
 	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
 	return snapshot
@@ -712,6 +707,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 		storageClasses:    make(map[string]*storagev1.StorageClass),
 		volumes:           make(map[string]*v1.PersistentVolume),
 		claims:            make(map[string]*v1.PersistentVolumeClaim),
+		snapshotClasses:   make(map[string]*crdv1.VolumeSnapshotClass),
 		contents:          make(map[string]*crdv1.VolumeSnapshotContent),
 		snapshots:         make(map[string]*crdv1.VolumeSnapshot),
 		ctrl:              ctrl,
@@ -723,10 +719,13 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshots", reactor.React)
+	client.AddReactor("update", "volumesnapshotclasses", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshots", reactor.React)
+	client.AddReactor("get", "volumesnapshotclasses", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshots", reactor.React)
+	client.AddReactor("delete", "volumesnapshotclasses", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
@@ -746,14 +745,6 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, utils.NoResyncPeriodFunc())
 
-	// Construct controller
-	//fakeSnapshot := &fakeSnapshotter{
-	//	t:           t,
-	//	listCalls:   test.expectedListCalls,
-	//	createCalls: test.expectedCreateCalls,
-	//	deleteCalls: test.expectedDeleteCalls,
-	//}
-
 	ctrl := NewCSISnapshotCommonController(
 		clientset,
 		kubeClient,
@@ -770,6 +761,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	ctrl.snapshotListerSynced = alwaysReady
 	ctrl.classListerSynced = alwaysReady
 	ctrl.pvcListerSynced = alwaysReady
+	ctrl.createSnapshotContentInterval = time.Millisecond * 5
+	ctrl.createSnapshotContentRetryCount = 3
 
 	return ctrl, nil
 }
@@ -870,7 +863,7 @@ func newContentWithUnmatchDriverArray(contentName, boundToSnapshotUID, boundToSn
 func newSnapshot(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
-	err *crdv1.VolumeSnapshotError, nilStatus bool) *crdv1.VolumeSnapshot {
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool) *crdv1.VolumeSnapshot {
 	snapshot := crdv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:            snapshotName,
@@ -897,7 +890,9 @@ func newSnapshot(
 		snapshot.Status.BoundVolumeSnapshotContentName = &boundContentName
 	}
 
-	snapshot.Spec.VolumeSnapshotClassName = &snapshotClassName
+	if snapshotClassName != "" {
+		snapshot.Spec.VolumeSnapshotClassName = &snapshotClassName
+	}
 
 	if pvcName != "" {
 		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
@@ -908,15 +903,42 @@ func newSnapshot(
 			VolumeSnapshotContentName: &targetContentName,
 		}
 	}
-	return withSnapshotFinalizer(&snapshot)
+	if withFinalizer {
+		return withSnapshotFinalizer(&snapshot)
+	}
+	return &snapshot
 }
 
 func newSnapshotArray(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
-	err *crdv1.VolumeSnapshotError, nilStatus bool) []*crdv1.VolumeSnapshot {
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
-		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus),
+		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withFinalizer),
+	}
+}
+
+func newSnapshotClass(snapshotClassName, snapshotClassUID, driverName string, isDefaultClass bool) *crdv1.VolumeSnapshotClass {
+	sc := &crdv1.VolumeSnapshotClass{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            snapshotClassName,
+			Namespace:       testNamespace,
+			UID:             types.UID(snapshotClassUID),
+			ResourceVersion: "1",
+			SelfLink:        "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshotclasses/" + snapshotClassName,
+		},
+		Driver: driverName,
+	}
+	if isDefaultClass {
+		sc.Annotations = make(map[string]string)
+		sc.Annotations[utils.IsDefaultSnapshotClassAnnotation] = "true"
+	}
+	return sc
+}
+
+func newSnapshotClassArray(snapshotClassName, snapshotClassUID, driverName string, isDefaultClass bool) []*crdv1.VolumeSnapshotClass {
+	return []*crdv1.VolumeSnapshotClass{
+		newSnapshotClass(snapshotClassName, snapshotClassUID, driverName, isDefaultClass),
 	}
 }
 
@@ -1056,6 +1078,19 @@ func testRemovePVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshot
 	return ctrl.checkandRemovePVCFinalizer(test.initialSnapshots[0])
 }
 
+func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], true, true)
+}
+
+func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true)
+}
+
+func testUpdateSnapshotClass(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	_, err := ctrl.checkAndUpdateSnapshotClass(test.initialSnapshots[0])
+	return err
+}
+
 var (
 	classEmpty         string
 	classGold          = "gold"
@@ -1109,7 +1144,6 @@ func evaluateTestResults(ctrl *csiSnapshotCommonController, reactor *snapshotRea
 	// Evaluate results
 	if err := reactor.checkSnapshots(test.expectedSnapshots); err != nil {
 		t.Errorf("Test %q: %v", test.name, err)
-
 	}
 	if err := reactor.checkContents(test.expectedContents); err != nil {
 		t.Errorf("Test %q: %v", test.name, err)
@@ -1190,8 +1224,8 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 	}
 }
 
-// This tests ensurePVCFinalizer and checkandRemovePVCFinalizer
-func runPVCFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
+// This tests that finalizers are added or removed from a PVC or Snapshot
+func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
 		klog.V(4).Infof("starting test %q", test.name)
@@ -1245,15 +1279,16 @@ func runPVCFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses 
 			t.Errorf("Test %q failed: %v", test.name, err)
 		}
 
-		// Verify PVCFinalizer tests results
-		evaluatePVCFinalizerTests(ctrl, reactor, test, t)
+		// Verify Finalizer tests results
+		evaluateFinalizerTests(ctrl, reactor, test, t)
 	}
 }
 
-// Evaluate PVCFinalizer tests results
-func evaluatePVCFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest, t *testing.T) {
+// Evaluate Finalizer tests results
+func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest, t *testing.T) {
 	// Evaluate results
 	bHasPVCFinalizer := false
+	bHasSnapshotFinalizer := false
 	name := sysruntime.FuncForPC(reflect.ValueOf(test.test).Pointer()).Name()
 	index := strings.LastIndex(name, ".")
 	if index == -1 {
@@ -1262,36 +1297,132 @@ func evaluatePVCFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snaps
 	}
 	names := []rune(name)
 	funcName := string(names[index+1 : len(name)])
-	klog.V(4).Infof("test %q: PVCFinalizer test func name: [%s]", test.name, funcName)
+	klog.V(4).Infof("test %q: Finalizer test func name: [%s]", test.name, funcName)
 
-	if funcName == "testAddPVCFinalizer" {
-		for _, pvc := range reactor.claims {
-			if test.initialClaims[0].Name == pvc.Name {
-				if !slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
-					klog.V(4).Infof("test %q succeeded. PVCFinalizer is added to PVC %s", test.name, pvc.Name)
-					bHasPVCFinalizer = true
+	if strings.Contains(funcName, "PVCFinalizer") {
+		if funcName == "testAddPVCFinalizer" {
+			for _, pvc := range reactor.claims {
+				if test.initialClaims[0].Name == pvc.Name {
+					if !slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+						klog.V(4).Infof("test %q succeeded. PVCFinalizer is added to PVC %s", test.name, pvc.Name)
+						bHasPVCFinalizer = true
+					}
+					break
 				}
-				break
+			}
+			if test.expectSuccess && !bHasPVCFinalizer {
+				t.Errorf("Test %q: failed to add finalizer to PVC %s", test.name, test.initialClaims[0].Name)
 			}
 		}
-		if test.expectSuccess && !bHasPVCFinalizer {
-			t.Errorf("Test %q: failed to add finalizer to PVC %s", test.name, test.initialClaims[0].Name)
+		bHasPVCFinalizer = true
+		if funcName == "testRemovePVCFinalizer" {
+			for _, pvc := range reactor.claims {
+				if test.initialClaims[0].Name == pvc.Name {
+					if slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && !slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+						klog.V(4).Infof("test %q succeeded. PVCFinalizer is removed from PVC %s", test.name, pvc.Name)
+						bHasPVCFinalizer = false
+					}
+					break
+				}
+			}
+			if test.expectSuccess && bHasPVCFinalizer {
+				t.Errorf("Test %q: failed to remove finalizer from PVC %s", test.name, test.initialClaims[0].Name)
+			}
+		}
+	} else {
+		if funcName == "testAddSnapshotFinalizer" {
+			for _, snapshot := range reactor.snapshots {
+				if test.initialSnapshots[0].Name == snapshot.Name {
+					if !slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) && slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) &&
+						!slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) && slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) {
+						klog.V(4).Infof("test %q succeeded. Finalizers are added to snapshot %s", test.name, snapshot.Name)
+						bHasSnapshotFinalizer = true
+					}
+					break
+				}
+			}
+			if test.expectSuccess && !bHasSnapshotFinalizer {
+				t.Errorf("Test %q: failed to add finalizer to Snapshot %s", test.name, test.initialSnapshots[0].Name)
+			}
+		}
+		bHasSnapshotFinalizer = true
+		if funcName == "testRemoveSnapshotFinalizer" {
+			for _, snapshot := range reactor.snapshots {
+				if test.initialSnapshots[0].Name == snapshot.Name {
+					if slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) &&
+						slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) {
+						klog.V(4).Infof("test %q succeeded. SnapshotFinalizer is removed from Snapshot %s", test.name, snapshot.Name)
+						bHasSnapshotFinalizer = false
+					}
+					break
+				}
+			}
+			if test.expectSuccess && bHasSnapshotFinalizer {
+				t.Errorf("Test %q: failed to remove finalizer from snapshot %s", test.name, test.initialSnapshots[0].Name)
+			}
 		}
 	}
-	bHasPVCFinalizer = true
-	if funcName == "testRemovePVCFinalizer" {
-		for _, pvc := range reactor.claims {
-			if test.initialClaims[0].Name == pvc.Name {
-				if slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && !slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
-					klog.V(4).Infof("test %q succeeded. PVCFinalizer is removed from PVC %s", test.name, pvc.Name)
-					bHasPVCFinalizer = false
-				}
-				break
-			}
+}
+
+// This tests that a snapshotclass is updated or not
+func runUpdateSnapshotClassTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
+	snapshotscheme.AddToScheme(scheme.Scheme)
+	for _, test := range tests {
+		klog.V(4).Infof("starting test %q", test.name)
+
+		// Initialize the controller
+		kubeClient := &kubefake.Clientset{}
+		client := &fake.Clientset{}
+
+		ctrl, err := newTestController(kubeClient, client, nil, t, test)
+		if err != nil {
+			t.Fatalf("Test %q construct test controller failed: %v", test.name, err)
 		}
-		if test.expectSuccess && bHasPVCFinalizer {
-			t.Errorf("Test %q: failed to remove finalizer from PVC %s", test.name, test.initialClaims[0].Name)
+
+		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+		for _, snapshot := range test.initialSnapshots {
+			ctrl.snapshotStore.Add(snapshot)
+			reactor.snapshots[snapshot.Name] = snapshot
 		}
+		for _, content := range test.initialContents {
+			ctrl.contentStore.Add(content)
+			reactor.contents[content.Name] = content
+		}
+
+		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		for _, claim := range test.initialClaims {
+			reactor.claims[claim.Name] = claim
+			pvcIndexer.Add(claim)
+		}
+		ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
+
+		for _, volume := range test.initialVolumes {
+			reactor.volumes[volume.Name] = volume
+		}
+		for _, storageClass := range test.initialStorageClasses {
+			reactor.storageClasses[storageClass.Name] = storageClass
+		}
+		for _, secret := range test.initialSecrets {
+			reactor.secrets[secret.Name] = secret
+		}
+
+		// Inject classes into controller via a custom lister.
+		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		for _, class := range snapshotClasses {
+			indexer.Add(class)
+			reactor.snapshotClasses[class.Name] = class
+
+		}
+		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+
+		// Run the tested functions
+		err = test.test(ctrl, reactor, test)
+		if test.expectSuccess && err != nil {
+			t.Errorf("Test %q failed: %v", test.name, err)
+		}
+
+		// Verify UpdateSnapshotClass tests results
+		evaluateTestResults(ctrl, reactor, test, t)
 	}
 }
 
@@ -1340,128 +1471,4 @@ func emptyDataSecretAnnotations() map[string]string {
 		utils.AnnDeletionSecretRefName:      "emptysecret",
 		utils.AnnDeletionSecretRefNamespace: "default",
 	}
-}
-
-type listCall struct {
-	snapshotID string
-	// information to return
-	readyToUse bool
-	createTime time.Time
-	size       int64
-	err        error
-}
-
-type deleteCall struct {
-	snapshotID string
-	secrets    map[string]string
-	err        error
-}
-
-type createCall struct {
-	// expected request parameter
-	snapshotName string
-	volume       *v1.PersistentVolume
-	parameters   map[string]string
-	secrets      map[string]string
-	// information to return
-	driverName   string
-	snapshotId   string
-	creationTime time.Time
-	size         int64
-	readyToUse   bool
-	err          error
-}
-
-// Fake SnapShotter implementation that check that Attach/Detach is called
-// with the right parameters and it returns proper error code and metadata.
-type fakeSnapshotter struct {
-	createCalls       []createCall
-	createCallCounter int
-	deleteCalls       []deleteCall
-	deleteCallCounter int
-	listCalls         []listCall
-	listCallCounter   int
-	t                 *testing.T
-}
-
-func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volume *v1.PersistentVolume, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
-	if f.createCallCounter >= len(f.createCalls) {
-		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volume=%v, index: %d, calls: %+v", snapshotName, volume.Name, f.createCallCounter, f.createCalls)
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
-	}
-	call := f.createCalls[f.createCallCounter]
-	f.createCallCounter++
-
-	var err error
-	if call.snapshotName != snapshotName {
-		f.t.Errorf("Wrong CSI Create Snapshot call: snapshotName=%s, volume=%s, expected snapshotName: %s", snapshotName, volume.Name, call.snapshotName)
-		err = fmt.Errorf("unexpected create snapshot call")
-	}
-
-	if !reflect.DeepEqual(call.volume, volume) {
-		f.t.Errorf("Wrong CSI Create Snapshot call: snapshotName=%s, volume=%s, diff %s", snapshotName, volume.Name, diff.ObjectDiff(call.volume, volume))
-		err = fmt.Errorf("unexpected create snapshot call")
-	}
-
-	if !reflect.DeepEqual(call.parameters, parameters) {
-		f.t.Errorf("Wrong CSI Create Snapshot call: snapshotName=%s, volume=%s, expected parameters %+v, got %+v", snapshotName, volume.Name, call.parameters, parameters)
-		err = fmt.Errorf("unexpected create snapshot call")
-	}
-
-	if !reflect.DeepEqual(call.secrets, snapshotterCredentials) {
-		f.t.Errorf("Wrong CSI Create Snapshot call: snapshotName=%s, volume=%s, expected secrets %+v, got %+v", snapshotName, volume.Name, call.secrets, snapshotterCredentials)
-		err = fmt.Errorf("unexpected create snapshot call")
-	}
-
-	if err != nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
-	}
-	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
-}
-
-func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {
-	if f.deleteCallCounter >= len(f.deleteCalls) {
-		f.t.Errorf("Unexpected CSI Delete Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return fmt.Errorf("unexpected DeleteSnapshot call")
-	}
-	call := f.deleteCalls[f.deleteCallCounter]
-	f.deleteCallCounter++
-
-	var err error
-	if call.snapshotID != snapshotID {
-		f.t.Errorf("Wrong CSI Create Snapshot call: snapshotID=%s, expected snapshotID: %s", snapshotID, call.snapshotID)
-		err = fmt.Errorf("unexpected Delete snapshot call")
-	}
-
-	//if !reflect.DeepEqual(call.secrets, snapshotterCredentials) {
-	//	f.t.Errorf("Wrong CSI Delete Snapshot call: snapshotID=%s, expected secrets %+v, got %+v", snapshotID, call.secrets, snapshotterCredentials)
-	//	err = fmt.Errorf("unexpected Delete Snapshot call")
-	//}
-
-	if err != nil {
-		return fmt.Errorf("unexpected call")
-	}
-
-	return call.err
-}
-
-func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
-	if f.listCallCounter >= len(f.listCalls) {
-		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
-	}
-	call := f.listCalls[f.listCallCounter]
-	f.listCallCounter++
-
-	var err error
-	if call.snapshotID != snapshotID {
-		f.t.Errorf("Wrong CSI List Snapshot call: snapshotID=%s, expected snapshotID: %s", snapshotID, call.snapshotID)
-		err = fmt.Errorf("unexpected List snapshot call")
-	}
-
-	if err != nil {
-		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
-	}
-
-	return call.readyToUse, call.createTime, call.size, call.err
 }
