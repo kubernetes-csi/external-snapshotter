@@ -81,8 +81,6 @@ const controllerUpdateFailMsg = "snapshot controller failed to update"
 
 // syncContent deals with one key off the queue.  It returns false when it's time to quit.
 func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapshotContent) error {
-	klog.V(5).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
-
 	snapshotName := utils.SnapshotRefKey(&content.Spec.VolumeSnapshotRef)
 
 	klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: content is bound to snapshot %s", content.Name, snapshotName)
@@ -159,7 +157,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	klog.V(5).Infof("synchronizing VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
 	if snapshot.ObjectMeta.DeletionTimestamp != nil {
-		err := ctrl.processIfDeletionTimestampSet(snapshot)
+		err := ctrl.processSnapshotWithDeletionTimestamp(snapshot)
 		if err != nil {
 			return err
 		}
@@ -178,6 +176,10 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	return nil
 }
 
+// checkContentAndBoundStatus is a helper function that checks the following:
+// - It checks if content exists and returns the content object if it exists and nil otherwise.
+// - It checks the deletionPolicy and returns true if policy is Delete and false otherwise.
+// - It checks if snapshot and content are bound and returns true if bound and false otherwise.
 func (ctrl *csiSnapshotCommonController) checkContentAndBoundStatus(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotContent, bool, bool, error) {
 	// If content is deleted already, remove SnapshotBound finalizer
 	content, err := ctrl.getContentFromStore(snapshot)
@@ -201,11 +203,12 @@ func (ctrl *csiSnapshotCommonController) checkContentAndBoundStatus(snapshot *cr
 	return content, deleteContent, snapshotBound, nil
 }
 
-// processIfDeletionTimestampSet processes finalizers and deletes the content when appropriate
-// It checks if contents exists, it checks if snapshot has bi-directional binding, it checks if
-// finalizers should be removed, and it checks if content should be deleted and deletes it if needed.
-func (ctrl *csiSnapshotCommonController) processIfDeletionTimestampSet(snapshot *crdv1.VolumeSnapshot) error {
-	klog.V(5).Infof("processIfDeletionTimestampSet VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
+// processSnapshotWithDeletionTimestamp processes finalizers and deletes the content when appropriate. It has the following steps:
+// 1. Call a helper function checkContentAndBoundStatus() to check content and bound status.
+// 2. Call checkandRemoveSnapshotFinalizersAndCheckandDeleteContent() with information obtained from step 1. This function name is very long but the name suggests what it does. It determines whether to remove finalizers on snapshot and whether to delete content.
+// 3. Call checkandRemovePVCFinalizer() to determine whether to remove the finalizer on PVC.
+func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(snapshot *crdv1.VolumeSnapshot) error {
+	klog.V(5).Infof("processSnapshotWithDeletionTimestamp VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
 	// If content is really not found in the cache store, err is nil
 	content, deleteContent, _, err := ctrl.checkContentAndBoundStatus(snapshot)
@@ -213,13 +216,13 @@ func (ctrl *csiSnapshotCommonController) processIfDeletionTimestampSet(snapshot 
 		return err
 	}
 
-	klog.V(5).Infof("processIfDeletionTimestampSet[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
+	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
 	err = ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, content, deleteContent)
 	if err != nil {
 		return err
 	}
 
-	klog.V(5).Infof("processIfDeletionTimestampSet[%s]: check if we should remove finalizer on snapshot source and remove it if we can", utils.SnapshotKey(snapshot))
+	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: check if we should remove finalizer on snapshot source and remove it if we can", utils.SnapshotKey(snapshot))
 
 	// Check if we should remove finalizer on PVC and remove it if we can.
 	errFinalizer := ctrl.checkandRemovePVCFinalizer(snapshot)
@@ -231,7 +234,7 @@ func (ctrl *csiSnapshotCommonController) processIfDeletionTimestampSet(snapshot 
 	return nil
 }
 
-// checkandRemoveSnapshotFinalizersAndCheckandDeleteContent deletes the content and removes snapshot finalizers if needed
+// checkandRemoveSnapshotFinalizersAndCheckandDeleteContent deletes the content and removes snapshot finalizers (VolumeSnapshotAsSourceFinalizer and VolumeSnapshotBoundFinalizer) if needed
 func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent, deleteContent bool) error {
 	klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
@@ -278,6 +281,12 @@ func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot 
 
 	addSourceFinalizer := false
 	addBoundFinalizer := false
+	// NOTE: Source finalizer will be added to snapshot if
+	// DeletionTimeStamp is nil and it is not set yet.
+	// This is because the logic to check whether a PVC is being
+	// created from the snapshot is expensive so we only go thru
+	// it when we need to remove this finalizer and make sure
+	// it is removed when it is not needed any more.
 	if utils.NeedToAddSnapshotAsSourceFinalizer(snapshot) {
 		addSourceFinalizer = true
 	}
