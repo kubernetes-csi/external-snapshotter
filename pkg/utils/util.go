@@ -319,25 +319,25 @@ func NoResyncPeriodFunc() time.Duration {
 	return 0
 }
 
-// needToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
+// NeedToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
 func NeedToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
 	return content.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
 }
 
-// isSnapshotDeletionCandidate checks if a volume snapshot deletionTimestamp
+// IsSnapshotDeletionCandidate checks if a volume snapshot deletionTimestamp
 // is set and any finalizer is on the snapshot.
 func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.ObjectMeta.DeletionTimestamp != nil && (slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer, nil) || slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil))
 }
 
-// needToAddSnapshotAsSourceFinalizer checks if a Finalizer needs to be added for the volume snapshot as a source for PVC.
+// NeedToAddSnapshotAsSourceFinalizer checks if a Finalizer needs to be added for the volume snapshot as a source for PVC.
 func NeedToAddSnapshotAsSourceFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer, nil)
 }
 
-// needToAddSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume snapshot.
+// NeedToAddSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume snapshot.
 func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && IsBoundVolumeSnapshotContentNameSet(snapshot)
 }
 
 func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {

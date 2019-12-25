@@ -81,15 +81,7 @@ const controllerUpdateFailMsg = "snapshot controller failed to update"
 
 // syncContent deals with one key off the queue.  It returns false when it's time to quit.
 func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapshotContent) error {
-	klog.V(5).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
-
 	snapshotName := utils.SnapshotRefKey(&content.Spec.VolumeSnapshotRef)
-
-	if utils.NeedToAddContentFinalizer(content) {
-		// Content is not being deleted -> it should have the finalizer.
-		klog.V(5).Infof("syncContent: Add Finalizer for VolumeSnapshotContent[%s]", content.Name)
-		return ctrl.addContentFinalizer(content)
-	}
 
 	klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: content is bound to snapshot %s", content.Name, snapshotName)
 	// The VolumeSnapshotContent is reserved for a VolumeSnapshot;
@@ -98,23 +90,23 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: VolumeSnapshotContent is pre-bound to VolumeSnapshot %s", content.Name, snapshotName)
 		return nil
 	}
-	// Get the VolumeSnapshot by _name_
+
+	if utils.NeedToAddContentFinalizer(content) {
+		// Content is not being deleted -> it should have the finalizer.
+		klog.V(5).Infof("syncContent: Add Finalizer for VolumeSnapshotContent[%s]", content.Name)
+		return ctrl.addContentFinalizer(content)
+	}
+
+	// Check if snapshot exists in cache store
+	// If getSnapshotFromStore returns (nil, nil), it means snapshot not found
+	// and it may have already been deleted, and it will fall into the
+	// snapshot == nil case below
 	var snapshot *crdv1.VolumeSnapshot
-	obj, found, err := ctrl.snapshotStore.GetByKey(snapshotName)
+	snapshot, err := ctrl.getSnapshotFromStore(snapshotName)
 	if err != nil {
 		return err
 	}
-	if !found {
-		klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: snapshot %s not found", content.Name, snapshotName)
-		// Fall through with snapshot = nil
-	} else {
-		var ok bool
-		snapshot, ok = obj.(*crdv1.VolumeSnapshot)
-		if !ok {
-			return fmt.Errorf("cannot convert object from snapshot cache to snapshot %q!?: %#v", content.Name, obj)
-		}
-		klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: snapshot %s found", content.Name, snapshotName)
-	}
+
 	if snapshot != nil && snapshot.UID != content.Spec.VolumeSnapshotRef.UID {
 		// The snapshot that the content was pointing to was deleted, and another
 		// with the same name created.
@@ -122,8 +114,9 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		// Treat the content as bound to a missing snapshot.
 		snapshot = nil
 	} else {
-		// Check if content status is set to true and update snapshot status if so
-		if snapshot != nil && content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
+		// Check if snapshot.Status is different from content.Status and add snapshot to queue
+		// if there is a difference and it is worth triggering an snapshot status update.
+		if snapshot != nil && ctrl.needsUpdateSnapshotStatus(snapshot, content) {
 			klog.V(4).Infof("synchronizing VolumeSnapshotContent for snapshot [%s]: update snapshot status to true if needed.", snapshotName)
 			// Manually trigger a snapshot status update to happen
 			// right away so that it is in-sync with the content status
@@ -131,33 +124,25 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		}
 	}
 
-	// Trigger content deletion if snapshot has deletion
-	// timestamp or snapshot does not exist any more
+	// NOTE(xyang): Do not trigger content deletion if
+	// snapshot is nil. This is to avoid data loss if
+	// the user copied the yaml files and expect it to work
+	// in a different setup. In this case snapshot is nil.
+	// If we trigger content deletion, it will delete
+	// physical snapshot resource on the storage system
+	// and result in data loss!
+	//
+	// Trigger content deletion if snapshot is not nil
+	// and snapshot has deletion timestamp.
 	// If snapshot has deletion timestamp and finalizers, set
 	// AnnVolumeSnapshotBeingDeleted annotation on the content.
 	// This may trigger the deletion of the content in the
 	// sidecar controller depending on the deletion policy
 	// on the content.
 	// Snapshot won't be deleted until content is deleted
-	// due to the finalizer
-	if snapshot == nil || utils.IsSnapshotDeletionCandidate(snapshot) {
-		// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
-		if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
-			klog.V(5).Infof("syncContent: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
-			metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
-
-			updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(content)
-			if err != nil {
-				return newControllerUpdateError(content.Name, err.Error())
-			}
-
-			_, err = ctrl.storeContentUpdate(updateContent)
-			if err != nil {
-				klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status: cannot update internal cache %v", content.Name, err)
-				return err
-			}
-			klog.V(5).Infof("syncContent: volume snapshot content %+v", content)
-		}
+	// due to the finalizer.
+	if snapshot != nil && utils.IsSnapshotDeletionCandidate(snapshot) {
+		return ctrl.setAnnVolumeSnapshotBeingDeleted(content)
 	}
 
 	return nil
@@ -171,53 +156,73 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	klog.V(5).Infof("synchronizing VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
-	err := ctrl.processFinalizersAndCheckandDeleteContent(snapshot)
-	if err != nil {
-		return err
+	if snapshot.ObjectMeta.DeletionTimestamp != nil {
+		err := ctrl.processSnapshotWithDeletionTimestamp(snapshot)
+		if err != nil {
+			return err
+		}
+	} else {
+		klog.V(5).Infof("syncSnapshot[%s]: check if we should add finalizers on snapshot", utils.SnapshotKey(snapshot))
+		ctrl.checkandAddSnapshotFinalizers(snapshot)
+		// Need to build or update snapshot.Status in following cases:
+		// 1) snapshot.Status is nil
+		// 2) snapshot.Status.ReadyToUse is false
+		// 3) snapshot.Status.BoundVolumeSnapshotContentName is not set
+		if !utils.IsSnapshotReady(snapshot) || !utils.IsBoundVolumeSnapshotContentNameSet(snapshot) {
+			return ctrl.syncUnreadySnapshot(snapshot)
+		}
+		return ctrl.syncReadySnapshot(snapshot)
 	}
-
-	if !utils.IsSnapshotReady(snapshot) {
-		return ctrl.syncUnreadySnapshot(snapshot)
-	}
-	return ctrl.syncReadySnapshot(snapshot)
+	return nil
 }
 
-// processFinalizersAndCheckandDeleteContent processes finalizers and deletes the content when appropriate
-// It checks if contents exists, it checks if snapshot has bi-directional binding, it checks if
-// finalizers should be added or removed, and it checks if content should be deleted and deletes it
-// if needed.
-func (ctrl *csiSnapshotCommonController) processFinalizersAndCheckandDeleteContent(snapshot *crdv1.VolumeSnapshot) error {
-	klog.V(5).Infof("processFinalizersAndCheckandDeleteContent VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
-
+// checkContentAndBoundStatus is a helper function that checks the following:
+// - It checks if content exists and returns the content object if it exists and nil otherwise.
+// - It checks the deletionPolicy and returns true if policy is Delete and false otherwise.
+// - It checks if snapshot and content are bound and returns true if bound and false otherwise.
+func (ctrl *csiSnapshotCommonController) checkContentAndBoundStatus(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotContent, bool, bool, error) {
 	// If content is deleted already, remove SnapshotBound finalizer
-	content, err := ctrl.contentExists(snapshot)
-	if err != nil {
-		return err
+	content, err := ctrl.getContentFromStore(snapshot)
+	if err != nil || content == nil {
+		return nil, false, false, err
 	}
 	deleteContent := false
-	// It is possible for contentExists to return nil, nil
-	if content != nil && content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete {
+	// It is possible for getContentFromStore to return nil, nil
+	if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete {
 		klog.V(5).Infof("processFinalizersAndCheckandDeleteContent: Content [%s] deletion policy [%s] is delete.", content.Name, content.Spec.DeletionPolicy)
 		deleteContent = true
 	}
 
 	snapshotBound := false
 	// Check if the snapshot content is bound to the snapshot
-	if content != nil && utils.IsSnapshotBound(snapshot, content) {
+	if utils.IsSnapshotBound(snapshot, content) {
 		klog.Infof("syncSnapshot: VolumeSnapshot %s is bound to volumeSnapshotContent [%s]", snapshot.Name, content.Name)
 		snapshotBound = true
+
+	}
+	return content, deleteContent, snapshotBound, nil
+}
+
+// processSnapshotWithDeletionTimestamp processes finalizers and deletes the content when appropriate. It has the following steps:
+// 1. Call a helper function checkContentAndBoundStatus() to check content and bound status.
+// 2. Call checkandRemoveSnapshotFinalizersAndCheckandDeleteContent() with information obtained from step 1. This function name is very long but the name suggests what it does. It determines whether to remove finalizers on snapshot and whether to delete content.
+// 3. Call checkandRemovePVCFinalizer() to determine whether to remove the finalizer on PVC.
+func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(snapshot *crdv1.VolumeSnapshot) error {
+	klog.V(5).Infof("processSnapshotWithDeletionTimestamp VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
+
+	// If content is really not found in the cache store, err is nil
+	content, deleteContent, _, err := ctrl.checkContentAndBoundStatus(snapshot)
+	if err != nil {
+		return err
 	}
 
-	klog.V(5).Infof("processFinalizersAndCheckandDeleteContent[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
+	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
 	err = ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, content, deleteContent)
 	if err != nil {
 		return err
 	}
 
-	klog.V(5).Infof("processFinalizersAndCheckandDeleteContent[%s]: check if we should add finalizers on snapshot", utils.SnapshotKey(snapshot))
-	ctrl.checkandAddSnapshotFinalizers(snapshot, snapshotBound, deleteContent)
-
-	klog.V(5).Infof("processFinalizersAndCheckandDeleteContent[%s]: check if we should remove finalizer on snapshot source and remove it if we can", utils.SnapshotKey(snapshot))
+	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: check if we should remove finalizer on snapshot source and remove it if we can", utils.SnapshotKey(snapshot))
 
 	// Check if we should remove finalizer on PVC and remove it if we can.
 	errFinalizer := ctrl.checkandRemovePVCFinalizer(snapshot)
@@ -229,19 +234,21 @@ func (ctrl *csiSnapshotCommonController) processFinalizersAndCheckandDeleteConte
 	return nil
 }
 
-// checkandRemoveSnapshotFinalizersAndCheckandDeleteContent deletes the content and removes snapshot finalizers if needed
+// checkandRemoveSnapshotFinalizersAndCheckandDeleteContent deletes the content and removes snapshot finalizers (VolumeSnapshotAsSourceFinalizer and VolumeSnapshotBoundFinalizer) if needed
 func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent, deleteContent bool) error {
-	klog.V(5).Infof("deleteContentAndSnapshotFinalizers VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
+	klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
-	var err error
 	// Check is snapshot deletionTimestamp is set and any finalizer is on
 	if utils.IsSnapshotDeletionCandidate(snapshot) {
 		// Volume snapshot should be deleted. Check if it's used
 		// and remove finalizer if it's not.
 		// Check if a volume is being created from snapshot.
-		inUse := ctrl.isVolumeBeingCreatedFromSnapshot(snapshot)
+		inUse := false
+		if content != nil {
+			inUse = ctrl.isVolumeBeingCreatedFromSnapshot(snapshot)
+		}
 
-		klog.V(5).Infof("syncSnapshot[%s]: set DeletionTimeStamp on content.", utils.SnapshotKey(snapshot))
+		klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: set DeletionTimeStamp on content.", utils.SnapshotKey(snapshot))
 		// If content exists, set DeletionTimeStamp on the content;
 		// content won't be deleted immediately due to the finalizer
 		if content != nil && deleteContent && !inUse {
@@ -253,8 +260,8 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 			}
 		}
 
-		if !inUse || (content == nil && err == nil) {
-			klog.V(5).Infof("syncSnapshot: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
+		if !inUse {
+			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
 			doesContentExist := false
 			if content != nil {
 				doesContentExist = true
@@ -266,9 +273,20 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 }
 
 // checkandAddSnapshotFinalizers checks and adds snapshot finailzers when needed
-func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot *crdv1.VolumeSnapshot, snapshotBound bool, deleteContent bool) {
+func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot *crdv1.VolumeSnapshot) error {
+	_, deleteContent, snapshotBound, err := ctrl.checkContentAndBoundStatus(snapshot)
+	if err != nil {
+		return err
+	}
+
 	addSourceFinalizer := false
 	addBoundFinalizer := false
+	// NOTE: Source finalizer will be added to snapshot if
+	// DeletionTimeStamp is nil and it is not set yet.
+	// This is because the logic to check whether a PVC is being
+	// created from the snapshot is expensive so we only go thru
+	// it when we need to remove this finalizer and make sure
+	// it is removed when it is not needed any more.
 	if utils.NeedToAddSnapshotAsSourceFinalizer(snapshot) {
 		addSourceFinalizer = true
 	}
@@ -281,13 +299,14 @@ func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot 
 		klog.V(5).Infof("checkandAddSnapshotFinalizers: Add Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
 		ctrl.addSnapshotFinalizer(snapshot, addSourceFinalizer, addBoundFinalizer)
 	}
+	return nil
 }
 
 // syncReadySnapshot checks the snapshot which has been bound to snapshot content successfully before.
-// If there is any problem with the binding (e.g., snapshot points to a non-exist snapshot content), update the snapshot status and emit event.
+// If there is any problem with the binding (e.g., snapshot points to a non-existent snapshot content), update the snapshot status and emit event.
 func (ctrl *csiSnapshotCommonController) syncReadySnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	if !utils.IsBoundVolumeSnapshotContentNameSet(snapshot) {
-		return nil
+		return fmt.Errorf("snapshot %s is not bound to a content.", utils.SnapshotKey(snapshot))
 	}
 	obj, found, err := ctrl.contentStore.GetByKey(*snapshot.Status.BoundVolumeSnapshotContentName)
 	if err != nil {
@@ -356,10 +375,19 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		return nil
 	} else { // snapshot.Spec.Source.VolumeSnapshotContentName == nil - dynamically creating snapshot
 		klog.V(5).Infof("before getMatchSnapshotContent for snapshot %s", uniqueSnapshotName)
-		if contentObj := ctrl.getMatchSnapshotContent(snapshot); contentObj != nil {
+		var contentObj *crdv1.VolumeSnapshotContent
+		contentObj, _ = ctrl.getContentFromStore(snapshot)
+		// Ignore err from getContentFromStore. If content not found
+		// in the cache store by the content name, try to search it from
+		// the ctrl.contentStore.List()
+		if contentObj == nil {
+			contentObj = ctrl.getMatchSnapshotContent(snapshot)
+		}
+
+		if contentObj != nil {
 			klog.V(5).Infof("Found VolumeSnapshotContent object %s for snapshot %s", contentObj.Name, uniqueSnapshotName)
 			if contentObj.Spec.Source.SnapshotHandle != nil {
-				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotHandleNotFound", fmt.Sprintf("Snapshot handle not found in content %s", contentObj.Name))
+				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotHandleSet", fmt.Sprintf("Snapshot handle should not be set in content %s for dynamic provisioning", uniqueSnapshotName))
 				return fmt.Errorf("snapshotHandle should not be set in the content for dynamic provisioning for snapshot %s", uniqueSnapshotName)
 			}
 			newSnapshot, err := ctrl.bindandUpdateVolumeSnapshot(contentObj, snapshot)
@@ -368,25 +396,6 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 			}
 			klog.V(5).Infof("bindandUpdateVolumeSnapshot %v", newSnapshot)
 			return nil
-		} else if snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil {
-			contentObj, found, err := ctrl.contentStore.GetByKey(*snapshot.Status.BoundVolumeSnapshotContentName)
-			if err != nil {
-				return err
-			}
-			if !found {
-				if snapshot.ObjectMeta.DeletionTimestamp == nil {
-					ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentNotFound", fmt.Sprintf("Content for snapshot %s not found, but deletion timestamp not set on snapshot", uniqueSnapshotName))
-					return fmt.Errorf("content for snapshot %s not found without deletion timestamp on snapshot", uniqueSnapshotName)
-				}
-				// NOTE: this is not an error now because we delete content before the snapshot
-				klog.V(5).Infof("Content for snapshot %s not found. It may be already deleted as expected.", uniqueSnapshotName)
-			} else {
-				klog.V(5).Infof("converting content object for snapshot %s", uniqueSnapshotName)
-				_, ok := contentObj.(*crdv1.VolumeSnapshotContent)
-				if !ok {
-					return fmt.Errorf("expected volume snapshot content, got %+v", contentObj)
-				}
-			}
 		} else if snapshot.Status == nil || snapshot.Status.Error == nil || isControllerUpdateFailError(snapshot.Status.Error) {
 			if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
 				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
@@ -895,6 +904,39 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeSnapshot(snapshotCon
 	return snapshotCopy, nil
 }
 
+// needsUpdateSnapshotStatus compares snapshot status with the content status and decide
+// if snapshot status needs to be updated based on content status
+func (ctrl *csiSnapshotCommonController) needsUpdateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
+	klog.V(5).Infof("needsUpdateSnapshotStatus[%s]", utils.SnapshotKey(snapshot))
+
+	if snapshot.Status == nil && content.Status != nil {
+		return true
+	}
+	if content.Status == nil {
+		return false
+	}
+	if snapshot.Status.BoundVolumeSnapshotContentName == nil {
+		return true
+	}
+	if snapshot.Status.CreationTime == nil && content.Status.CreationTime != nil {
+		return true
+	}
+	if snapshot.Status.ReadyToUse == nil && content.Status.ReadyToUse != nil {
+		return true
+	}
+	if snapshot.Status.ReadyToUse != nil && content.Status.ReadyToUse != nil && snapshot.Status.ReadyToUse != content.Status.ReadyToUse {
+		return true
+	}
+	if snapshot.Status.RestoreSize == nil && content.Status.RestoreSize != nil {
+		return true
+	}
+	if snapshot.Status.RestoreSize != nil && snapshot.Status.RestoreSize.IsZero() && content.Status.RestoreSize != nil && *content.Status.RestoreSize > 0 {
+		return true
+	}
+
+	return false
+}
+
 // UpdateSnapshotStatus updates snapshot status based on content status
 func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshot, error) {
 	klog.V(5).Infof("updateSnapshotStatus[%s]", utils.SnapshotKey(snapshot))
@@ -987,9 +1029,32 @@ func (ctrl *csiSnapshotCommonController) getVolumeFromVolumeSnapshot(snapshot *c
 		return nil, fmt.Errorf("failed to retrieve PV %s from the API server: %q", pvName, err)
 	}
 
+	// Verify binding between PV/PVC is still valid
+	bound := ctrl.isVolumeBoundToClaim(pv, pvc)
+	if bound == false {
+		klog.Warningf("binding between PV %s and PVC %s is broken", pvName, pvc.Name)
+		return nil, fmt.Errorf("claim in dataSource not bound or invalid")
+	}
+
 	klog.V(5).Infof("getVolumeFromVolumeSnapshot: snapshot [%s] PV name [%s]", snapshot.Name, pvName)
 
 	return pv, nil
+}
+
+// isVolumeBoundToClaim returns true, if given volume is pre-bound or bound
+// to specific claim. Both claim.Name and claim.Namespace must be equal.
+// If claim.UID is present in volume.Spec.ClaimRef, it must be equal too.
+func (ctrl *csiSnapshotCommonController) isVolumeBoundToClaim(volume *v1.PersistentVolume, claim *v1.PersistentVolumeClaim) bool {
+	if volume.Spec.ClaimRef == nil {
+		return false
+	}
+	if claim.Name != volume.Spec.ClaimRef.Name || claim.Namespace != volume.Spec.ClaimRef.Namespace {
+		return false
+	}
+	if volume.Spec.ClaimRef.UID != "" && claim.UID != volume.Spec.ClaimRef.UID {
+		return false
+	}
+	return true
 }
 
 func (ctrl *csiSnapshotCommonController) getStorageClassFromVolumeSnapshot(snapshot *crdv1.VolumeSnapshot) (*storagev1.StorageClass, error) {
@@ -1173,7 +1238,10 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	return nil
 }
 
-func (ctrl *csiSnapshotCommonController) contentExists(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotContent, error) {
+// getContentFromStore finds content from the cache store.
+// If getContentFromStore returns (nil, nil), it means content not found
+// and it may have already been deleted.
+func (ctrl *csiSnapshotCommonController) getContentFromStore(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotContent, error) {
 	var contentName string
 	if snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil {
 		contentName = *snapshot.Status.BoundVolumeSnapshotContentName
@@ -1195,4 +1263,52 @@ func (ctrl *csiSnapshotCommonController) contentExists(snapshot *crdv1.VolumeSna
 	}
 	// Found in content cache store and convert object is successful
 	return content, nil
+}
+
+// getSnapshotFromStore finds snapshot from the cache store.
+// If getSnapshotFromStore returns (nil, nil), it means snapshot not found
+// and it may have already been deleted.
+func (ctrl *csiSnapshotCommonController) getSnapshotFromStore(snapshotName string) (*crdv1.VolumeSnapshot, error) {
+	// Get the VolumeSnapshot by _name_
+	var snapshot *crdv1.VolumeSnapshot
+	obj, found, err := ctrl.snapshotStore.GetByKey(snapshotName)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		klog.V(4).Infof("getSnapshotFromStore: snapshot %s not found", snapshotName)
+		// Fall through with snapshot = nil
+		return nil, nil
+	} else {
+		var ok bool
+		snapshot, ok = obj.(*crdv1.VolumeSnapshot)
+		if !ok {
+			return nil, fmt.Errorf("cannot convert object from snapshot cache to snapshot %q!?: %#v", snapshotName, obj)
+		}
+		klog.V(4).Infof("getSnapshotFromStore: snapshot %s found", snapshotName)
+	}
+	return snapshot, nil
+}
+
+func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(content *crdv1.VolumeSnapshotContent) error {
+	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
+	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
+		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
+		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
+
+		updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(content)
+		if err != nil {
+			return newControllerUpdateError(content.Name, err.Error())
+		}
+		// update content if update is successful
+		content = updateContent
+
+		_, err = ctrl.storeContentUpdate(content)
+		if err != nil {
+			klog.V(4).Infof("setAnnVolumeSnapshotBeingDeleted for content [%s]: cannot update internal cache %v", content.Name, err)
+			return err
+		}
+		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: volume snapshot content %+v", content)
+	}
+	return nil
 }
