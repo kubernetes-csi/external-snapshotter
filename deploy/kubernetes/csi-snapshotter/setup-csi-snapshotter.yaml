@@ -85,7 +85,7 @@ spec:
               mountPath: /csi
         - name: csi-snapshotter
           # NOTE: replace with official image when released: quay.io/k8scsi/csi-snapshotter:v2.0.0
-          image: quay.io/k8scsi/csi-snapshotter:v2.0.0-rc2
+          image: quay.io/k8scsi/csi-snapshotter:v2.0.0-rc4
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -93,7 +93,7 @@ spec:
           env:
             - name: ADDRESS
               value: /csi/csi.sock
-          imagePullPolicy: IfNotPresent #Always
+          imagePullPolicy: Always
           volumeMounts:
             - name: socket-dir
               mountPath: /csi
