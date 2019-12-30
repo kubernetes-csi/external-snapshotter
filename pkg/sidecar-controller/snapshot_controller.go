@@ -80,6 +80,13 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 				return err
 			}
 		} else {
+			// Skip checkandUpdateContentStatus() if ReadyToUse is
+			// already true. We don't want to keep calling CreateSnapshot
+			// or ListSnapshots CSI methods over and over again for
+			// performance reasons.
+			if content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
+				return nil
+			}
 			if err = ctrl.checkandUpdateContentStatus(content); err != nil {
 				ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotContentStatusUpdateFailed", fmt.Sprintf("Failed to update snapshot content status with error %v", err))
 				return err
