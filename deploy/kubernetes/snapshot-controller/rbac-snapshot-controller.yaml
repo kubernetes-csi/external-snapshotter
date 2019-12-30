@@ -56,7 +56,7 @@ roleRef:
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  namespace: default # TODO: replace with the namespace you want for your sidecar
+  namespace: default # TODO: replace with the namespace you want for your controller
   name: snapshot-controller-leaderelection
 rules:
 - apiGroups: ["coordination.k8s.io"]
@@ -68,11 +68,11 @@ kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: snapshot-controller-leaderelection
-  namespace: default # TODO: replace with the namespace you want for your sidecar
+  namespace: default # TODO: replace with the namespace you want for your controller
 subjects:
   - kind: ServiceAccount
     name: snapshot-controller
-    namespace: default # TODO: replace with the namespace you want for your sidecar
+    namespace: default # TODO: replace with the namespace you want for your controller
 roleRef:
   kind: Role
   name: snapshot-controller-leaderelection
