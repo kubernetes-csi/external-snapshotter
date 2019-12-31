@@ -36,6 +36,7 @@ import (
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
+	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 	controller "github.com/kubernetes-csi/external-snapshotter/pkg/sidecar-controller"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/snapshotter"
@@ -66,6 +67,9 @@ var (
 
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
+
+	metricsAddress = flag.String("metrics-address", "", "The TCP network address address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled.")
+	metricsPath    = flag.String("metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
 )
 
 var (
@@ -110,7 +114,11 @@ func main() {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
 	// Connect to CSI.
-	csiConn, err := connection.Connect(*csiAddress, connection.OnConnectionLoss(connection.ExitOnConnectionLoss()))
+	metricsManager := metrics.NewCSIMetricsManager("" /* driverName */)
+	csiConn, err := connection.Connect(
+		*csiAddress,
+		metricsManager,
+		connection.OnConnectionLoss(connection.ExitOnConnectionLoss()))
 	if err != nil {
 		klog.Errorf("error connecting to CSI driver: %v", err)
 		os.Exit(1)
@@ -128,6 +136,8 @@ func main() {
 	}
 
 	klog.V(2).Infof("CSI driver name: %q", driverName)
+	metricsManager.SetDriverName(driverName)
+	metricsManager.StartMetricsEndpoint(*metricsAddress, *metricsPath)
 
 	// Check it's ready
 	if err = csirpc.ProbeForever(csiConn, *csiTimeout); err != nil {
