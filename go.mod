@@ -35,8 +35,6 @@ replace k8s.io/component-base => k8s.io/component-base v0.17.0
 
 replace k8s.io/cri-api => k8s.io/cri-api v0.17.1-beta.0
 
-replace k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.17.0
-
 replace k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.17.0
 
 replace k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.17.0
