@@ -409,24 +409,6 @@ func (r *snapshotReactor) getChangeCount() int {
 	return r.changedSinceLastSync
 }
 
-// waitForIdle waits until all tests, controllers and other goroutines do their
-// job and no new actions are registered for 10 milliseconds.
-func (r *snapshotReactor) waitForIdle() {
-	r.ctrl.runningOperations.WaitForCompletion()
-	// Check every 10ms if the controller does something and stop if it's
-	// idle.
-	oldChanges := -1
-	for {
-		time.Sleep(10 * time.Millisecond)
-		changes := r.getChangeCount()
-		if changes == oldChanges {
-			// No changes for last 10ms -> controller must be idle.
-			break
-		}
-		oldChanges = changes
-	}
-}
-
 // waitTest waits until all tests, controllers and other goroutines do their
 // job and list of current contents/snapshots is equal to list of expected
 // contents/snapshots (with ~10 second timeout).
@@ -439,9 +421,6 @@ func (r *snapshotReactor) waitTest(test controllerTest) error {
 		Steps:    10,
 	}
 	err := wait.ExponentialBackoff(backoff, func() (done bool, err error) {
-		// Finish all operations that are in progress
-		r.ctrl.runningOperations.WaitForCompletion()
-
 		// Return 'true' if the reactor reached the expected state
 		err1 := r.checkContents(test.expectedContents)
 		if err1 == nil {
@@ -768,7 +747,7 @@ func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses [
 
 		// Run the tested functions
 		err = test.test(ctrl, reactor, test)
-		if err != nil {
+		if test.expectSuccess && err != nil {
 			t.Errorf("Test %q failed: %v", test.name, err)
 		}
 

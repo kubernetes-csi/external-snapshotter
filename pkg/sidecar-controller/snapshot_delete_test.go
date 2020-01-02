@@ -172,6 +172,7 @@ func TestDeleteSync(t *testing.T) {
 			},
 			expectedListCalls:   []listCall{{"sid1-1", map[string]string{}, true, time.Now(), 1, nil}},
 			expectedDeleteCalls: []deleteCall{{"sid1-1", nil, nil}},
+			expectSuccess:       true,
 			test:                testSyncContent,
 		},
 		{
@@ -194,6 +195,7 @@ func TestDeleteSync(t *testing.T) {
 			},
 			expectedListCalls:   []listCall{{"sid1-2", map[string]string{}, true, time.Now(), 1, nil}},
 			expectedDeleteCalls: []deleteCall{{"sid1-2", nil, nil}},
+			expectSuccess:       true,
 			test:                testSyncContent,
 		},
 		{
@@ -223,8 +225,12 @@ func TestDeleteSync(t *testing.T) {
 			initialContents:  newContentArrayWithDeletionTimestamp("content1-1", "snapuid1-1", "snap1-1", "sid1-1", "invalid", "", "snap1-4-volumehandle", deletionPolicy, nil, nil, true, &timeNowMetav1),
 			expectedContents: newContentArrayWithDeletionTimestamp("content1-1", "snapuid1-1", "snap1-1", "sid1-1", "invalid", "", "snap1-4-volumehandle", deletionPolicy, nil, nil, true, &timeNowMetav1),
 			expectedEvents:   noevents,
-			errors:           noerrors,
-			test:             testSyncContent,
+			errors: []reactorError{
+				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshotContents().Delete call.
+				// All other calls will succeed.
+				{"get", "secrets", errors.New("mock get invalid secret error")},
+			},
+			test: testSyncContent,
 		},
 		{
 			name:                "1-5 - csi driver delete snapshot returns error, bound finalizer should remain",
