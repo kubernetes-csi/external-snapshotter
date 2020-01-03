@@ -156,6 +156,16 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	klog.V(5).Infof("synchronizing VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
+	klog.V(5).Infof("syncSnapshot [%s]: check if we should remove finalizer on snapshot PVC source and remove it if we can", utils.SnapshotKey(snapshot))
+
+	// Check if we should remove finalizer on PVC and remove it if we can.
+	errFinalizer := ctrl.checkandRemovePVCFinalizer(snapshot)
+	if errFinalizer != nil {
+		klog.Errorf("error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, errFinalizer)
+		// Log an event and keep the original error from syncUnready/ReadySnapshot
+		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
+	}
+
 	if snapshot.ObjectMeta.DeletionTimestamp != nil {
 		err := ctrl.processSnapshotWithDeletionTimestamp(snapshot)
 		if err != nil {
@@ -206,7 +216,6 @@ func (ctrl *csiSnapshotCommonController) checkContentAndBoundStatus(snapshot *cr
 // processSnapshotWithDeletionTimestamp processes finalizers and deletes the content when appropriate. It has the following steps:
 // 1. Call a helper function checkContentAndBoundStatus() to check content and bound status.
 // 2. Call checkandRemoveSnapshotFinalizersAndCheckandDeleteContent() with information obtained from step 1. This function name is very long but the name suggests what it does. It determines whether to remove finalizers on snapshot and whether to delete content.
-// 3. Call checkandRemovePVCFinalizer() to determine whether to remove the finalizer on PVC.
 func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(snapshot *crdv1.VolumeSnapshot) error {
 	klog.V(5).Infof("processSnapshotWithDeletionTimestamp VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
 
@@ -222,15 +231,6 @@ func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(sn
 		return err
 	}
 
-	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: check if we should remove finalizer on snapshot source and remove it if we can", utils.SnapshotKey(snapshot))
-
-	// Check if we should remove finalizer on PVC and remove it if we can.
-	errFinalizer := ctrl.checkandRemovePVCFinalizer(snapshot)
-	if errFinalizer != nil {
-		klog.Errorf("error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, errFinalizer)
-		// Log an event and keep the original error from syncUnready/ReadySnapshot
-		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
-	}
 	return nil
 }
 
