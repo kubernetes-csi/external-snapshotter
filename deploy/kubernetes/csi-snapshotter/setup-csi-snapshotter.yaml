@@ -72,7 +72,7 @@ spec:
       serviceAccount: csi-snapshotter
       containers:
         - name: csi-provisioner
-          image: quay.io/k8scsi/csi-provisioner:v1.5.0-rc1
+          image: quay.io/k8scsi/csi-provisioner:v1.5.0
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -84,8 +84,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-snapshotter
-          # NOTE: replace with official image when released: quay.io/k8scsi/csi-snapshotter:v2.0.0
-          image: quay.io/k8scsi/csi-snapshotter:v2.0.0-rc4
+          image: quay.io/k8scsi/csi-snapshotter:v2.0.1
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
