@@ -85,6 +85,12 @@ get_versioned_variable () {
     echo "$value"
 }
 
+# If we have a vendor directory, then use it. We must be careful to only
+# use this for "make" invocations inside the project's repo itself because
+# setting it globally can break other go usages (like "go get <some command>"
+# which is disabled with GOFLAGS=-mod=vendor).
+configvar GOFLAGS_VENDOR "$( [ -d vendor ] && echo '-mod=vendor' )" "Go flags for using the vendor directory"
+
 # Go versions can be specified seperately for different tasks
 # If the pre-installed Go is missing or a different
 # version, the required version here will get installed
@@ -101,7 +107,8 @@ configvar CSI_PROW_GO_VERSION_GINKGO "${CSI_PROW_GO_VERSION_BUILD}" "Go version 
 # kind version to use. If the pre-installed version is different,
 # the desired version is downloaded from https://github.com/kubernetes-sigs/kind/releases/download/
 # (if available), otherwise it is built from source.
-configvar CSI_PROW_KIND_VERSION v0.4.0 "kind"
+# TODO: https://github.com/kubernetes-csi/csi-release-tools/issues/39
+configvar CSI_PROW_KIND_VERSION "86bc23d84ac12dcb56a0528890736e2c347c2dc3" "kind"
 
 # ginkgo test runner version to use. If the pre-installed version is
 # different, the desired version is built from source.
@@ -126,19 +133,18 @@ configvar CSI_PROW_BUILD_JOB true "building code in repo enabled"
 # use the same settings as for "latest" Kubernetes. This works
 # as long as there are no breaking changes in Kubernetes, like
 # deprecating or changing the implementation of an alpha feature.
-configvar CSI_PROW_KUBERNETES_VERSION 1.13.3 "Kubernetes"
+configvar CSI_PROW_KUBERNETES_VERSION 1.15.3 "Kubernetes"
 
 # This is a hack to workaround the issue that each version
 # of kind currently only supports specific patch versions of
 # Kubernetes. We need to override CSI_PROW_KUBERNETES_VERSION
 # passed in by our CI/pull jobs to the versions that
-# kind v0.4.0 supports.
+# kind v0.5.0 supports.
 #
 # If the version is prefixed with "release-", then nothing
 # is overridden.
-override_k8s_version "1.13.7"
-override_k8s_version "1.14.3"
-override_k8s_version "1.15.0"
+override_k8s_version "1.14.6"
+override_k8s_version "1.15.3"
 
 # CSI_PROW_KUBERNETES_VERSION reduced to first two version numbers and
 # with underscore (1_13 instead of 1.13.3) and in uppercase (LATEST
@@ -183,7 +189,7 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #
 # When no deploy script is found (nothing in `deploy` directory,
 # CSI_PROW_HOSTPATH_REPO=none), nothing gets deployed.
-configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0-rc2" "hostpath driver"
+configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0" "hostpath driver"
 configvar CSI_PROW_HOSTPATH_REPO https://github.com/kubernetes-csi/csi-driver-host-path "hostpath repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
 configvar CSI_PROW_HOSTPATH_DRIVER_NAME "hostpath.csi.k8s.io" "the hostpath driver name"
@@ -200,9 +206,10 @@ configvar CSI_PROW_HOSTPATH_CANARY "" "hostpath image"
 # all generated files are present.
 #
 # CSI_PROW_E2E_REPO=none disables E2E testing.
-configvar CSI_PROW_E2E_VERSION_1_13 v1.14.0 "E2E version for Kubernetes 1.13.x" # we can't use the one from 1.13.x because it didn't have --storage.testdriver
+# TOOO: remove versioned variables and make e2e version match k8s version
 configvar CSI_PROW_E2E_VERSION_1_14 v1.14.0 "E2E version for Kubernetes 1.14.x"
 configvar CSI_PROW_E2E_VERSION_1_15 v1.15.0 "E2E version for Kubernetes 1.15.x"
+configvar CSI_PROW_E2E_VERSION_1_16 v1.16.0 "E2E version for Kubernetes 1.16.x"
 # TODO: add new CSI_PROW_E2E_VERSION entry for future Kubernetes releases
 configvar CSI_PROW_E2E_VERSION_LATEST master "E2E version for Kubernetes master" # testing against Kubernetes master is already tracking a moving target, so we might as well use a moving E2E version
 configvar CSI_PROW_E2E_REPO_LATEST https://github.com/kubernetes/kubernetes "E2E repo for Kubernetes >= 1.13.x" # currently the same for all versions
@@ -222,6 +229,10 @@ configvar CSI_PROW_SANITY_IMPORT_PATH github.com/kubernetes-csi/csi-test "csi-te
 configvar CSI_PROW_SANITY_SERVICE "hostpath-service" "Kubernetes TCP service name that exposes csi.sock"
 configvar CSI_PROW_SANITY_POD "csi-hostpathplugin-0" "Kubernetes pod with CSI driver"
 configvar CSI_PROW_SANITY_CONTAINER "hostpath" "Kubernetes container with CSI driver"
+
+# The version of dep to use for 'make test-vendor'. Ignored if the project doesn't
+# use dep. Only binary releases of dep are supported (https://github.com/golang/dep/releases).
+configvar CSI_PROW_DEP_VERSION v0.5.1 "golang dep version to be used for vendor checking"
 
 # Each job can run one or more of the following tests, identified by
 # a single word:
@@ -288,11 +299,6 @@ regex_join () {
 # alpha in previous Kubernetes releases. This was considered too
 # error prone. Therefore we use E2E tests that match the Kubernetes
 # version that is getting tested.
-#
-# However, for 1.13.x testing we have to use the E2E tests from 1.14
-# because 1.13 didn't have --storage.testdriver yet, so for that (and only
-# that version) we have to define alpha tests differently.
-configvar CSI_PROW_E2E_ALPHA_1_13 '\[Feature: \[Testpattern:.Dynamic.PV..block.volmode.\] should.create.and.delete.block.persistent.volumes' "alpha tests for Kubernetes 1.13" # Raw block was an alpha feature in 1.13.
 configvar CSI_PROW_E2E_ALPHA_LATEST '\[Feature:' "alpha tests for Kubernetes >= 1.14" # there's no need to update this, adding a new case for CSI_PROW_E2E for a new Kubernetes is enough
 configvar CSI_PROW_E2E_ALPHA "$(get_versioned_variable CSI_PROW_E2E_ALPHA "${csi_prow_kubernetes_version_suffix}")" "alpha tests"
 
@@ -308,12 +314,12 @@ configvar CSI_PROW_E2E_ALPHA "$(get_versioned_variable CSI_PROW_E2E_ALPHA "${csi
 # kubernetes-csi components must be updated, either by disabling
 # the failing test for "latest" or by updating the test and not running
 # it anymore for older releases.
-configvar CSI_PROW_E2E_ALPHA_GATES_1_13 'VolumeSnapshotDataSource=true,BlockVolume=true,CSIBlockVolume=true' "alpha feature gates for Kubernetes 1.13"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_14 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.14"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_15 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.15"
+configvar CSI_PROW_E2E_ALPHA_GATES_1_16 'VolumeSnapshotDataSource=true' "alpha feature gates for Kubernetes 1.16"
 # TODO: add new CSI_PROW_ALPHA_GATES_xxx entry for future Kubernetes releases and
 # add new gates to CSI_PROW_E2E_ALPHA_GATES_LATEST.
-configvar CSI_PROW_E2E_ALPHA_GATES_LATEST 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for latest Kubernetes"
+configvar CSI_PROW_E2E_ALPHA_GATES_LATEST 'VolumeSnapshotDataSource=true' "alpha feature gates for latest Kubernetes"
 configvar CSI_PROW_E2E_ALPHA_GATES "$(get_versioned_variable CSI_PROW_E2E_ALPHA_GATES "${csi_prow_kubernetes_version_suffix}")" "alpha E2E feature gates"
 
 # Some tests are known to be unusable in a KinD cluster. For example,
@@ -322,7 +328,7 @@ configvar CSI_PROW_E2E_ALPHA_GATES "$(get_versioned_variable CSI_PROW_E2E_ALPHA_
 # whether they can run with the current cluster provider, but until
 # they are, we filter them out by name. Like the other test selection
 # variables, this is again a space separated list of regular expressions.
-configvar CSI_PROW_E2E_SKIP 'while.kubelet.is.down.*Disruptive' "tests that need to be skipped"
+configvar CSI_PROW_E2E_SKIP 'Disruptive' "tests that need to be skipped"
 
 # This is the directory for additional result files. Usually set by Prow, but
 # if not (for example, when invoking manually) it defaults to the work directory.
@@ -379,8 +385,8 @@ install_kind () {
     if run curl --fail --location -o "${CSI_PROW_WORK}/bin/kind" "https://github.com/kubernetes-sigs/kind/releases/download/${CSI_PROW_KIND_VERSION}/kind-linux-amd64"; then
         chmod u+x "${CSI_PROW_WORK}/bin/kind"
     else
-        git_checkout https://github.com/kubernetes-sigs/kind "$GOPATH/src/sigs.k8s.io/kind" "${CSI_PROW_KIND_VERSION}" --depth=1 &&
-        run_with_go "${CSI_PROW_GO_VERSION_KIND}" go build -o "${CSI_PROW_WORK}/bin/kind" sigs.k8s.io/kind
+        git_checkout https://github.com/kubernetes-sigs/kind "${GOPATH}/src/sigs.k8s.io/kind" "${CSI_PROW_KIND_VERSION}" --depth=1 &&
+        (cd "${GOPATH}/src/sigs.k8s.io/kind" && make install INSTALL_DIR="${CSI_PROW_WORK}/bin")
     fi
 }
 
@@ -394,6 +400,15 @@ install_ginkgo () {
     # We have to get dependencies and hence can't call just "go build".
     run_with_go "${CSI_PROW_GO_VERSION_GINKGO}" go get github.com/onsi/ginkgo/ginkgo || die "building ginkgo failed" &&
     mv "$GOPATH/bin/ginkgo" "${CSI_PROW_BIN}"
+}
+
+# Ensure that we have the desired version of dep.
+install_dep () {
+    if dep version 2>/dev/null | grep -q "version:.*${CSI_PROW_DEP_VERSION}$"; then
+        return
+    fi
+    run curl --fail --location -o "${CSI_PROW_WORK}/bin/dep" "https://github.com/golang/dep/releases/download/v0.5.4/dep-linux-amd64" &&
+        chmod u+x "${CSI_PROW_WORK}/bin/dep"
 }
 
 # This checks out a repo ("https://github.com/kubernetes/kubernetes")
@@ -422,6 +437,27 @@ git_checkout () {
         (cd "$path" && run git fetch "$repo" '+refs/heads/*:refs/remotes/csiprow/heads/*' '+refs/tags/*:refs/tags/*') || die "fetching $repo failed"
         (cd "$path" && run git checkout "$revision") || die "checking out $repo $revision failed"
     fi
+    # This is useful for local testing or when switching between different revisions in the same
+    # repo.
+    (cd "$path" && run git clean -fdx) || die "failed to clean $path"
+}
+
+# This clones a repo ("https://github.com/kubernetes/kubernetes")
+# in a certain location ("$GOPATH/src/k8s.io/kubernetes") at
+# a the head of a specific branch (i.e., release-1.13, master).
+# The directory cannot exist.
+git_clone_branch () {
+    local repo path branch parent
+    repo="$1"
+    shift
+    path="$1"
+    shift
+    branch="$1"
+    shift
+
+    parent="$(dirname "$path")"
+    mkdir -p "$parent"
+    (cd "$parent" && run git clone --single-branch --branch "$branch" "$repo" "$path") || die "cloning $repo" failed
     # This is useful for local testing or when switching between different revisions in the same
     # repo.
     (cd "$path" && run git clean -fdx) || die "failed to clean $path"
@@ -472,25 +508,10 @@ start_cluster () {
             if [ "$version" = "latest" ]; then
                 version=master
             fi
-            git_checkout https://github.com/kubernetes/kubernetes "$GOPATH/src/k8s.io/kubernetes" "$version" --depth=1 || die "checking out Kubernetes $version failed"
+            git_clone_branch https://github.com/kubernetes/kubernetes "${CSI_PROW_WORK}/src/kubernetes" "$version" || die "checking out Kubernetes $version failed"
 
-            # "kind build" and/or the Kubernetes build rules need at least one tag, which we don't have
-            # when doing a shallow fetch. Therefore we fake one:
-            # release-1.12 -> v1.12.0-release.<rev>.csiprow
-            # latest or <revision> -> v1.14.0-<rev>.csiprow
-            case "${CSI_PROW_KUBERNETES_VERSION}" in
-                release-*)
-                    # Ignore: See if you can use ${variable//search/replace} instead.
-                    # shellcheck disable=SC2001
-                    tag="$(echo "${CSI_PROW_KUBERNETES_VERSION}" | sed -e 's/release-\(.*\)/v\1.0-release./')";;
-                *)
-                    # We have to make something up. v1.0.0 did not work for some reasons.
-                    tag="v999.999.999-";;
-            esac
-            tag="$tag$(cd "$GOPATH/src/k8s.io/kubernetes" && git rev-list --abbrev-commit HEAD).csiprow"
-            (cd "$GOPATH/src/k8s.io/kubernetes" && run git tag -f "$tag") || die "git tag failed"
-            go_version="$(go_version_for_kubernetes "$GOPATH/src/k8s.io/kubernetes" "$version")" || die "cannot proceed without knowing Go version for Kubernetes"
-            run_with_go "$go_version" kind build node-image --type bazel --image csiprow/node:latest --kube-root "$GOPATH/src/k8s.io/kubernetes" || die "'kind build node-image' failed"
+            go_version="$(go_version_for_kubernetes "${CSI_PROW_WORK}/src/kubernetes" "$version")" || die "cannot proceed without knowing Go version for Kubernetes"
+            run_with_go "$go_version" kind build node-image --type bazel --image csiprow/node:latest --kube-root "${CSI_PROW_WORK}/src/kubernetes" || die "'kind build node-image' failed"
             csi_prow_kind_have_kubernetes=true
         fi
         image="csiprow/node:latest"
@@ -502,6 +523,7 @@ kind: Cluster
 apiVersion: kind.sigs.k8s.io/v1alpha3
 nodes:
 - role: control-plane
+- role: worker
 EOF
 
     # kubeadm has API dependencies between apiVersion and Kubernetes version
@@ -556,6 +578,19 @@ EOF
     fi
     KUBECONFIG="$(kind get kubeconfig-path --name=csi-prow)"
     export KUBECONFIG
+}
+
+# Deletes kind cluster inside a prow job
+delete_cluster_inside_prow_job() {
+    # Inside a real Prow job it is better to clean up at runtime
+    # instead of leaving that to the Prow job cleanup code
+    # because the later sometimes times out (https://github.com/kubernetes-csi/csi-release-tools/issues/24#issuecomment-554765872).
+    if [ "$JOB_NAME" ]; then
+        if kind get clusters | grep -q csi-prow; then
+            run kind delete cluster --name=csi-prow || die "kind delete failed"
+        fi
+        unset KUBECONFIG
+    fi
 }
 
 # Looks for the deployment as specified by CSI_PROW_DEPLOYMENT and CSI_PROW_KUBERNETES_VERSION
@@ -661,16 +696,16 @@ EOF
 
 }
 
-# Gets logs of all containers in the default namespace. When passed -f, kubectl will
+# Gets logs of all containers in all namespaces. When passed -f, kubectl will
 # keep running and capture new output. Prints the pid of all background processes.
 # The caller must kill (when using -f) and/or wait for them.
 #
 # May be called multiple times and thus appends.
 start_loggers () {
-    kubectl get pods -o go-template --template='{{range .items}}{{.metadata.name}} {{range .spec.containers}}{{.name}} {{end}}{{"\n"}}{{end}}' | while read -r pod containers; do
+    kubectl get pods --all-namespaces -o go-template --template='{{range .items}}{{.metadata.namespace}} {{.metadata.name}} {{range .spec.containers}}{{.name}} {{end}}{{"\n"}}{{end}}' | while read -r namespace pod containers; do
         for container in $containers; do
-            mkdir -p "${ARTIFACTS}/$pod"
-            kubectl logs "$@" "$pod" "$container" >>"${ARTIFACTS}/$pod/$container.log" &
+            mkdir -p "${ARTIFACTS}/$namespace/$pod"
+            kubectl logs -n "$namespace" "$@" "$pod" "$container" >>"${ARTIFACTS}/$namespace/$pod/$container.log" &
             echo "$!"
         done
     done
@@ -703,22 +738,6 @@ install_sanity () (
     run_with_go "${CSI_PROW_GO_VERSION_SANITY}" go test -c -o "${CSI_PROW_WORK}/csi-sanity" "${CSI_PROW_SANITY_IMPORT_PATH}/cmd/csi-sanity" || die "building csi-sanity failed"
 )
 
-# Whether the hostpath driver supports raw block devices depends on which version
-# we are testing. It would be much nicer if we could determine that by querying the
-# installed driver's capabilities instead of having to do a version check.
-hostpath_supports_block () {
-    local result
-    result="$(docker exec csi-prow-control-plane docker image ls --format='{{.Repository}} {{.Tag}} {{.ID}}' | grep hostpath | while read -r repo tag id; do
-        if [ "$tag" == "v1.0.1" ]; then
-            # Old version because the revision label is missing: didn't have support yet.
-            echo "false"
-            return
-        fi
-    done)"
-    # If not set, then it must be a newer driver with support.
-    echo "${result:-true}"
-}
-
 # The default implementation of this function generates a external
 # driver test configuration for the hostpath driver.
 #
@@ -735,10 +754,14 @@ SnapshotClass:
 DriverInfo:
   Name: ${CSI_PROW_HOSTPATH_DRIVER_NAME}
   Capabilities:
-    block: $(hostpath_supports_block)
+    block: true
     persistence: true
     dataSource: true
     multipods: true
+    nodeExpansion: true
+    controllerExpansion: true
+    snapshotDataSource: true
+    singleNodeVolume: true
 EOF
 }
 
@@ -924,19 +947,23 @@ main () {
     images=
     if ${CSI_PROW_BUILD_JOB}; then
         # A successful build is required for testing.
-        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make all || die "'make all' failed"
+        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make all "GOFLAGS_VENDOR=${GOFLAGS_VENDOR}" || die "'make all' failed"
         # We don't want test failures to prevent E2E testing below, because the failure
         # might have been minor or unavoidable, for example when experimenting with
         # changes in "release-tools" in a PR (that fails the "is release-tools unmodified"
         # test).
         if tests_enabled "unit"; then
-            if ! run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make -k test 2>&1 | make_test_to_junit; then
+            if [ -f Gopkg.toml ] && ! install_dep; then
+                warn "installing 'dep' failed, cannot test vendoring"
+                ret=1
+            fi
+            if ! run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make -k test "GOFLAGS_VENDOR=${GOFLAGS_VENDOR}" 2>&1 | make_test_to_junit; then
                 warn "'make test' failed, proceeding anyway"
                 ret=1
             fi
         fi
         # Required for E2E testing.
-        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make container || die "'make container' failed"
+        run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make container "GOFLAGS_VENDOR=${GOFLAGS_VENDOR}" || die "'make container' failed"
     fi
 
     if tests_need_kind; then
@@ -1003,6 +1030,7 @@ main () {
                     fi
                 fi
             fi
+            delete_cluster_inside_prow_job
         fi
 
         if tests_need_alpha_cluster && [ "${CSI_PROW_E2E_ALPHA_GATES}" ]; then
@@ -1033,6 +1061,7 @@ main () {
                     fi
                 fi
             fi
+            delete_cluster_inside_prow_job
         fi
     fi
 

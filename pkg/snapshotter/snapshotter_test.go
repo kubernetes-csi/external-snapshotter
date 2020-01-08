@@ -27,13 +27,14 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/golang/protobuf/ptypes"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
+	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/driver"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -47,6 +48,7 @@ func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, 
 	mockController := gomock.NewController(t)
 	identityServer := driver.NewMockIdentityServer(mockController)
 	controllerServer := driver.NewMockControllerServer(mockController)
+	metricsManager := metrics.NewCSIMetricsManager("" /* driverName */)
 	drv := driver.NewMockCSIDriver(&driver.MockCSIDriverServers{
 		Identity:   identityServer,
 		Controller: controllerServer,
@@ -55,7 +57,7 @@ func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, 
 
 	// Create a client connection to it
 	addr := drv.Address()
-	csiConn, err := connection.Connect(addr)
+	csiConn, err := connection.Connect(addr, metricsManager)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
@@ -79,7 +81,6 @@ func TestCreateSnapshot(t *testing.T) {
 	}
 
 	csiVolume := FakeCSIVolume()
-	volumeWithoutCSI := FakeVolume()
 
 	defaultRequest := &csi.CreateSnapshotRequest{
 		Name:           defaultName,
@@ -135,7 +136,7 @@ func TestCreateSnapshot(t *testing.T) {
 	tests := []struct {
 		name         string
 		snapshotName string
-		volume       *v1.PersistentVolume
+		volumeHandle string
 		parameters   map[string]string
 		secrets      map[string]string
 		input        *csi.CreateSnapshotRequest
@@ -147,7 +148,7 @@ func TestCreateSnapshot(t *testing.T) {
 		{
 			name:         "success",
 			snapshotName: defaultName,
-			volume:       csiVolume,
+			volumeHandle: csiVolume.Spec.CSI.VolumeHandle,
 			input:        defaultRequest,
 			output:       defaultResponse,
 			expectError:  false,
@@ -156,7 +157,7 @@ func TestCreateSnapshot(t *testing.T) {
 		{
 			name:         "attributes",
 			snapshotName: defaultName,
-			volume:       csiVolume,
+			volumeHandle: csiVolume.Spec.CSI.VolumeHandle,
 			parameters:   defaultParameter,
 			input:        attributesRequest,
 			output:       defaultResponse,
@@ -166,7 +167,7 @@ func TestCreateSnapshot(t *testing.T) {
 		{
 			name:         "secrets",
 			snapshotName: defaultName,
-			volume:       csiVolume,
+			volumeHandle: csiVolume.Spec.CSI.VolumeHandle,
 			secrets:      createSecrets,
 			input:        secretsRequest,
 			output:       defaultResponse,
@@ -174,17 +175,9 @@ func TestCreateSnapshot(t *testing.T) {
 			expectResult: result,
 		},
 		{
-			name:         "fail for volume without csi source",
-			snapshotName: defaultName,
-			volume:       volumeWithoutCSI,
-			input:        nil,
-			output:       nil,
-			expectError:  true,
-		},
-		{
 			name:         "gRPC transient error",
 			snapshotName: defaultName,
-			volume:       csiVolume,
+			volumeHandle: csiVolume.Spec.CSI.VolumeHandle,
 			input:        defaultRequest,
 			output:       nil,
 			injectError:  codes.DeadlineExceeded,
@@ -193,7 +186,7 @@ func TestCreateSnapshot(t *testing.T) {
 		{
 			name:         "gRPC final error",
 			snapshotName: defaultName,
-			volume:       csiVolume,
+			volumeHandle: csiVolume.Spec.CSI.VolumeHandle,
 			input:        defaultRequest,
 			output:       nil,
 			injectError:  codes.NotFound,
@@ -224,7 +217,7 @@ func TestCreateSnapshot(t *testing.T) {
 		}
 
 		s := NewSnapshotter(csiConn)
-		driverName, snapshotId, timestamp, size, readyToUse, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volume, test.parameters, test.secrets)
+		driverName, snapshotId, timestamp, size, readyToUse, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volumeHandle, test.parameters, test.secrets)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
@@ -499,32 +492,6 @@ func FakeCSIVolume() *v1.PersistentVolume {
 					Driver:       driverName,
 					VolumeHandle: "foo",
 				},
-			},
-			StorageClassName: "default",
-		},
-		Status: v1.PersistentVolumeStatus{
-			Phase: v1.VolumeBound,
-		},
-	}
-
-	return &volume
-}
-
-func FakeVolume() *v1.PersistentVolume {
-	volume := v1.PersistentVolume{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "fake-csi-volume",
-		},
-		Spec: v1.PersistentVolumeSpec{
-			ClaimRef: &v1.ObjectReference{
-				Kind:       "PersistentVolumeClaim",
-				APIVersion: "v1",
-				UID:        types.UID("uid123"),
-				Namespace:  "default",
-				Name:       "test-claim",
-			},
-			PersistentVolumeSource: v1.PersistentVolumeSource{
-				GCEPersistentDisk: &v1.GCEPersistentDiskVolumeSource{},
 			},
 			StorageClassName: "default",
 		},
