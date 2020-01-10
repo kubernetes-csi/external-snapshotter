@@ -254,8 +254,13 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	var snapshotID string
 
 	if content.Spec.Source.SnapshotHandle != nil {
+		_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get input parameters to get snapshot status for content %s: %q", content.Name, err)
+		}
+
 		klog.V(5).Infof("checkandUpdateContentStatusOperation: call GetSnapshotStatus for snapshot which is pre-bound to content [%s]", content.Name)
-		readyToUse, creationTime, size, err = ctrl.handler.GetSnapshotStatus(content)
+		readyToUse, creationTime, size, err = ctrl.handler.GetSnapshotStatus(content, snapshotterCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateContentStatusOperation: failed to call get snapshot status to check whether snapshot is ready to use %q", err)
 			return nil, err
