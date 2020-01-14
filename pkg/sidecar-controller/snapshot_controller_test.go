@@ -14,11 +14,19 @@ limitations under the License.
 package sidecar_controller
 
 import (
+	"reflect"
 	"testing"
+	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned/fake"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/pkg/utils"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/diff"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -138,5 +146,131 @@ func TestShouldDelete(t *testing.T) {
 			t.Errorf("Got %t but expected %t for test: %s", result, test.expectedReturn, test.name)
 		}
 
+	}
+}
+
+func TestCheckandUpdateContentStatus(t *testing.T) {
+	tests := []struct {
+		name                string
+		initialContent      *crdv1.VolumeSnapshotContent
+		initialSecret       *v1.Secret
+		snapshotHandle      string
+		expectedContent     *crdv1.VolumeSnapshotContent
+		expectedReadyToUse  bool
+		expectedError       error
+		expectedCreateCalls []createCall
+		expectedListCalls   []listCall
+	}{
+		{
+			name:           "Update volumesnapshotcontent status",
+			initialContent: newContent("test-content", "snap-uuid", "snapName", "desiredHandle", defaultClass, "desiredHandle", "volHandle", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, nil),
+			initialSecret: &v1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "secret",
+					Namespace: "default",
+				},
+				Data: map[string][]byte{
+					"foo": []byte("bar"),
+				},
+			},
+			snapshotHandle:     "snapName",
+			expectedContent:    newContent("test-content", "snap-uuid", "snapName", "desiredHandle", defaultClass, "desiredHandle", "volHandle", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, nil),
+			expectedReadyToUse: true,
+			expectedError:      nil,
+			expectedListCalls:  []listCall{{"desiredHandle", true, time.Now(), 1, map[string]string{"foo": "bar"}, nil}},
+		},
+		{
+			name: "Create and update volumesnapshotcontent",
+			initialContent: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "snapuid1-1",
+				},
+				Spec: crdv1.VolumeSnapshotContentSpec{
+					VolumeSnapshotClassName: &defaultClass,
+					VolumeSnapshotRef: v1.ObjectReference{
+						Kind:       "VolumeSnapshot",
+						APIVersion: "snapshot.storage.k8s.io/v1beta1",
+						UID:        types.UID("snap-uuid"),
+						Namespace:  testNamespace,
+						Name:       "snapName",
+					},
+					Source: crdv1.VolumeSnapshotContentSource{
+						VolumeHandle: (func(s string) *string {
+							return &s
+						})("volHandle"),
+					},
+				},
+			},
+			expectedContent:    newContent("snapuid1-1", "snap-uuid", "snapName", "desiredHandle", defaultClass, "desiredHandle", "volHandle", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, nil),
+			expectedReadyToUse: true,
+			expectedError:      nil,
+			expectedCreateCalls: []createCall{{
+				volumeHandle: "volHandle",
+				snapshotName: "snapshot-snap-uuid",
+				driverName:   mockDriverName,
+				snapshotId:   "snapuid1-1",
+				creationTime: timeNow,
+				readyToUse:   true,
+			}},
+			expectedListCalls: []listCall{{"desiredHandle", true, time.Now(), 1, map[string]string{"foo": "bar"}, nil}},
+		},
+	}
+
+	for _, test := range tests {
+		// Initialize the controller
+		kubeClient := &kubefake.Clientset{}
+		client := &fake.Clientset{}
+
+		ctrl, err := newTestController(kubeClient, client, nil, t, controllerTest{
+			expectedCreateCalls: test.expectedCreateCalls,
+			expectedListCalls:   test.expectedListCalls,
+		})
+
+		if err != nil {
+			t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
+		}
+
+		if test.snapshotHandle != "" {
+			test.initialContent.Spec.Source.SnapshotHandle = &test.snapshotHandle
+			test.expectedContent.Spec.Source.SnapshotHandle = &test.snapshotHandle
+		}
+
+		if test.initialSecret != nil {
+			test.initialContent.ObjectMeta.Annotations = secretAnnotations()
+			test.expectedContent.ObjectMeta.Annotations = secretAnnotations()
+		}
+
+		// Setup reactor
+		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, nil)
+		if ctrl.isDriverMatch(test.initialContent) {
+			ctrl.contentStore.Add(test.initialContent)
+			reactor.contents[test.initialContent.Name] = test.initialContent
+			reactor.secrets[test.initialSecret.ObjectMeta.Name] = test.initialSecret
+		}
+
+		if test.initialContent.Spec.Source.SnapshotHandle == nil {
+			reactor.contents[test.expectedContent.Name] = test.expectedContent
+		}
+
+		// Inject classes into controller via a custom lister.
+		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		for _, class := range snapshotClasses {
+			indexer.Add(class)
+		}
+		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+
+		// Run test
+		content, err := ctrl.checkandUpdateContentStatusOperation(test.initialContent)
+		if !reflect.DeepEqual(err, test.expectedError) {
+			t.Errorf("error check failed for test %s: %s", test.name, diff.ObjectDiff(test.expectedError, err))
+		}
+
+		test.expectedContent.Status.CreationTime = content.Status.CreationTime
+		test.expectedContent.ObjectMeta.ResourceVersion = content.ObjectMeta.ResourceVersion
+		test.expectedContent.Status.ReadyToUse = &test.expectedReadyToUse
+
+		if !reflect.DeepEqual(content, test.expectedContent) {
+			t.Errorf("content check failed for test %s: %s", test.name, diff.ObjectDiff(test.expectedContent, content))
+		}
 	}
 }

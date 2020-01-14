@@ -498,6 +498,8 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
 
+	kubeClient.AddReactor("get", "secrets", reactor.React)
+
 	return reactor
 }
 
