@@ -1,0 +1,1 @@
+../../../../../../pkg/client/informers/externalversions/volumesnapshot/interface.go
