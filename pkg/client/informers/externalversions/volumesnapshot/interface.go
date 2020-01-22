@@ -19,8 +19,8 @@ limitations under the License.
 package volumesnapshot
 
 import (
-	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions/volumesnapshot/v1beta1"
+	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/informers/externalversions/internalinterfaces"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/informers/externalversions/volumesnapshot/v1beta1"
 )
 
 // Interface provides access to each of this group's versions.

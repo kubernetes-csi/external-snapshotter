@@ -21,10 +21,10 @@ package v1beta1
 import (
 	time "time"
 
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/pkg/apis/volumesnapshot/v1beta1"
-	versioned "github.com/kubernetes-csi/external-snapshotter/pkg/client/clientset/versioned"
-	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/pkg/client/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/kubernetes-csi/external-snapshotter/pkg/client/listers/volumesnapshot/v1beta1"
+	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	versioned "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/clientset/versioned"
+	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/informers/externalversions/internalinterfaces"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/listers/volumesnapshot/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
