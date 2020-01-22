@@ -1,0 +1,1 @@
+../../../../../pkg/apis/volumesnapshot/v1beta1/types.go
