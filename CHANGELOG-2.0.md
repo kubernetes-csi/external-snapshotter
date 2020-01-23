@@ -1,3 +1,9 @@
+# Changelog since v2.0.0
+
+## Breaking Changes
+
+- Cherry pick PR #240: Fix go module requirements for semantic versioning. Update package path to v2. Vendoring with dep depends on https://github.com/golang/dep/pull/1963 or the workaround described in v2/README.md. ([#243](https://github.com/kubernetes-csi/external-snapshotter/pull/243), [@alex1989hu](https://github.com/alex1989hu))
+
 # Changelog since v1.2.0
 
 ## New Features
