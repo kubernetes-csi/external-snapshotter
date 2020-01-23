@@ -1,0 +1,1 @@
+../../../../../../pkg/client/clientset/versioned/scheme/register.go
