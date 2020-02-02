@@ -1,0 +1,1 @@
+../../../pkg/common-controller/snapshot_delete_test.go

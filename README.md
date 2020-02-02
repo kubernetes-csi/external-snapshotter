@@ -39,7 +39,7 @@ The `VolumeSnapshotDataSource` feature gate was introduced in Kubernetes 1.12 an
 
 ## Design
 
-Both the snapshot controller and CSI external-snapshotter sidecar follow [controller](https://github.com/kubernetes/community/blob/master/contributors/devel/controllers.md) pattern and uses informers to watch for events. The snapshot controller watches for `VolumeSnapshot` and `VolumeSnapshotContent` create/update/delete events.
+Both the snapshot controller and CSI external-snapshotter sidecar follow [controller](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/controllers.md) pattern and uses informers to watch for events. The snapshot controller watches for `VolumeSnapshot` and `VolumeSnapshotContent` create/update/delete events.
 
 The CSI external-snapshotter sidecar only watches for `VolumeSnapshotContent` create/update/delete events. It filters out these objects with `Driver==<CSI driver name>` specified in the associated VolumeSnapshotClass object and then processes these events in workqueues with exponential backoff.
 

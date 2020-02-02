@@ -1,0 +1,1 @@
+../../../../../../pkg/client/listers/volumesnapshot/v1beta1/volumesnapshotclass.go
