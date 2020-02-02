@@ -501,13 +501,20 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 		},
 	}
 
-	// Set AnnDeletionSecretRefName and AnnDeletionSecretRefNamespace
 	if snapshotterSecretRef != nil {
+		// Set AnnDeletionSecretRefName and AnnDeletionSecretRefNamespace
 		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.AnnDeletionSecretRefName, snapshotContent.Name)
 		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName, snapshotterSecretRef.Name)
 
 		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.AnnDeletionSecretRefNamespace, snapshotContent.Name)
 		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, snapshotterSecretRef.Namespace)
+
+		// Set AnnListingSecretRefName and AnnListingSecretRefNamespace
+		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.AnnListingSecretRefName, snapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.AnnListingSecretRefName, snapshotterSecretRef.Name)
+
+		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.AnnListingSecretRefNamespace, snapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.AnnListingSecretRefNamespace, snapshotterSecretRef.Namespace)
 	}
 
 	var updateContent *crdv1.VolumeSnapshotContent

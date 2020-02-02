@@ -1455,6 +1455,8 @@ func secretAnnotations() map[string]string {
 	return map[string]string{
 		utils.AnnDeletionSecretRefName:      "secret",
 		utils.AnnDeletionSecretRefNamespace: "default",
+		utils.AnnListingSecretRefName:       "secret",
+		utils.AnnListingSecretRefNamespace:  "default",
 	}
 }
 
@@ -1462,6 +1464,8 @@ func emptyNamespaceSecretAnnotations() map[string]string {
 	return map[string]string{
 		utils.AnnDeletionSecretRefName:      "name",
 		utils.AnnDeletionSecretRefNamespace: "",
+		utils.AnnListingSecretRefName:       "secret",
+		utils.AnnListingSecretRefNamespace:  "",
 	}
 }
 
@@ -1470,5 +1474,7 @@ func emptyDataSecretAnnotations() map[string]string {
 	return map[string]string{
 		utils.AnnDeletionSecretRefName:      "emptysecret",
 		utils.AnnDeletionSecretRefNamespace: "default",
+		utils.AnnListingSecretRefName:       "emptysecret",
+		utils.AnnListingSecretRefNamespace:  "default",
 	}
 }

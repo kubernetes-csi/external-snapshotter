@@ -215,7 +215,7 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 	return nil
 }
 
-func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotClass, map[string]string, error) {
+func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.VolumeSnapshotContent, name string, namespace string) (*crdv1.VolumeSnapshotClass, map[string]string, error) {
 	className := content.Spec.VolumeSnapshotClassName
 	klog.V(5).Infof("getCSISnapshotInput for content [%s]", content.Name)
 	var class *crdv1.VolumeSnapshotClass
@@ -237,7 +237,7 @@ func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.Vol
 	}
 
 	// Resolve snapshotting secret credentials.
-	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotation(content)
+	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotation(content, name, namespace)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -254,7 +254,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	var snapshotID string
 
 	if content.Spec.Source.SnapshotHandle != nil {
-		_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
+		_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content, utils.AnnListingSecretRefName, utils.AnnListingSecretRefNamespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get input parameters to get snapshot status for content %s: %q", content.Name, err)
 		}
@@ -268,7 +268,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		driverName = content.Spec.Driver
 		snapshotID = *content.Spec.Source.SnapshotHandle
 	} else {
-		class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
+		class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content, utils.AnnDeletionSecretRefName, utils.AnnDeletionSecretRefNamespace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", content.Name, err)
 		}
@@ -308,7 +308,7 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		return content, nil
 	}
 
-	class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
+	class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content, utils.AnnDeletionSecretRefName, utils.AnnDeletionSecretRefNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input parameters to create snapshot for content %s: %q", content.Name, err)
 	}
@@ -344,8 +344,7 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 // Delete a snapshot: Ask the backend to remove the snapshot device
 func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *crdv1.VolumeSnapshotContent) error {
 	klog.V(5).Infof("deleteCSISnapshotOperation [%s] started", content.Name)
-
-	_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
+	_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content, utils.AnnDeletionSecretRefName, utils.AnnDeletionSecretRefNamespace)
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot class or credentials")
 		return fmt.Errorf("failed to get input parameters to delete snapshot for content %s: %q", content.Name, err)
@@ -489,15 +488,15 @@ func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
 	return false
 }
 
-func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *crdv1.VolumeSnapshotContent) (map[string]string, error) {
+func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *crdv1.VolumeSnapshotContent, name string, namespace string) (map[string]string, error) {
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
 	var err error
 
 	// Check if annotation exists
-	if metav1.HasAnnotation(content.ObjectMeta, utils.AnnDeletionSecretRefName) && metav1.HasAnnotation(content.ObjectMeta, utils.AnnDeletionSecretRefNamespace) {
-		annDeletionSecretName := content.Annotations[utils.AnnDeletionSecretRefName]
-		annDeletionSecretNamespace := content.Annotations[utils.AnnDeletionSecretRefNamespace]
+	if metav1.HasAnnotation(content.ObjectMeta, name) && metav1.HasAnnotation(content.ObjectMeta, namespace) {
+		annDeletionSecretName := content.Annotations[name]
+		annDeletionSecretNamespace := content.Annotations[namespace]
 
 		snapshotterSecretRef := &v1.SecretReference{}
 

@@ -79,6 +79,11 @@ const (
 	// and used at snapshot content deletion time.
 	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
+
+	// Annotation for secret name and namespace will be added to the content
+	// and used at snapshot content listing time.
+	AnnListingSecretRefName      = "snapshot.storage.kubernetes.io/listing-secret-name"
+	AnnListingSecretRefNamespace = "snapshot.storage.kubernetes.io/listing-secret-namespace"
 )
 
 var snapshotterSecretParams = secretParamsMap{
