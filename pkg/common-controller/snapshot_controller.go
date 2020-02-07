@@ -249,6 +249,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 		}
 
 		klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: set DeletionTimeStamp on content.", utils.SnapshotKey(snapshot))
+
 		// If content exists, set DeletionTimeStamp on the content;
 		// content won't be deleted immediately due to the finalizer
 		if content != nil && deleteContent && !inUse {
@@ -261,6 +262,9 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 		}
 
 		if !inUse {
+			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Set VolumeSnapshotBeingDeleted annotation on the content [%s]", content.Name)
+			ctrl.setAnnVolumeSnapshotBeingDeleted(content)
+
 			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
 			doesContentExist := false
 			if content != nil {

@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	storagev1beta1 "k8s.io/api/storage/v1beta1"
@@ -335,6 +336,20 @@ func TestSync(t *testing.T) {
 			},
 			expectSuccess: false,
 			test:          testSyncContentError,
+		},
+		{
+			name:             "5-5 - snapshot deletion candidate marked for deletion by syncSnapshot",
+			initialSnapshots: newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "content5-5", &False, nil, nil, nil, false, true, &timeNowMetav1),
+			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "content5-5", &False, nil, nil, nil, false, false, &timeNowMetav1),
+				utils.VolumeSnapshotBoundFinalizer,
+			),
+			initialContents:  newContentArray("content5-5", "snapuid5-5", "snap5-5", "sid5-5", validSecretClass, "", "", crdv1.VolumeSnapshotContentRetain, nil, nil, true),
+			expectedContents: withContentAnnotations(newContentArray("content5-5", "snapuid5-5", "snap5-5", "sid5-5", validSecretClass, "", "", crdv1.VolumeSnapshotContentRetain, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
+			initialClaims:    newClaimArray("claim5-5", "pvc-uid5-5", "1Gi", "volume5-5", v1.ClaimBound, &classEmpty),
+			initialVolumes:   newVolumeArray("volume5-5", "pv-uid5-5", "pv-handle5-5", "1Gi", "pvc-uid5-5", "claim5-5", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:   []*v1.Secret{secret()},
+			expectSuccess:    true,
+			test:             testSyncSnapshot,
 		},
 	}
 
