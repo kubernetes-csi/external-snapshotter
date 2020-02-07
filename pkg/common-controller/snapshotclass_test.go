@@ -36,8 +36,8 @@ func TestUpdateSnapshotClass(t *testing.T) {
 			// defualt snapshot class name should be set
 			name:                  "1-1 - default snapshot class name should be set",
 			initialContents:       nocontents,
-			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "", "content1-1", &True, nil, nil, nil, false, true),
-			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", defaultClass, "content1-1", &True, nil, nil, nil, false, true),
+			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "", "content1-1", &True, nil, nil, nil, false, true, nil),
+			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", defaultClass, "content1-1", &True, nil, nil, nil, false, true, nil),
 			initialClaims:         newClaimArray("claim1-1", "pvc-uid1-1", "1Gi", "volume1-1", v1.ClaimBound, &sameDriver),
 			initialVolumes:        newVolumeArray("volume1-1", "pv-uid1-1", "pv-handle1-1", "1Gi", "pvc-uid1-1", "claim1-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialStorageClasses: []*storage.StorageClass{sameDriverStorageClass},
@@ -49,8 +49,8 @@ func TestUpdateSnapshotClass(t *testing.T) {
 			// snapshot class name already set
 			name:                  "1-2 - snapshot class name already set",
 			initialContents:       nocontents,
-			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", defaultClass, "content1-1", &True, nil, nil, nil, false, true),
-			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", defaultClass, "content1-1", &True, nil, nil, nil, false, true),
+			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", defaultClass, "content1-1", &True, nil, nil, nil, false, true, nil),
+			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", defaultClass, "content1-1", &True, nil, nil, nil, false, true, nil),
 			initialClaims:         newClaimArray("claim1-1", "pvc-uid1-1", "1Gi", "volume1-1", v1.ClaimBound, &sameDriver),
 			initialVolumes:        newVolumeArray("volume1-1", "pv-uid1-1", "pv-handle1-1", "1Gi", "pvc-uid1-1", "claim1-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialStorageClasses: []*storage.StorageClass{sameDriverStorageClass},
@@ -62,8 +62,8 @@ func TestUpdateSnapshotClass(t *testing.T) {
 			// default snapshot class not found
 			name:                  "1-3 - snapshot class name not found",
 			initialContents:       nocontents,
-			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "missing-class", "content1-1", &True, nil, nil, nil, false, true),
-			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "missing-class", "content1-1", &False, nil, nil, newVolumeError("Failed to get snapshot class with error failed to retrieve snapshot class missing-class from the informer: \"volumesnapshotclass.snapshot.storage.k8s.io \\\"missing-class\\\" not found\""), false, true),
+			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "missing-class", "content1-1", &True, nil, nil, nil, false, true, nil),
+			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "missing-class", "content1-1", &False, nil, nil, newVolumeError("Failed to get snapshot class with error failed to retrieve snapshot class missing-class from the informer: \"volumesnapshotclass.snapshot.storage.k8s.io \\\"missing-class\\\" not found\""), false, true, nil),
 			initialClaims:         newClaimArray("claim1-1", "pvc-uid1-1", "1Gi", "volume1-1", v1.ClaimBound, &sameDriver),
 			initialVolumes:        newVolumeArray("volume1-1", "pv-uid1-1", "pv-handle1-1", "1Gi", "pvc-uid1-1", "claim1-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialStorageClasses: []*storage.StorageClass{sameDriverStorageClass},
@@ -75,8 +75,8 @@ func TestUpdateSnapshotClass(t *testing.T) {
 			// failed to get snapshot class from name
 			name:                  "1-4 - snapshot update with default class name failed because storageclass not found",
 			initialContents:       nocontents,
-			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "", "content1-1", &True, nil, nil, nil, false, true),
-			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "", "content1-1", &False, nil, nil, newVolumeError("Failed to set default snapshot class with error mock update error"), false, true),
+			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "", "content1-1", &True, nil, nil, nil, false, true, nil),
+			expectedSnapshots:     newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "content1-1", "", "content1-1", &False, nil, nil, newVolumeError("Failed to set default snapshot class with error mock update error"), false, true, nil),
 			initialClaims:         newClaimArray("claim1-1", "pvc-uid1-1", "1Gi", "volume1-1", v1.ClaimBound, &sameDriver),
 			initialVolumes:        newVolumeArray("volume1-1", "pv-uid1-1", "pv-handle1-1", "1Gi", "pvc-uid1-1", "claim1-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialStorageClasses: []*storage.StorageClass{sameDriverStorageClass},
