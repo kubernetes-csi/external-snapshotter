@@ -17,15 +17,17 @@ limitations under the License.
 package utils
 
 import (
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 	"testing"
+
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestGetSecretReference(t *testing.T) {
 	testcases := map[string]struct {
+		secretParams    secretParamsMap
 		params          map[string]string
 		snapContentName string
 		snapshot        *crdv1.VolumeSnapshot
@@ -33,25 +35,30 @@ func TestGetSecretReference(t *testing.T) {
 		expectErr       bool
 	}{
 		"no params": {
-			params:    nil,
-			expectRef: nil,
+			secretParams: SnapshotterSecretParams,
+			params:       nil,
+			expectRef:    nil,
 		},
 		"namespace, no name": {
-			params:    map[string]string{prefixedSnapshotterSecretNamespaceKey: "foo"},
-			expectErr: true,
+			secretParams: SnapshotterSecretParams,
+			params:       map[string]string{prefixedSnapshotterSecretNamespaceKey: "foo"},
+			expectErr:    true,
 		},
 		"simple - valid": {
-			params:    map[string]string{prefixedSnapshotterSecretNameKey: "name", prefixedSnapshotterSecretNamespaceKey: "ns"},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: &v1.SecretReference{Name: "name", Namespace: "ns"},
+			secretParams: SnapshotterSecretParams,
+			params:       map[string]string{prefixedSnapshotterSecretNameKey: "name", prefixedSnapshotterSecretNamespaceKey: "ns"},
+			snapshot:     &crdv1.VolumeSnapshot{},
+			expectRef:    &v1.SecretReference{Name: "name", Namespace: "ns"},
 		},
 		"simple - invalid name": {
-			params:    map[string]string{prefixedSnapshotterSecretNameKey: "bad name", prefixedSnapshotterSecretNamespaceKey: "ns"},
-			snapshot:  &crdv1.VolumeSnapshot{},
-			expectRef: nil,
-			expectErr: true,
+			secretParams: SnapshotterSecretParams,
+			params:       map[string]string{prefixedSnapshotterSecretNameKey: "bad name", prefixedSnapshotterSecretNamespaceKey: "ns"},
+			snapshot:     &crdv1.VolumeSnapshot{},
+			expectRef:    nil,
+			expectErr:    true,
 		},
 		"template - invalid": {
+			secretParams: SnapshotterSecretParams,
 			params: map[string]string{
 				prefixedSnapshotterSecretNameKey:      "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}-${volumesnapshot.name}-${volumesnapshot.annotations['akey']}",
 				prefixedSnapshotterSecretNamespaceKey: "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}",
@@ -71,7 +78,7 @@ func TestGetSecretReference(t *testing.T) {
 
 	for k, tc := range testcases {
 		t.Run(k, func(t *testing.T) {
-			ref, err := GetSecretReference(tc.params, tc.snapContentName, tc.snapshot)
+			ref, err := GetSecretReference(tc.secretParams, tc.params, tc.snapContentName, tc.snapshot)
 			if err != nil {
 				if tc.expectErr {
 					return

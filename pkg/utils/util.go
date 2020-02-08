@@ -56,6 +56,9 @@ const (
 	prefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
 	prefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
 
+	prefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"
+	prefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace"
+
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
 	// Name of finalizer on VolumeSnapshot that is being used as a source to create a PVC
@@ -81,10 +84,16 @@ const (
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 )
 
-var snapshotterSecretParams = secretParamsMap{
+var SnapshotterSecretParams = secretParamsMap{
 	name:               "Snapshotter",
 	secretNameKey:      prefixedSnapshotterSecretNameKey,
 	secretNamespaceKey: prefixedSnapshotterSecretNamespaceKey,
+}
+
+var SnapshotterListSecretParams = secretParamsMap{
+	name:               "SnapshotterList",
+	secretNameKey:      prefixedSnapshotterListSecretNameKey,
+	secretNamespaceKey: prefixedSnapshotterListSecretNamespaceKey,
 }
 
 func SnapshotKey(vs *crdv1.VolumeSnapshot) string {
@@ -222,8 +231,8 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshot
 // - the nameTemplate or namespaceTemplate contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func GetSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(snapshotterSecretParams, snapshotClassParams)
+func GetSecretReference(secretParams secretParamsMap, snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretParams, snapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
 	}

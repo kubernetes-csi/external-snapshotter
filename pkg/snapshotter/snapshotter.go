@@ -39,7 +39,7 @@ type Snapshotter interface {
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
 
 	// GetSnapshotStatus returns if a snapshot is ready to use, creation time, and restore size.
-	GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error)
+	GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error)
 }
 
 type snapshot struct {
@@ -112,7 +112,7 @@ func (s *snapshot) isListSnapshotsSupported(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
+func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error) {
 	klog.V(5).Infof("GetSnapshotStatus: %s", snapshotID)
 
 	client := csi.NewControllerClient(s.conn)
@@ -127,6 +127,7 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string) (bo
 	}
 	req := csi.ListSnapshotsRequest{
 		SnapshotId: snapshotID,
+		Secrets:    snapshotterListCredentials,
 	}
 	rsp, err := client.ListSnapshots(ctx, &req)
 	if err != nil {

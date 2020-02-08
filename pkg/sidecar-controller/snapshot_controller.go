@@ -252,10 +252,33 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	var readyToUse = false
 	var driverName string
 	var snapshotID string
+	var snapshotterListCredentials map[string]string
 
 	if content.Spec.Source.SnapshotHandle != nil {
 		klog.V(5).Infof("checkandUpdateContentStatusOperation: call GetSnapshotStatus for snapshot which is pre-bound to content [%s]", content.Name)
-		readyToUse, creationTime, size, err = ctrl.handler.GetSnapshotStatus(content)
+
+		if content.Spec.VolumeSnapshotClassName != nil {
+			class, err := ctrl.getSnapshotClass(*content.Spec.VolumeSnapshotClassName)
+			if err != nil {
+				klog.Errorf("failed to getSnapshotClass %s", err)
+				return nil, fmt.Errorf("cannot get snapshot class for snapshot content %s", err)
+			}
+
+			snapshotterListSecretRef, err := utils.GetSecretReference(utils.SnapshotterListSecretParams, class.Parameters, content.GetObjectMeta().GetName(), nil)
+			if err != nil {
+				klog.Errorf("Failed to get secret reference for snapshot %s: %s", content.Name, err.Error())
+				return nil, fmt.Errorf("cannot get secret reference for snapshot content %#v", content.Name)
+			}
+
+			snapshotterListCredentials, err = utils.GetCredentials(ctrl.client, snapshotterListSecretRef)
+			if err != nil {
+				// Continue with deletion, as the secret may have already been deleted.
+				klog.Errorf("Failed to credentials for snapshot %s: %s", content.Name, err.Error())
+				return nil, fmt.Errorf("cannot get credentials for snapshot content %#v", content.Name)
+			}
+		}
+
+		readyToUse, creationTime, size, err = ctrl.handler.GetSnapshotStatus(content, snapshotterListCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateContentStatusOperation: failed to call get snapshot status to check whether snapshot is ready to use %q", err)
 			return nil, err

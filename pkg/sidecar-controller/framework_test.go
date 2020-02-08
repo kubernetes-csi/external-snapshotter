@@ -810,6 +810,7 @@ func emptyDataSecretAnnotations() map[string]string {
 
 type listCall struct {
 	snapshotID string
+	secrets    map[string]string
 	// information to return
 	readyToUse bool
 	createTime time.Time
@@ -911,7 +912,7 @@ func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string,
 	return call.err
 }
 
-func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string) (bool, time.Time, int64, error) {
+func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
 		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
@@ -923,6 +924,11 @@ func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID stri
 	if call.snapshotID != snapshotID {
 		f.t.Errorf("Wrong CSI List Snapshot call: snapshotID=%s, expected snapshotID: %s", snapshotID, call.snapshotID)
 		err = fmt.Errorf("unexpected List snapshot call")
+	}
+
+	if !reflect.DeepEqual(call.secrets, snapshotterListCredentials) {
+		f.t.Errorf("Wrong CSI List Snapshot call: snapshotID=%s, expected secrets %+v, got %+v", snapshotID, call.secrets, snapshotterListCredentials)
+		err = fmt.Errorf("unexpected Delete Snapshot call")
 	}
 
 	if err != nil {
