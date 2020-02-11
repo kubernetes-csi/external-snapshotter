@@ -863,14 +863,15 @@ func newContentWithUnmatchDriverArray(contentName, boundToSnapshotUID, boundToSn
 func newSnapshot(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
-	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool) *crdv1.VolumeSnapshot {
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool, deletionTimestamp *metav1.Time) *crdv1.VolumeSnapshot {
 	snapshot := crdv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:            snapshotName,
-			Namespace:       testNamespace,
-			UID:             types.UID(snapshotUID),
-			ResourceVersion: "1",
-			SelfLink:        "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + snapshotName,
+			Name:              snapshotName,
+			Namespace:         testNamespace,
+			UID:               types.UID(snapshotUID),
+			ResourceVersion:   "1",
+			SelfLink:          "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + snapshotName,
+			DeletionTimestamp: deletionTimestamp,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
 			VolumeSnapshotClassName: nil,
@@ -912,9 +913,9 @@ func newSnapshot(
 func newSnapshotArray(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
-	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool) []*crdv1.VolumeSnapshot {
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool, deletionTimestamp *metav1.Time) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
-		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withFinalizer),
+		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withFinalizer, deletionTimestamp),
 	}
 }
 
