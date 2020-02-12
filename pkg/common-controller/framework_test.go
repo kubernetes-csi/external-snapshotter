@@ -164,11 +164,13 @@ type reactorError struct {
 	error    error
 }
 
-func withSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot) *crdv1.VolumeSnapshot {
-	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
-	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
-	snapshot.ObjectMeta.Finalizers = append(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
-	return snapshot
+func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...string) []*crdv1.VolumeSnapshot {
+	for i := range snapshots {
+		for _, f := range finalizers {
+			snapshots[i].ObjectMeta.Finalizers = append(snapshots[i].ObjectMeta.Finalizers, f)
+		}
+	}
+	return snapshots
 }
 
 func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
@@ -863,7 +865,7 @@ func newContentWithUnmatchDriverArray(contentName, boundToSnapshotUID, boundToSn
 func newSnapshot(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
-	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool, deletionTimestamp *metav1.Time) *crdv1.VolumeSnapshot {
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) *crdv1.VolumeSnapshot {
 	snapshot := crdv1.VolumeSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              snapshotName,
@@ -904,8 +906,8 @@ func newSnapshot(
 			VolumeSnapshotContentName: &targetContentName,
 		}
 	}
-	if withFinalizer {
-		return withSnapshotFinalizer(&snapshot)
+	if withAllFinalizers {
+		return withSnapshotFinalizers([]*crdv1.VolumeSnapshot{&snapshot}, utils.VolumeSnapshotContentFinalizer, utils.VolumeSnapshotAsSourceFinalizer, utils.VolumeSnapshotBoundFinalizer)[0]
 	}
 	return &snapshot
 }
@@ -913,9 +915,9 @@ func newSnapshot(
 func newSnapshotArray(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
-	err *crdv1.VolumeSnapshotError, nilStatus bool, withFinalizer bool, deletionTimestamp *metav1.Time) []*crdv1.VolumeSnapshot {
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
-		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withFinalizer, deletionTimestamp),
+		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withAllFinalizers, deletionTimestamp),
 	}
 }
 

@@ -24,7 +24,6 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 )
 
 var class1Parameters = map[string]string{
@@ -304,36 +303,9 @@ func TestDeleteSync(t *testing.T) {
 			initialContents:  newContentArray("content3-1", "", "snap3-1", "sid3-1", validSecretClass, "", "", deletePolicy, nil, nil, true),
 			expectedContents: nocontents,
 			initialSnapshots: newSnapshotArray("snap3-1", "snapuid3-1", "claim3-1", "", validSecretClass, "content3-1", &False, nil, nil, nil, false, true, &timeNowMetav1),
-			expectedSnapshots: []*crdv1.VolumeSnapshot{
-				&crdv1.VolumeSnapshot{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:            "snap3-1",
-						Namespace:       testNamespace,
-						UID:             types.UID("snapuid3-1"),
-						ResourceVersion: "1",
-						Finalizers: []string{
-							"snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection",
-							"snapshot.storage.kubernetes.io/volumesnapshot-bound-protection",
-						},
-						SelfLink:          "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + "snap3-1",
-						DeletionTimestamp: &timeNowMetav1,
-					},
-					Spec: crdv1.VolumeSnapshotSpec{
-						VolumeSnapshotClassName: &validSecretClass,
-						Source: crdv1.VolumeSnapshotSource{
-							PersistentVolumeClaimName: &claim31,
-						},
-					},
-
-					Status: &crdv1.VolumeSnapshotStatus{
-						CreationTime:                   nil,
-						ReadyToUse:                     &False,
-						Error:                          nil,
-						RestoreSize:                    nil,
-						BoundVolumeSnapshotContentName: &content31,
-					},
-				},
-			},
+			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap3-1", "snapuid3-1", "claim3-1", "", validSecretClass, "content3-1", &False, nil, nil, nil, false, false, &timeNowMetav1),
+				utils.VolumeSnapshotContentFinalizer, utils.VolumeSnapshotBoundFinalizer,
+			),
 			initialClaims:  newClaimArray("claim3-1", "pvc-uid3-1", "1Gi", "volume3-1", v1.ClaimBound, &classEmpty),
 			expectedEvents: noevents,
 			initialSecrets: []*v1.Secret{secret()},
