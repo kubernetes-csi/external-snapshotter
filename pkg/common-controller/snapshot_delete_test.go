@@ -17,7 +17,7 @@ limitations under the License.
 package common_controller
 
 import (
-	//"errors"
+	"errors"
 	"testing"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -174,22 +174,7 @@ func TestDeleteSync(t *testing.T) {
 			initialSecrets:    []*v1.Secret{secret()},
 			//expectedDeleteCalls: []deleteCall{{"sid1-3", map[string]string{"foo": "bar"}, nil}},
 			test: testSyncContent,
-		}, /*{
-			name:                "1-6 - api server delete content returns error",
-			initialContents:     newContentArray("content1-6", "sid1-6", "snap1-6", "sid1-6", validSecretClass, "", "", deletionPolicy, nil, nil, true),
-			expectedContents:    newContentArray("content1-6", "sid1-6", "snap1-6", "sid1-6", validSecretClass, "", "", deletionPolicy, nil, nil, true),
-			initialSnapshots:    nosnapshots,
-			expectedSnapshots:   nosnapshots,
-			initialSecrets:      []*v1.Secret{secret()},
-			//expectedDeleteCalls: []deleteCall{{"sid1-6", map[string]string{"foo": "bar"}, nil}},
-			expectedEvents:      []string{"Warning SnapshotContentObjectDeleteError"},
-			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshotContents().Delete call.
-				// All other calls will succeed.
-				{"delete", "volumesnapshotcontents", errors.New("mock delete error")},
-			},
-			test: testSyncContent,
-		},*/
+		},
 		{
 			// delete success - snapshot that the content was pointing to was deleted, and another
 			// with the same name created.
@@ -304,13 +289,30 @@ func TestDeleteSync(t *testing.T) {
 			expectedContents: nocontents,
 			initialSnapshots: newSnapshotArray("snap3-1", "snapuid3-1", "claim3-1", "", validSecretClass, "content3-1", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap3-1", "snapuid3-1", "claim3-1", "", validSecretClass, "content3-1", &False, nil, nil, nil, false, false, &timeNowMetav1),
-				utils.VolumeSnapshotContentFinalizer, utils.VolumeSnapshotBoundFinalizer,
+				utils.VolumeSnapshotBoundFinalizer,
 			),
 			initialClaims:  newClaimArray("claim3-1", "pvc-uid3-1", "1Gi", "volume3-1", v1.ClaimBound, &classEmpty),
 			expectedEvents: noevents,
 			initialSecrets: []*v1.Secret{secret()},
 			errors:         noerrors,
 			test:           testSyncSnapshot,
+		},
+		{
+			name:              "3-2 - content will not be deleted if deletion API call fails",
+			initialContents:   newContentArray("content3-2", "", "snap3-2", "sid3-2", validSecretClass, "", "", deletePolicy, nil, nil, true),
+			expectedContents:  newContentArray("content3-2", "", "snap3-2", "sid3-2", validSecretClass, "", "", deletePolicy, nil, nil, true),
+			initialSnapshots:  newSnapshotArray("snap3-2", "snapuid3-2", "claim3-2", "", validSecretClass, "content3-2", &False, nil, nil, nil, false, true, &timeNowMetav1),
+			expectedSnapshots: newSnapshotArray("snap3-2", "snapuid3-2", "claim3-2", "", validSecretClass, "content3-2", &False, nil, nil, nil, false, true, &timeNowMetav1),
+			initialClaims:     newClaimArray("claim3-2", "pvc-uid3-2", "1Gi", "volume3-2", v1.ClaimBound, &classEmpty),
+			expectedEvents:    []string{"Warning SnapshotContentObjectDeleteError"},
+			initialSecrets:    []*v1.Secret{secret()},
+			errors: []reactorError{
+				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshotContents().Delete call.
+				// All other calls will succeed.
+				{"delete", "volumesnapshotcontents", errors.New("mock delete error")},
+			},
+			expectSuccess: false,
+			test:          testSyncSnapshotError,
 		},
 	}
 	runSyncTests(t, tests, snapshotClasses)

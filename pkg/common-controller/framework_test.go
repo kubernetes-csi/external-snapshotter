@@ -175,7 +175,6 @@ func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...str
 
 func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
 	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
-	metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
 	return content
 }
 
@@ -826,6 +825,18 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	return &content
 }
 
+func withContentAnnotations(contents []*crdv1.VolumeSnapshotContent, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
+	for i := range contents {
+		if contents[i].ObjectMeta.Annotations == nil {
+			contents[i].ObjectMeta.Annotations = make(map[string]string)
+		}
+		for k, v := range annotations {
+			contents[i].ObjectMeta.Annotations[k] = v
+		}
+	}
+	return contents
+}
+
 func newContentArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
 	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
 	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
@@ -907,7 +918,7 @@ func newSnapshot(
 		}
 	}
 	if withAllFinalizers {
-		return withSnapshotFinalizers([]*crdv1.VolumeSnapshot{&snapshot}, utils.VolumeSnapshotContentFinalizer, utils.VolumeSnapshotAsSourceFinalizer, utils.VolumeSnapshotBoundFinalizer)[0]
+		return withSnapshotFinalizers([]*crdv1.VolumeSnapshot{&snapshot}, utils.VolumeSnapshotAsSourceFinalizer, utils.VolumeSnapshotBoundFinalizer)[0]
 	}
 	return &snapshot
 }
@@ -1071,6 +1082,14 @@ func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotR
 
 func testSyncContent(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.syncContent(test.initialContents[0])
+}
+
+func testSyncContentError(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	err := ctrl.syncContent(test.initialContents[0])
+	if err != nil {
+		return nil
+	}
+	return fmt.Errorf("syncContent succeeded when failure was expected")
 }
 
 func testAddPVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
