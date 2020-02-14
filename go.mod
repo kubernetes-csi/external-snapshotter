@@ -14,9 +14,10 @@ require (
 	k8s.io/api v0.17.0
 	k8s.io/apimachinery v0.17.1-beta.0
 	k8s.io/client-go v0.17.0
-	k8s.io/code-generator v0.0.0-20191121015212-c4c8f8345c7e
+	k8s.io/code-generator v0.17.0
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.14.0
+	sigs.k8s.io/controller-tools v0.2.5 // indirect
 )
 
 replace k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.17.0
