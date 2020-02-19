@@ -260,8 +260,8 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		if content.Spec.VolumeSnapshotClassName != nil {
 			class, err := ctrl.getSnapshotClass(*content.Spec.VolumeSnapshotClassName)
 			if err != nil {
-				klog.Errorf("failed to getSnapshotClass %s", err)
-				return nil, fmt.Errorf("cannot get snapshot class for snapshot content %s", err)
+				klog.Errorf("Failed to getSnapshotClass %s", err)
+				return nil, fmt.Errorf("cannot get snapshot class %s for snapshot content %s", *content.Spec.VolumeSnapshotClassName, err)
 			}
 
 			snapshotterListSecretRef, err := utils.GetSecretReference(utils.SnapshotterListSecretParams, class.Parameters, content.GetObjectMeta().GetName(), nil)
@@ -273,7 +273,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 			snapshotterListCredentials, err = utils.GetCredentials(ctrl.client, snapshotterListSecretRef)
 			if err != nil {
 				// Continue with deletion, as the secret may have already been deleted.
-				klog.Errorf("Failed to credentials for snapshot %s: %s", content.Name, err.Error())
+				klog.Errorf("Failed to get credentials for snapshot %s: %s", content.Name, err.Error())
 				return nil, fmt.Errorf("cannot get credentials for snapshot content %#v", content.Name)
 			}
 		}
