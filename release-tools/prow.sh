@@ -107,8 +107,7 @@ configvar CSI_PROW_GO_VERSION_GINKGO "${CSI_PROW_GO_VERSION_BUILD}" "Go version 
 # kind version to use. If the pre-installed version is different,
 # the desired version is downloaded from https://github.com/kubernetes-sigs/kind/releases/download/
 # (if available), otherwise it is built from source.
-# TODO: https://github.com/kubernetes-csi/csi-release-tools/issues/39
-configvar CSI_PROW_KIND_VERSION "86bc23d84ac12dcb56a0528890736e2c347c2dc3" "kind"
+configvar CSI_PROW_KIND_VERSION "v0.6.0" "kind"
 
 # ginkgo test runner version to use. If the pre-installed version is
 # different, the desired version is built from source.
@@ -133,7 +132,7 @@ configvar CSI_PROW_BUILD_JOB true "building code in repo enabled"
 # use the same settings as for "latest" Kubernetes. This works
 # as long as there are no breaking changes in Kubernetes, like
 # deprecating or changing the implementation of an alpha feature.
-configvar CSI_PROW_KUBERNETES_VERSION 1.15.3 "Kubernetes"
+configvar CSI_PROW_KUBERNETES_VERSION 1.17.0 "Kubernetes"
 
 # This is a hack to workaround the issue that each version
 # of kind currently only supports specific patch versions of
@@ -143,7 +142,6 @@ configvar CSI_PROW_KUBERNETES_VERSION 1.15.3 "Kubernetes"
 #
 # If the version is prefixed with "release-", then nothing
 # is overridden.
-override_k8s_version "1.14.6"
 override_k8s_version "1.15.3"
 
 # CSI_PROW_KUBERNETES_VERSION reduced to first two version numbers and
@@ -159,7 +157,9 @@ csi_prow_kubernetes_version_suffix="$(echo "${CSI_PROW_KUBERNETES_VERSION}" | tr
 # the caller.
 configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csiprow.XXXXXXXXXX")" "work directory"
 
-# The hostpath deployment script is searched for in several places.
+# By default, this script tests sidecars with the CSI hostpath driver,
+# using the install_csi_driver function. That function depends on
+# a deployment script that it searches for in several places:
 #
 # - The "deploy" directory in the current repository: this is useful
 #   for the situation that a component becomes incompatible with the
@@ -167,11 +167,11 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #   own example until the shared one can be updated; it's also how
 #   csi-driver-host-path itself provides the example.
 #
-# - CSI_PROW_HOSTPATH_VERSION of the CSI_PROW_HOSTPATH_REPO is checked
+# - CSI_PROW_DRIVER_VERSION of the CSI_PROW_DRIVER_REPO is checked
 #   out: this allows other repos to reference a version of the example
 #   that is known to be compatible.
 #
-# - The csi-driver-host-path/deploy directory has multiple sub-directories,
+# - The <driver repo>/deploy directory can have multiple sub-directories,
 #   each with different deployments (stable set of images for Kubernetes 1.13,
 #   stable set of images for Kubernetes 1.14, canary for latest Kubernetes, etc.).
 #   This is necessary because there may be incompatible changes in the
@@ -188,16 +188,26 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #   "none" disables the deployment of the hostpath driver.
 #
 # When no deploy script is found (nothing in `deploy` directory,
-# CSI_PROW_HOSTPATH_REPO=none), nothing gets deployed.
-configvar CSI_PROW_HOSTPATH_VERSION "v1.2.0" "hostpath driver"
-configvar CSI_PROW_HOSTPATH_REPO https://github.com/kubernetes-csi/csi-driver-host-path "hostpath repo"
+# CSI_PROW_DRIVER_REPO=none), nothing gets deployed.
+#
+# If the deployment script is called with CSI_PROW_TEST_DRIVER=<file name> as
+# environment variable, then it must write a suitable test driver configuration
+# into that file in addition to installing the driver.
+configvar CSI_PROW_DRIVER_VERSION "v1.3.0" "CSI driver version"
+configvar CSI_PROW_DRIVER_REPO https://github.com/kubernetes-csi/csi-driver-host-path "CSI driver repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
-configvar CSI_PROW_HOSTPATH_DRIVER_NAME "hostpath.csi.k8s.io" "the hostpath driver name"
 
-# If CSI_PROW_HOSTPATH_CANARY is set (typically to "canary", but also
-# "1.0-canary"), then all image versions are replaced with that
-# version tag.
-configvar CSI_PROW_HOSTPATH_CANARY "" "hostpath image"
+# The install_csi_driver function may work also for other CSI drivers,
+# as long as they follow the conventions of the CSI hostpath driver.
+# If they don't, then a different install function can be provided in
+# a .prow.sh file and this config variable can be overridden.
+configvar CSI_PROW_DRIVER_INSTALL "install_csi_driver" "name of the shell function which installs the CSI driver"
+
+# If CSI_PROW_DRIVER_CANARY is set (typically to "canary", but also
+# version tag. Usually empty. CSI_PROW_HOSTPATH_CANARY is
+# accepted as alternative name because some test-infra jobs
+# still use that name.
+configvar CSI_PROW_DRIVER_CANARY "${CSI_PROW_HOSTPATH_CANARY}" "driver image override for canary images"
 
 # The E2E testing can come from an arbitrary repo. The expectation is that
 # the repo supports "go test ./test/e2e -args --storage.testdriver" (https://github.com/kubernetes/kubernetes/pull/72836)
@@ -207,9 +217,9 @@ configvar CSI_PROW_HOSTPATH_CANARY "" "hostpath image"
 #
 # CSI_PROW_E2E_REPO=none disables E2E testing.
 # TOOO: remove versioned variables and make e2e version match k8s version
-configvar CSI_PROW_E2E_VERSION_1_14 v1.14.0 "E2E version for Kubernetes 1.14.x"
 configvar CSI_PROW_E2E_VERSION_1_15 v1.15.0 "E2E version for Kubernetes 1.15.x"
 configvar CSI_PROW_E2E_VERSION_1_16 v1.16.0 "E2E version for Kubernetes 1.16.x"
+configvar CSI_PROW_E2E_VERSION_1_17 v1.17.0 "E2E version for Kubernetes 1.17.x"
 # TODO: add new CSI_PROW_E2E_VERSION entry for future Kubernetes releases
 configvar CSI_PROW_E2E_VERSION_LATEST master "E2E version for Kubernetes master" # testing against Kubernetes master is already tracking a moving target, so we might as well use a moving E2E version
 configvar CSI_PROW_E2E_REPO_LATEST https://github.com/kubernetes/kubernetes "E2E repo for Kubernetes >= 1.13.x" # currently the same for all versions
@@ -279,6 +289,14 @@ tests_need_alpha_cluster () {
     tests_enabled "parallel-alpha" "serial-alpha"
 }
 
+# Regex for non-alpha, feature-tagged tests that should be run.
+#
+# Starting with 1.17, snapshots is beta, but the E2E tests still have the
+# [Feature:] tag. They need to be explicitly enabled.
+configvar CSI_PROW_E2E_FOCUS_1_15 '^' "non-alpha, feature-tagged tests for Kubernetes = 1.15" # no tests to run, match nothing
+configvar CSI_PROW_E2E_FOCUS_1_16 '^' "non-alpha, feature-tagged tests for Kubernetes = 1.16" # no tests to run, match nothing
+configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:VolumeSnapshotDataSource\]' "non-alpha, feature-tagged tests for Kubernetes >= 1.17"
+configvar CSI_PROW_E2E_FOCUS "$(get_versioned_variable CSI_PROW_E2E_FOCUS "${csi_prow_kubernetes_version_suffix}")" "non-alpha, feature-tagged tests"
 
 # Serial vs. parallel is always determined by these regular expressions.
 # Individual regular expressions are seperated by spaces for readability
@@ -314,13 +332,15 @@ configvar CSI_PROW_E2E_ALPHA "$(get_versioned_variable CSI_PROW_E2E_ALPHA "${csi
 # kubernetes-csi components must be updated, either by disabling
 # the failing test for "latest" or by updating the test and not running
 # it anymore for older releases.
-configvar CSI_PROW_E2E_ALPHA_GATES_1_14 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.14"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_15 'VolumeSnapshotDataSource=true,ExpandCSIVolumes=true' "alpha feature gates for Kubernetes 1.15"
 configvar CSI_PROW_E2E_ALPHA_GATES_1_16 'VolumeSnapshotDataSource=true' "alpha feature gates for Kubernetes 1.16"
 # TODO: add new CSI_PROW_ALPHA_GATES_xxx entry for future Kubernetes releases and
 # add new gates to CSI_PROW_E2E_ALPHA_GATES_LATEST.
-configvar CSI_PROW_E2E_ALPHA_GATES_LATEST 'VolumeSnapshotDataSource=true' "alpha feature gates for latest Kubernetes"
+configvar CSI_PROW_E2E_ALPHA_GATES_LATEST '' "alpha feature gates for latest Kubernetes"
 configvar CSI_PROW_E2E_ALPHA_GATES "$(get_versioned_variable CSI_PROW_E2E_ALPHA_GATES "${csi_prow_kubernetes_version_suffix}")" "alpha E2E feature gates"
+
+# Which external-snapshotter tag to use for the snapshotter CRD and snapshot-controller deployment
+configvar CSI_SNAPSHOTTER_VERSION 'v2.0.0' "external-snapshotter version tag"
 
 # Some tests are known to be unusable in a KinD cluster. For example,
 # stopping kubelet with "ssh <node IP> systemctl stop kubelet" simply
@@ -328,7 +348,11 @@ configvar CSI_PROW_E2E_ALPHA_GATES "$(get_versioned_variable CSI_PROW_E2E_ALPHA_
 # whether they can run with the current cluster provider, but until
 # they are, we filter them out by name. Like the other test selection
 # variables, this is again a space separated list of regular expressions.
-configvar CSI_PROW_E2E_SKIP 'Disruptive' "tests that need to be skipped"
+#
+# "different node" test skips can be removed once
+# https://github.com/kubernetes/kubernetes/pull/82678 has been backported
+# to all the K8s versions we test against
+configvar CSI_PROW_E2E_SKIP 'Disruptive|different\s+node' "tests that need to be skipped"
 
 # This is the directory for additional result files. Usually set by Prow, but
 # if not (for example, when invoking manually) it defaults to the work directory.
@@ -524,6 +548,7 @@ apiVersion: kind.sigs.k8s.io/v1alpha3
 nodes:
 - role: control-plane
 - role: worker
+- role: worker
 EOF
 
     # kubeadm has API dependencies between apiVersion and Kubernetes version
@@ -556,6 +581,13 @@ kubeadmConfigPatches:
     kubeletExtraArgs:
       "feature-gates": "$gates"
 - |
+  apiVersion: kubelet.config.k8s.io/v1beta1
+  kind: KubeletConfiguration
+  metadata:
+    name: config
+  featureGates:
+$(list_gates "$gates")
+- |
   apiVersion: kubeproxy.config.k8s.io/v1alpha1
   kind: KubeProxyConfiguration
   metadata:
@@ -576,8 +608,7 @@ EOF
             die "Cluster creation failed again, giving up. See the 'kind-cluster' artifact directory for additional logs."
         fi
     fi
-    KUBECONFIG="$(kind get kubeconfig-path --name=csi-prow)"
-    export KUBECONFIG
+    export KUBECONFIG="${HOME}/.kube/config"
 }
 
 # Deletes kind cluster inside a prow job
@@ -601,7 +632,7 @@ find_deployment () {
 
     # Fixed deployment name? Use it if it exists, otherwise fail.
     if [ "${CSI_PROW_DEPLOYMENT}" ]; then
-        file="$dir/${CSI_PROW_DEPLOYMENT}/deploy-hostpath.sh"
+        file="$dir/${CSI_PROW_DEPLOYMENT}/deploy.sh"
         if ! [ -e "$file" ]; then
             return 1
         fi
@@ -611,9 +642,9 @@ find_deployment () {
 
     # Ignore: See if you can use ${variable//search/replace} instead.
     # shellcheck disable=SC2001
-    file="$dir/kubernetes-$(echo "${CSI_PROW_KUBERNETES_VERSION}" | sed -e 's/\([0-9]*\)\.\([0-9]*\).*/\1.\2/')/deploy-hostpath.sh"
+    file="$dir/kubernetes-$(echo "${CSI_PROW_KUBERNETES_VERSION}" | sed -e 's/\([0-9]*\)\.\([0-9]*\).*/\1.\2/')/deploy.sh"
     if ! [ -e "$file" ]; then
-        file="$dir/kubernetes-latest/deploy-hostpath.sh"
+        file="$dir/kubernetes-latest/deploy.sh"
         if ! [ -e "$file" ]; then
             return 1
         fi
@@ -621,12 +652,11 @@ find_deployment () {
     echo "$file"
 }
 
-# This installs the hostpath driver example. CSI_PROW_HOSTPATH_CANARY overrides all
-# image versions with that canary version. The parameters of install_hostpath can be
-# used to override registry and/or tag of individual images (CSI_PROVISIONER_REGISTRY=localhost:9000
-# CSI_PROVISIONER_TAG=latest).
-install_hostpath () {
-    local images deploy_hostpath
+# This installs the CSI driver. It's called with a list of env variables
+# that override the default images. CSI_PROW_DRIVER_CANARY overrides all
+# image versions with that canary version.
+install_csi_driver () {
+    local images deploy_driver
     images="$*"
 
     if [ "${CSI_PROW_DEPLOYMENT}" = "none" ]; then
@@ -642,32 +672,86 @@ install_hostpath () {
         done
     fi
 
-    if deploy_hostpath="$(find_deployment "$(pwd)/deploy")"; then
+    if deploy_driver="$(find_deployment "$(pwd)/deploy")"; then
         :
-    elif [ "${CSI_PROW_HOSTPATH_REPO}" = "none" ]; then
+    elif [ "${CSI_PROW_DRIVER_REPO}" = "none" ]; then
         return 1
     else
-        git_checkout "${CSI_PROW_HOSTPATH_REPO}" "${CSI_PROW_WORK}/hostpath" "${CSI_PROW_HOSTPATH_VERSION}" --depth=1 || die "checking out hostpath repo failed"
-        if deploy_hostpath="$(find_deployment "${CSI_PROW_WORK}/hostpath/deploy")"; then
+        git_checkout "${CSI_PROW_DRIVER_REPO}" "${CSI_PROW_WORK}/csi-driver" "${CSI_PROW_DRIVER_VERSION}" --depth=1 || die "checking out CSI driver repo failed"
+        if deploy_driver="$(find_deployment "${CSI_PROW_WORK}/csi-driver/deploy")"; then
             :
         else
-            die "deploy-hostpath.sh not found in ${CSI_PROW_HOSTPATH_REPO} ${CSI_PROW_HOSTPATH_VERSION}. To disable E2E testing, set CSI_PROW_HOSTPATH_REPO=none"
+            die "deploy.sh not found in ${CSI_PROW_DRIVER_REPO} ${CSI_PROW_DRIVER_VERSION}. To disable E2E testing, set CSI_PROW_DRIVER_REPO=none"
         fi
     fi
 
-    if [ "${CSI_PROW_HOSTPATH_CANARY}" != "stable" ]; then
-        images="$images IMAGE_TAG=${CSI_PROW_HOSTPATH_CANARY}"
+    if [ "${CSI_PROW_DRIVER_CANARY}" != "stable" ]; then
+        images="$images IMAGE_TAG=${CSI_PROW_DRIVER_CANARY}"
     fi
     # Ignore: Double quote to prevent globbing and word splitting.
     # It's intentional here for $images.
     # shellcheck disable=SC2086
-    if ! run env $images "${deploy_hostpath}"; then
+    if ! run env "CSI_PROW_TEST_DRIVER=${CSI_PROW_WORK}/test-driver.yaml" $images "${deploy_driver}"; then
         # Collect information about failed deployment before failing.
         collect_cluster_info
         (start_loggers >/dev/null; wait)
         info "For container output see job artifacts."
-        die "deploying the hostpath driver with ${deploy_hostpath} failed"
+        die "deploying the CSI driver with ${deploy_driver} failed"
     fi
+}
+
+# Installs all nessesary snapshotter CRDs  
+install_snapshot_crds() {
+  # Wait until volumesnapshot CRDs are in place.
+  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/config/crd"
+  kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotclasses.yaml" --validate=false
+  kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshots.yaml" --validate=false
+  kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotcontents.yaml" --validate=false
+  cnt=0
+  until kubectl get volumesnapshotclasses.snapshot.storage.k8s.io \
+    && kubectl get volumesnapshots.snapshot.storage.k8s.io \
+    && kubectl get volumesnapshotcontents.snapshot.storage.k8s.io; do
+    if [ $cnt -gt 30 ]; then
+        echo >&2 "ERROR: snapshot CRDs not ready after over 1 min"
+        exit 1
+    fi
+    echo "$(date +%H:%M:%S)" "waiting for snapshot CRDs, attempt #$cnt"
+	cnt=$((cnt + 1))
+    sleep 2
+  done
+}
+
+# Install snapshot controller and associated RBAC, retrying until the pod is running.
+install_snapshot_controller() {
+  kubectl apply -f "https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml"
+  cnt=0
+  until kubectl get clusterrolebinding snapshot-controller-role; do
+     if [ $cnt -gt 30 ]; then
+        echo "Cluster role bindings:"
+        kubectl describe clusterrolebinding
+        echo >&2 "ERROR: snapshot controller RBAC not ready after over 5 min"
+        exit 1
+    fi
+    echo "$(date +%H:%M:%S)" "waiting for snapshot RBAC setup complete, attempt #$cnt"
+	cnt=$((cnt + 1))
+    sleep 10   
+  done
+
+
+  kubectl apply -f "https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml"
+  cnt=0
+  expected_running_pods=$(curl https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/"${CSI_SNAPSHOTTER_VERSION}"/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml | grep replicas | cut -d ':' -f 2-)
+  while [ "$(kubectl get pods -l app=snapshot-controller | grep 'Running' -c)" -lt "$expected_running_pods" ]; do
+    if [ $cnt -gt 30 ]; then
+        echo "snapshot-controller pod status:"
+        kubectl describe pods -l app=snapshot-controller
+        echo >&2 "ERROR: snapshot controller not ready after over 5 min"
+        exit 1
+    fi
+    echo "$(date +%H:%M:%S)" "waiting for snapshot controller deployment to complete, attempt #$cnt"
+	cnt=$((cnt + 1))
+    sleep 10   
+  done
 }
 
 # collect logs and cluster status (like the version of all components, Kubernetes version, test version)
@@ -738,33 +822,6 @@ install_sanity () (
     run_with_go "${CSI_PROW_GO_VERSION_SANITY}" go test -c -o "${CSI_PROW_WORK}/csi-sanity" "${CSI_PROW_SANITY_IMPORT_PATH}/cmd/csi-sanity" || die "building csi-sanity failed"
 )
 
-# The default implementation of this function generates a external
-# driver test configuration for the hostpath driver.
-#
-# The content depends on both what the E2E suite expects and what the
-# installed hostpath driver supports. Generating it here seems prone
-# to breakage, but it is uncertain where a better place might be.
-generate_test_driver () {
-    cat <<EOF
-ShortName: csiprow
-StorageClass:
-  FromName: true
-SnapshotClass:
-  FromName: true
-DriverInfo:
-  Name: ${CSI_PROW_HOSTPATH_DRIVER_NAME}
-  Capabilities:
-    block: true
-    persistence: true
-    dataSource: true
-    multipods: true
-    nodeExpansion: true
-    controllerExpansion: true
-    snapshotDataSource: true
-    singleNodeVolume: true
-EOF
-}
-
 # Captures pod output while running some other command.
 run_with_loggers () (
     loggers=$(start_loggers -f)
@@ -785,12 +842,6 @@ run_e2e () (
 
     install_e2e || die "building e2e.test failed"
     install_ginkgo || die "installing ginkgo failed"
-
-    # TODO (?): multi-node cluster (depends on https://github.com/kubernetes-csi/csi-driver-host-path/pull/14).
-    # When running on a multi-node cluster, we need to figure out where the
-    # hostpath driver was deployed and set ClientNodeName accordingly.
-
-    generate_test_driver >"${CSI_PROW_WORK}/test-driver.yaml" || die "generating test-driver.yaml failed"
 
     # Rename, merge and filter JUnit files. Necessary in case that we run the E2E suite again
     # and to avoid the large number of "skipped" tests that we get from using
@@ -940,6 +991,34 @@ make_test_to_junit () {
     fi
 }
 
+# version_gt returns true if arg1 is greater than arg2.
+#
+# This function expects versions to be one of the following formats:
+#   X.Y.Z, release-X.Y.Z, vX.Y.Z
+#
+#   where X,Y, and Z are any number.
+#
+# Partial versions (1.2, release-1.2) work as well.
+# The follow substrings are stripped before version comparison:
+#   - "v"
+#   - "release-"
+#   - "kubernetes-"
+#
+# Usage:
+# version_gt release-1.3 v1.2.0  (returns true)
+# version_gt v1.1.1 v1.2.0  (returns false)
+# version_gt 1.1.1 v1.2.0  (returns false)
+# version_gt 1.3.1 v1.2.0  (returns true)
+# version_gt 1.1.1 release-1.2.0  (returns false)
+# version_gt 1.2.0 1.2.2  (returns false)
+function version_gt() { 
+    versions=$(for ver in "$@"; do ver=${ver#release-}; ver=${ver#kubernetes-}; echo "${ver#v}"; done)
+    greaterVersion=${1#"release-"};
+    greaterVersion=${greaterVersion#"kubernetes-"};
+    greaterVersion=${greaterVersion#"v"};
+    test "$(printf '%s' "$versions" | sort -V | head -n 1)" != "$greaterVersion"
+}
+
 main () {
     local images ret
     ret=0
@@ -973,7 +1052,7 @@ main () {
             cmds="$(grep '^\s*CMDS\s*=' Makefile | sed -e 's/\s*CMDS\s*=//')"
             # Get the image that was just built (if any) from the
             # top-level Makefile CMDS variable and set the
-            # deploy-hostpath.sh env variables for it. We also need to
+            # deploy.sh env variables for it. We also need to
             # side-load those images into the cluster.
             for i in $cmds; do
                 e=$(echo "$i" | tr '[:lower:]' '[:upper:]' | tr - _)
@@ -1000,8 +1079,18 @@ main () {
         if tests_need_non_alpha_cluster; then
             start_cluster || die "starting the non-alpha cluster failed"
 
+            # Install necessary snapshot CRDs and snapshot controller
+            # For Kubernetes 1.17+, we will install the CRDs and snapshot controller.
+            if version_gt "${CSI_PROW_KUBERNETES_VERSION}" "1.16.255" || "${CSI_PROW_KUBERNETES_VERSION}" == "latest"; then
+                info "Version ${CSI_PROW_KUBERNETES_VERSION}, installing CRDs and snapshot controller"
+                install_snapshot_crds
+                install_snapshot_controller
+            else
+                info "Version ${CSI_PROW_KUBERNETES_VERSION}, skipping CRDs and snapshot controller"
+            fi
+
             # Installing the driver might be disabled.
-            if install_hostpath "$images"; then
+            if ${CSI_PROW_DRIVER_INSTALL} "$images"; then
                 collect_cluster_info
 
                 if sanity_enabled; then
@@ -1017,6 +1106,16 @@ main () {
                          -focus="External.Storage" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}" "${CSI_PROW_E2E_ALPHA}" "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E parallel failed"
+                        ret=1
+                    fi
+
+                    # Run tests that are feature tagged, but non-alpha
+                    # Ignore: Double quote to prevent globbing and word splitting.
+                    # shellcheck disable=SC2086
+                    if ! run_e2e parallel-features ${CSI_PROW_GINKO_PARALLEL} \
+                         -focus="External.Storage.*($(regex_join "${CSI_PROW_E2E_FOCUS}"))" \
+                         -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}")"; then
+                        warn "E2E parallel features failed"
                         ret=1
                     fi
                 fi
@@ -1037,8 +1136,18 @@ main () {
             # Need to (re)create the cluster.
             start_cluster "${CSI_PROW_E2E_ALPHA_GATES}" || die "starting alpha cluster failed"
 
+            # Install necessary snapshot CRDs and snapshot controller
+            # For Kubernetes 1.17+, we will install the CRDs and snapshot controller.
+            if version_gt "${CSI_PROW_KUBERNETES_VERSION}" "1.16.255" || "${CSI_PROW_KUBERNETES_VERSION}" == "latest"; then
+                info "Version ${CSI_PROW_KUBERNETES_VERSION}, installing CRDs and snapshot controller"
+                install_snapshot_crds
+                install_snapshot_controller
+            else
+                info "Version ${CSI_PROW_KUBERNETES_VERSION}, skipping CRDs and snapshot controller"
+            fi
+
             # Installing the driver might be disabled.
-            if install_hostpath "$images"; then
+            if ${CSI_PROW_DRIVER_INSTALL} "$images"; then
                 collect_cluster_info
 
                 if tests_enabled "parallel-alpha"; then
