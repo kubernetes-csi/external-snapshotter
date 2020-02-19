@@ -368,6 +368,8 @@ func RemovePrefixedParameters(param map[string]string) (map[string]string, error
 			switch k {
 			case prefixedSnapshotterSecretNameKey:
 			case prefixedSnapshotterSecretNamespaceKey:
+			case prefixedSnapshotterListSecretNameKey:
+			case prefixedSnapshotterListSecretNamespaceKey:
 			default:
 				return map[string]string{}, fmt.Errorf("found unknown parameter key \"%s\" with reserved namespace %s", k, csiParameterPrefix)
 			}

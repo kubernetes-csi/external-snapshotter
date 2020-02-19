@@ -61,6 +61,13 @@ var class5Parameters = map[string]string{
 	utils.AnnDeletionSecretRefNamespace: "default",
 }
 
+var class6Parameters = map[string]string{
+	"csi.storage.k8s.io/snapshotter-secret-name":           "secret",
+	"csi.storage.k8s.io/snapshotter-secret-namespace":      "default",
+	"csi.storage.k8s.io/snapshotter-list-secret-name":      "secret",
+	"csi.storage.k8s.io/snapshotter-list-secret-namespace": "default",
+}
+
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -126,6 +133,7 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Annotations: map[string]string{utils.IsDefaultSnapshotClassAnnotation: "true"},
 		},
 		Driver:         mockDriverName,
+		Parameters:     class6Parameters,
 		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 }
