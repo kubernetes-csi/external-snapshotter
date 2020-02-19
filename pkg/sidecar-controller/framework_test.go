@@ -928,7 +928,7 @@ func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID stri
 
 	if !reflect.DeepEqual(call.secrets, snapshotterListCredentials) {
 		f.t.Errorf("Wrong CSI List Snapshot call: snapshotID=%s, expected secrets %+v, got %+v", snapshotID, call.secrets, snapshotterListCredentials)
-		err = fmt.Errorf("unexpected Delete Snapshot call")
+		err = fmt.Errorf("unexpected List Snapshot call")
 	}
 
 	if err != nil {
