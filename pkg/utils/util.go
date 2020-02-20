@@ -53,11 +53,11 @@ const (
 	// fields in subsequent CSI calls or Kubernetes API objects.
 	csiParameterPrefix = "csi.storage.k8s.io/"
 
-	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
-	PrefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
+	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"      // Prefixed name key for DeleteSnapshot secret
+	PrefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace" // Prefixed namespace key for DeleteSnapshot secret
 
-	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"
-	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace"
+	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"      // Prefixed name key for ListSnapshots secret
+	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace" // Prefixed namespace key for ListSnapshots secret
 
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
