@@ -62,10 +62,10 @@ var class5Parameters = map[string]string{
 }
 
 var class6Parameters = map[string]string{
-	"csi.storage.k8s.io/snapshotter-secret-name":           "secret",
-	"csi.storage.k8s.io/snapshotter-secret-namespace":      "default",
-	"csi.storage.k8s.io/snapshotter-list-secret-name":      "secret",
-	"csi.storage.k8s.io/snapshotter-list-secret-namespace": "default",
+	utils.PrefixedSnapshotterSecretNameKey:          "secret",
+	utils.PrefixedSnapshotterSecretNamespaceKey:     "default",
+	utils.PrefixedSnapshotterListSecretNameKey:      "secret",
+	utils.PrefixedSnapshotterListSecretNamespaceKey: "default",
 }
 
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{

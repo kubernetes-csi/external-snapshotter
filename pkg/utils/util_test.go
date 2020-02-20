@@ -41,18 +41,18 @@ func TestGetSecretReference(t *testing.T) {
 		},
 		"namespace, no name": {
 			secretParams: SnapshotterSecretParams,
-			params:       map[string]string{prefixedSnapshotterSecretNamespaceKey: "foo"},
+			params:       map[string]string{PrefixedSnapshotterSecretNamespaceKey: "foo"},
 			expectErr:    true,
 		},
 		"simple - valid": {
 			secretParams: SnapshotterSecretParams,
-			params:       map[string]string{prefixedSnapshotterSecretNameKey: "name", prefixedSnapshotterSecretNamespaceKey: "ns"},
+			params:       map[string]string{PrefixedSnapshotterSecretNameKey: "name", PrefixedSnapshotterSecretNamespaceKey: "ns"},
 			snapshot:     &crdv1.VolumeSnapshot{},
 			expectRef:    &v1.SecretReference{Name: "name", Namespace: "ns"},
 		},
 		"simple - invalid name": {
 			secretParams: SnapshotterSecretParams,
-			params:       map[string]string{prefixedSnapshotterSecretNameKey: "bad name", prefixedSnapshotterSecretNamespaceKey: "ns"},
+			params:       map[string]string{PrefixedSnapshotterSecretNameKey: "bad name", PrefixedSnapshotterSecretNamespaceKey: "ns"},
 			snapshot:     &crdv1.VolumeSnapshot{},
 			expectRef:    nil,
 			expectErr:    true,
@@ -60,8 +60,8 @@ func TestGetSecretReference(t *testing.T) {
 		"template - invalid": {
 			secretParams: SnapshotterSecretParams,
 			params: map[string]string{
-				prefixedSnapshotterSecretNameKey:      "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}-${volumesnapshot.name}-${volumesnapshot.annotations['akey']}",
-				prefixedSnapshotterSecretNamespaceKey: "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}",
+				PrefixedSnapshotterSecretNameKey:      "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}-${volumesnapshot.name}-${volumesnapshot.annotations['akey']}",
+				PrefixedSnapshotterSecretNamespaceKey: "static-${volumesnapshotcontent.name}-${volumesnapshot.namespace}",
 			},
 			snapContentName: "snapcontentname",
 			snapshot: &crdv1.VolumeSnapshot{
@@ -111,14 +111,14 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 		},
 		{
 			name:           "one prefixed",
-			params:         map[string]string{prefixedSnapshotterSecretNameKey: "bar", "bim": "baz"},
+			params:         map[string]string{PrefixedSnapshotterSecretNameKey: "bar", "bim": "baz"},
 			expectedParams: map[string]string{"bim": "baz"},
 		},
 		{
 			name: "all known prefixed",
 			params: map[string]string{
-				prefixedSnapshotterSecretNameKey:      "csiBar",
-				prefixedSnapshotterSecretNamespaceKey: "csiBar",
+				PrefixedSnapshotterSecretNameKey:      "csiBar",
+				PrefixedSnapshotterSecretNamespaceKey: "csiBar",
 			},
 			expectedParams: map[string]string{},
 		},

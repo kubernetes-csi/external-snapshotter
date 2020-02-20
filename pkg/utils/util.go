@@ -53,11 +53,11 @@ const (
 	// fields in subsequent CSI calls or Kubernetes API objects.
 	csiParameterPrefix = "csi.storage.k8s.io/"
 
-	prefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
-	prefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
+	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
+	PrefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
 
-	prefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"
-	prefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace"
+	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"
+	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace"
 
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
@@ -86,14 +86,14 @@ const (
 
 var SnapshotterSecretParams = secretParamsMap{
 	name:               "Snapshotter",
-	secretNameKey:      prefixedSnapshotterSecretNameKey,
-	secretNamespaceKey: prefixedSnapshotterSecretNamespaceKey,
+	secretNameKey:      PrefixedSnapshotterSecretNameKey,
+	secretNamespaceKey: PrefixedSnapshotterSecretNamespaceKey,
 }
 
 var SnapshotterListSecretParams = secretParamsMap{
 	name:               "SnapshotterList",
-	secretNameKey:      prefixedSnapshotterListSecretNameKey,
-	secretNamespaceKey: prefixedSnapshotterListSecretNamespaceKey,
+	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
+	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
 }
 
 func SnapshotKey(vs *crdv1.VolumeSnapshot) string {
@@ -366,10 +366,10 @@ func RemovePrefixedParameters(param map[string]string) (map[string]string, error
 		if strings.HasPrefix(k, csiParameterPrefix) {
 			// Check if its well known
 			switch k {
-			case prefixedSnapshotterSecretNameKey:
-			case prefixedSnapshotterSecretNamespaceKey:
-			case prefixedSnapshotterListSecretNameKey:
-			case prefixedSnapshotterListSecretNamespaceKey:
+			case PrefixedSnapshotterSecretNameKey:
+			case PrefixedSnapshotterSecretNamespaceKey:
+			case PrefixedSnapshotterListSecretNameKey:
+			case PrefixedSnapshotterListSecretNamespaceKey:
 			default:
 				return map[string]string{}, fmt.Errorf("found unknown parameter key \"%s\" with reserved namespace %s", k, csiParameterPrefix)
 			}
