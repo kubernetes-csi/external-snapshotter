@@ -31,7 +31,7 @@ import (
 type Handler interface {
 	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
-	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (bool, time.Time, int64, error)
+	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error)
 }
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
@@ -103,7 +103,7 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 	return nil
 }
 
-func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent) (bool, time.Time, int64, error) {
+func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
@@ -117,7 +117,7 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot for content %s: snapshotHandle is missing", content.Name)
 	}
 
-	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, snapshotHandle)
+	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, snapshotHandle, snapshotterListCredentials)
 	if err != nil {
 		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot for content %s: %q", content.Name, err)
 	}

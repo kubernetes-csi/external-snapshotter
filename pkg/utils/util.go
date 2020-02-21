@@ -53,8 +53,11 @@ const (
 	// fields in subsequent CSI calls or Kubernetes API objects.
 	csiParameterPrefix = "csi.storage.k8s.io/"
 
-	prefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"
-	prefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace"
+	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"      // Prefixed name key for DeleteSnapshot secret
+	PrefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace" // Prefixed namespace key for DeleteSnapshot secret
+
+	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"      // Prefixed name key for ListSnapshots secret
+	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace" // Prefixed namespace key for ListSnapshots secret
 
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
@@ -81,10 +84,16 @@ const (
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 )
 
-var snapshotterSecretParams = secretParamsMap{
+var SnapshotterSecretParams = secretParamsMap{
 	name:               "Snapshotter",
-	secretNameKey:      prefixedSnapshotterSecretNameKey,
-	secretNamespaceKey: prefixedSnapshotterSecretNamespaceKey,
+	secretNameKey:      PrefixedSnapshotterSecretNameKey,
+	secretNamespaceKey: PrefixedSnapshotterSecretNamespaceKey,
+}
+
+var SnapshotterListSecretParams = secretParamsMap{
+	name:               "SnapshotterList",
+	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
+	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
 }
 
 func SnapshotKey(vs *crdv1.VolumeSnapshot) string {
@@ -222,8 +231,8 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshot
 // - the nameTemplate or namespaceTemplate contains a token that cannot be resolved
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
-func GetSecretReference(snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(snapshotterSecretParams, snapshotClassParams)
+func GetSecretReference(secretParams secretParamsMap, snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
+	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretParams, snapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
 	}
@@ -357,8 +366,10 @@ func RemovePrefixedParameters(param map[string]string) (map[string]string, error
 		if strings.HasPrefix(k, csiParameterPrefix) {
 			// Check if its well known
 			switch k {
-			case prefixedSnapshotterSecretNameKey:
-			case prefixedSnapshotterSecretNamespaceKey:
+			case PrefixedSnapshotterSecretNameKey:
+			case PrefixedSnapshotterSecretNamespaceKey:
+			case PrefixedSnapshotterListSecretNameKey:
+			case PrefixedSnapshotterListSecretNamespaceKey:
 			default:
 				return map[string]string{}, fmt.Errorf("found unknown parameter key \"%s\" with reserved namespace %s", k, csiParameterPrefix)
 			}

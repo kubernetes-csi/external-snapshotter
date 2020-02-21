@@ -573,7 +573,7 @@ func (ctrl *csiSnapshotCommonController) getCreateSnapshotInput(snapshot *crdv1.
 	contentName := utils.GetSnapshotContentNameForSnapshot(snapshot)
 
 	// Resolve snapshotting secret credentials.
-	snapshotterSecretRef, err := utils.GetSecretReference(class.Parameters, contentName, snapshot)
+	snapshotterSecretRef, err := utils.GetSecretReference(utils.SnapshotterSecretParams, class.Parameters, contentName, snapshot)
 	if err != nil {
 		return nil, nil, "", nil, err
 	}

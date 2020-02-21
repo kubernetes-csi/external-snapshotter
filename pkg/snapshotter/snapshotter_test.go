@@ -362,17 +362,24 @@ func TestGetSnapshotStatus(t *testing.T) {
 		},
 	}
 
+	secret := map[string]string{"foo": "bar"}
+	secretRequest := &csi.ListSnapshotsRequest{
+		SnapshotId: defaultID,
+		Secrets:    secret,
+	}
+
 	tests := []struct {
-		name                   string
-		snapshotID             string
-		listSnapshotsSupported bool
-		input                  *csi.ListSnapshotsRequest
-		output                 *csi.ListSnapshotsResponse
-		injectError            codes.Code
-		expectError            bool
-		expectReady            bool
-		expectCreateAt         time.Time
-		expectSize             int64
+		name                       string
+		snapshotID                 string
+		snapshotterListCredentials map[string]string
+		listSnapshotsSupported     bool
+		input                      *csi.ListSnapshotsRequest
+		output                     *csi.ListSnapshotsResponse
+		injectError                codes.Code
+		expectError                bool
+		expectReady                bool
+		expectCreateAt             time.Time
+		expectSize                 int64
 	}{
 		{
 			name:                   "success",
@@ -384,6 +391,18 @@ func TestGetSnapshotStatus(t *testing.T) {
 			expectReady:            true,
 			expectCreateAt:         createTime,
 			expectSize:             size,
+		},
+		{
+			name:                       "secret",
+			snapshotID:                 defaultID,
+			snapshotterListCredentials: secret,
+			listSnapshotsSupported:     true,
+			input:                      secretRequest,
+			output:                     defaultResponse,
+			expectError:                false,
+			expectReady:                true,
+			expectCreateAt:             createTime,
+			expectSize:                 size,
 		},
 		{
 			name:                   "ListSnapshots not supported",
@@ -455,7 +474,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 		}
 
 		s := NewSnapshotter(csiConn)
-		ready, createTime, size, err := s.GetSnapshotStatus(context.Background(), test.snapshotID)
+		ready, createTime, size, err := s.GetSnapshotStatus(context.Background(), test.snapshotID, test.snapshotterListCredentials)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}
