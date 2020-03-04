@@ -79,13 +79,18 @@ func TestCreateSnapshotSync(t *testing.T) {
 			test:              testSyncSnapshot,
 		},
 		{
-			name:              "6-2 - successful create snapshot with snapshot class silver",
-			initialContents:   nocontents,
-			expectedContents:  newContentArrayNoStatus("snapcontent-snapuid6-2", "snapuid6-2", "snap6-2", "sid6-2", classSilver, "", "pv-handle6-2", deletionPolicy, nil, nil, false, false),
-			initialSnapshots:  newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "snapcontent-snapuid6-2", &False, nil, nil, nil, false, true, nil),
+			name:            "6-2 - successful create snapshot with validSecretClass and initial secret",
+			initialContents: nocontents,
+			expectedContents: withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid6-2", "snapuid6-2", "snap6-2", "sid6-2", validSecretClass, "", "pv-handle6-2", deletionPolicy, nil, nil, false, false),
+				map[string]string{
+					"snapshot.storage.kubernetes.io/deletion-secret-name":      "secret",
+					"snapshot.storage.kubernetes.io/deletion-secret-namespace": "default",
+				}),
+			initialSnapshots:  newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", validSecretClass, "", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", validSecretClass, "snapcontent-snapuid6-2", &False, nil, nil, nil, false, true, nil),
 			initialClaims:     newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			initialVolumes:    newVolumeArray("volume6-2", "pv-uid6-2", "pv-handle6-2", "1Gi", "pvc-uid6-2", "claim6-2", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()}, // no initial secret created
 			errors:            noerrors,
 			test:              testSyncSnapshot,
 		},
@@ -120,12 +125,12 @@ func TestCreateSnapshotSync(t *testing.T) {
 				{"update", "volumesnapshots", errors.New("mock update error")},
 			}, test: testSyncSnapshot,
 		},
-		/*{
+		{
 			name:                  "7-3 - fail to create snapshot without snapshot class ",
 			initialContents:       nocontents,
 			expectedContents:      nocontents,
-			initialSnapshots:      newSnapshotArray("snap7-3", "snapuid7-3", "claim7-3", "", "", "", &False, nil, nil, nil, false, true),
-			expectedSnapshots:     newSnapshotArray("snap7-3", "snapuid7-3", "claim7-3", "", "", "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-3: \"failed to retrieve snapshot class  from the informer: \\\"volumesnapshotclass.snapshot.storage.k8s.io \\\\\\\"\\\\\\\" not found\\\"\""), false, true),
+			initialSnapshots:      newSnapshotArray("snap7-3", "snapuid7-3", "claim7-3", "", "", "", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots:     newSnapshotArray("snap7-3", "snapuid7-3", "claim7-3", "", "", "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-3: \"failed to take snapshot snap7-3 without a snapshot class\""), false, true, nil),
 			initialClaims:         newClaimArray("claim7-3", "pvc-uid7-3", "1Gi", "volume7-3", v1.ClaimBound, &classEmpty),
 			initialVolumes:        newVolumeArray("volume7-3", "pv-uid7-3", "pv-handle7-3", "1Gi", "pvc-uid7-3", "claim7-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialStorageClasses: []*storage.StorageClass{diffDriverStorageClass},
@@ -133,7 +138,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			errors:                noerrors,
 			expectSuccess:         false,
 			test:                  testSyncSnapshot,
-		},*/
+		},
 		{
 			name:              "7-4 - fail create snapshot with no-existing claim",
 			initialContents:   nocontents,
@@ -171,83 +176,87 @@ func TestCreateSnapshotSync(t *testing.T) {
 			expectSuccess:     false,
 			test:              testSyncSnapshot,
 		},
-		/*{
-				name:              "7-8 - fail create snapshot due to cannot update snapshot status",
-				initialContents:   nocontents,
-				expectedContents:  nocontents,
-				initialSnapshots:  newSnapshotArray("snap7-8", "snapuid7-8", "claim7-8", "", classGold, "", &False, nil, nil, nil),
-				expectedSnapshots: newSnapshotArray("snap7-8", "snapuid7-8", "claim7-8", "", classGold, "", &False, nil, nil, newVolumeError("Failed to create snapshot: snapshot controller failed to update default/snap7-8 on API server: mock update error")),
-				initialClaims:     newClaimArray("claim7-8", "pvc-uid7-8", "1Gi", "volume7-8", v1.ClaimBound, &classEmpty),
-				initialVolumes:    newVolumeArray("volume7-8", "pv-uid7-8", "pv-handle7-8", "1Gi", "pvc-uid7-8", "claim7-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-				expectedCreateCalls: []createCall{
-								{
-								snapshotName: "snapshot-snapuid7-8",
-								volume:       newVolume("volume7-8", "pv-uid7-8", "pv-handle7-8", "1Gi", "pvc-uid7-8", "claim7-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-								parameters:   map[string]string{"param1": "value1"},
-								// information to return
-								driverName:   mockDriverName,
-								size:         defaultSize,
-								snapshotId:   "sid7-8",
-								creationTime: timeNow,
-								readyToUse:   True,
-						},
-				},
-				/*errors: []reactorError{
-								// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
-								// All other calls will succeed.
-								{"update", "volumesnapshots", errors.New("mock update error")},
-								{"update", "volumesnapshots", errors.New("mock update error")},
-								{"update", "volumesnapshots", errors.New("mock update error")},
-						},
-						expectedEvents: []string{"Warning SnapshotContentCreationFailed"},
 
-						expectSuccess:     false,
-						test:           testSyncSnapshot,
-				},
-		        /*{
-		                // TODO(xiangqian): this test case needs to be revisited the scenario
-		                // of VolumeSnapshotContent saving failure. Since there will be no content object
-		                // in API server, it could potentially cause leaking issue
-		                name:              "7-9 - fail create snapshot due to cannot save snapshot content",
-		                initialContents:   nocontents,
-		                expectedContents:  nocontents,
-		                initialSnapshots:  newSnapshotArray("snap7-9", "snapuid7-9", "claim7-9", "", classGold, "", &False, nil, nil, nil),
-		                expectedSnapshots: newSnapshotArray("snap7-9", "snapuid7-9", "claim7-9", "", classGold, "snapcontent-snapuid7-9", &True, metaTimeNowUnix, getSize(defaultSize), nil),
-		                initialClaims:     newClaimArray("claim7-9", "pvc-uid7-9", "1Gi", "volume7-9", v1.ClaimBound, &classEmpty),
-		                initialVolumes:    newVolumeArray("volume7-9", "pv-uid7-9", "pv-handle7-9", "1Gi", "pvc-uid7-9", "claim7-9", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-		                expectedCreateCalls: []createCall{
-		                        {
-		                                snapshotName: "snapshot-snapuid7-9",
-		                                volume:       newVolume("volume7-9", "pv-uid7-9", "pv-handle7-9", "1Gi", "pvc-uid7-9", "claim7-9", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-		                                parameters:   map[string]string{"param1": "value1"},
-		                                // information to return
-		                                driverName:   mockDriverName,
-		                                size:         defaultSize,
-		                                snapshotId:   "sid7-9",
-		                                creationTime: timeNow,
-		                                readyToUse:   True,
-		                        },
-		                },
-		                errors: []reactorError{
-		                        {"create", "volumesnapshotcontents", errors.New("mock create error")},
-		                        {"create", "volumesnapshotcontents", errors.New("mock create error")},
-		                        {"create", "volumesnapshotcontents", errors.New("mock create error")},
-		                },
-		                expectedEvents: []string{"Warning CreateSnapshotContentFailed"},
-		                test:           testSyncSnapshot,
-		        },
-				{
-					name:              "7-10 - fail create snapshot with secret not found",
-					initialContents:   nocontents,
-					expectedContents:  nocontents,
-					initialSnapshots:  newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "", validSecretClass, "", &False, nil, nil, nil, false, true),
-					expectedSnapshots: newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "", validSecretClass, "", &False, nil, nil, newVolumeError("Failed to create snapshot: error getting secret secret in namespace default: cannot find secret secret"), false, true),
-					initialClaims:     newClaimArray("claim7-10", "pvc-uid7-10", "1Gi", "volume7-10", v1.ClaimBound, &classEmpty),
-					initialVolumes:    newVolumeArray("volume7-10", "pv-uid7-10", "pv-handle7-10", "1Gi", "pvc-uid7-10", "claim7-10", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-					initialSecrets:    []*v1.Secret{}, // no initial secret created
-					errors:            noerrors,
-					test:              testSyncSnapshot,
-				},*/
+		{
+			name:              "7-7 - remove pvc finalizer failed",
+			initialContents:   newContentArray("snapcontent-snapuid7-7", "snapuid7-7", "snap7-7", "sid7-7", classGold, "", "pv-handle7-7", deletionPolicy, nil, nil, false),
+			expectedContents:  newContentArray("snapcontent-snapuid7-7", "snapuid7-7", "snap7-7", "sid7-7", classGold, "", "pv-handle7-7", deletionPolicy, nil, nil, false),
+			initialSnapshots:  newSnapshotArray("snap7-7", "snapuid7-7", "claim7-7", "", classGold, "snapcontent-snapuid7-7", &True, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-7", "snapuid7-7", "claim7-7", "", classGold, "snapcontent-snapuid7-7", &True, nil, nil, nil, false, true, nil),
+			initialClaims:     newClaimArrayFinalizer("claim7-7", "pvc-uid7-7", "1Gi", "volume7-7", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume7-7", "pv-uid7-7", "pv-handle7-7", "1Gi", "pvc-uid7-7", "claim7-7", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			errors: []reactorError{
+				{"update", "persistentvolumeclaims", errors.New("mock update error")},
+				{"update", "persistentvolumeclaims", errors.New("mock update error")},
+				{"update", "persistentvolumeclaims", errors.New("mock update error")},
+			},
+			expectSuccess: false,
+			test:          testSyncSnapshot,
+		},
+		{
+			name:              "7-8 - fail create snapshot due to cannot update snapshot status",
+			initialContents:   nocontents,
+			expectedContents:  newContentArrayNoStatus("snapcontent-snapuid7-8", "snapuid7-8", "snap7-8", "sid7-8", classGold, "", "pv-handle7-8", deletionPolicy, nil, nil, false, false),
+			initialSnapshots:  newSnapshotArray("snap7-8", "snapuid7-8", "claim7-8", "", classGold, "", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-8", "snapuid7-8", "claim7-8", "", classGold, "", &False, nil, nil, newVolumeError("Snapshot status update failed, snapshot controller failed to update default/snap7-8 on API server: mock update error"), false, true, nil),
+			initialClaims:     newClaimArray("claim7-8", "pvc-uid7-8", "1Gi", "volume7-8", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume7-8", "pv-uid7-8", "pv-handle7-8", "1Gi", "pvc-uid7-8", "claim7-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			errors: []reactorError{
+				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"update", "volumesnapshots", errors.New("mock update error")},
+			},
+			expectedEvents: []string{"Warning SnapshotStatusUpdateFailed"},
+			expectSuccess:  false,
+			test:           testSyncSnapshot,
+		},
+		{
+			name:              "7-9 - fail create snapshot due to cannot update snapshot status, and failure cannot be recorded either due to additional status update failure.",
+			initialContents:   nocontents,
+			expectedContents:  newContentArrayNoStatus("snapcontent-snapuid7-9", "snapuid7-9", "snap7-9", "sid7-9", classGold, "", "pv-handle7-9", deletionPolicy, nil, nil, false, false),
+			initialSnapshots:  newSnapshotArray("snap7-9", "snapuid7-9", "claim7-9", "", classGold, "", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-9", "snapuid7-9", "claim7-9", "", classGold, "", &False, nil, nil, nil, false, true, nil),
+			initialClaims:     newClaimArray("claim7-9", "pvc-uid7-9", "1Gi", "volume7-9", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume7-9", "pv-uid7-9", "pv-handle7-9", "1Gi", "pvc-uid7-9", "claim7-9", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			errors: []reactorError{
+				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"update", "volumesnapshots", errors.New("mock update error")},
+			},
+			expectSuccess: false,
+			test:          testSyncSnapshot,
+		},
+		{
+			name:              "7-10 - fail create snapshot with invalid secret",
+			initialContents:   nocontents,
+			expectedContents:  nocontents,
+			initialSnapshots:  newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "", invalidSecretClass, "", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "snap7-10", invalidSecretClass, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-10: \"failed to get name and namespace template from params: either name and namespace for Snapshotter secrets specified, Both must be specified\""), false, true, nil),
+			initialClaims:     newClaimArray("claim7-10", "pvc-uid7-10", "1Gi", "volume7-10", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume7-10", "pv-uid7-10", "pv-handle7-10", "1Gi", "pvc-uid7-10", "claim7-10", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{}, // no initial secret created
+			test:              testSyncSnapshot,
+		},
+		{
+			// TODO(xiangqian): this test case needs to be revisited the scenario
+			// of VolumeSnapshotContent saving failure. Since there will be no content object
+			// in API server, it could potentially cause leaking issue
+			name:              "7-11 - fail create snapshot due to cannot save snapshot content",
+			initialContents:   nocontents,
+			expectedContents:  nocontents,
+			initialSnapshots:  newSnapshotArray("snap7-11", "snapuid7-11", "claim7-11", "", classGold, "", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-11", "snapuid7-11", "claim7-11", "", classGold, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error snapshot controller failed to update default/snap7-11 on API server: mock create error"), false, true, nil),
+			initialClaims:     newClaimArray("claim7-11", "pvc-uid7-11", "1Gi", "volume7-11", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume7-11", "pv-uid7-11", "pv-handle7-11", "1Gi", "pvc-uid7-11", "claim7-11", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			errors: []reactorError{
+				{"create", "volumesnapshotcontents", errors.New("mock create error")},
+				{"create", "volumesnapshotcontents", errors.New("mock create error")},
+				{"create", "volumesnapshotcontents", errors.New("mock create error")},
+			},
+			expectedEvents: []string{"Warning CreateSnapshotContentFailed"},
+			test:           testSyncSnapshot,
+		},
 	}
 	runSyncTests(t, tests, snapshotClasses)
 }
