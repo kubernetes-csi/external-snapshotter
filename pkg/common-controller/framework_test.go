@@ -173,11 +173,6 @@ func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...str
 	return snapshots
 }
 
-func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
-	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
-	return content
-}
-
 func withPVCFinalizer(pvc *v1.PersistentVolumeClaim) *v1.PersistentVolumeClaim {
 	pvc.ObjectMeta.Finalizers = append(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer)
 	return pvc
@@ -835,6 +830,18 @@ func withContentAnnotations(contents []*crdv1.VolumeSnapshotContent, annotations
 		}
 	}
 	return contents
+}
+
+func withContentSpecSnapshotClassName(contents []*crdv1.VolumeSnapshotContent, volumeSnapshotClassName *string) []*crdv1.VolumeSnapshotContent {
+	for i := range contents {
+		contents[i].Spec.VolumeSnapshotClassName = volumeSnapshotClassName
+	}
+	return contents
+}
+
+func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
+	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
+	return content
 }
 
 func newContentArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,

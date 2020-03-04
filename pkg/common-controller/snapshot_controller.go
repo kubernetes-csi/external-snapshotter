@@ -173,7 +173,11 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		}
 	} else {
 		klog.V(5).Infof("syncSnapshot[%s]: check if we should add finalizers on snapshot", utils.SnapshotKey(snapshot))
-		ctrl.checkandAddSnapshotFinalizers(snapshot)
+		if err := ctrl.checkandAddSnapshotFinalizers(snapshot); err != nil {
+			klog.Errorf("error check and add Snapshot finalizers for snapshot [%s]: %v", snapshot.Name, errFinalizer)
+			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotCheckandUpdateFailed", fmt.Sprintf("Failed to check and update snapshot: %s", err.Error()))
+			return err
+		}
 		// Need to build or update snapshot.Status in following cases:
 		// 1) snapshot.Status is nil
 		// 2) snapshot.Status.ReadyToUse is false
@@ -301,7 +305,7 @@ func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot 
 	if addSourceFinalizer || addBoundFinalizer {
 		// Snapshot is not being deleted -> it should have the finalizer.
 		klog.V(5).Infof("checkandAddSnapshotFinalizers: Add Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
-		ctrl.addSnapshotFinalizer(snapshot, addSourceFinalizer, addBoundFinalizer)
+		return ctrl.addSnapshotFinalizer(snapshot, addSourceFinalizer, addBoundFinalizer)
 	}
 	return nil
 }
@@ -665,26 +669,6 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 	return nil
 }
 
-// isSnapshotConentBeingUsed checks if snapshot content is bound to snapshot.
-func (ctrl *csiSnapshotCommonController) isSnapshotContentBeingUsed(content *crdv1.VolumeSnapshotContent) bool {
-	if content.Spec.VolumeSnapshotRef.Name != "" && content.Spec.VolumeSnapshotRef.Namespace != "" {
-		snapshotObj, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(content.Spec.VolumeSnapshotRef.Namespace).Get(content.Spec.VolumeSnapshotRef.Name, metav1.GetOptions{})
-		if err != nil {
-			klog.Infof("isSnapshotContentBeingUsed: Cannot get snapshot %s from api server: [%v]. VolumeSnapshot object may be deleted already.", content.Spec.VolumeSnapshotRef.Name, err)
-			return false
-		}
-
-		// Check if the snapshot content is bound to the snapshot
-		if utils.IsSnapshotBound(snapshotObj, content) {
-			klog.Infof("isSnapshotContentBeingUsed: VolumeSnapshot %s is bound to volumeSnapshotContent [%s]", snapshotObj.Name, content.Name)
-			return true
-		}
-	}
-
-	klog.V(5).Infof("isSnapshotContentBeingUsed: Snapshot content %s is not being used", content.Name)
-	return false
-}
-
 // addContentFinalizer adds a Finalizer for VolumeSnapshotContent.
 func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
 	contentClone := content.DeepCopy()
@@ -858,7 +842,7 @@ func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *c
 	}
 	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
-		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", newContent.Name, err)
+		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
 		return nil, err
 	}
 
