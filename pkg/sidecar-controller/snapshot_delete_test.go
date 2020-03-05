@@ -68,6 +68,11 @@ var class6Parameters = map[string]string{
 	utils.PrefixedSnapshotterListSecretNamespaceKey: "default",
 }
 
+var class7Annotations = map[string]string{
+	utils.AnnDeletionSecretRefName:      "secret-x",
+	utils.AnnDeletionSecretRefNamespace: "default-x",
+}
+
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 	{
 		TypeMeta: metav1.TypeMeta{
@@ -107,10 +112,11 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Kind: "VolumeSnapshotClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name: invalidSecretClass,
+			Name:        invalidSecretClass,
+			Annotations: class7Annotations,
 		},
 		Driver:         mockDriverName,
-		Parameters:     class3Parameters,
+		Parameters:     class2Parameters,
 		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
