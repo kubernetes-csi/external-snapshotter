@@ -52,8 +52,9 @@ func TestSyncContent(t *testing.T) {
 			name: "1-2: Basic sync content create snapshot",
 			initialContents: withContentStatus(newContentArray("content1-2", "snapuid1-2", "snap1-2", "sid1-2", defaultClass, "", "volume-handle-1-2", retainPolicy, nil, &defaultSize, true),
 				nil),
-			expectedContents: withContentStatus(newContentArray("content1-2", "snapuid1-2", "snap1-2", "sid1-2", defaultClass, "", "volume-handle-1-2", retainPolicy, nil, &defaultSize, true),
+			expectedContents: withContentAnnotations(withContentStatus(newContentArray("content1-2", "snapuid1-2", "snap1-2", "sid1-2", defaultClass, "", "volume-handle-1-2", retainPolicy, nil, &defaultSize, true),
 				&crdv1.VolumeSnapshotContentStatus{SnapshotHandle: toStringPointer("snapuid1-2"), RestoreSize: &defaultSize, ReadyToUse: &True}),
+				map[string]string{}),
 			expectedEvents: noevents,
 			expectedCreateCalls: []createCall{
 				{

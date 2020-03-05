@@ -79,20 +79,16 @@ const (
 	AnnVolumeSnapshotBeingDeleted = "snapshot.storage.kubernetes.io/volumesnapshot-being-deleted"
 
 	// AnnVolumeSnapshotBeingCreated annotation applies to VolumeSnapshotContents.
-	// If it is set and value is "yes", it indicates that the csi-snapshotter
+	// If it is set, it indicates that the csi-snapshotter
 	// sidecar has sent the create snapshot request to the storage system and
 	// is waiting for a response of success or failure.
-	// This annotation will be set to "no" if the driver's CreateSnapshot
+	// This annotation will be removed if the driver's CreateSnapshot
 	// CSI function returns success or failure. If the create snapshot
-	// request times out, retry will happen and the annotation value will
-	// stay as "yes".
+	// request times out, retry will happen and the annotation will remain.
 	// This only applies to dynamic provisioning of snapshots because
 	// the create snapshot CSI method will not be called for pre-provisioned
 	// snapshots.
 	AnnVolumeSnapshotBeingCreated = "snapshot.storage.kubernetes.io/volumesnapshot-being-created"
-	// VolumeSnapshotBeingCreated annotation values can be "yes" or "no"
-	AnnVolumeSnapshotBeingCreated_Yes = "yes"
-	AnnVolumeSnapshotBeingCreated_No  = "no"
 
 	// Annotation for secret name and namespace will be added to the content
 	// and used at snapshot content deletion time.

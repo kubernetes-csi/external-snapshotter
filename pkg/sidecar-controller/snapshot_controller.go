@@ -323,13 +323,13 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	}
 
 	// NOTE(xyang): handle create timeout
-	// Add annotation and set to Yes to indicate create snapshot request is
+	// Add annotation to indicate create snapshot request is
 	// sent to the storage system and wait for a response of success or failure.
-	// Annotation will be set to No only after storage system has responded
+	// Annotation will be removed only after storage system has responded
 	// with success or failure. If the request times out, retry will happen
-	// and annotation will stay as Yes to avoid leaking of snapshot
+	// and annotation will remain to avoid leaking of snapshot
 	// resources on the storage system
-	err = ctrl.setAnnVolumeSnapshotBeingCreated(content, utils.AnnVolumeSnapshotBeingCreated_Yes)
+	err = ctrl.setAnnVolumeSnapshotBeingCreated(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to Yes on the content %s: %q", content.Name, err)
 	}
@@ -337,11 +337,11 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(content, class.Parameters, snapshotterCredentials)
 	if err != nil {
 		// NOTE(xyang): handle create timeout
-		// If it is not a timeout error, set annotation to No to indicate
+		// If it is not a timeout error, remove annotation to indicate
 		// storage system has responded with an error
 		errStr := fmt.Sprintf("%q", err)
 		if !strings.Contains(errStr, "DeadlineExceeded") {
-			err = ctrl.setAnnVolumeSnapshotBeingCreated(content, utils.AnnVolumeSnapshotBeingCreated_No)
+			err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
 			if err != nil {
 				return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to No on the content %s: %q", content.Name, err)
 			}
@@ -353,14 +353,6 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		return nil, fmt.Errorf("failed to take snapshot of the volume, %s: driver name %s returned from the driver is different from driver %s in snapshot class", *content.Spec.Source.VolumeHandle, driverName, class.Driver)
 	}
 
-	// NOTE(xyang): handle create timeout
-	// Set annotation to No to indicate storage system has successfully
-	// cut the snapshot
-	err = ctrl.setAnnVolumeSnapshotBeingCreated(content, utils.AnnVolumeSnapshotBeingCreated_No)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to No on the content %s: %q", content.Name, err)
-	}
-
 	klog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, snapshotID, creationTime, size, readyToUse)
 
 	timestamp := creationTime.UnixNano()
@@ -370,6 +362,14 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		klog.Error(strerr)
 	} else {
 		content = newContent
+	}
+
+	// NOTE(xyang): handle create timeout
+	// Remove annotation to indicate storage system has successfully
+	// cut the snapshot
+	err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to No on the content %s: %q", content.Name, err)
 	}
 
 	// Update content in the cache store
@@ -598,10 +598,10 @@ func (ctrl *csiSnapshotSideCarController) shouldDelete(content *crdv1.VolumeSnap
 
 	// NOTE(xyang): Handle create snapshot timeout
 	// 2) shouldDelete returns false if AnnVolumeSnapshotBeingCreated
-	// annotation is set and its value is Yes. This indicates a
-	// CreateSnapshot CSI RPC has not responded with success or failure.
+	// annotation is set. This indicates a CreateSnapshot CSI RPC has
+	// not responded with success or failure.
 	// We need to keep waiting for a response from the CSI driver.
-	if metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) && content.ObjectMeta.Annotations[utils.AnnVolumeSnapshotBeingCreated] == utils.AnnVolumeSnapshotBeingCreated_Yes {
+	if metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) {
 		return false
 	}
 
@@ -614,17 +614,15 @@ func (ctrl *csiSnapshotSideCarController) shouldDelete(content *crdv1.VolumeSnap
 
 // setAnnVolumeSnapshotBeingCreated sets VolumeSnapshotBeingCreated annotation
 // on VolumeSnapshotContent
-// If beingCreated is true, it indicates snapshot is being created
-// If beingCreated if false, it indicates CreateSnapshot CSI RPC returns
-// success or failure
-func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(content *crdv1.VolumeSnapshotContent, annBeingCreated string) error {
-	// Set AnnVolumeSnapshotBeingCreated if it is not set yet or if it is
-	// set but has a different value
-	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) || content.ObjectMeta.Annotations[utils.AnnVolumeSnapshotBeingCreated] != annBeingCreated {
-		klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:%s] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, annBeingCreated, content.Name)
-		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, annBeingCreated)
+// If set, it indicates snapshot is being created
+func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(content *crdv1.VolumeSnapshotContent) error {
+	// Set AnnVolumeSnapshotBeingCreated if it is not set yet
+	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) {
+		klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:yes] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, content.Name)
+		contentClone := content.DeepCopy()
+		metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
 
-		updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(content)
+		updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 		if err != nil {
 			return newControllerUpdateError(content.Name, err.Error())
 		}
@@ -637,6 +635,31 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 			return err
 		}
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: volume snapshot content %+v", content)
+	}
+	return nil
+}
+
+// removeAnnVolumeSnapshotBeingCreated removes the VolumeSnapshotBeingCreated
+// annotation from a content if there exists one.
+func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(content *crdv1.VolumeSnapshotContent) error {
+	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) {
+		// the annotation does not exit, return directly
+		return nil
+	}
+	contentClone := content.DeepCopy()
+	delete(contentClone.ObjectMeta.Annotations, utils.AnnVolumeSnapshotBeingCreated)
+
+	updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
+	if err != nil {
+		return newControllerUpdateError(content.Name, err.Error())
+	}
+	// update content if update is successful
+	content = updateContent
+
+	klog.V(5).Infof("Removed VolumeSnapshotBeingCreated annotation from volume snapshot content %s", content.Name)
+	_, err = ctrl.storeContentUpdate(content)
+	if err != nil {
+		klog.Errorf("failed to update content store %v", err)
 	}
 	return nil
 }
