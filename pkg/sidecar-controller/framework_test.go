@@ -123,6 +123,7 @@ var noerrors = []reactorError{}
 //   the list.
 type snapshotReactor struct {
 	secrets              map[string]*v1.Secret
+	snapshotClasses      map[string]*crdv1.VolumeSnapshotClass
 	contents             map[string]*crdv1.VolumeSnapshotContent
 	changedObjects       []interface{}
 	changedSinceLastSync int
@@ -283,7 +284,12 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 		v := v.DeepCopy()
 		v.ResourceVersion = ""
 		v.Spec.VolumeSnapshotRef.ResourceVersion = ""
-		v.Status.CreationTime = nil
+		if v.Status != nil {
+			v.Status.CreationTime = nil
+		}
+		if v.Status.Error != nil {
+			v.Status.Error.Time = &metav1.Time{}
+		}
 		expectedMap[v.Name] = v
 	}
 	for _, v := range r.contents {
@@ -292,7 +298,13 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 		v := v.DeepCopy()
 		v.ResourceVersion = ""
 		v.Spec.VolumeSnapshotRef.ResourceVersion = ""
-		v.Status.CreationTime = nil
+		if v.Status != nil {
+			v.Status.CreationTime = nil
+			if v.Status.Error != nil {
+				v.Status.Error.Time = &metav1.Time{}
+			}
+		}
+
 		gotMap[v.Name] = v
 	}
 	if !reflect.DeepEqual(expectedMap, gotMap) {
@@ -487,6 +499,7 @@ func (r *snapshotReactor) modifyContentEvent(content *crdv1.VolumeSnapshotConten
 func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, ctrl *csiSnapshotSideCarController, fakeVolumeWatch, fakeClaimWatch *watch.FakeWatcher, errors []reactorError) *snapshotReactor {
 	reactor := &snapshotReactor{
 		secrets:          make(map[string]*v1.Secret),
+		snapshotClasses:  make(map[string]*crdv1.VolumeSnapshotClass),
 		contents:         make(map[string]*crdv1.VolumeSnapshotContent),
 		ctrl:             ctrl,
 		fakeContentWatch: fakeVolumeWatch,
@@ -497,6 +510,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
+	kubeClient.AddReactor("get", "secrets", reactor.React)
 
 	return reactor
 }
@@ -615,22 +629,28 @@ func newContentArrayWithReadyToUse(contentName, boundToSnapshotUID, boundToSnaps
 	}
 }
 
-func newContentWithUnmatchDriverArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
-	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
-	withFinalizer bool) []*crdv1.VolumeSnapshotContent {
-	content := newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, size, creationTime, withFinalizer, nil)
-	content.Spec.Driver = "fake"
-	return []*crdv1.VolumeSnapshotContent{
-		content,
-	}
-}
-
 func newContentArrayWithDeletionTimestamp(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
 	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
 	withFinalizer bool, deletionTime *metav1.Time) []*crdv1.VolumeSnapshotContent {
 	return []*crdv1.VolumeSnapshotContent{
 		newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, creationTime, size, withFinalizer, deletionTime),
 	}
+}
+
+func withContentStatus(content []*crdv1.VolumeSnapshotContent, status *crdv1.VolumeSnapshotContentStatus) []*crdv1.VolumeSnapshotContent {
+	for i := range content {
+		content[i].Status = status
+	}
+
+	return content
+}
+
+func withContentAnnotations(content []*crdv1.VolumeSnapshotContent, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
+	for i := range content {
+		content[i].ObjectMeta.Annotations = annotations
+	}
+
+	return content
 }
 
 func testSyncContent(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) error {
@@ -742,6 +762,7 @@ func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses [
 		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 		for _, class := range snapshotClasses {
 			indexer.Add(class)
+			reactor.snapshotClasses[class.Name] = class
 		}
 		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
 
@@ -875,7 +896,7 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 		err = fmt.Errorf("unexpected create snapshot call")
 	}
 
-	if !reflect.DeepEqual(call.secrets, snapshotterCredentials) {
+	if !reflect.DeepEqual(call.secrets, snapshotterCredentials) && !(len(call.secrets) == 0 && len(snapshotterCredentials) == 0) {
 		f.t.Errorf("Wrong CSI Create Snapshot call: snapshotName=%s, volumeHandle=%s, expected secrets %+v, got %+v", snapshotName, volumeHandle, call.secrets, snapshotterCredentials)
 		err = fmt.Errorf("unexpected create snapshot call")
 	}
@@ -937,3 +958,12 @@ func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID stri
 
 	return call.readyToUse, call.createTime, call.size, call.err
 }
+
+func newSnapshotError(message string) *crdv1.VolumeSnapshotError {
+	return &crdv1.VolumeSnapshotError{
+		Time:    &metav1.Time{},
+		Message: &message,
+	}
+}
+
+func toStringPointer(str string) *string { return &str }

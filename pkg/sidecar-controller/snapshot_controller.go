@@ -55,7 +55,6 @@ const controllerUpdateFailMsg = "snapshot controller failed to update"
 func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnapshotContent) error {
 	klog.V(5).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
 
-	var err error
 	if ctrl.shouldDelete(content) {
 		klog.V(4).Infof("VolumeSnapshotContent[%s]: the policy is %s", content.Name, content.Spec.DeletionPolicy)
 		if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete &&
@@ -75,10 +74,7 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 	} else {
 		if content.Spec.Source.VolumeHandle != nil && content.Status == nil {
 			klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
-			if err = ctrl.createSnapshot(content); err != nil {
-				ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot with error %v", err))
-				return err
-			}
+			ctrl.createSnapshot(content)
 		} else {
 			// Skip checkandUpdateContentStatus() if ReadyToUse is
 			// already true. We don't want to keep calling CreateSnapshot
@@ -87,10 +83,7 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			if content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
 				return nil
 			}
-			if err = ctrl.checkandUpdateContentStatus(content); err != nil {
-				ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotContentStatusUpdateFailed", fmt.Sprintf("Failed to update snapshot content status with error %v", err))
-				return err
-			}
+			ctrl.checkandUpdateContentStatus(content)
 		}
 	}
 	return nil
@@ -129,7 +122,7 @@ func (ctrl *csiSnapshotSideCarController) storeContentUpdate(content interface{}
 }
 
 // createSnapshot starts new asynchronous operation to create snapshot
-func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSnapshotContent) error {
+func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSnapshotContent) {
 	klog.V(5).Infof("createSnapshot for content [%s]: started", content.Name)
 	opName := fmt.Sprintf("create-%s", content.Name)
 	ctrl.scheduleOperation(opName, func() error {
@@ -147,10 +140,9 @@ func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSn
 		}
 		return nil
 	})
-	return nil
 }
 
-func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *crdv1.VolumeSnapshotContent) error {
+func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *crdv1.VolumeSnapshotContent) {
 	klog.V(5).Infof("checkandUpdateContentStatus[%s] started", content.Name)
 	opName := fmt.Sprintf("check-%s", content.Name)
 	ctrl.scheduleOperation(opName, func() error {
@@ -168,7 +160,6 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *c
 
 		return nil
 	})
-	return nil
 }
 
 // updateContentStatusWithEvent saves new content.Status to API server and emits
