@@ -23,6 +23,8 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
+	codes "google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
@@ -331,7 +333,7 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	// resources on the storage system
 	err = ctrl.setAnnVolumeSnapshotBeingCreated(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to Yes on the content %s: %q", content.Name, err)
+		return nil, fmt.Errorf("failed to add VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
 	}
 
 	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(content, class.Parameters, snapshotterCredentials)
@@ -339,11 +341,12 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		// NOTE(xyang): handle create timeout
 		// If it is not a timeout error, remove annotation to indicate
 		// storage system has responded with an error
-		errStr := fmt.Sprintf("%q", err)
-		if !strings.Contains(errStr, "DeadlineExceeded") {
-			err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
-			if err != nil {
-				return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to No on the content %s: %q", content.Name, err)
+		if e, ok := status.FromError(err); ok {
+			if e.Code() == codes.DeadlineExceeded {
+				err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
+				if err != nil {
+					return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
+				}
 			}
 		}
 
@@ -366,7 +369,7 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	// cut the snapshot
 	err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
 	if err != nil {
-		return nil, fmt.Errorf("failed to set VolumeSnapshotBeingCreated annotation to No on the content %s: %q", content.Name, err)
+		return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
 	}
 
 	// Update content in the cache store
