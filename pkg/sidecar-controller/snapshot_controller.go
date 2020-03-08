@@ -303,11 +303,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	return updateContent, nil
 }
 
-// The function goes through the whole snapshot creation process.
-// 1. Trigger the snapshot through csi storage provider.
-// 2. Update VolumeSnapshot status with creationtimestamp information
-// 3. Create the VolumeSnapshotContent object with the snapshot id information.
-// 4. Bind the VolumeSnapshot and VolumeSnapshotContent object
+// The function goes through the snapshot creation process.
 func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	klog.Infof("createSnapshotOperation: Creating snapshot for content %s through the plugin ...", content.Name)
 
@@ -325,12 +321,12 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	}
 
 	// NOTE(xyang): handle create timeout
-	// Add annotation to indicate create snapshot request is
-	// sent to the storage system and wait for a response of success or failure.
-	// Annotation will be removed only after storage system has responded
-	// with success or failure. If the request times out, retry will happen
-	// and annotation will remain to avoid leaking of snapshot
-	// resources on the storage system
+	// Add an annotation to indicate the snapshot creation request has been
+	// sent to the storage system and the controller is waiting for a response.
+	// The annotation will be removed after the storage system has responded with
+	// success or permanent failure. If the request times out, annotation will
+	// remain on the content to avoid potential leaking of a snapshot resource on
+	// the storage system.
 	err = ctrl.setAnnVolumeSnapshotBeingCreated(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to add VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
@@ -341,8 +337,10 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		// NOTE(xyang): handle create timeout
 		// If it is not a timeout error, remove annotation to indicate
 		// storage system has responded with an error
+		klog.Infof("createSnapshotOperation: CreateSnapshot for content %s returned error: %v", content.Name, err)
 		if e, ok := status.FromError(err); ok {
-			if e.Code() == codes.DeadlineExceeded {
+			klog.Infof("createSnapshotOperation: CreateSnapshot for content %s error status: %+v", content.Name, e)
+			if e.Code() != codes.DeadlineExceeded {
 				err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
 				if err != nil {
 					return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
@@ -370,12 +368,6 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
-	}
-
-	// Update content in the cache store
-	_, err = ctrl.storeContentUpdate(content)
-	if err != nil {
-		klog.Errorf("failed to update content store %v", err)
 	}
 
 	return content, nil
