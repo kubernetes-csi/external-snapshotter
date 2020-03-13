@@ -23,7 +23,7 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -1076,7 +1076,7 @@ func (ctrl *csiSnapshotCommonController) getSnapshotClass(className string) (*cr
 	class, err := ctrl.classLister.Get(className)
 	if err != nil {
 		klog.Errorf("failed to retrieve snapshot class %s from the informer: %q", className, err)
-		return nil, fmt.Errorf("failed to retrieve snapshot class %s from the informer: %q", className, err)
+		return nil, err
 	}
 
 	return class, nil

@@ -146,7 +146,7 @@ func TestSync(t *testing.T) {
 			initialContents:   nocontents,
 			expectedContents:  nocontents,
 			initialSnapshots:  newSnapshotArray("snap7-1", "snapuid7-1", "claim7-1", "", classNonExisting, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap7-1", "snapuid7-1", "claim7-1", "", classNonExisting, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-1: \"failed to retrieve snapshot class non-existing from the informer: \\\"volumesnapshotclass.snapshot.storage.k8s.io \\\\\\\"non-existing\\\\\\\" not found\\\"\""), false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-1", "snapuid7-1", "claim7-1", "", classNonExisting, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-1: \"volumesnapshotclass.snapshot.storage.k8s.io \\\"non-existing\\\" not found\""), false, true, nil),
 			initialClaims:     newClaimArray("claim7-1", "pvc-uid7-1", "1Gi", "volume7-1", v1.ClaimBound, &classEmpty),
 			initialVolumes:    newVolumeArray("volume7-1", "pv-uid7-1", "pv-handle7-1", "1Gi", "pvc-uid7-1", "claim7-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			expectedEvents:    []string{"Warning SnapshotContentCreationFailed"},

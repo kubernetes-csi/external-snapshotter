@@ -26,7 +26,7 @@ import (
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/v2/pkg/client/listers/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -215,8 +215,11 @@ func (ctrl *csiSnapshotCommonController) snapshotWorker() {
 			// The volume snapshot still exists in informer cache, the event must have
 			// been add/update/sync
 			newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
-			if err == nil {
-				klog.V(5).Infof("passed checkAndUpdateSnapshotClass for snapshot %q", key)
+			if err == nil || (newSnapshot.ObjectMeta.DeletionTimestamp != nil && errors.IsNotFound(err)) {
+				// If the VolumeSnapshotClass is not found, we still need to process an update
+				// so that syncSnapshot can delete the snapshot, should it still exist in the
+				// cluster after it's been removed from the informer cache
+				klog.V(5).Infof("updating snapshot %q; snapshotClass may have already been removed", key)
 				ctrl.updateSnapshot(newSnapshot)
 			}
 			return false
@@ -243,7 +246,10 @@ func (ctrl *csiSnapshotCommonController) snapshotWorker() {
 			return false
 		}
 		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
-		if err == nil {
+		if err == nil || errors.IsNotFound(err) {
+			// We should still handle deletion events even if the VolumeSnapshotClass
+			// is not found in the cluster
+			klog.V(5).Infof("deleting snapshot %q; snapshotClass may have already been removed", key)
 			ctrl.deleteSnapshot(newSnapshot)
 		}
 		return false
@@ -329,7 +335,8 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 		if err != nil {
 			klog.Errorf("checkAndUpdateSnapshotClass failed to getSnapshotClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
-			return nil, err
+			// we need to return the original snapshot even if the class isn't found, as it may need to be deleted
+			return newSnapshot, err
 		}
 	} else {
 		klog.V(5).Infof("checkAndUpdateSnapshotClass [%s]: SetDefaultSnapshotClass", snapshot.Name)
