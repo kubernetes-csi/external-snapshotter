@@ -82,9 +82,10 @@ const (
 	// If it is set, it indicates that the csi-snapshotter
 	// sidecar has sent the create snapshot request to the storage system and
 	// is waiting for a response of success or failure.
-	// This annotation will be removed if the driver's CreateSnapshot
-	// CSI function returns success or failure. If the create snapshot
-	// request times out, retry will happen and the annotation will remain.
+	// This annotation will be removed once the driver's CreateSnapshot
+	// CSI function returns success or a final error (determined by isFinalError()).
+	// If the create snapshot request fails with a non-final error such as timeout,
+	// retry will happen and the annotation will remain.
 	// This only applies to dynamic provisioning of snapshots because
 	// the create snapshot CSI method will not be called for pre-provisioned
 	// snapshots.

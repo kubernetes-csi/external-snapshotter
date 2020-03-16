@@ -278,29 +278,21 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		}
 		driverName = content.Spec.Driver
 		snapshotID = *content.Spec.Source.SnapshotHandle
-	} else {
-		class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get input parameters to create snapshot %s: %q", content.Name, err)
+
+		klog.V(5).Infof("checkandUpdateContentStatusOperation: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, snapshotID, creationTime, size, readyToUse)
+
+		if creationTime.IsZero() {
+			creationTime = time.Now()
 		}
 
-		driverName, snapshotID, creationTime, size, readyToUse, err = ctrl.handler.CreateSnapshot(content, class.Parameters, snapshotterCredentials)
+		updatedContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, creationTime.UnixNano(), size)
 		if err != nil {
-			klog.Errorf("checkandUpdateContentStatusOperation: failed to call create snapshot to check whether the snapshot is ready to use %q", err)
 			return nil, err
 		}
+		return updatedContent, nil
+	} else {
+		return ctrl.createSnapshotOperation(content)
 	}
-	klog.V(5).Infof("checkandUpdateContentStatusOperation: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, snapshotID, creationTime, size, readyToUse)
-
-	if creationTime.IsZero() {
-		creationTime = time.Now()
-	}
-
-	updateContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, creationTime.UnixNano(), size)
-	if err != nil {
-		return nil, err
-	}
-	return updateContent, nil
 }
 
 // The function goes through the snapshot creation process.
@@ -335,16 +327,13 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(content, class.Parameters, snapshotterCredentials)
 	if err != nil {
 		// NOTE(xyang): handle create timeout
-		// If it is not a timeout error, remove annotation to indicate
+		// If it is a final error, remove annotation to indicate
 		// storage system has responded with an error
 		klog.Infof("createSnapshotOperation: CreateSnapshot for content %s returned error: %v", content.Name, err)
-		if e, ok := status.FromError(err); ok {
-			klog.Infof("createSnapshotOperation: CreateSnapshot for content %s error status: %+v", content.Name, e)
-			if e.Code() != codes.DeadlineExceeded {
-				err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
-				if err != nil {
-					return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
-				}
+		if isFinalError(err) {
+			err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
+			if err != nil {
+				return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
 			}
 		}
 
@@ -353,8 +342,11 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 
 	klog.V(5).Infof("Created snapshot: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, snapshotID, creationTime, size, readyToUse)
 
-	timestamp := creationTime.UnixNano()
-	newContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, timestamp, size)
+	if creationTime.IsZero() {
+		creationTime = time.Now()
+	}
+
+	newContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, creationTime.UnixNano(), size)
 	if err != nil {
 		strerr := fmt.Sprintf("error updating volume snapshot content status for snapshot %s: %v.", content.Name, err)
 		klog.Error(strerr)
@@ -614,12 +606,12 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 		contentClone := content.DeepCopy()
 		metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
 
-		updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
+		updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 		if err != nil {
 			return newControllerUpdateError(content.Name, err.Error())
 		}
 		// update content if update is successful
-		content = updateContent
+		content = updatedContent
 
 		_, err = ctrl.storeContentUpdate(content)
 		if err != nil {
@@ -641,12 +633,12 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(con
 	contentClone := content.DeepCopy()
 	delete(contentClone.ObjectMeta.Annotations, utils.AnnVolumeSnapshotBeingCreated)
 
-	updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
+	updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
 	// update content if update is successful
-	content = updateContent
+	content = updatedContent
 
 	klog.V(5).Infof("Removed VolumeSnapshotBeingCreated annotation from volume snapshot content %s", content.Name)
 	_, err = ctrl.storeContentUpdate(content)
@@ -654,4 +646,29 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(con
 		klog.Errorf("failed to update content store %v", err)
 	}
 	return nil
+}
+
+// This function checks if the error is final
+func isFinalError(err error) bool {
+	// Sources:
+	// https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
+	// https://github.com/container-storage-interface/spec/blob/master/spec.md
+	st, ok := status.FromError(err)
+	if !ok {
+		// This is not gRPC error. The operation must have failed before gRPC
+		// method was called, otherwise we would get gRPC error.
+		// We don't know if any previous CreateSnapshot is in progress, be on the safe side.
+		return false
+	}
+	switch st.Code() {
+	case codes.Canceled, // gRPC: Client Application cancelled the request
+		codes.DeadlineExceeded,  // gRPC: Timeout
+		codes.Unavailable,       // gRPC: Server shutting down, TCP connection broken - previous CreateSnapshot() may be still in progress.
+		codes.ResourceExhausted, // gRPC: Server temporarily out of resources - previous CreateSnapshot() may be still in progress.
+		codes.Aborted:           // CSI: Operation pending for Snapshot
+		return false
+	}
+	// All other errors mean that creating snapshot either did not
+	// even start or failed. It is for sure not in progress.
+	return true
 }
