@@ -23,7 +23,7 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -266,7 +266,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 		}
 
 		if !inUse {
-			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Set VolumeSnapshotBeingDeleted annotation on the content [%s]", content.Name)
+			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Set VolumeSnapshotBeingDeleted annotation on the content")
 			ctrl.setAnnVolumeSnapshotBeingDeleted(content)
 
 			klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
@@ -1281,6 +1281,9 @@ func (ctrl *csiSnapshotCommonController) getSnapshotFromStore(snapshotName strin
 func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(content *crdv1.VolumeSnapshotContent) error {
 	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
+		if content == nil {
+			return nil
+		}
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
 		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
 
