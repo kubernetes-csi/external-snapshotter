@@ -1279,11 +1279,11 @@ func (ctrl *csiSnapshotCommonController) getSnapshotFromStore(snapshotName strin
 }
 
 func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(content *crdv1.VolumeSnapshotContent) error {
+	if content == nil {
+		return nil
+	}
 	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
-		if content == nil {
-			return nil
-		}
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
 		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
 
