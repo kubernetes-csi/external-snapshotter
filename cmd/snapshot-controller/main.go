@@ -39,16 +39,12 @@ import (
 	coreinformers "k8s.io/client-go/informers"
 )
 
-const (
-	// Number of worker threads
-	threads = 10
-)
-
 // Command line flags
 var (
 	kubeconfig   = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	resyncPeriod = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
 	showVersion  = flag.Bool("version", false, "Show version.")
+	threads      = flag.Int("worker-threads", 10, "Number of worker threads.")
 
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
@@ -111,7 +107,7 @@ func main() {
 		stopCh := make(chan struct{})
 		factory.Start(stopCh)
 		coreFactory.Start(stopCh)
-		go ctrl.Run(threads, stopCh)
+		go ctrl.Run(*threads, stopCh)
 
 		// ...until SIGINT
 		c := make(chan os.Signal, 1)
