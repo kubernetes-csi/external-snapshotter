@@ -291,7 +291,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		}
 		return updatedContent, nil
 	} else {
-		return ctrl.createSnapshotOperation(content)
+		return ctrl.createSnapshotWrapper(content)
 	}
 }
 
@@ -306,6 +306,13 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *content.Status.Error.Message)
 		return content, nil
 	}
+
+	return ctrl.createSnapshotWrapper(content)
+}
+
+// This is a wrapper function for the snapshot creation process.
+func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
+	klog.Infof("createSnapshotWrapper: Creating snapshot for content %s through the plugin ...", content.Name)
 
 	class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
 	if err != nil {
@@ -329,7 +336,7 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1
 		// NOTE(xyang): handle create timeout
 		// If it is a final error, remove annotation to indicate
 		// storage system has responded with an error
-		klog.Infof("createSnapshotOperation: CreateSnapshot for content %s returned error: %v", content.Name, err)
+		klog.Infof("createSnapshotWrapper: CreateSnapshot for content %s returned error: %v", content.Name, err)
 		if isFinalError(err) {
 			err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
 			if err != nil {
