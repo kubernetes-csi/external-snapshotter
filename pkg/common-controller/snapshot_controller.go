@@ -166,7 +166,10 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
 	}
 
-	if snapshot.ObjectMeta.DeletionTimestamp != nil {
+	// Proceed with snapshot deletion only if snapshot is not in the middled of being
+	// created from a PVC. This is to ensure that the PVC finalizer can be removed even
+	// if a delete snapshot request is received before create snapshot has completed.
+	if snapshot.ObjectMeta.DeletionTimestamp != nil && !ctrl.isPVCInUseByCurrentSnapshot(snapshot) {
 		err := ctrl.processSnapshotWithDeletionTimestamp(snapshot)
 		if err != nil {
 			return err
@@ -188,6 +191,21 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		return ctrl.syncReadySnapshot(snapshot)
 	}
 	return nil
+}
+
+// Check if PVC is being used by the current snapshot as source
+func (ctrl *csiSnapshotCommonController) isPVCInUseByCurrentSnapshot(snapshot *crdv1.VolumeSnapshot) bool {
+	// Get snapshot source which is a PVC
+	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
+	if err != nil {
+		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already.", snapshot.Name, err)
+		return false
+	}
+	if snapshot.Spec.Source.PersistentVolumeClaimName != nil && pvc.Name == *snapshot.Spec.Source.PersistentVolumeClaimName && !utils.IsSnapshotReady(snapshot) {
+		klog.V(2).Infof("PVC %s/%s is being used by snapshot %s/%s as source", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name)
+		return true
+	}
+	return false
 }
 
 // checkContentAndBoundStatus is a helper function that checks the following:

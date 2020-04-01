@@ -315,8 +315,8 @@ func TestSync(t *testing.T) {
 		},
 		{
 			name:             "5-5 - snapshot deletion candidate marked for deletion by syncSnapshot",
-			initialSnapshots: newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "content5-5", &False, nil, nil, nil, false, true, &timeNowMetav1),
-			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "content5-5", &False, nil, nil, nil, false, false, &timeNowMetav1),
+			initialSnapshots: newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "content5-5", &True, nil, nil, nil, false, true, &timeNowMetav1),
+			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "content5-5", &True, nil, nil, nil, false, false, &timeNowMetav1),
 				utils.VolumeSnapshotBoundFinalizer,
 			),
 			initialContents:  newContentArray("content5-5", "snapuid5-5", "snap5-5", "sid5-5", validSecretClass, "", "", crdv1.VolumeSnapshotContentRetain, nil, nil, true),
