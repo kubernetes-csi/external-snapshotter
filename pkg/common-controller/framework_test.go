@@ -453,7 +453,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		// Don't modify the existing object
 		c = c.DeepCopy()
 		c.ResourceVersion = ""
-		if c.Status.Error != nil {
+		if c.Status != nil && c.Status.Error != nil {
 			c.Status.Error.Time = &metav1.Time{}
 		}
 		expectedMap[c.Name] = c
@@ -463,7 +463,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		// written by the controller without any locks on it.
 		c = c.DeepCopy()
 		c.ResourceVersion = ""
-		if c.Status.Error != nil {
+		if c.Status != nil && c.Status.Error != nil {
 			c.Status.Error.Time = &metav1.Time{}
 		}
 		gotMap[c.Name] = c
@@ -880,6 +880,18 @@ func newContentWithUnmatchDriverArray(contentName, boundToSnapshotUID, boundToSn
 	}
 }
 
+func newContentArrayWithError(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
+	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
+	withFinalizer bool, snapshotErr *crdv1.VolumeSnapshotError) []*crdv1.VolumeSnapshotContent {
+	content := newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, size, creationTime, withFinalizer, true)
+	ready := false
+	content.Status.ReadyToUse = &ready
+	content.Status.Error = snapshotErr
+	return []*crdv1.VolumeSnapshotContent{
+		content,
+	}
+}
+
 func newSnapshot(
 	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
@@ -1085,6 +1097,30 @@ func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotR
 		return nil
 	}
 	return fmt.Errorf("syncSnapshot succeeded when failure was expected")
+}
+
+func testUpdateSnapshotErrorStatus(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	snapshot, err := ctrl.updateSnapshotStatus(test.initialSnapshots[0], test.initialContents[0])
+	if err != nil {
+		return fmt.Errorf("update snapshot status failed: %v", err)
+	}
+	var expected, got *crdv1.VolumeSnapshotError
+	if test.initialContents[0].Status != nil {
+		expected = test.initialContents[0].Status.Error
+	}
+	if snapshot.Status != nil {
+		got = snapshot.Status.Error
+	}
+	if expected == nil && got != nil {
+		return fmt.Errorf("update snapshot status failed: expected nil but got: %v", got)
+	}
+	if expected != nil && got == nil {
+		return fmt.Errorf("update snapshot status failed: expected: %v but got nil", expected)
+	}
+	if expected != nil && got != nil && !reflect.DeepEqual(expected, got) {
+		return fmt.Errorf("update snapshot status failed [A-expected, B-got]: %s", diff.ObjectDiff(expected, got))
+	}
+	return nil
 }
 
 func testSyncContent(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {

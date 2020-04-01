@@ -943,6 +943,10 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 	if content.Status != nil && content.Status.ReadyToUse != nil {
 		readyToUse = *content.Status.ReadyToUse
 	}
+	var volumeSnapshotErr *crdv1.VolumeSnapshotError
+	if content.Status != nil && content.Status.Error != nil {
+		volumeSnapshotErr = content.Status.Error.DeepCopy()
+	}
 
 	klog.V(5).Infof("updateSnapshotStatus: updating VolumeSnapshot [%+v] based on VolumeSnapshotContentStatus [%+v]", snapshot, content.Status)
 
@@ -964,6 +968,9 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		if size != nil {
 			newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
 		}
+		if volumeSnapshotErr != nil {
+			newStatus.Error = volumeSnapshotErr
+		}
 		updated = true
 	} else {
 		newStatus = snapshotObj.Status.DeepCopy()
@@ -984,6 +991,10 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		}
 		if (newStatus.RestoreSize == nil && size != nil) || (newStatus.RestoreSize != nil && newStatus.RestoreSize.IsZero() && size != nil && *size > 0) {
 			newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
+			updated = true
+		}
+		if (newStatus.Error == nil && volumeSnapshotErr != nil) || (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) || (newStatus.Error != nil && volumeSnapshotErr == nil) {
+			newStatus.Error = volumeSnapshotErr
 			updated = true
 		}
 	}

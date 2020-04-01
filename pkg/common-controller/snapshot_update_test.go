@@ -24,17 +24,11 @@ import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 	v1 "k8s.io/api/core/v1"
-	storagev1beta1 "k8s.io/api/storage/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var metaTimeNow = &metav1.Time{
 	Time: time.Now(),
-}
-
-var volumeErr = &storagev1beta1.VolumeError{
-	Time:    *metaTimeNow,
-	Message: "Failed to upload the snapshot",
 }
 
 var emptyString = ""
@@ -46,6 +40,7 @@ var emptyString = ""
 // 3. Compare resulting contents and snapshots with expected contents and snapshots.
 func TestSync(t *testing.T) {
 	size := int64(1)
+	snapshotErr := newVolumeError("Mock content error")
 	tests := []controllerTest{
 		{
 			// snapshot is bound to a non-existing content
@@ -326,6 +321,62 @@ func TestSync(t *testing.T) {
 			initialSecrets:   []*v1.Secret{secret()},
 			expectSuccess:    true,
 			test:             testSyncSnapshot,
+		},
+		{
+			// Update Error in snapshot status based on content status
+			name:              "6-1 - update snapshot error status",
+			initialContents:   newContentArrayWithError("content6-1", "snapuid6-1", "snap6-1", "sid6-1", validSecretClass, "", "", deletionPolicy, nil, nil, false, snapshotErr),
+			expectedContents:  newContentArrayWithError("content6-1", "snapuid6-1", "snap6-1", "sid6-1", validSecretClass, "", "", deletionPolicy, nil, nil, false, snapshotErr),
+			initialSnapshots:  newSnapshotArray("snap6-1", "snapuid6-1", "claim6-1", "", validSecretClass, "content6-1", &False, nil, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap6-1", "snapuid6-1", "claim6-1", "", validSecretClass, "content6-1", &False, nil, nil, snapshotErr, false, true, nil),
+			initialClaims:     newClaimArray("claim6-1", "pvc-uid6-1", "1Gi", "volume6-1", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume6-1", "pv-uid6-1", "pv-handle6-1", "1Gi", "pvc-uid6-1", "claim6-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			expectSuccess:     true,
+			test:              testUpdateSnapshotErrorStatus,
+		},
+		{
+			// Clear out Error in snapshot status if no Error in content status
+			name:              "6-2 - clear out snapshot error status",
+			initialContents:   newContentArray("content6-2", "snapuid6-2", "snap6-2", "sid6-2", validSecretClass, "", "", deletionPolicy, nil, nil, false),
+			expectedContents:  newContentArray("content6-2", "snapuid6-2", "snap6-2", "sid6-2", validSecretClass, "", "", deletionPolicy, nil, nil, false),
+			initialSnapshots:  newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", validSecretClass, "content6-2", &False, metaTimeNow, nil, snapshotErr, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", validSecretClass, "content6-2", &True, metaTimeNow, nil, nil, false, true, nil),
+			initialClaims:     newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume6-2", "pv-uid6-2", "pv-handle6-2", "1Gi", "pvc-uid6-2", "claim6-2", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			expectSuccess:     true,
+			test:              testUpdateSnapshotErrorStatus,
+		},
+		{
+			// Snapshot status is nil, but gets updated to Error status based on content status
+			name:              "6-3 - nil snapshot status updated with error status from content",
+			initialContents:   newContentArrayWithError("content6-3", "snapuid6-3", "snap6-3", "sid6-3", validSecretClass, "", "", deletionPolicy, nil, nil, false, snapshotErr),
+			expectedContents:  newContentArrayWithError("content6-3", "snapuid6-3", "snap6-3", "sid6-3", validSecretClass, "", "", deletionPolicy, nil, nil, false, snapshotErr),
+			initialSnapshots:  newSnapshotArray("snap6-3", "snapuid6-3", "claim6-3", "", validSecretClass, "", nil, nil, nil, nil, true, true, nil),
+			expectedSnapshots: newSnapshotArray("snap6-3", "snapuid6-3", "claim6-3", "", validSecretClass, "content6-3", &False, nil, nil, snapshotErr, false, true, nil),
+			initialClaims:     newClaimArray("claim6-3", "pvc-uid6-3", "1Gi", "volume6-3", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume6-3", "pv-uid6-3", "pv-handle6-3", "1Gi", "pvc-uid6-3", "claim6-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			expectSuccess:     true,
+			test:              testUpdateSnapshotErrorStatus,
+		},
+		{
+			// Snapshot status and content status are both nil, create snapshot status with boundContentName and readyToUse set to false
+			name:              "6-4 - both snapshot status and content status are nil",
+			initialContents:   newContentArrayNoStatus("content6-4", "snapuid6-4", "snap6-4", "sid6-4", validSecretClass, "", "", deletionPolicy, nil, nil, false, false),
+			expectedContents:  newContentArrayNoStatus("content6-4", "snapuid6-4", "snap6-4", "sid6-4", validSecretClass, "", "", deletionPolicy, nil, nil, false, false),
+			initialSnapshots:  newSnapshotArray("snap6-4", "snapuid6-4", "claim6-4", "", validSecretClass, "", nil, nil, nil, nil, true, false, nil),
+			expectedSnapshots: newSnapshotArray("snap6-4", "snapuid6-4", "claim6-4", "", validSecretClass, "content6-4", &False, nil, nil, nil, false, false, nil),
+			initialClaims:     newClaimArray("claim6-4", "pvc-uid6-4", "1Gi", "volume6-3", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume6-4", "pv-uid6-4", "pv-handle6-4", "1Gi", "pvc-uid6-4", "claim6-4", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			expectSuccess:     true,
+			test:              testUpdateSnapshotErrorStatus,
 		},
 	}
 
