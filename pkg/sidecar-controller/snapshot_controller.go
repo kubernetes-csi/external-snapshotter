@@ -83,6 +83,11 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			// or ListSnapshots CSI methods over and over again for
 			// performance reasons.
 			if content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
+				// Try to remove AnnVolumeSnapshotBeingCreated if it is not removed yet for some reason
+				err := ctrl.removeAnnVolumeSnapshotBeingCreated(content)
+				if err != nil {
+					return fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
+				}
 				return nil
 			}
 			ctrl.checkandUpdateContentStatus(content)
@@ -128,10 +133,17 @@ func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSn
 	klog.V(5).Infof("createSnapshot for content [%s]: started", content.Name)
 	opName := fmt.Sprintf("create-%s", content.Name)
 	ctrl.scheduleOperation(opName, func() error {
-		contentObj, err := ctrl.createSnapshotOperation(content)
+		// content.Status will be created for the first time after a snapshot
+		// is created by the CSI driver. If content.Status is not nil,
+		// we should update content status without creating snapshot again.
+		if content.Status != nil && content.Status.Error != nil && content.Status.Error.Message != nil && !isControllerUpdateFailError(content.Status.Error) {
+			klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *content.Status.Error.Message)
+			return nil
+		}
+		contentObj, err := ctrl.createSnapshotWrapper(content)
 		if err != nil {
 			ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot: %v", err))
-			klog.Errorf("createSnapshot [%s]: error occurred in createSnapshotOperation: %v", opName, err)
+			klog.Errorf("createSnapshot [%s]: error occurred in createSnapshotWrapper: %v", opName, err)
 			return err
 		}
 
@@ -295,21 +307,6 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	}
 }
 
-// The function goes through the snapshot creation process.
-func (ctrl *csiSnapshotSideCarController) createSnapshotOperation(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
-	klog.Infof("createSnapshotOperation: Creating snapshot for content %s through the plugin ...", content.Name)
-
-	// content.Status will be created for the first time after a snapshot
-	// is created by the CSI driver. If content.Status is not nil,
-	// we should update content status without creating snapshot again.
-	if content.Status != nil && content.Status.Error != nil && content.Status.Error.Message != nil && !isControllerUpdateFailError(content.Status.Error) {
-		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *content.Status.Error.Message)
-		return content, nil
-	}
-
-	return ctrl.createSnapshotWrapper(content)
-}
-
 // This is a wrapper function for the snapshot creation process.
 func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	klog.Infof("createSnapshotWrapper: Creating snapshot for content %s through the plugin ...", content.Name)
@@ -337,7 +334,7 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 		// If it is a final error, remove annotation to indicate
 		// storage system has responded with an error
 		klog.Infof("createSnapshotWrapper: CreateSnapshot for content %s returned error: %v", content.Name, err)
-		if isFinalError(err) {
+		if isCSIFinalError(err) {
 			err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
 			if err != nil {
 				return nil, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
@@ -355,8 +352,8 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 
 	newContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, creationTime.UnixNano(), size)
 	if err != nil {
-		strerr := fmt.Sprintf("error updating volume snapshot content status for snapshot %s: %v.", content.Name, err)
-		klog.Error(strerr)
+		klog.Errorf("error updating status for volume snapshot content %s: %v.", content.Name, err)
+		return nil, fmt.Errorf("error updating status for volume snapshot content %s: %v.", content.Name, err)
 	} else {
 		content = newContent
 	}
@@ -607,26 +604,30 @@ func (ctrl *csiSnapshotSideCarController) shouldDelete(content *crdv1.VolumeSnap
 // on VolumeSnapshotContent
 // If set, it indicates snapshot is being created
 func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(content *crdv1.VolumeSnapshotContent) error {
-	// Set AnnVolumeSnapshotBeingCreated if it is not set yet
-	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) {
-		klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:yes] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, content.Name)
-		contentClone := content.DeepCopy()
-		metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
-
-		updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
-		if err != nil {
-			return newControllerUpdateError(content.Name, err.Error())
-		}
-		// update content if update is successful
-		content = updatedContent
-
-		_, err = ctrl.storeContentUpdate(content)
-		if err != nil {
-			klog.V(4).Infof("setAnnVolumeSnapshotBeingCreated for content [%s]: cannot update internal cache %v", content.Name, err)
-			return err
-		}
-		klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: volume snapshot content %+v", content)
+	if metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) {
+		// the annotation already exists, return directly
+		return nil
 	}
+
+	// Set AnnVolumeSnapshotBeingCreated
+	klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:yes] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, content.Name)
+	contentClone := content.DeepCopy()
+	metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
+
+	updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(contentClone)
+	if err != nil {
+		return newControllerUpdateError(content.Name, err.Error())
+	}
+	// update content if update is successful
+	content = updatedContent
+
+	_, err = ctrl.storeContentUpdate(content)
+	if err != nil {
+		klog.V(4).Infof("setAnnVolumeSnapshotBeingCreated for content [%s]: cannot update internal cache %v", content.Name, err)
+		return err
+	}
+	klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: volume snapshot content %+v", content)
+
 	return nil
 }
 
@@ -634,7 +635,7 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 // annotation from a content if there exists one.
 func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(content *crdv1.VolumeSnapshotContent) error {
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated) {
-		// the annotation does not exit, return directly
+		// the annotation does not exist, return directly
 		return nil
 	}
 	contentClone := content.DeepCopy()
@@ -656,7 +657,7 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(con
 }
 
 // This function checks if the error is final
-func isFinalError(err error) bool {
+func isCSIFinalError(err error) bool {
 	// Sources:
 	// https://github.com/grpc/grpc/blob/master/doc/statuscodes.md
 	// https://github.com/container-storage-interface/spec/blob/master/spec.md
