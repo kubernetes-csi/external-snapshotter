@@ -304,14 +304,6 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	klog.Infof("createSnapshotWrapper: Creating snapshot for content %s through the plugin ...", content.Name)
 
-	// content.Status will be created for the first time after a snapshot
-	// is created by the CSI driver. If content.Status is not nil,
-	// we should update content status without creating snapshot again.
-	if content.Status != nil && content.Status.Error != nil && content.Status.Error.Message != nil && !isControllerUpdateFailError(content.Status.Error) {
-		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *content.Status.Error.Message)
-		return content, nil
-	}
-
 	class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input parameters to create snapshot for content %s: %q", content.Name, err)
