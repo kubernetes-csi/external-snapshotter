@@ -30,10 +30,11 @@ func TestSyncContent(t *testing.T) {
 
 	tests := []controllerTest{
 		{
-			name:             "1-1: Basic content update ready to use",
-			initialContents:  newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "volume-handle-1-1", retainPolicy, nil, &defaultSize, &False, true),
-			expectedContents: newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "volume-handle-1-1", retainPolicy, nil, &defaultSize, &True, true),
-			expectedEvents:   noevents,
+			name:            "1-1: Basic content update ready to use",
+			initialContents: newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "volume-handle-1-1", retainPolicy, nil, &defaultSize, &False, true),
+			expectedContents: withContentAnnotations(newContentArrayWithReadyToUse("content1-1", "snapuid1-1", "snap1-1", "sid1-1", defaultClass, "", "volume-handle-1-1", retainPolicy, nil, &defaultSize, &True, true),
+				map[string]string{}),
+			expectedEvents: noevents,
 			expectedCreateCalls: []createCall{
 				{
 					volumeHandle: "volume-handle-1-1",
@@ -52,8 +53,9 @@ func TestSyncContent(t *testing.T) {
 			name: "1-2: Basic sync content create snapshot",
 			initialContents: withContentStatus(newContentArray("content1-2", "snapuid1-2", "snap1-2", "sid1-2", defaultClass, "", "volume-handle-1-2", retainPolicy, nil, &defaultSize, true),
 				nil),
-			expectedContents: withContentStatus(newContentArray("content1-2", "snapuid1-2", "snap1-2", "sid1-2", defaultClass, "", "volume-handle-1-2", retainPolicy, nil, &defaultSize, true),
+			expectedContents: withContentAnnotations(withContentStatus(newContentArray("content1-2", "snapuid1-2", "snap1-2", "sid1-2", defaultClass, "", "volume-handle-1-2", retainPolicy, nil, &defaultSize, true),
 				&crdv1.VolumeSnapshotContentStatus{SnapshotHandle: toStringPointer("snapuid1-2"), RestoreSize: &defaultSize, ReadyToUse: &True}),
+				map[string]string{}),
 			expectedEvents: noevents,
 			expectedCreateCalls: []createCall{
 				{
@@ -161,7 +163,7 @@ func TestSyncContent(t *testing.T) {
 					SnapshotHandle: toStringPointer("sid1-6"),
 					RestoreSize:    &defaultSize,
 					ReadyToUse:     &False,
-					Error:          newSnapshotError("Failed to check and update snapshot content: failed to get input parameters to create snapshot content1-6: \"failed to retrieve snapshot class bad-class from the informer: \\\"volumesnapshotclass.snapshot.storage.k8s.io \\\\\\\"bad-class\\\\\\\" not found\\\"\""),
+					Error:          newSnapshotError("Failed to check and update snapshot content: failed to get input parameters to create snapshot for content content1-6: \"failed to retrieve snapshot class bad-class from the informer: \\\"volumesnapshotclass.snapshot.storage.k8s.io \\\\\\\"bad-class\\\\\\\" not found\\\"\""),
 				}),
 			expectedEvents: []string{"Warning SnapshotContentCheckandUpdateFailed"},
 			expectedCreateCalls: []createCall{
