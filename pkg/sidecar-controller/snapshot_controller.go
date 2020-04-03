@@ -133,13 +133,6 @@ func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSn
 	klog.V(5).Infof("createSnapshot for content [%s]: started", content.Name)
 	opName := fmt.Sprintf("create-%s", content.Name)
 	ctrl.scheduleOperation(opName, func() error {
-		// content.Status will be created for the first time after a snapshot
-		// is created by the CSI driver. If content.Status is not nil,
-		// we should update content status without creating snapshot again.
-		if content.Status != nil && content.Status.Error != nil && content.Status.Error.Message != nil && !isControllerUpdateFailError(content.Status.Error) {
-			klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *content.Status.Error.Message)
-			return nil
-		}
 		contentObj, err := ctrl.createSnapshotWrapper(content)
 		if err != nil {
 			ctrl.updateContentErrorStatusWithEvent(content, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot: %v", err))
@@ -310,6 +303,14 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 // This is a wrapper function for the snapshot creation process.
 func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	klog.Infof("createSnapshotWrapper: Creating snapshot for content %s through the plugin ...", content.Name)
+
+	// content.Status will be created for the first time after a snapshot
+	// is created by the CSI driver. If content.Status is not nil,
+	// we should update content status without creating snapshot again.
+	if content.Status != nil && content.Status.Error != nil && content.Status.Error.Message != nil && !isControllerUpdateFailError(content.Status.Error) {
+		klog.V(4).Infof("error is already set in snapshot, do not retry to create: %s", *content.Status.Error.Message)
+		return content, nil
+	}
 
 	class, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
 	if err != nil {
@@ -624,7 +625,6 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 	_, err = ctrl.storeContentUpdate(content)
 	if err != nil {
 		klog.V(4).Infof("setAnnVolumeSnapshotBeingCreated for content [%s]: cannot update internal cache %v", content.Name, err)
-		return err
 	}
 	klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: volume snapshot content %+v", content)
 
