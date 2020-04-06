@@ -215,10 +215,10 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshot
 	} else if numName == 0 {
 		// No secrets specified
 		return "", "", nil
-	} else {
-		// THIS IS NOT A VALID CASE
-		return "", "", fmt.Errorf("unknown error with getting secret name and namespace templates")
 	}
+	// THIS IS NOT A VALID CASE
+	return "", "", fmt.Errorf("unknown error with getting secret name and namespace templates")
+
 }
 
 // getSecretReference returns a reference to the secret specified in the given nameTemplate

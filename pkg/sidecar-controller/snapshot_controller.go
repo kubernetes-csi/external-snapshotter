@@ -67,33 +67,33 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			// update content SnapshotHandle to nil upon a successful deletion. At this
 			// point, the finalizer on content should NOT be removed to avoid leaking.
 			return ctrl.deleteCSISnapshot(content)
-		} else {
-			// otherwise, either the snapshot has been deleted from the underlying
-			// storage system, or the deletion policy is Retain, remove the finalizer
-			// if there is one so that API server could delete the object if there is
-			// no other finalizer.
-			return ctrl.removeContentFinalizer(content)
 		}
-	} else {
-		if content.Spec.Source.VolumeHandle != nil && content.Status == nil {
-			klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
-			ctrl.createSnapshot(content)
-		} else {
-			// Skip checkandUpdateContentStatus() if ReadyToUse is
-			// already true. We don't want to keep calling CreateSnapshot
-			// or ListSnapshots CSI methods over and over again for
-			// performance reasons.
-			if content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
-				// Try to remove AnnVolumeSnapshotBeingCreated if it is not removed yet for some reason
-				err := ctrl.removeAnnVolumeSnapshotBeingCreated(content)
-				if err != nil {
-					return fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
-				}
-				return nil
-			}
-			ctrl.checkandUpdateContentStatus(content)
-		}
+		// otherwise, either the snapshot has been deleted from the underlying
+		// storage system, or the deletion policy is Retain, remove the finalizer
+		// if there is one so that API server could delete the object if there is
+		// no other finalizer.
+		return ctrl.removeContentFinalizer(content)
+
 	}
+	if content.Spec.Source.VolumeHandle != nil && content.Status == nil {
+		klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
+		ctrl.createSnapshot(content)
+	} else {
+		// Skip checkandUpdateContentStatus() if ReadyToUse is
+		// already true. We don't want to keep calling CreateSnapshot
+		// or ListSnapshots CSI methods over and over again for
+		// performance reasons.
+		if content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
+			// Try to remove AnnVolumeSnapshotBeingCreated if it is not removed yet for some reason
+			err := ctrl.removeAnnVolumeSnapshotBeingCreated(content)
+			if err != nil {
+				return fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %q", content.Name, err)
+			}
+			return nil
+		}
+		ctrl.checkandUpdateContentStatus(content)
+	}
+
 	return nil
 }
 
@@ -296,9 +296,9 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 			return nil, err
 		}
 		return updatedContent, nil
-	} else {
-		return ctrl.createSnapshotWrapper(content)
 	}
+	return ctrl.createSnapshotWrapper(content)
+
 }
 
 // This is a wrapper function for the snapshot creation process.
@@ -347,10 +347,9 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 	newContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, creationTime.UnixNano(), size)
 	if err != nil {
 		klog.Errorf("error updating status for volume snapshot content %s: %v.", content.Name, err)
-		return nil, fmt.Errorf("error updating status for volume snapshot content %s: %v.", content.Name, err)
-	} else {
-		content = newContent
+		return nil, fmt.Errorf("error updating status for volume snapshot content %s: %v", content.Name, err)
 	}
+	content = newContent
 
 	// NOTE(xyang): handle create timeout
 	// Remove annotation to indicate storage system has successfully
