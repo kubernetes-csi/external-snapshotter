@@ -163,7 +163,7 @@ func TestSyncContent(t *testing.T) {
 					SnapshotHandle: toStringPointer("sid1-6"),
 					RestoreSize:    &defaultSize,
 					ReadyToUse:     &False,
-					Error:          newSnapshotError("Failed to check and update snapshot content: failed to get input parameters to create snapshot for content content1-6: \"failed to retrieve snapshot class bad-class from the informer: \\\"volumesnapshotclass.snapshot.storage.k8s.io \\\\\\\"bad-class\\\\\\\" not found\\\"\""),
+					Error:          newSnapshotError("Failed to check and update snapshot content: failed to get input parameters to create snapshot for content content1-6: \"volumesnapshotclass.snapshot.storage.k8s.io \\\"bad-class\\\" not found\""),
 				}),
 			expectedEvents: []string{"Warning SnapshotContentCheckandUpdateFailed"},
 			expectedCreateCalls: []createCall{
