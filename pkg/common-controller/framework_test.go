@@ -683,7 +683,7 @@ func (r *snapshotReactor) modifyContentEvent(content *crdv1.VolumeSnapshotConten
 	}
 }
 
-// addSnapshotEvent simulates that a snapshot has been deleted in etcd and the
+// addSnapshotEvent simulates that a snapshot has been created in etcd and the
 // controller receives 'snapshot added' event.
 func (r *snapshotReactor) addSnapshotEvent(snapshot *crdv1.VolumeSnapshot) {
 	r.lock.Lock()
@@ -1193,7 +1193,6 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
 		klog.V(4).Infof("starting test %q", test.name)
-
 		// Initialize the controller
 		kubeClient := &kubefake.Clientset{}
 		client := &fake.Clientset{}
