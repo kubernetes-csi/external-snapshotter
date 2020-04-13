@@ -110,8 +110,8 @@ func TestCreateSnapshotSync(t *testing.T) {
 
 		{
 			name:              "7-2 - fail to update snapshot reports warning event",
-			initialContents:   newContentArrayWithReadyToUse("snapcontent-snapuid7-2", "snapuid7-2", "snap7-2", "sid7-2", classGold, "sid7-2", "pv-handle7-2", deletionPolicy, nil, nil, &True, false),
-			expectedContents:  newContentArrayWithReadyToUse("snapcontent-snapuid7-2", "snapuid7-2", "snap7-2", "sid7-2", classGold, "sid7-2", "pv-handle7-2", deletionPolicy, nil, nil, &True, false),
+			initialContents:   newContentArrayWithReadyToUse("snapcontent-snapuid7-2", "snapuid7-2", "snap7-2", "sid7-2", classGold, "", "pv-handle7-2", deletionPolicy, nil, nil, &True, false),
+			expectedContents:  newContentArrayWithReadyToUse("snapcontent-snapuid7-2", "snapuid7-2", "snap7-2", "sid7-2", classGold, "", "pv-handle7-2", deletionPolicy, nil, nil, &True, false),
 			initialSnapshots:  newSnapshotArray("snap7-2", "snapuid7-2", "claim7-2", "", classGold, "snapcontent-snapuid7-2", &False, nil, nil, nil, false, true, nil),
 			expectedSnapshots: newSnapshotArray("snap7-2", "snapuid7-2", "claim7-2", "", classGold, "snapcontent-snapuid7-2", &False, nil, nil, newVolumeError("Snapshot status update failed, snapshot controller failed to update default/snap7-2 on API server: mock update error"), false, true, nil),
 			initialClaims:     newClaimArray("claim7-2", "pvc-uid7-2", "1Gi", "volume7-2", v1.ClaimBound, &classGold),
@@ -232,7 +232,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			initialContents:   nocontents,
 			expectedContents:  nocontents,
 			initialSnapshots:  newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "", invalidSecretClass, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "snap7-10", invalidSecretClass, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-10: \"failed to get name and namespace template from params: either name and namespace for Snapshotter secrets specified, Both must be specified\""), false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-10", "snapuid7-10", "claim7-10", "", invalidSecretClass, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error failed to get input parameters to create snapshot snap7-10: \"failed to get name and namespace template from params: either name and namespace for Snapshotter secrets specified, Both must be specified\""), false, true, nil),
 			initialClaims:     newClaimArray("claim7-10", "pvc-uid7-10", "1Gi", "volume7-10", v1.ClaimBound, &classEmpty),
 			initialVolumes:    newVolumeArray("volume7-10", "pv-uid7-10", "pv-handle7-10", "1Gi", "pvc-uid7-10", "claim7-10", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:    []*v1.Secret{}, // no initial secret created
