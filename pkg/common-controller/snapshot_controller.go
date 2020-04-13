@@ -1132,7 +1132,7 @@ func (ctrl *csiSnapshotCommonController) getSnapshotClass(className string) (*cr
 	class, err := ctrl.classLister.Get(className)
 	if err != nil {
 		klog.Errorf("failed to retrieve snapshot class %s from the informer: %q", className, err)
-		return nil, fmt.Errorf("failed to retrieve snapshot class %s from the informer: %q", className, err)
+		return nil, err
 	}
 
 	return class, nil
@@ -1308,6 +1308,9 @@ func (ctrl *csiSnapshotCommonController) getSnapshotFromStore(snapshotName strin
 }
 
 func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(content *crdv1.VolumeSnapshotContent) error {
+	if content == nil {
+		return nil
+	}
 	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)

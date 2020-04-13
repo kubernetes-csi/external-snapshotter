@@ -89,6 +89,8 @@ Install CSI Driver:
 
 * `--metrics-path`: The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.
 
+* `--worker-threads`: Number of worker threads. Default value is 10.
+
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the snapshot controller uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
 
@@ -112,6 +114,8 @@ Install CSI Driver:
 * `snapshot-name-prefix`: Prefix to apply to the name of a created snapshot. Default is `snapshot`.
 
 * `snapshot-name-uuid-length`: Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.
+
+* `--worker-threads`: Number of worker threads for running create snapshot and delete snapshot operations. Default value is 10.
 
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the CSI external-snapshotter uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the external-snapshotter does not run as a Kubernetes pod, e.g. for debugging.
