@@ -173,15 +173,9 @@ func StoreObjectUpdate(store cache.Store, obj interface{}, className string) (bo
 	return true, nil
 }
 
-// GetSnapshotContentNameForSnapshot returns SnapshotContent.Name for the create VolumeSnapshotContent.
-// The name must be unique.
-func GetSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) string {
-	// If VolumeSnapshot object has SnapshotContentName, use it directly.
-	// This might be the case for static provisioning.
-	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
-		return *snapshot.Spec.Source.VolumeSnapshotContentName
-	}
-	// Construct SnapshotContentName for dynamic provisioning.
+// GetDynamicSnapshotContentNameForSnapshot returns a unique content name for the
+// passed in VolumeSnapshot to dynamically provision a snapshot.
+func GetDynamicSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) string {
 	return "snapcontent-" + string(snapshot.UID)
 }
 
@@ -406,14 +400,6 @@ func GetSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
 		ready = *snapshot.Status.ReadyToUse
 	}
 	return fmt.Sprintf("bound to: %q, Completed: %v", snapshotContentName, ready)
-}
-
-// IsSnapshotBound returns true/false if snapshot is bound
-func IsSnapshotBound(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
-	if IsVolumeSnapshotRefSet(snapshot, content) && IsBoundVolumeSnapshotContentNameSet(snapshot) {
-		return true
-	}
-	return false
 }
 
 func IsVolumeSnapshotRefSet(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
