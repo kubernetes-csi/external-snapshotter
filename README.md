@@ -26,7 +26,7 @@ Blog post for the beta feature can be found [here](https://kubernetes.io/blog/20
 
 This information reflects the head of this branch.
 
-| Compatible with CSI Version                                                                | Container Image             | Min K8s Version | Snapshot CRD version |
+| Compatible with CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | Snapshot CRD version |
 | ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | -------------------- |
 | [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | quay.io/k8scsi/csi-snapshotter | 1.17         | v1beta1              |
 | [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | quay.io/k8scsi/snapshot-controller | 1.17     | v1beta1              |
