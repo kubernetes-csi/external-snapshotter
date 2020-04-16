@@ -723,7 +723,16 @@ install_snapshot_crds() {
 
 # Install snapshot controller and associated RBAC, retrying until the pod is running.
 install_snapshot_controller() {
-  kubectl apply -f "https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml"
+  set -x
+  get_local_rbac_path # assigned to local_rbac_path
+  if ${CSI_PROW_BUILD_JOB}; then
+    snapshot_controller_rbac_path="$(pwd)/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml"
+  else     
+    snapshot_controller_rbac_path="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/deploy/kubernetes/snapshot-controller/rbac-snapshot-controller.yaml"  
+  fi 
+  kubectl apply -f "$snapshot_controller_rbac_path"
+  set +x
+  
   cnt=0
   until kubectl get clusterrolebinding snapshot-controller-role; do
      if [ $cnt -gt 30 ]; then
@@ -1063,17 +1072,27 @@ main () {
                 # (https://github.com/kubernetes-sigs/kind/issues/328).
                 docker tag "$i:latest" "$i:csiprow" || die "tagging the locally built container image for $i failed"
             done
-
-            if [ -e deploy/kubernetes/rbac.yaml ]; then
+            set -x
+            echo "outside conditional"
+            if [ -e deploy/kubernetes/rbac.yaml ] || [ -e deploy/kubernetes/csi-snapshotter/rbac-csi-snapshotter.yaml ]; then
+                echo "inside conditional"
                 # This is one of those components which has its own RBAC rules (like external-provisioner).
                 # We are testing a locally built image and also want to test with the the current,
                 # potentially modified RBAC rules.
+
+                # snapshot-controller RBAC is handled by the cluster manager
+                cmds=${cmds//snapshot-controller/}
                 if [ "$(echo "$cmds" | wc -w)" != 1 ]; then
                     die "ambiguous deploy/kubernetes/rbac.yaml: need exactly one command, got: $cmds"
                 fi
                 e=$(echo "$cmds" | tr '[:lower:]' '[:upper:]' | tr - _)
                 images="$images ${e}_RBAC=$(pwd)/deploy/kubernetes/rbac.yaml"
+                if [ -e "$(pwd)/deploy/kubernetes/csi-snapshotter/rbac-csi-snapshotter.yaml" ]; then
+                    images="$images ${e}_RBAC=$(pwd)/deploy/kubernetes/csi-snapshotter/rbac-csi-snapshotter.yaml"
+                fi
             fi
+            echo "done"
+            set +x
         fi
 
         if tests_need_non_alpha_cluster; then
