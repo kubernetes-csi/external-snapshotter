@@ -1072,27 +1072,28 @@ main () {
                 # (https://github.com/kubernetes-sigs/kind/issues/328).
                 docker tag "$i:latest" "$i:csiprow" || die "tagging the locally built container image for $i failed"
             done
-            set -x
-            echo "outside conditional"
-            if [ -e deploy/kubernetes/rbac.yaml ] || [ -e deploy/kubernetes/csi-snapshotter/rbac-csi-snapshotter.yaml ]; then
-                echo "inside conditional"
-                # This is one of those components which has its own RBAC rules (like external-provisioner).
-                # We are testing a locally built image and also want to test with the the current,
-                # potentially modified RBAC rules.
 
-                # snapshot-controller RBAC is handled by the cluster manager
-                cmds=${cmds//snapshot-controller/}
-                if [ "$(echo "$cmds" | wc -w)" != 1 ]; then
-                    die "ambiguous deploy/kubernetes/rbac.yaml: need exactly one command, got: $cmds"
+            for i in $cmds; do
+                # For components with multiple cmds, the RBAC file should be in the following format:
+                #   rbac-$cmd.yaml
+                # If this file cannot be found, we can default to the standard location:
+                #   deploy/kubernetes/rbac.yaml
+                rbac_file_path=$(find . -type f -name "rbac-$i.yaml")
+                if [ "$rbac_file_path" == "" ]; then
+                    rbac_file_path="$(pwd)/deploy/kubernetes/rbac.yaml"
                 fi
-                e=$(echo "$cmds" | tr '[:lower:]' '[:upper:]' | tr - _)
-                images="$images ${e}_RBAC=$(pwd)/deploy/kubernetes/rbac.yaml"
-                if [ -e "$(pwd)/deploy/kubernetes/csi-snapshotter/rbac-csi-snapshotter.yaml" ]; then
-                    images="$images ${e}_RBAC=$(pwd)/deploy/kubernetes/csi-snapshotter/rbac-csi-snapshotter.yaml"
+                
+                if [ -e "$rbac_file_path" ]; then
+                    # This is one of those components which has its own RBAC rules (like external-provisioner).
+                    # We are testing a locally built image and also want to test with the the current,
+                    # potentially modified RBAC rules.
+
+                    # snapshot-controller RBAC is handled by the cluster manager
+                    # see install_snapshot_controller() for how this is installed
+                    e=$(echo "$i" | tr '[:lower:]' '[:upper:]' | tr - _)
+                    images="$images ${e}_RBAC=$rbac_file_path"
                 fi
-            fi
-            echo "done"
-            set +x
+            done
         fi
 
         if tests_need_non_alpha_cluster; then
