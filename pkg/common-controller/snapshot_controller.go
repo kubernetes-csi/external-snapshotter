@@ -682,6 +682,9 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 		return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
+	msg := fmt.Sprintf("Waiting for a snapshot %s to be created by the CSI driver.", utils.SnapshotKey(snapshot))
+	ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "CreatingSnapshot", msg)
+
 	// Update content in the cache store
 	_, err = ctrl.storeContentUpdate(updateContent)
 	if err != nil {

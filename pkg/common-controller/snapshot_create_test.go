@@ -206,7 +206,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 				{"update", "volumesnapshots", errors.New("mock update error")},
 				{"update", "volumesnapshots", errors.New("mock update error")},
 			},
-			expectedEvents: []string{"Warning SnapshotStatusUpdateFailed"},
+			expectedEvents: []string{"Normal CreatingSnapshot"},
 			expectSuccess:  false,
 			test:           testSyncSnapshot,
 		},
