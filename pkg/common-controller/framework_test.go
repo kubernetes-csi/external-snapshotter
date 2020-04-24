@@ -683,7 +683,7 @@ func (r *snapshotReactor) modifyContentEvent(content *crdv1.VolumeSnapshotConten
 	}
 }
 
-// addSnapshotEvent simulates that a snapshot has been deleted in etcd and the
+// addSnapshotEvent simulates that a snapshot has been created in etcd and the
 // controller receives 'snapshot added' event.
 func (r *snapshotReactor) addSnapshotEvent(snapshot *crdv1.VolumeSnapshot) {
 	r.lock.Lock()
@@ -795,13 +795,11 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	}
 
 	if volumeHandle != "" {
-		content.Spec.Source = crdv1.VolumeSnapshotContentSource{
-			VolumeHandle: &volumeHandle,
-		}
-	} else if desiredSnapshotHandle != "" {
-		content.Spec.Source = crdv1.VolumeSnapshotContentSource{
-			SnapshotHandle: &desiredSnapshotHandle,
-		}
+		content.Spec.Source.VolumeHandle = &volumeHandle
+	}
+
+	if desiredSnapshotHandle != "" {
+		content.Spec.Source.SnapshotHandle = &desiredSnapshotHandle
 	}
 
 	if boundToSnapshotName != "" {
@@ -916,13 +914,10 @@ func newSnapshot(
 	}
 
 	if pvcName != "" {
-		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
-			PersistentVolumeClaimName: &pvcName,
-		}
-	} else if targetContentName != "" {
-		snapshot.Spec.Source = crdv1.VolumeSnapshotSource{
-			VolumeSnapshotContentName: &targetContentName,
-		}
+		snapshot.Spec.Source.PersistentVolumeClaimName = &pvcName
+	}
+	if targetContentName != "" {
+		snapshot.Spec.Source.VolumeSnapshotContentName = &targetContentName
 	}
 	if withAllFinalizers {
 		return withSnapshotFinalizers([]*crdv1.VolumeSnapshot{&snapshot}, utils.VolumeSnapshotAsSourceFinalizer, utils.VolumeSnapshotBoundFinalizer)[0]
