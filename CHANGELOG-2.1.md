@@ -1,4 +1,14 @@
-# Changelog since v2.0.0
+# v2.1.1 (Changelog since v2.1.0)
+
+## Bug Fixes
+
+### Snapshot Controller
+
+- Cherry pick PR #293: Fixes issue #290. Disallow a pre-provisioned VolumeSnapshot pointing to a dynamically created VolumeSnapshotContent. ([#303](https://github.com/kubernetes-csi/external-snapshotter/pull/303), [@yuxiangqian](https://github.com/yuxiangqian))
+- Cherry pick PR #293: Fixes issue #291. Verify VolumeSnapshot and VolumeSnapshotContent are bi-directional bound before initializing a deletion on a VolumeSnapshotContent which the to-be-deleted VolumeSnapshot points to. ([#303](https://github.com/kubernetes-csi/external-snapshotter/pull/303), [@yuxiangqian](https://github.com/yuxiangqian))
+- Cherry pick PR #293: Fixes issue #292. Allow deletion of a VolumeSnapshot when the VolumeSnapshotContent's DeletionPolicy has been updated from Delete to Retain. ([#303](https://github.com/kubernetes-csi/external-snapshotter/pull/303), [@yuxiangqian](https://github.com/yuxiangqian))
+
+# v2.1.0 (Changelog since v2.0.0)
 
 ## New Features
 
