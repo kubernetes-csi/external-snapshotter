@@ -33,7 +33,7 @@ import (
 func TestUpdateSnapshotClass(t *testing.T) {
 	tests := []controllerTest{
 		{
-			// defualt snapshot class name should be set
+			// default snapshot class name should be set
 			name:                  "1-1 - default snapshot class name should be set",
 			initialContents:       nocontents,
 			initialSnapshots:      newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "", "", "", &True, nil, nil, nil, false, true, nil),

@@ -15,7 +15,7 @@ The move of the Kubernetes Volume Snapshot feature to beta also means:
 * A revamp of volume snapshot APIs.
 * The CSI external-snapshotter sidecar is split into two controllers, a snapshot controller and a CSI external-snapshotter sidecar.
 
-The snapshot controller is deployed by the Kubernetes distributions and is responsible for watching the VolumeSnapshot CRD objects and manges the creation and deletion lifecycle of snapshots.
+The snapshot controller is deployed by the Kubernetes distributions and is responsible for watching the VolumeSnapshot CRD objects and manages the creation and deletion lifecycle of snapshots.
 
 The CSI external-snapshotter sidecar watches Kubernetes VolumeSnapshotContent CRD objects and triggers CreateSnapshot/DeleteSnapshot against a CSI endpoint.
 
