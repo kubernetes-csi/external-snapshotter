@@ -108,7 +108,7 @@ func main() {
 	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, *resyncPeriod)
 
-	// Add Snapshot types to the defualt Kubernetes so events can be logged for them
+	// Add Snapshot types to the default Kubernetes so events can be logged for them
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
 	// Connect to CSI.
