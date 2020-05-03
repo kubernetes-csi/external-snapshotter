@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2020 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ limitations under the License.
 package v1beta1
 
 import (
+	"context"
 	time "time"
 
 	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -60,13 +61,13 @@ func NewFilteredVolumeSnapshotClassInformer(client versioned.Interface, resyncPe
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1beta1().VolumeSnapshotClasses().List(options)
+				return client.SnapshotV1beta1().VolumeSnapshotClasses().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1beta1().VolumeSnapshotClasses().Watch(options)
+				return client.SnapshotV1beta1().VolumeSnapshotClasses().Watch(context.TODO(), options)
 			},
 		},
 		&volumesnapshotv1beta1.VolumeSnapshotClass{},
