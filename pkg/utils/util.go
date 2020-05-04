@@ -17,11 +17,11 @@ limitations under the License.
 package utils
 
 import (
+	"context"
 	"fmt"
-	"strings"
-
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
@@ -318,7 +318,7 @@ func GetCredentials(k8s kubernetes.Interface, ref *v1.SecretReference) (map[stri
 		return nil, nil
 	}
 
-	secret, err := k8s.CoreV1().Secrets(ref.Namespace).Get(ref.Name, metav1.GetOptions{})
+	secret, err := k8s.CoreV1().Secrets(ref.Namespace).Get(context.TODO(), ref.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error getting secret %s in namespace %s: %v", ref.Name, ref.Namespace, err)
 	}
