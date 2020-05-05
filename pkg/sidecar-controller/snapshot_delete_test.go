@@ -30,7 +30,7 @@ import (
 )
 
 var defaultSize int64 = 1000
-var emptySize int64 = 0
+var emptySize int64
 var deletePolicy = crdv1.VolumeSnapshotContentDelete
 var retainPolicy = crdv1.VolumeSnapshotContentRetain
 var timeNow = time.Now()

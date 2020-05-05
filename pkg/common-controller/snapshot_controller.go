@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
-	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +32,9 @@ import (
 	ref "k8s.io/client-go/tools/reference"
 	"k8s.io/klog"
 	"k8s.io/kubernetes/pkg/util/slice"
+
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 )
 
 // ==================================================================
@@ -334,8 +335,8 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot *crdv1.VolumeSnapshot) error {
 	// get the content for this Snapshot
 	var (
-		content *crdv1.VolumeSnapshotContent = nil
-		err     error                        = nil
+		content *crdv1.VolumeSnapshotContent
+		err     error
 	)
 	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
 		content, err = ctrl.getPreprovisionedContentFromStore(snapshot)
@@ -374,7 +375,7 @@ func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot 
 // If there is any problem with the binding (e.g., snapshot points to a non-existent snapshot content), update the snapshot status and emit event.
 func (ctrl *csiSnapshotCommonController) syncReadySnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	if !utils.IsBoundVolumeSnapshotContentNameSet(snapshot) {
-		return fmt.Errorf("snapshot %s is not bound to a content.", utils.SnapshotKey(snapshot))
+		return fmt.Errorf("snapshot %s is not bound to a content", utils.SnapshotKey(snapshot))
 	}
 	content, err := ctrl.getContentFromStore(*snapshot.Status.BoundVolumeSnapshotContentName)
 	if err != nil {
@@ -464,30 +465,29 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
 			return fmt.Errorf("expected PVC source for snapshot %s but got nil", uniqueSnapshotName)
-		} else {
-			var err error
-			var content *crdv1.VolumeSnapshotContent
-			if content, err = ctrl.createSnapshotContent(snapshot); err != nil {
-				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentCreationFailed", fmt.Sprintf("Failed to create snapshot content with error %v", err))
-				return err
-			}
+		}
+		var err error
+		var content *crdv1.VolumeSnapshotContent
+		if content, err = ctrl.createSnapshotContent(snapshot); err != nil {
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentCreationFailed", fmt.Sprintf("Failed to create snapshot content with error %v", err))
+			return err
+		}
 
-			// Update snapshot status with BoundVolumeSnapshotContentName
-			for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
-				klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
-				_, err = ctrl.updateSnapshotStatus(snapshot, content)
-				if err == nil {
-					break
-				}
-				klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
-				time.Sleep(ctrl.createSnapshotContentInterval)
+		// Update snapshot status with BoundVolumeSnapshotContentName
+		for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
+			klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
+			_, err = ctrl.updateSnapshotStatus(snapshot, content)
+			if err == nil {
+				break
 			}
+			klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
+			time.Sleep(ctrl.createSnapshotContentInterval)
+		}
 
-			if err != nil {
-				// update snapshot status failed
-				ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
-				return err
-			}
+		if err != nil {
+			// update snapshot status failed
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
+			return err
 		}
 	}
 	return nil
@@ -1356,14 +1356,14 @@ func (ctrl *csiSnapshotCommonController) getSnapshotFromStore(snapshotName strin
 		klog.V(4).Infof("getSnapshotFromStore: snapshot %s not found", snapshotName)
 		// Fall through with snapshot = nil
 		return nil, nil
-	} else {
-		var ok bool
-		snapshot, ok = obj.(*crdv1.VolumeSnapshot)
-		if !ok {
-			return nil, fmt.Errorf("cannot convert object from snapshot cache to snapshot %q!?: %#v", snapshotName, obj)
-		}
-		klog.V(4).Infof("getSnapshotFromStore: snapshot %s found", snapshotName)
 	}
+	var ok bool
+	snapshot, ok = obj.(*crdv1.VolumeSnapshot)
+	if !ok {
+		return nil, fmt.Errorf("cannot convert object from snapshot cache to snapshot %q!?: %#v", snapshotName, obj)
+	}
+	klog.V(4).Infof("getSnapshotFromStore: snapshot %s found", snapshotName)
+
 	return snapshot, nil
 }
 
