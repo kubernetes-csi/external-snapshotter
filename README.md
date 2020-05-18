@@ -60,7 +60,7 @@ The Volume Snapshot feature now depends on a new, volume snapshot controller in 
 
 Therefore, it is strongly recommended that Kubernetes distributors bundle and deploy the controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver).
 
-If your cluster does not come pre-installed with the correct components, you may manually install these components by executing the following steps.
+If your Kubernetes distribution does not bundle the snapshot controller, you may manually install these components by executing the following steps. Note that the snapshot controller YAML files in the git repository deploy into the default namespace for system testing purposes. For general use, update the snapshot controller YAMLs with an appropriate namespace prior to installing. For example, on a Vanilla Kubernetes cluster update the namespace from 'default' to 'kube-system' prior to issuing the kubectl create command.
 
 Install Snapshot Beta CRDs:
 * kubectl create -f config/crd
@@ -68,6 +68,7 @@ Install Snapshot Beta CRDs:
 * Do this once per cluster
 
 Install Common Snapshot Controller:
+* Update the namespace to an appropriate value for your environment (e.g. kube-system)
 * kubectl create -f deploy/kubernetes/snapshot-controller
 * https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller
 * Do this once per cluster
