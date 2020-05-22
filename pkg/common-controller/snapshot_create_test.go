@@ -107,24 +107,6 @@ func TestCreateSnapshotSync(t *testing.T) {
 			expectSuccess:     false,
 			test:              testSyncSnapshot,
 		},
-
-		{
-			name:              "7-2 - fail to update snapshot reports warning event",
-			initialContents:   newContentArrayWithReadyToUse("snapcontent-snapuid7-2", "snapuid7-2", "snap7-2", "sid7-2", classGold, "", "pv-handle7-2", deletionPolicy, nil, nil, &True, false),
-			expectedContents:  newContentArrayWithReadyToUse("snapcontent-snapuid7-2", "snapuid7-2", "snap7-2", "sid7-2", classGold, "", "pv-handle7-2", deletionPolicy, nil, nil, &True, false),
-			initialSnapshots:  newSnapshotArray("snap7-2", "snapuid7-2", "claim7-2", "", classGold, "snapcontent-snapuid7-2", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap7-2", "snapuid7-2", "claim7-2", "", classGold, "snapcontent-snapuid7-2", &False, nil, nil, newVolumeError("Snapshot status update failed, snapshot controller failed to update default/snap7-2 on API server: mock update error"), false, true, nil),
-			initialClaims:     newClaimArray("claim7-2", "pvc-uid7-2", "1Gi", "volume7-2", v1.ClaimBound, &classGold),
-			initialVolumes:    newVolumeArray("volume7-2", "pv-uid7-2", "pv-handle7-2", "1Gi", "pvc-uid7-2", "claim7-2", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classGold),
-			expectedEvents:    []string{"Warning SnapshotStatusUpdateFailed"},
-			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
-				// All other calls will succeed.
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
-			}, test: testSyncSnapshot,
-		},
 		{
 			name:                  "7-3 - fail to create snapshot without snapshot class ",
 			initialContents:       nocontents,
@@ -194,23 +176,6 @@ func TestCreateSnapshotSync(t *testing.T) {
 			test:          testSyncSnapshot,
 		},
 		{
-			name:              "7-8 - fail create snapshot due to cannot update snapshot status",
-			initialContents:   nocontents,
-			expectedContents:  newContentArrayNoStatus("snapcontent-snapuid7-8", "snapuid7-8", "snap7-8", "sid7-8", classGold, "", "pv-handle7-8", deletionPolicy, nil, nil, false, false),
-			initialSnapshots:  newSnapshotArray("snap7-8", "snapuid7-8", "claim7-8", "", classGold, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap7-8", "snapuid7-8", "claim7-8", "", classGold, "", &False, nil, nil, newVolumeError("Snapshot status update failed, snapshot controller failed to update default/snap7-8 on API server: mock update error"), false, true, nil),
-			initialClaims:     newClaimArray("claim7-8", "pvc-uid7-8", "1Gi", "volume7-8", v1.ClaimBound, &classEmpty),
-			initialVolumes:    newVolumeArray("volume7-8", "pv-uid7-8", "pv-handle7-8", "1Gi", "pvc-uid7-8", "claim7-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-			errors: []reactorError{
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
-			},
-			expectedEvents: []string{"Normal CreatingSnapshot"},
-			expectSuccess:  false,
-			test:           testSyncSnapshot,
-		},
-		{
 			name:              "7-9 - fail create snapshot due to cannot update snapshot status, and failure cannot be recorded either due to additional status update failure.",
 			initialContents:   nocontents,
 			expectedContents:  newContentArrayNoStatus("snapcontent-snapuid7-9", "snapuid7-9", "snap7-9", "sid7-9", classGold, "", "pv-handle7-9", deletionPolicy, nil, nil, false, false),
@@ -239,7 +204,8 @@ func TestCreateSnapshotSync(t *testing.T) {
 			test:              testSyncSnapshot,
 		},
 		{
-			// TODO(xiangqian): this test case needs to be revisited the scenario
+			// TODO(xiangqian): this test case needs to be
+			// revisited the scenario
 			// of VolumeSnapshotContent saving failure. Since there will be no content object
 			// in API server, it could potentially cause leaking issue
 			name:              "7-11 - fail create snapshot due to cannot save snapshot content",

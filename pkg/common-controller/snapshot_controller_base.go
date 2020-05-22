@@ -39,14 +39,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/util/goroutinemap"
 )
-
-// Number of retries when we create a VolumeSnapshotContent object
-const createSnapshotContentRetryCount = 5
-
-// Interval between retries when we create a VolumeSnapshotContent object
-const createSnapshotContentInterval = 10 * time.Second
 
 type csiSnapshotCommonController struct {
 	clientset     clientset.Interface
@@ -67,12 +60,7 @@ type csiSnapshotCommonController struct {
 	snapshotStore cache.Store
 	contentStore  cache.Store
 
-	// Map of scheduled/running operations.
-	runningOperations goroutinemap.GoRoutineMap
-
-	createSnapshotContentRetryCount int
-	createSnapshotContentInterval   time.Duration
-	resyncPeriod                    time.Duration
+	resyncPeriod time.Duration
 }
 
 // NewCSISnapshotController returns a new *csiSnapshotCommonController
@@ -92,17 +80,14 @@ func NewCSISnapshotCommonController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
 
 	ctrl := &csiSnapshotCommonController{
-		clientset:                       clientset,
-		client:                          client,
-		eventRecorder:                   eventRecorder,
-		runningOperations:               goroutinemap.NewGoRoutineMap(true),
-		createSnapshotContentRetryCount: createSnapshotContentRetryCount,
-		createSnapshotContentInterval:   createSnapshotContentInterval,
-		resyncPeriod:                    resyncPeriod,
-		snapshotStore:                   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentStore:                    cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
-		contentQueue:                    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
+		clientset:     clientset,
+		client:        client,
+		eventRecorder: eventRecorder,
+		resyncPeriod:  resyncPeriod,
+		snapshotStore: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		contentStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		snapshotQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
+		contentQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
 	}
 
 	ctrl.pvcLister = pvcInformer.Lister()
@@ -192,134 +177,142 @@ func (ctrl *csiSnapshotCommonController) enqueueContentWork(obj interface{}) {
 	}
 }
 
-// snapshotWorker processes items from snapshotQueue. It must run only once,
-// syncSnapshot is not assured to be reentrant.
+// snapshotWorker is the main worker for VolumeSnapshots.
 func (ctrl *csiSnapshotCommonController) snapshotWorker() {
-	workFunc := func() bool {
-		keyObj, quit := ctrl.snapshotQueue.Get()
-		if quit {
-			return true
-		}
-		defer ctrl.snapshotQueue.Done(keyObj)
-		key := keyObj.(string)
-		klog.V(5).Infof("snapshotWorker[%s]", key)
-
-		namespace, name, err := cache.SplitMetaNamespaceKey(key)
-		klog.V(5).Infof("snapshotWorker: snapshot namespace [%s] name [%s]", namespace, name)
-		if err != nil {
-			klog.Errorf("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
-			return false
-		}
-		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
-		if err == nil {
-			// The volume snapshot still exists in informer cache, the event must have
-			// been add/update/sync
-			newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
-			if err == nil || (newSnapshot.ObjectMeta.DeletionTimestamp != nil && errors.IsNotFound(err)) {
-				// If the VolumeSnapshotClass is not found, we still need to process an update
-				// so that syncSnapshot can delete the snapshot, should it still exist in the
-				// cluster after it's been removed from the informer cache
-				klog.V(5).Infof("updating snapshot %q; snapshotClass may have already been removed", key)
-				ctrl.updateSnapshot(newSnapshot)
-			}
-			return false
-		}
-		if err != nil && !errors.IsNotFound(err) {
-			klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
-			return false
-		}
-		// The snapshot is not in informer cache, the event must have been "delete"
-		vsObj, found, err := ctrl.snapshotStore.GetByKey(key)
-		if err != nil {
-			klog.V(2).Infof("error getting snapshot %q from cache: %v", key, err)
-			return false
-		}
-		if !found {
-			// The controller has already processed the delete event and
-			// deleted the snapshot from its cache
-			klog.V(2).Infof("deletion of snapshot %q was already processed", key)
-			return false
-		}
-		snapshot, ok := vsObj.(*crdv1.VolumeSnapshot)
-		if !ok {
-			klog.Errorf("expected vs, got %+v", vsObj)
-			return false
-		}
-		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
-		if err == nil || errors.IsNotFound(err) {
-			// We should still handle deletion events even if the VolumeSnapshotClass
-			// is not found in the cluster
-			klog.V(5).Infof("deleting snapshot %q; snapshotClass may have already been removed", key)
-			ctrl.deleteSnapshot(newSnapshot)
-		}
-		return false
+	keyObj, quit := ctrl.snapshotQueue.Get()
+	if quit {
+		return
 	}
+	defer ctrl.snapshotQueue.Done(keyObj)
 
-	for {
-		if quit := workFunc(); quit {
-			klog.Infof("snapshot worker queue shutting down")
-			return
-		}
+	if err := ctrl.syncSnapshotByKey(keyObj.(string)); err != nil {
+		// Rather than wait for a full resync, re-add the key to the
+		// queue to be processed.
+		ctrl.snapshotQueue.AddRateLimited(keyObj)
+		klog.V(4).Infof("Failed to sync snapshot %q, will retry again: %v", keyObj.(string), err)
+	} else {
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		ctrl.snapshotQueue.Forget(keyObj)
 	}
 }
 
-// contentWorker processes items from contentQueue. It must run only once,
-// syncContent is not assured to be reentrant.
-func (ctrl *csiSnapshotCommonController) contentWorker() {
-	workFunc := func() bool {
-		keyObj, quit := ctrl.contentQueue.Get()
-		if quit {
-			return true
-		}
-		defer ctrl.contentQueue.Done(keyObj)
-		key := keyObj.(string)
-		klog.V(5).Infof("contentWorker[%s]", key)
+// syncSnapshotByKey processes a VolumeSnapshot request.
+func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
+	klog.V(5).Infof("syncSnapshotByKey[%s]", key)
 
-		_, name, err := cache.SplitMetaNamespaceKey(key)
-		if err != nil {
-			klog.V(4).Infof("error getting name of snapshotContent %q to get snapshotContent from informer: %v", key, err)
-			return false
-		}
-		content, err := ctrl.contentLister.Get(name)
-		// The content still exists in informer cache, the event must have
+	namespace, name, err := cache.SplitMetaNamespaceKey(key)
+	klog.V(5).Infof("snapshotWorker: snapshot namespace [%s] name [%s]", namespace, name)
+	if err != nil {
+		klog.Errorf("error getting namespace & name of snapshot %q to get snapshot from informer: %v", key, err)
+		return nil
+	}
+	snapshot, err := ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
+	if err == nil {
+		// The volume snapshot still exists in informer cache, the event must have
 		// been add/update/sync
-		if err == nil {
-			ctrl.updateContent(content)
-			return false
+		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
+		if err == nil || (newSnapshot.ObjectMeta.DeletionTimestamp != nil && errors.IsNotFound(err)) {
+			// If the VolumeSnapshotClass is not found, we still need to process an update
+			// so that syncSnapshot can delete the snapshot, should it still exist in the
+			// cluster after it's been removed from the informer cache
+			if newSnapshot.ObjectMeta.DeletionTimestamp != nil && errors.IsNotFound(err) {
+				klog.V(5).Infof("Snapshot %q is being deleted. SnapshotClass has already been removed", key)
+			}
+			klog.V(5).Infof("Updating snapshot %q", key)
+			return ctrl.updateSnapshot(newSnapshot)
 		}
-		if !errors.IsNotFound(err) {
-			klog.V(2).Infof("error getting content %q from informer: %v", key, err)
-			return false
-		}
-
-		// The content is not in informer cache, the event must have been
-		// "delete"
-		contentObj, found, err := ctrl.contentStore.GetByKey(key)
-		if err != nil {
-			klog.V(2).Infof("error getting content %q from cache: %v", key, err)
-			return false
-		}
-		if !found {
-			// The controller has already processed the delete event and
-			// deleted the content from its cache
-			klog.V(2).Infof("deletion of content %q was already processed", key)
-			return false
-		}
-		content, ok := contentObj.(*crdv1.VolumeSnapshotContent)
-		if !ok {
-			klog.Errorf("expected content, got %+v", content)
-			return false
-		}
-		ctrl.deleteContent(content)
-		return false
+		return err
+	}
+	if err != nil && !errors.IsNotFound(err) {
+		klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
+		return err
+	}
+	// The snapshot is not in informer cache, the event must have been "delete"
+	vsObj, found, err := ctrl.snapshotStore.GetByKey(key)
+	if err != nil {
+		klog.V(2).Infof("error getting snapshot %q from cache: %v", key, err)
+		return nil
+	}
+	if !found {
+		// The controller has already processed the delete event and
+		// deleted the snapshot from its cache
+		klog.V(2).Infof("deletion of snapshot %q was already processed", key)
+		return nil
+	}
+	snapshot, ok := vsObj.(*crdv1.VolumeSnapshot)
+	if !ok {
+		klog.Errorf("expected vs, got %+v", vsObj)
+		return nil
 	}
 
-	for {
-		if quit := workFunc(); quit {
-			klog.Infof("content worker queue shutting down")
-			return
-		}
+	klog.V(5).Infof("deleting snapshot %q", key)
+	ctrl.deleteSnapshot(snapshot)
+
+	return nil
+}
+
+// contentWorker is the main worker for VolumeSnapshotContent.
+func (ctrl *csiSnapshotCommonController) contentWorker() {
+	keyObj, quit := ctrl.contentQueue.Get()
+	if quit {
+		return
 	}
+	defer ctrl.contentQueue.Done(keyObj)
+
+	if err := ctrl.syncContentByKey(keyObj.(string)); err != nil {
+		// Rather than wait for a full resync, re-add the key to the
+		// queue to be processed.
+		ctrl.contentQueue.AddRateLimited(keyObj)
+		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", keyObj.(string), err)
+	} else {
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		ctrl.contentQueue.Forget(keyObj)
+	}
+}
+
+// syncContentByKey processes a VolumeSnapshotContent request.
+func (ctrl *csiSnapshotCommonController) syncContentByKey(key string) error {
+	klog.V(5).Infof("syncContentByKey[%s]", key)
+
+	_, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		klog.V(4).Infof("error getting name of snapshotContent %q to get snapshotContent from informer: %v", key, err)
+		return nil
+	}
+	content, err := ctrl.contentLister.Get(name)
+	// The content still exists in informer cache, the event must have
+	// been add/update/sync
+	if err == nil {
+		// If error occurs we add this item back to the queue
+		return ctrl.updateContent(content)
+	}
+	if !errors.IsNotFound(err) {
+		klog.V(2).Infof("error getting content %q from informer: %v", key, err)
+		return nil
+	}
+
+	// The content is not in informer cache, the event must have been
+	// "delete"
+	contentObj, found, err := ctrl.contentStore.GetByKey(key)
+	if err != nil {
+		klog.V(2).Infof("error getting content %q from cache: %v", key, err)
+		return nil
+	}
+	if !found {
+		// The controller has already processed the delete event and
+		// deleted the content from its cache
+		klog.V(2).Infof("deletion of content %q was already processed", key)
+		return nil
+	}
+	content, ok := contentObj.(*crdv1.VolumeSnapshotContent)
+	if !ok {
+		klog.Errorf("expected content, got %+v", content)
+		return nil
+	}
+	ctrl.deleteContent(content)
+	return nil
 }
 
 // checkAndUpdateSnapshotClass gets the VolumeSnapshotClass from VolumeSnapshot. If it is not set,
@@ -357,7 +350,7 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
 // "snapshot updated" and "periodic sync" events.
-func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) {
+func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	// Store the new snapshot version in the cache and do not process it if this is
 	// an old version.
 	klog.V(5).Infof("updateSnapshot %q", utils.SnapshotKey(snapshot))
@@ -366,23 +359,25 @@ func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSn
 		klog.Errorf("%v", err)
 	}
 	if !newSnapshot {
-		return
+		return nil
 	}
 	err = ctrl.syncSnapshot(snapshot)
 	if err != nil {
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
 			// recovers from it easily.
-			klog.V(3).Infof("could not sync claim %q: %+v", utils.SnapshotKey(snapshot), err)
+			klog.V(3).Infof("could not sync snapshot %q: %+v", utils.SnapshotKey(snapshot), err)
 		} else {
-			klog.Errorf("could not sync volume %q: %+v", utils.SnapshotKey(snapshot), err)
+			klog.Errorf("could not sync snapshot %q: %+v", utils.SnapshotKey(snapshot), err)
 		}
+		return err
 	}
+	return nil
 }
 
 // updateContent runs in worker thread and handles "content added",
 // "content updated" and "periodic sync" events.
-func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnapshotContent) {
+func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnapshotContent) error {
 	// Store the new content version in the cache and do not process it if this is
 	// an old version.
 	new, err := ctrl.storeContentUpdate(content)
@@ -390,7 +385,7 @@ func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnap
 		klog.Errorf("%v", err)
 	}
 	if !new {
-		return
+		return nil
 	}
 	err = ctrl.syncContent(content)
 	if err != nil {
@@ -401,7 +396,9 @@ func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnap
 		} else {
 			klog.Errorf("could not sync content %q: %+v", content.Name, err)
 		}
+		return err
 	}
+	return nil
 }
 
 // deleteSnapshot runs in worker thread and handles "snapshot deleted" event.

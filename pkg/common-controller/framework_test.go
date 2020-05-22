@@ -582,7 +582,6 @@ func (r *snapshotReactor) getChangeCount() int {
 // waitForIdle waits until all tests, controllers and other goroutines do their
 // job and no new actions are registered for 10 milliseconds.
 func (r *snapshotReactor) waitForIdle() {
-	r.ctrl.runningOperations.WaitForCompletion()
 	// Check every 10ms if the controller does something and stop if it's
 	// idle.
 	oldChanges := -1
@@ -609,9 +608,6 @@ func (r *snapshotReactor) waitTest(test controllerTest) error {
 		Steps:    10,
 	}
 	err := wait.ExponentialBackoff(backoff, func() (done bool, err error) {
-		// Finish all operations that are in progress
-		r.ctrl.runningOperations.WaitForCompletion()
-
 		// Return 'true' if the reactor reached the expected state
 		err1 := r.checkSnapshots(test.expectedSnapshots)
 		err2 := r.checkContents(test.expectedContents)
@@ -757,8 +753,6 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	ctrl.snapshotListerSynced = alwaysReady
 	ctrl.classListerSynced = alwaysReady
 	ctrl.pvcListerSynced = alwaysReady
-	ctrl.createSnapshotContentInterval = time.Millisecond * 5
-	ctrl.createSnapshotContentRetryCount = 3
 
 	return ctrl, nil
 }

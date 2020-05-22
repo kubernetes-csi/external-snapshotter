@@ -423,18 +423,10 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		}
 
 		// update snapshot status
-		for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
-			klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
-			_, err = ctrl.updateSnapshotStatus(snapshot, newContent)
-			if err == nil {
-				break
-			}
-			klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
-			time.Sleep(ctrl.createSnapshotContentInterval)
-		}
-
-		if err != nil {
+		klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
+		if _, err = ctrl.updateSnapshotStatus(snapshot, newContent); err != nil {
 			// update snapshot status failed
+			klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 			return err
 		}
@@ -474,17 +466,8 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		}
 
 		// Update snapshot status with BoundVolumeSnapshotContentName
-		for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
-			klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
-			_, err = ctrl.updateSnapshotStatus(snapshot, content)
-			if err == nil {
-				break
-			}
-			klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
-			time.Sleep(ctrl.createSnapshotContentInterval)
-		}
-
-		if err != nil {
+		klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
+		if _, err = ctrl.updateSnapshotStatus(snapshot, content); err != nil {
 			// update snapshot status failed
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 			return err
@@ -656,24 +639,18 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 	}
 
 	var updateContent *crdv1.VolumeSnapshotContent
-	klog.V(3).Infof("volume snapshot content %#v", snapshotContent)
-	// Try to create the VolumeSnapshotContent object several times
-	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
-		klog.V(5).Infof("createSnapshotContent [%s]: trying to save volume snapshot content %s", utils.SnapshotKey(snapshot), snapshotContent.Name)
-		if updateContent, err = ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Create(context.TODO(), snapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
-			// Save succeeded.
-			if err != nil {
-				klog.V(3).Infof("volume snapshot content %q for snapshot %q already exists, reusing", snapshotContent.Name, utils.SnapshotKey(snapshot))
-				err = nil
-				updateContent = snapshotContent
-			} else {
-				klog.V(3).Infof("volume snapshot content %q for snapshot %q saved, %v", snapshotContent.Name, utils.SnapshotKey(snapshot), snapshotContent)
-			}
-			break
+	klog.V(5).Infof("volume snapshot content %#v", snapshotContent)
+	// Try to create the VolumeSnapshotContent object
+	klog.V(5).Infof("createSnapshotContent [%s]: trying to save volume snapshot content %s", utils.SnapshotKey(snapshot), snapshotContent.Name)
+	if updateContent, err = ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Create(context.TODO(), snapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
+		// Save succeeded.
+		if err != nil {
+			klog.V(3).Infof("volume snapshot content %q for snapshot %q already exists, reusing", snapshotContent.Name, utils.SnapshotKey(snapshot))
+			err = nil
+			updateContent = snapshotContent
+		} else {
+			klog.V(3).Infof("volume snapshot content %q for snapshot %q saved, %v", snapshotContent.Name, utils.SnapshotKey(snapshot), snapshotContent)
 		}
-		// Save failed, try again after a while.
-		klog.V(3).Infof("failed to save volume snapshot content %q for snapshot %q: %v", snapshotContent.Name, utils.SnapshotKey(snapshot), err)
-		time.Sleep(ctrl.createSnapshotContentInterval)
 	}
 
 	if err != nil {
@@ -982,19 +959,14 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeSnapshot(snapshotCon
 	snapshotCopy := snapshotObj.DeepCopy()
 	// update snapshot status
 	var updateSnapshot *crdv1.VolumeSnapshot
-	for i := 0; i < ctrl.createSnapshotContentRetryCount; i++ {
-		klog.V(5).Infof("bindandUpdateVolumeSnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshotCopy))
-		updateSnapshot, err = ctrl.updateSnapshotStatus(snapshotCopy, snapshotContent)
-		if err == nil {
-			snapshotCopy = updateSnapshot
-			break
-		}
-		klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
-		time.Sleep(ctrl.createSnapshotContentInterval)
+	klog.V(5).Infof("bindandUpdateVolumeSnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshotCopy))
+	updateSnapshot, err = ctrl.updateSnapshotStatus(snapshotCopy, snapshotContent)
+	if err == nil {
+		snapshotCopy = updateSnapshot
 	}
-
 	if err != nil {
 		// update snapshot status failed
+		klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
 		ctrl.updateSnapshotErrorStatusWithEvent(snapshotCopy, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 		return nil, err
 	}
