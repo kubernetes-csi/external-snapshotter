@@ -10,11 +10,15 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/kubernetes-csi/csi-test v2.0.0+incompatible
+	github.com/prometheus/client_golang v1.0.0
+	github.com/prometheus/client_model v0.2.0
+	github.com/prometheus/common v0.4.1
 	google.golang.org/grpc v1.28.0
 	k8s.io/api v0.18.0
 	k8s.io/apimachinery v0.18.0
 	k8s.io/client-go v0.18.0
 	k8s.io/code-generator v0.18.0
+	k8s.io/component-base v0.18.0
 	k8s.io/klog v1.0.0
 	k8s.io/kubernetes v1.18.0
 )
