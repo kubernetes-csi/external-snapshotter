@@ -1,1 +1,0 @@
-../../../../../pkg/apis/volumesnapshot/v1beta1/doc.go

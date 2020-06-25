@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v2/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"

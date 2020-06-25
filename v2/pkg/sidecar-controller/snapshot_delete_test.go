@@ -1,1 +1,0 @@
-../../../pkg/sidecar-controller/snapshot_delete_test.go

@@ -1,1 +1,0 @@
-../../../pkg/sidecar-controller/content_create_test.go

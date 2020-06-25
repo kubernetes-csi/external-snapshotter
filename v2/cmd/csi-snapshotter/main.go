@@ -1,1 +1,0 @@
-../../../cmd/csi-snapshotter/main.go

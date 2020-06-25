@@ -26,7 +26,7 @@ then
   TMP_DIR=$(mktemp -d);
   cd $TMP_DIR;
   go mod init tmp;
-  go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.2.5;
+  go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.3.0;
   rm -rf $TMP_DIR;
   CONTROLLER_GEN=$(which controller-gen)
 fi
@@ -38,8 +38,7 @@ then
 fi
 
 SCRIPT_ROOT=$(unset CDPATH && cd $(dirname "${BASH_SOURCE[0]}")/.. && pwd)
-
-$CONTROLLER_GEN crd:trivialVersions=true,preserveUnknownFields=false paths=${SCRIPT_ROOT}/pkg/apis/volumesnapshot/v1beta1
+$CONTROLLER_GEN crd:trivialVersions=true,preserveUnknownFields=false paths=${SCRIPT_ROOT}/client/apis/volumesnapshot/v1beta1
 
 # To use your own boilerplate text use:
 #   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt

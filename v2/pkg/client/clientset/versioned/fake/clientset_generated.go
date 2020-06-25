@@ -1,1 +1,0 @@
-../../../../../../pkg/client/clientset/versioned/fake/clientset_generated.go

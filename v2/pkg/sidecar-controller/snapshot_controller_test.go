@@ -1,1 +1,0 @@
-../../../pkg/sidecar-controller/snapshot_controller_test.go
