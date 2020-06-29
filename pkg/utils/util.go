@@ -356,6 +356,11 @@ func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && IsBoundVolumeSnapshotContentNameSet(snapshot)
 }
 
+// NeedToRemoveSnapshotBoundFinalizer checks if the volume snapshot content Finalizer is on the content and the deletionPolicy is Retain
+func NeedToRemoveSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
+	return slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentRetain
+}
+
 func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {
 	if removalVersion == "" {
 		removalVersion = "a future release"

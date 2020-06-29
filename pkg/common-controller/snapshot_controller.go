@@ -135,6 +135,13 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 			// right away so that it is in-sync with the content status
 			ctrl.snapshotQueue.Add(snapshotName)
 		}
+
+		// Check if we need to remove the content Finalizer from the snapshot because the deletionPolicy has changed
+		if snapshot != nil && utils.NeedToRemoveSnapshotBoundFinalizer(snapshot, content) {
+			// We have the volumesnapshot bound finalizer, but our deletionPolicy has changed to Retain
+			klog.V(5).Infof("syncContent [%s]: Removing Finalizer for VolumeSnapshot", snapshot.Name)
+			return ctrl.removeContentFinalizer(snapshot)
+		}
 	}
 
 	// NOTE(xyang): Do not trigger content deletion if
@@ -798,6 +805,25 @@ func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.Volu
 	}
 
 	klog.V(5).Infof("Added protection finalizer to volume snapshot content %s", content.Name)
+	return nil
+}
+
+// removeContentFinalizer removes a Finalizer for VolumeSnapshotContent.
+func (ctrl *csiSnapshotCommonController) removeContentFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+	snapshotClone := snapshot.DeepCopy()
+	snapshotClone.ObjectMeta.Finalizers = slice.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil)
+
+	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	if err != nil {
+		return newControllerUpdateError(snapshot.Name, err.Error())
+	}
+
+	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	if err != nil {
+		klog.Errorf("failed to update snapshot store %v", err)
+	}
+
+	klog.V(5).Infof("Removed protection finalizer to volume snapshot %s", snapshot.Name)
 	return nil
 }
 
