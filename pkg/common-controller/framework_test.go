@@ -53,7 +53,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/util/slice"
 )
 
 // This is a unit test framework for snapshot controller.
@@ -1321,7 +1320,7 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 		if funcName == "testAddPVCFinalizer" {
 			for _, pvc := range reactor.claims {
 				if test.initialClaims[0].Name == pvc.Name {
-					if !slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+					if !utils.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
 						klog.V(4).Infof("test %q succeeded. PVCFinalizer is added to PVC %s", test.name, pvc.Name)
 						bHasPVCFinalizer = true
 					}
@@ -1336,7 +1335,7 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 		if funcName == "testRemovePVCFinalizer" {
 			for _, pvc := range reactor.claims {
 				if test.initialClaims[0].Name == pvc.Name {
-					if slice.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && !slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+					if utils.ContainsString(test.initialClaims[0].ObjectMeta.Finalizers, utils.PVCFinalizer, nil) && !utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
 						klog.V(4).Infof("test %q succeeded. PVCFinalizer is removed from PVC %s", test.name, pvc.Name)
 						bHasPVCFinalizer = false
 					}
@@ -1351,8 +1350,8 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 		if funcName == "testAddSnapshotFinalizer" {
 			for _, snapshot := range reactor.snapshots {
 				if test.initialSnapshots[0].Name == snapshot.Name {
-					if !slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) && slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) &&
-						!slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) && slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) {
+					if !utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) && utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) &&
+						!utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) && utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) {
 						klog.V(4).Infof("test %q succeeded. Finalizers are added to snapshot %s", test.name, snapshot.Name)
 						bHasSnapshotFinalizer = true
 					}
@@ -1367,8 +1366,8 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 		if funcName == "testRemoveSnapshotFinalizer" {
 			for _, snapshot := range reactor.snapshots {
 				if test.initialSnapshots[0].Name == snapshot.Name {
-					if slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) &&
-						slice.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) {
+					if utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) && !utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil) &&
+						utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) && !utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil) {
 						klog.V(4).Infof("test %q succeeded. SnapshotFinalizer is removed from Snapshot %s", test.name, snapshot.Name)
 						bHasSnapshotFinalizer = false
 					}

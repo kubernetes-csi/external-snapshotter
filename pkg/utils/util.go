@@ -33,7 +33,6 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/util/slice"
 )
 
 var (
@@ -107,6 +106,41 @@ var SnapshotterListSecretParams = secretParamsMap{
 	name:               "SnapshotterList",
 	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
 	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
+}
+
+// ContainsString checks if a given slice of strings contains the provided string.
+// If a modifier func is provided, it is called with the slice item before the comparation.
+func ContainsString(slice []string, s string, modifier func(s string) string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+		if modifier != nil && modifier(item) == s {
+			return true
+		}
+	}
+	return false
+}
+
+// RemoveString returns a newly created []string that contains all items from slice that
+// are not equal to s and modifier(s) in case modifier func is provided.
+func RemoveString(slice []string, s string, modifier func(s string) string) []string {
+	newSlice := make([]string, 0)
+	for _, item := range slice {
+		if item == s {
+			continue
+		}
+		if modifier != nil && modifier(item) == s {
+			continue
+		}
+		newSlice = append(newSlice, item)
+	}
+	if len(newSlice) == 0 {
+		// Sanitize for unit tests so we don't need to distinguish empty array
+		// and nil.
+		newSlice = nil
+	}
+	return newSlice
 }
 
 func SnapshotKey(vs *crdv1.VolumeSnapshot) string {
@@ -337,23 +371,23 @@ func NoResyncPeriodFunc() time.Duration {
 
 // NeedToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
 func NeedToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
-	return content.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
+	return content.ObjectMeta.DeletionTimestamp == nil && !ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer, nil)
 }
 
 // IsSnapshotDeletionCandidate checks if a volume snapshot deletionTimestamp
 // is set and any finalizer is on the snapshot.
 func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp != nil && (slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer, nil) || slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil))
+	return snapshot.ObjectMeta.DeletionTimestamp != nil && (ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer, nil) || ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil))
 }
 
 // NeedToAddSnapshotAsSourceFinalizer checks if a Finalizer needs to be added for the volume snapshot as a source for PVC.
 func NeedToAddSnapshotAsSourceFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer, nil)
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer, nil)
 }
 
 // NeedToAddSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume snapshot.
 func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && IsBoundVolumeSnapshotContentNameSet(snapshot)
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer, nil) && IsBoundVolumeSnapshotContentNameSet(snapshot)
 }
 
 func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {

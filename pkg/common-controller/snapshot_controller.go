@@ -31,7 +31,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
 	"k8s.io/klog"
-	"k8s.io/kubernetes/pkg/util/slice"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/v2/pkg/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/utils"
@@ -223,7 +222,7 @@ func (ctrl *csiSnapshotCommonController) isPVCwithFinalizerInUseByCurrentSnapsho
 	}
 
 	// Check if there is a Finalizer on PVC. If not, return false
-	if !slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+	if !utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
 		return false
 	}
 
@@ -821,7 +820,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	}
 
 	// If PVC is not being deleted and PVCFinalizer is not added yet, the PVCFinalizer should be added.
-	if pvc.ObjectMeta.DeletionTimestamp == nil && !slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+	if pvc.ObjectMeta.DeletionTimestamp == nil && !utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
 		// Add the finalizer
 		pvcClone := pvc.DeepCopy()
 		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
@@ -842,7 +841,7 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 	// TODO(xyang): We get PVC from informer but it may be outdated
 	// Should get it from API server directly before removing finalizer
 	pvcClone := pvc.DeepCopy()
-	pvcClone.ObjectMeta.Finalizers = slice.RemoveString(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer, nil)
+	pvcClone.ObjectMeta.Finalizers = utils.RemoveString(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer, nil)
 
 	_, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
 	if err != nil {
@@ -898,7 +897,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *cr
 	klog.V(5).Infof("checkandRemovePVCFinalizer for snapshot [%s]: snapshot status [%#v]", snapshot.Name, snapshot.Status)
 
 	// Check if there is a Finalizer on PVC to be removed
-	if slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
+	if utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
 		// There is a Finalizer on PVC. Check if PVC is used
 		// and remove finalizer if it's not used.
 		inUse := ctrl.isPVCBeingUsed(pvc, snapshot)
@@ -1295,10 +1294,10 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 
 	snapshotClone := snapshot.DeepCopy()
 	if removeSourceFinalizer {
-		snapshotClone.ObjectMeta.Finalizers = slice.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil)
+		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer, nil)
 	}
 	if removeBoundFinalizer {
-		snapshotClone.ObjectMeta.Finalizers = slice.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil)
+		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer, nil)
 	}
 	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
