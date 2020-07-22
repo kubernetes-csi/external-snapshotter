@@ -453,25 +453,25 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		}
 		klog.V(5).Infof("bindandUpdateVolumeSnapshot %v", newSnapshot)
 		return nil
-	} else if snapshot.Status == nil || snapshot.Status.Error == nil || isControllerUpdateFailError(snapshot.Status.Error) {
-		if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
-			return fmt.Errorf("expected PVC source for snapshot %s but got nil", uniqueSnapshotName)
-		}
-		var err error
-		var content *crdv1.VolumeSnapshotContent
-		if content, err = ctrl.createSnapshotContent(snapshot); err != nil {
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentCreationFailed", fmt.Sprintf("Failed to create snapshot content with error %v", err))
-			return err
-		}
+	}
 
-		// Update snapshot status with BoundVolumeSnapshotContentName
-		klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
-		if _, err = ctrl.updateSnapshotStatus(snapshot, content); err != nil {
-			// update snapshot status failed
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
-			return err
-		}
+	// If we reach here, it is a dynamically provisioned snapshot, and the volumeSnapshotContent object is not yet created.
+	if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
+		return fmt.Errorf("expected PVC source for snapshot %s but got nil", uniqueSnapshotName)
+	}
+	var content *crdv1.VolumeSnapshotContent
+	if content, err = ctrl.createSnapshotContent(snapshot); err != nil {
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentCreationFailed", fmt.Sprintf("Failed to create snapshot content with error %v", err))
+		return err
+	}
+
+	// Update snapshot status with BoundVolumeSnapshotContentName
+	klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
+	if _, err = ctrl.updateSnapshotStatus(snapshot, content); err != nil {
+		// update snapshot status failed
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
+		return err
 	}
 	return nil
 }

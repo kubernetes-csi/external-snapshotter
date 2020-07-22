@@ -1145,6 +1145,14 @@ func testUpdateSnapshotClass(ctrl *csiSnapshotCommonController, reactor *snapsho
 	return err
 }
 
+func testNewSnapshotContentCreation(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	if err := ctrl.syncUnreadySnapshot(test.initialSnapshots[0]); err != nil {
+		return fmt.Errorf("syncUnreadySnapshot failed: %v", err)
+	}
+
+	return nil
+}
+
 var (
 	classEmpty         string
 	classGold          = "gold"
