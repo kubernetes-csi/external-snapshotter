@@ -505,12 +505,12 @@ func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *
 // removeContentFinalizer removes the VolumeSnapshotContentFinalizer from a
 // content if there exists one.
 func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
-	if !utils.ContainsString(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer, nil) {
+	if !utils.ContainsString(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer) {
 		// the finalizer does not exit, return directly
 		return nil
 	}
 	contentClone := content.DeepCopy()
-	contentClone.ObjectMeta.Finalizers = utils.RemoveString(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer, nil)
+	contentClone.ObjectMeta.Finalizers = utils.RemoveString(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
 
 	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
 	if err != nil {
