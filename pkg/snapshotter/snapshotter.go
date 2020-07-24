@@ -73,7 +73,7 @@ func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volu
 		return "", "", time.Time{}, 0, false, err
 	}
 
-	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%d] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
+	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%v] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
 	creationTime, err := ptypes.Timestamp(rsp.Snapshot.CreationTime)
 	if err != nil {
 		return "", "", time.Time{}, 0, false, err
