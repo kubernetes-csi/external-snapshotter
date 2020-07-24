@@ -20,7 +20,6 @@ require (
 	k8s.io/code-generator v0.18.0
 	k8s.io/component-base v0.18.0
 	k8s.io/klog v1.0.0
-	k8s.io/kubernetes v1.18.0
 )
 
 replace k8s.io/api => k8s.io/api v0.18.0
