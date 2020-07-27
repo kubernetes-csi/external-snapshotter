@@ -27,7 +27,7 @@ import (
 
 	"google.golang.org/grpc"
 
-	"k8s.io/klog"
+	klog "k8s.io/klog/v2"
 )
 
 // Snapshotter implements CreateSnapshot/DeleteSnapshot operations against a remote CSI driver.

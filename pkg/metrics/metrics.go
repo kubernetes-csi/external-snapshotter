@@ -26,7 +26,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/apimachinery/pkg/types"
 	k8smetrics "k8s.io/component-base/metrics"
-	"k8s.io/klog"
+	klog "k8s.io/klog/v2"
 )
 
 const (
