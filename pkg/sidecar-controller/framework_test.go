@@ -46,7 +46,7 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/klog"
+	klog "k8s.io/klog/v2"
 )
 
 // This is a unit test framework for snapshot sidecar controller.
