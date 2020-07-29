@@ -120,7 +120,13 @@ func main() {
 		run(context.TODO())
 	} else {
 		lockName := "snapshot-controller-leader"
-		le := leaderelection.NewLeaderElection(kubeClient, lockName, run)
+		// Create a new clientset for leader election to prevent throttling
+		// due to snapshot controller
+		leClientset, err := kubernetes.NewForConfig(config)
+		if err != nil {
+			klog.Fatalf("failed to create leaderelection client: %v", err)
+		}
+		le := leaderelection.NewLeaderElection(leClientset, lockName, run)
 		if *leaderElectionNamespace != "" {
 			le.WithNamespace(*leaderElectionNamespace)
 		}
