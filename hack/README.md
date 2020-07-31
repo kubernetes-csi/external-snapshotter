@@ -10,14 +10,14 @@ This is the script to update clientset/informers/listers and API deepcopy code u
 
 Make sure to run this script after making changes to /client/apis/volumesnapshot/v1beta1/types.go.
 
-To run this script, Run: ./hack/update-generated-code.sh from the project root directory.
+Run: ./hack/update-generated-code.sh from the project root directory.
 
-Once you run the script, you got the output as:
+Once you run the script, you will get an output as follows:
 ```bash
 Generating deepcopy funcs
-Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/clientset
-Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/listers
-Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/informers
+Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/clientset
+Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/listers
+Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/informers
 
 ```
 
@@ -30,7 +30,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
 
 Follow these steps to update the CRD:
 
-* Run ./hack/update-crd.sh from client directory, new yaml files should have been created under ./config/crd/
+* Run ../hack/update-crd.sh from client directory, new yaml files should have been created under ./config/crd/
 
 * Add api-approved.kubernetes.io annotation value in all yaml files in the metadata section with the PR where the API is approved by the API reviewers. The current approved PR for snapshot beta API is https://github.com/kubernetes-csi/external-snapshotter/pull/139. Refer to https://github.com/kubernetes/enhancements/pull/1111 for details about this annotation.
 
@@ -43,17 +43,39 @@ For example, the following command will add a metadata section for a nested obje
 ```
 * Update the restoreSize property to string in snapshot.storage.k8s.io_volumesnapshots.yaml  
 
+The generated yaml file contains restoreSize property anyOf as described below: 
+ 
 ```bash
-    
-@@ -160,7 +157,7 @@ spec:
-                 of a snapshot is unknown.
-               type: boolean
-             restoreSize:
--              - type: string
-+              type: string
-               description: restoreSize represents the complete size of the snapshot
-                 in bytes. In dynamic snapshot creation case, this field will be filled
-                 in with the "size_bytes" value returned from CSI "CreateSnapshotRequest"
+            restoreSize:
+              anyOf:
+              - type: integer
+              - type: string
+              description: restoreSize represents the complete size of the snapshot
+                in bytes. In dynamic snapshot creation case, this field will be filled
+                in with the "size_bytes" value returned from CSI "CreateSnapshotRequest"
+                gRPC call. For a pre-existing snapshot, this field will be filled
+                with the "size_bytes" value returned from the CSI "ListSnapshots"
+                gRPC call if the driver supports it. When restoring a volume from
+                this snapshot, the size of the volume MUST NOT be smaller than the
+                restoreSize if it is specified, otherwise the restoration will fail.
+                If not specified, it indicates that the size is unknown.
+```
+
+Update the restoreSize property to use type string only:
+
+```bash
+   
+            restoreSize:
+              type: string
+              description: restoreSize represents the complete size of the snapshot
+                in bytes. In dynamic snapshot creation case, this field will be filled
+                in with the "size_bytes" value returned from CSI "CreateSnapshotRequest"
+                gRPC call. For a pre-existing snapshot, this field will be filled
+                with the "size_bytes" value returned from the CSI "ListSnapshots"
+                gRPC call if the driver supports it. When restoring a volume from
+                this snapshot, the size of the volume MUST NOT be smaller than the
+                restoreSize if it is specified, otherwise the restoration will fail.
+                If not specified, it indicates that the size is unknown.
 
 ```
 
