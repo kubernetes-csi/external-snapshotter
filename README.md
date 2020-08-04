@@ -6,6 +6,8 @@ The CSI snapshotter is part of Kubernetes implementation of [Container Storage I
 
 The volume snapshot feature supports CSI v1.0 and higher. It was introduced as an Alpha feature in Kubernetes v1.12 and has been promoted to an Beta feature in Kubernetes 1.17.
 
+> :warning: **WARNING**: There is a new validating webhook server which provides tightened validation on snapshot objects. This SHOULD be installed by all users of this feature. More details [below](#validating-webhook).
+
 
 ## Overview
 
@@ -78,6 +80,14 @@ Install CSI Driver:
 * Here is an example to install the sample hostpath CSI driver
   * kubectl create -f deploy/kubernetes/csi-snapshotter
   * https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/csi-snapshotter
+
+### Validating Webhook
+
+The snapshot validating webhook is an HTTP callback which responds to [admission requests](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/). It is part of a larger [plan](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md) to tighten validation for volume snapshot objects. This webhook introduces the [ratcheting validation](https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#backwards-compatibility) mechanism targeting the tighter validation.
+
+> :warning: **WARNING**: Choosing not to install the webhook server and participate in the phased release process can cause future problems when upgrading from `v1beta1` to `v1` volumesnapshot API if there are currently persisted objects which fail the new stricter validation. Potential impacts include being unable to delete invalid snapshot objects.
+
+Read more about how to install the example webhook [here](deploy/kubernetes/webhook-example/README.md).
 
 ### Snapshot controller command line options
 

@@ -811,6 +811,15 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	return &content
 }
 
+func withSnapshotContentInvalidLabel(contents []*crdv1.VolumeSnapshotContent) []*crdv1.VolumeSnapshotContent {
+	for i := range contents {
+		if contents[i].ObjectMeta.Labels == nil {
+			contents[i].ObjectMeta.Labels = make(map[string]string)
+		}
+		contents[i].ObjectMeta.Labels[utils.VolumeSnapshotContentInvalidLabel] = ""
+	}
+	return contents
+}
 func withContentAnnotations(contents []*crdv1.VolumeSnapshotContent, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
 	for i := range contents {
 		if contents[i].ObjectMeta.Annotations == nil {
@@ -937,6 +946,16 @@ func newSnapshotArray(
 	return []*crdv1.VolumeSnapshot{
 		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withAllFinalizers, deletionTimestamp),
 	}
+}
+
+func withSnapshotInvalidLabel(snapshots []*crdv1.VolumeSnapshot) []*crdv1.VolumeSnapshot {
+	for i := range snapshots {
+		if snapshots[i].ObjectMeta.Labels == nil {
+			snapshots[i].ObjectMeta.Labels = make(map[string]string)
+		}
+		snapshots[i].ObjectMeta.Labels[utils.VolumeSnapshotInvalidLabel] = ""
+	}
+	return snapshots
 }
 
 func newSnapshotClass(snapshotClassName, snapshotClassUID, driverName string, isDefaultClass bool) *crdv1.VolumeSnapshotClass {

@@ -131,8 +131,8 @@ func TestDeleteSync(t *testing.T) {
 	tests := []controllerTest{
 		{
 			name:              "1-1 - noop: content will not be deleted if it is bound to a snapshot correctly, snapshot uid is not specified",
-			initialContents:   newContentArray("content1-1", "", "snap1-1", "sid1-1", validSecretClass, "", "", deletePolicy, nil, nil, true),
-			expectedContents:  newContentArray("content1-1", "", "snap1-1", "sid1-1", validSecretClass, "", "", deletePolicy, nil, nil, true),
+			initialContents:   newContentArray("content1-1", "", "snap1-1", "snaphandle1-1", validSecretClass, "snaphandle1-1", "", deletePolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-1", "", "snap1-1", "snaphandle1-1", validSecretClass, "snaphandle1-1", "", deletePolicy, nil, nil, true),
 			initialSnapshots:  newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "", validSecretClass, "content1-1", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedSnapshots: newSnapshotArray("snap1-1", "snapuid1-1", "claim1-1", "", validSecretClass, "content1-1", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedEvents:    noevents,
@@ -159,8 +159,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-3 - will not delete content with retain policy set which is bound to a snapshot incorrectly",
-			initialContents:   newContentArray("content1-3", "snapuid1-3-x", "snap1-3", "sid1-3", validSecretClass, "", "", retainPolicy, nil, nil, true),
-			expectedContents:  newContentArray("content1-3", "snapuid1-3-x", "snap1-3", "sid1-3", validSecretClass, "", "", retainPolicy, nil, nil, true),
+			initialContents:   newContentArray("content1-3", "snapuid1-3-x", "snap1-3", "snaphandle1-3", validSecretClass, "snaphandle1-3", "", retainPolicy, nil, nil, true),
+			expectedContents:  newContentArray("content1-3", "snapuid1-3-x", "snap1-3", "snaphandle1-3", validSecretClass, "snaphandle1-3", "", retainPolicy, nil, nil, true),
 			initialSnapshots:  newSnapshotArray("snap1-3", "snapuid1-3", "claim1-3", "", validSecretClass, "content1-3", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedSnapshots: newSnapshotArray("snap1-3", "snapuid1-3", "claim1-3", "", validSecretClass, "content1-3", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedEvents:    noevents,
