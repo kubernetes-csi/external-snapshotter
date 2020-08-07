@@ -18,7 +18,15 @@
 set -o nounset
 set -o pipefail
 
-## find or download controller-gen
+SCRIPT_ROOT=$(unset CDPATH && cd $(dirname "${BASH_SOURCE[0]}")/.. && pwd)
+
+if [ ${SCRIPT_ROOT}/client != $(pwd) ]
+then
+  echo "NOTE: This script should be run from client directory only";
+  exit 1;
+fi  
+
+# find or download controller-gen
 CONTROLLER_GEN=$(which controller-gen)
 
 if [ "$CONTROLLER_GEN" = "" ]
@@ -37,7 +45,6 @@ then
   exit 1;
 fi
 
-SCRIPT_ROOT=$(unset CDPATH && cd $(dirname "${BASH_SOURCE[0]}")/.. && pwd)
 $CONTROLLER_GEN crd:trivialVersions=true,preserveUnknownFields=false paths=${SCRIPT_ROOT}/client/apis/volumesnapshot/v1beta1
 
 # To use your own boilerplate text use:
