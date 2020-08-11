@@ -159,13 +159,13 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 	contentClone.Status.ReadyToUse = &ready
 	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().UpdateStatus(context.TODO(), contentClone, metav1.UpdateOptions{})
 
+	// Emit the event even if the status update fails so that user can see the error
+	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
+
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", content.Name, err)
 		return err
 	}
-
-	// Emit the event only when the status change happens
-	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
 
 	_, err = ctrl.storeContentUpdate(newContent)
 	if err != nil {

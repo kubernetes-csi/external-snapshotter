@@ -741,13 +741,13 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 	snapshotClone.Status.ReadyToUse = &ready
 	newSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 
+	// Emit the event even if the status update fails so that user can see the error
+	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
+
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshot[%s] error status failed %v", utils.SnapshotKey(snapshot), err)
 		return err
 	}
-
-	// Emit the event only when the status change happens
-	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
 
 	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
