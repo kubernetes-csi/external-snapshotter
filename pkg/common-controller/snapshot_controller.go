@@ -254,8 +254,11 @@ func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(sn
 	// content has been found from content cache store
 	content, err := ctrl.getContentFromStore(contentName)
 	if err != nil {
-		return err
+		// If err != nil, it means content == nil. Don't return here because
+		// we need to remove the finalizer from the snapshot later 
+		klog.Errorf("processSnapshotWithDeletionTimestamp[%s]: Failed to get snapshot content from cache store: %v", utils.SnapshotKey(snapshot), err)
 	}
+
 	// check whether the content points back to the passed in snapshot, note that
 	// binding should always be bi-directional to trigger the deletion on content
 	// or adding any annotation to the content
