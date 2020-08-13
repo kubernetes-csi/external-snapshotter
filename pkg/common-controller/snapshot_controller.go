@@ -819,8 +819,17 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
 	}
 
+	// Check to see if the backing PV is created by a CSI driver. If not, then remove the Finalizer,
+	// as the snapshot can't be created from this PVC
+	pv, err := ctrl.getVolumeFromVolumeSnapshot(snapshot)
+	if err != nil {
+		klog.Infof("cannot get volume from snapshot [%s]: [%v]", snapshot.Name, err)
+		return newControllerUpdateError(snapshot.Name, "cannot get volume from claim")
+	}
+
 	// If PVC is not being deleted and PVCFinalizer is not added yet, the PVCFinalizer should be added.
-	if pvc.ObjectMeta.DeletionTimestamp == nil && !utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
+	if pvc.ObjectMeta.DeletionTimestamp == nil && !utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) &&
+		pv.Spec.CSI != nil {
 		// Add the finalizer
 		pvcClone := pvc.DeepCopy()
 		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
