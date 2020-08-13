@@ -23,4 +23,4 @@ spec:
           args:
             - "--v=5"
             - "--leader-election=false"
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
