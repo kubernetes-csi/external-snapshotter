@@ -10,14 +10,29 @@ This is the script to update clientset/informers/listers and API deepcopy code u
 
 Make sure to run this script after making changes to /client/apis/volumesnapshot/v1beta1/types.go.
 
-Run: ./hack/update-generated-code.sh from the project root directory.
+Pre-requisites for running update-generated-code.sh:
+
+* GOPATH=~/go
+
+* Ensure external-snapshotter repository is at ~/go/src/github.com/kubernetes-csi/external-snapshotter
+
+* git clone https://github.com/kubernetes/code-generator.git under ~/go/src/k8s.io
+
+* git checkout to version v0.19.0-rc.2
+```bash
+git checkout v0.19.0-rc.2
+```
+
+* Ensure the path exist ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh
+
+Run: ./hack/update-generated-code.sh from the client directory.
 
 Once you run the script, you will get an output as follows:
 ```bash
 Generating deepcopy funcs
-Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/clientset
-Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/listers
-Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/informers
+Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/clientset
+Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/listers
+Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/informers
 
 ```
 
@@ -30,7 +45,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
 
 Follow these steps to update the CRD:
 
-* Run ../hack/update-crd.sh from client directory, new yaml files should have been created under ./config/crd/
+* Run ./hack/update-crd.sh from client directory, new yaml files should have been created under ./config/crd/
 
 * Add api-approved.kubernetes.io annotation value in all yaml files in the metadata section with the PR where the API is approved by the API reviewers. The current approved PR for snapshot beta API is https://github.com/kubernetes-csi/external-snapshotter/pull/139. Refer to https://github.com/kubernetes/enhancements/pull/1111 for details about this annotation.
 
