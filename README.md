@@ -63,8 +63,8 @@ Therefore, it is strongly recommended that Kubernetes distributors bundle and de
 If your Kubernetes distribution does not bundle the snapshot controller, you may manually install these components by executing the following steps. Note that the snapshot controller YAML files in the git repository deploy into the default namespace for system testing purposes. For general use, update the snapshot controller YAMLs with an appropriate namespace prior to installing. For example, on a Vanilla Kubernetes cluster update the namespace from 'default' to 'kube-system' prior to issuing the kubectl create command.
 
 Install Snapshot Beta CRDs:
-* kubectl create -f config/crd
-* https://github.com/kubernetes-csi/external-snapshotter/tree/master/config/crd
+* kubectl create -f client/config/crd
+* https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
 * Do this once per cluster
 
 Install Common Snapshot Controller:
