@@ -1,1 +1,0 @@
-../../../pkg/common-controller/snapshot_controller_base.go

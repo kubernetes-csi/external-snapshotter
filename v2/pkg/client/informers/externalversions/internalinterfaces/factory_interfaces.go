@@ -1,1 +1,0 @@
-../../../../../../pkg/client/informers/externalversions/internalinterfaces/factory_interfaces.go

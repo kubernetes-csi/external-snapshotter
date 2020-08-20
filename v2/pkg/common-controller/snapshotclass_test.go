@@ -1,1 +1,0 @@
-../../../pkg/common-controller/snapshotclass_test.go

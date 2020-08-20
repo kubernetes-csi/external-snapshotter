@@ -9,6 +9,7 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/kubernetes-csi/csi-test v2.0.0+incompatible
+	github.com/kubernetes-csi/external-snapshotter/client/v2 v2.0.0-00010101000000-000000000000
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.10.0
@@ -16,12 +17,12 @@ require (
 	k8s.io/api v0.19.0-rc.2
 	k8s.io/apimachinery v0.19.0-rc.2
 	k8s.io/client-go v0.19.0-rc.2
-	k8s.io/code-generator v0.19.0-rc.2
 	k8s.io/component-base v0.19.0-rc.2
 	k8s.io/klog/v2 v2.2.0
 )
 
 replace (
+	github.com/kubernetes-csi/external-snapshotter/client/v2 => ./client
 	k8s.io/api => k8s.io/api v0.19.0-rc.2
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.0-rc.2
 	k8s.io/apimachinery => k8s.io/apimachinery v0.19.0-rc.2
@@ -30,7 +31,6 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.19.0-rc.2
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.19.0-rc.2
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.19.0-rc.2
-	k8s.io/code-generator => k8s.io/code-generator v0.19.0-rc.2
 	k8s.io/component-base => k8s.io/component-base v0.19.0-rc.2
 	k8s.io/cri-api => k8s.io/cri-api v0.19.0-rc.2
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.19.0-rc.2

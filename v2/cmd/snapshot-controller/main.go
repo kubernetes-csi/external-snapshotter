@@ -1,1 +1,0 @@
-../../../cmd/snapshot-controller/main.go
