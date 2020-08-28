@@ -92,7 +92,9 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 ####  Validating Webhook Command Line Options
 
 * `--tls-cert-file`: File containing the x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). Required.
+
 * `--tls-private-key-file`: File containing the x509 private key matching --tls-cert-file. Required.
+
 * `--port`: Secure port that the webhook listens on (default 443)
 
 ### Snapshot controller command line options
