@@ -28,8 +28,6 @@ import (
 	"k8s.io/api/admission/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
-	// TODO: try this library to see if it generates correct json patch
-	// https://github.com/mattbaird/jsonpatch
 )
 
 var (
@@ -38,22 +36,22 @@ var (
 	port     int
 )
 
-// CmdWebhook is used by agnhost Cobra.
+// CmdWebhook is used by Cobra.
 var CmdWebhook = &cobra.Command{
 	Use:   "validation-webhook",
-	Short: "Starts a HTTP server, useful for testing MutatingAdmissionWebhook and ValidatingAdmissionWebhook",
-	Long: `Starts a HTTP server, useful for testing MutatingAdmissionWebhook and ValidatingAdmissionWebhook.
+	Short: "Starts a HTTPS server, uses ValidatingAdmissionWebhook to perform ratcheting validation on VolumeSnapshot and VolumeSnapshotContent",
+	Long: `Starts a HTTPS server, uses ValidatingAdmissionWebhook to perform ratcheting validation on VolumeSnapshot and VolumeSnapshotContent.
 After deploying it to Kubernetes cluster, the Administrator needs to create a ValidatingWebhookConfiguration
-in the Kubernetes cluster to register remote webhook admission controllers.`,
+in the Kubernetes cluster to register remote webhook admission controllers. Phase one of https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md`,
 	Args: cobra.MaximumNArgs(0),
 	Run:  main,
 }
 
 func init() {
 	CmdWebhook.Flags().StringVar(&certFile, "tls-cert-file", "",
-		"File containing the default x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert).")
+		"File containing the x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). Required.")
 	CmdWebhook.Flags().StringVar(&keyFile, "tls-private-key-file", "",
-		"File containing the default x509 private key matching --tls-cert-file.")
+		"File containing the x509 private key matching --tls-cert-file. Required.")
 	CmdWebhook.Flags().IntVar(&port, "port", 443,
 		"Secure port that the webhook listens on")
 	CmdWebhook.MarkFlagRequired("tls-cert-file")
