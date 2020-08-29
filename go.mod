@@ -6,6 +6,7 @@ require (
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.2
+	github.com/google/gofuzz v1.1.0
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.7.0
 	github.com/kubernetes-csi/csi-test v2.0.0+incompatible
@@ -13,12 +14,15 @@ require (
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.10.0
+	github.com/spf13/cobra v1.0.0
 	google.golang.org/grpc v1.28.0
 	k8s.io/api v0.19.0
 	k8s.io/apimachinery v0.19.0
 	k8s.io/client-go v0.19.0
 	k8s.io/component-base v0.19.0
+	k8s.io/klog v1.0.0
 	k8s.io/klog/v2 v2.2.0
+	k8s.io/kubernetes v1.19.0
 )
 
 replace (
@@ -31,6 +35,7 @@ replace (
 	k8s.io/client-go => k8s.io/client-go v0.19.0
 	k8s.io/cloud-provider => k8s.io/cloud-provider v0.19.0
 	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.19.0
+	k8s.io/code-generator => k8s.io/code-generator v0.19.0
 	k8s.io/component-base => k8s.io/component-base v0.19.0
 	k8s.io/cri-api => k8s.io/cri-api v0.19.0
 	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.19.0

@@ -94,6 +94,13 @@ const (
 	// and used at snapshot content deletion time.
 	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
+
+	// VolumeSnapshotContentInvalidLabel is applied to invalid content as a label key. The value does not matter.
+	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
+	VolumeSnapshotContentInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-content-resource"
+	// VolumeSnapshotInvalidLabel is applied to invalid snapshot as a label key. The value does not matter.
+	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
+	VolumeSnapshotInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-resource"
 )
 
 var SnapshotterSecretParams = secretParamsMap{
@@ -106,6 +113,61 @@ var SnapshotterListSecretParams = secretParamsMap{
 	name:               "SnapshotterList",
 	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
 	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
+}
+
+// ValidateSnapshot performs additional strict validation.
+// Do NOT rely on this function to fully validate snapshot objects.
+// This function will only check the additional rules provided by the webhook.
+func ValidateSnapshot(snapshot *crdv1.VolumeSnapshot) error {
+	if snapshot == nil {
+		return fmt.Errorf("VolumeSnapshot is nil")
+	}
+
+	source := snapshot.Spec.Source
+
+	if source.PersistentVolumeClaimName != nil && source.VolumeSnapshotContentName != nil {
+		return fmt.Errorf("only one of Spec.Source.PersistentVolumeClaimName = %s and Spec.Source.VolumeSnapshotContentName = %s should be set", *source.PersistentVolumeClaimName, *source.VolumeSnapshotContentName)
+	}
+	if source.PersistentVolumeClaimName == nil && source.VolumeSnapshotContentName == nil {
+		return fmt.Errorf("one of Spec.Source.PersistentVolumeClaimName and Spec.Source.VolumeSnapshotContentName should be set")
+	}
+	vscname := snapshot.Spec.VolumeSnapshotClassName
+	if vscname != nil && *vscname == "" {
+		return fmt.Errorf("Spec.VolumeSnapshotClassName must not be the empty string")
+	}
+	return nil
+}
+
+// ValidateSnapshotContent performs additional strict validation.
+// Do NOT rely on this function to fully validate snapshot content objects.
+// This function will only check the additional rules provided by the webhook.
+func ValidateSnapshotContent(snapcontent *crdv1.VolumeSnapshotContent) error {
+	if snapcontent == nil {
+		return fmt.Errorf("VolumeSnapshotContent is nil")
+	}
+
+	source := snapcontent.Spec.Source
+
+	if source.VolumeHandle != nil && source.SnapshotHandle != nil {
+		return fmt.Errorf("only one of Spec.Source.VolumeHandle = %s and Spec.Source.SnapshotHandle = %s should be set", *source.VolumeHandle, *source.SnapshotHandle)
+	}
+	if source.VolumeHandle == nil && source.SnapshotHandle == nil {
+		return fmt.Errorf("one of Spec.Source.VolumeHandle and Spec.Source.SnapshotHandle should be set")
+	}
+
+	vsref := snapcontent.Spec.VolumeSnapshotRef
+
+	if vsref.Name == "" || vsref.Namespace == "" {
+		return fmt.Errorf("both Spec.VolumeSnapshotRef.Name = %s and Spec.VolumeSnapshotRef.Namespace = %s must be set", vsref.Name, vsref.Namespace)
+	}
+
+	return nil
+}
+
+// MapContainsKey checks if a given map of string to string contains the provided string.
+func MapContainsKey(m map[string]string, s string) bool {
+	_, r := m[s]
+	return r
 }
 
 // ContainsString checks if a given slice of strings contains the provided string.

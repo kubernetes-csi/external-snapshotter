@@ -84,6 +84,17 @@ const controllerUpdateFailMsg = "snapshot controller failed to update"
 func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapshotContent) error {
 	snapshotName := utils.SnapshotRefKey(&content.Spec.VolumeSnapshotRef)
 	klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: content is bound to snapshot %s", content.Name, snapshotName)
+
+	klog.V(5).Infof("syncContent[%s]: check if we should add invalid label on content", content.Name)
+	// Perform additional validation. Label objects which fail.
+	// Part of a plan to tighten validation, this label will enable users to
+	// query for invalid content objects. See issue #363
+	content, err := ctrl.checkAndSetInvalidContentLabel(content)
+	if err != nil {
+		klog.Errorf("syncContent[%s]:  check and add invalid content label failed, %s", content.Name, err.Error())
+		return err
+	}
+
 	// TODO(xiangqian): Putting this check in controller as webhook has not been implemented
 	//                   yet. Remove the source checking once issue #187 is resolved:
 	//                   https://github.com/kubernetes-csi/external-snapshotter/issues/187
@@ -114,7 +125,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 	// and it may have already been deleted, and it will fall into the
 	// snapshot == nil case below
 	var snapshot *crdv1.VolumeSnapshot
-	snapshot, err := ctrl.getSnapshotFromStore(snapshotName)
+	snapshot, err = ctrl.getSnapshotFromStore(snapshotName)
 	if err != nil {
 		return err
 	}
@@ -167,6 +178,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 // For easier readability, it is split into syncUnreadySnapshot and syncReadySnapshot
 func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	klog.V(5).Infof("synchronizing VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
+
 	klog.V(5).Infof("syncSnapshot [%s]: check if we should remove finalizer on snapshot PVC source and remove it if we can", utils.SnapshotKey(snapshot))
 
 	// Check if we should remove finalizer on PVC and remove it if we can.
@@ -174,6 +186,16 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		klog.Errorf("error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, err)
 		// Log an event and keep the original error from checkandRemovePVCFinalizer
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
+	}
+
+	klog.V(5).Infof("syncSnapshot[%s]: check if we should add invalid label on snapshot", utils.SnapshotKey(snapshot))
+	// Perform additional validation. Label objects which fail.
+	// Part of a plan to tighten validation, this label will enable users to
+	// query for invalid snapshot objects. See issue #363
+	snapshot, err := ctrl.checkAndSetInvalidSnapshotLabel(snapshot)
+	if err != nil {
+		klog.Errorf("syncSnapshot[%s]: check and add invalid snapshot label failed, %s", utils.SnapshotKey(snapshot), err.Error())
+		return err
 	}
 
 	// Proceed with snapshot deletion only if snapshot is not in the middled of being
@@ -1285,7 +1307,7 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	}
 	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
-		return newControllerUpdateError(snapshot.Name, err.Error())
+		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
 	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
@@ -1373,4 +1395,88 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: volume snapshot content %+v", content)
 	}
 	return nil
+}
+
+// checkAndSetInvalidContentLabel adds a label to unlabeled invalid content objects and removes the label from valid ones.
+func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
+	hasLabel := utils.MapContainsKey(content.ObjectMeta.Labels, utils.VolumeSnapshotContentInvalidLabel)
+	err := utils.ValidateSnapshotContent(content)
+	if err != nil {
+		klog.Errorf("syncContent[%s]: Invalid content detected, %s", content.Name, err.Error())
+	}
+	// If the snapshot content correctly has the label, or correctly does not have the label, take no action.
+	if hasLabel && err != nil || !hasLabel && err == nil {
+		return content, nil
+	}
+
+	contentClone := content.DeepCopy()
+	if hasLabel {
+		// Need to remove the label
+		delete(contentClone.Labels, utils.VolumeSnapshotContentInvalidLabel)
+	} else {
+		// Snapshot content is invalid and does not have the label. Need to add the label
+		if contentClone.ObjectMeta.Labels == nil {
+			contentClone.ObjectMeta.Labels = make(map[string]string)
+		}
+		contentClone.ObjectMeta.Labels[utils.VolumeSnapshotContentInvalidLabel] = ""
+	}
+	updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	if err != nil {
+		return content, newControllerUpdateError(content.Name, err.Error())
+	}
+
+	_, err = ctrl.storeContentUpdate(contentClone)
+	if err != nil {
+		klog.Errorf("failed to update content store %v", err)
+	}
+
+	if hasLabel {
+		klog.V(5).Infof("Removed invalid content label from volume snapshot content %s", content.Name)
+	} else {
+		klog.V(5).Infof("Added invalid content label to volume snapshot content %s", content.Name)
+	}
+	return updatedContent, nil
+}
+
+// checkAndSetInvalidSnapshotLabel adds a label to unlabeled invalid snapshot objects and removes the label from valid ones.
+func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
+	hasLabel := utils.MapContainsKey(snapshot.ObjectMeta.Labels, utils.VolumeSnapshotInvalidLabel)
+	err := utils.ValidateSnapshot(snapshot)
+	if err != nil {
+		klog.Errorf("syncSnapshot[%s]: Invalid snapshot detected, %s", utils.SnapshotKey(snapshot), err.Error())
+	}
+	// If the snapshot correctly has the label, or correctly does not have the label, take no action.
+	if hasLabel && err != nil || !hasLabel && err == nil {
+		return snapshot, nil
+	}
+
+	snapshotClone := snapshot.DeepCopy()
+	if hasLabel {
+		// Need to remove the label
+		delete(snapshotClone.Labels, utils.VolumeSnapshotInvalidLabel)
+	} else {
+		// Snapshot is invalid and does not have the label. Need to add the label
+		if snapshotClone.ObjectMeta.Labels == nil {
+			snapshotClone.ObjectMeta.Labels = make(map[string]string)
+		}
+		snapshotClone.ObjectMeta.Labels[utils.VolumeSnapshotInvalidLabel] = ""
+	}
+
+	updatedSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	if err != nil {
+		return snapshot, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+	}
+
+	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	if err != nil {
+		klog.Errorf("failed to update snapshot store %v", err)
+	}
+
+	if hasLabel {
+		klog.V(5).Infof("Removed invalid snapshot label from volume snapshot %s", utils.SnapshotKey(snapshot))
+	} else {
+		klog.V(5).Infof("Added invalid snapshot label to volume snapshot %s", utils.SnapshotKey(snapshot))
+	}
+
+	return updatedSnapshot, nil
 }
