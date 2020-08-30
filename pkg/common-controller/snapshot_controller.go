@@ -198,10 +198,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		return err
 	}
 
-	// Proceed with snapshot deletion only if snapshot is not in the middled of being
-	// created from a PVC with a finalizer. This is to ensure that the PVC finalizer
-	// can be removed even if a delete snapshot request is received before create
-	// snapshot has completed.
+	// Proceed with snapshot deletion and remove finalizers when needed
 	if snapshot.ObjectMeta.DeletionTimestamp != nil {
 		return ctrl.processSnapshotWithDeletionTimestamp(snapshot)
 	}
@@ -1310,9 +1307,16 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 		return nil
 	}
 
-	// If we are here, it means we are going to remove finalizers from the snapshot so that the snapshot can be deleted.
-	// We need to check if there is still PVC finalizer that needs to be removed before removing the snapshot finalizers.
-	// Once snapshot is deleted, there won't be any snapshot update event that can trigger the PVC finalizer removal.
+	// NOTE(xyang): We have to make sure PVC finalizer is deleted before
+	// the VolumeSnapshot API object is deleted. Once the VolumeSnapshot
+	// API object is deleted, there won't be any VolumeSnapshot update
+	// event that can trigger the PVC finalizer removal any more.
+	// We also can't remove PVC finalizer too early. PVC finalizer should
+	// not be removed if a VolumeSnapshot API object is still using it.
+	// If we are here, it means we are going to remove finalizers from the
+	// VolumeSnapshot API object so that the VolumeSnapshot API object can
+	// be deleted. This means we no longer need to keep the PVC finalizer
+	// for this particular snapshot.
 	if err := ctrl.checkandRemovePVCFinalizer(snapshot, true); err != nil {
 		klog.Errorf("removeSnapshotFinalizer: error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, err)
 		// Log an event and keep the original error from checkandRemovePVCFinalizer
