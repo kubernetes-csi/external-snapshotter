@@ -5,6 +5,7 @@ github.com/blang/semver
 # github.com/cespare/xxhash/v2 v2.1.1
 github.com/cespare/xxhash/v2
 # github.com/container-storage-interface/spec v1.2.0
+## explicit
 github.com/container-storage-interface/spec/lib/go/csi
 # github.com/davecgh/go-spew v1.1.1
 github.com/davecgh/go-spew/spew
@@ -18,8 +19,10 @@ github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20191227052852-215e87163ea7
 github.com/golang/groupcache/lru
 # github.com/golang/mock v1.4.3
+## explicit
 github.com/golang/mock/gomock
 # github.com/golang/protobuf v1.4.2
+## explicit
 github.com/golang/protobuf/descriptor
 github.com/golang/protobuf/proto
 github.com/golang/protobuf/protoc-gen-go/descriptor
@@ -35,6 +38,7 @@ github.com/google/go-cmp/cmp/internal/flags
 github.com/google/go-cmp/cmp/internal/function
 github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.1.0
+## explicit
 github.com/google/gofuzz
 # github.com/googleapis/gnostic v0.4.1
 github.com/googleapis/gnostic/compiler
@@ -44,21 +48,25 @@ github.com/googleapis/gnostic/openapiv2
 github.com/hashicorp/golang-lru
 github.com/hashicorp/golang-lru/simplelru
 # github.com/imdario/mergo v0.3.9
+## explicit
 github.com/imdario/mergo
 # github.com/inconshreveable/mousetrap v1.0.0
 github.com/inconshreveable/mousetrap
 # github.com/json-iterator/go v1.1.10
 github.com/json-iterator/go
 # github.com/kubernetes-csi/csi-lib-utils v0.7.0
+## explicit
 github.com/kubernetes-csi/csi-lib-utils/connection
 github.com/kubernetes-csi/csi-lib-utils/leaderelection
 github.com/kubernetes-csi/csi-lib-utils/metrics
 github.com/kubernetes-csi/csi-lib-utils/protosanitizer
 github.com/kubernetes-csi/csi-lib-utils/rpc
 # github.com/kubernetes-csi/csi-test v2.0.0+incompatible
+## explicit
 github.com/kubernetes-csi/csi-test/driver
 github.com/kubernetes-csi/csi-test/utils
 # github.com/kubernetes-csi/external-snapshotter/client/v2 v2.0.0-00010101000000-000000000000 => ./client
+## explicit
 github.com/kubernetes-csi/external-snapshotter/client/v2/apis/volumesnapshot/v1beta1
 github.com/kubernetes-csi/external-snapshotter/client/v2/clientset/versioned
 github.com/kubernetes-csi/external-snapshotter/client/v2/clientset/versioned/fake
@@ -79,12 +87,15 @@ github.com/modern-go/reflect2
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
 # github.com/prometheus/client_golang v1.7.1
+## explicit
 github.com/prometheus/client_golang/prometheus
 github.com/prometheus/client_golang/prometheus/internal
 github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.2.0
+## explicit
 github.com/prometheus/client_model/go
 # github.com/prometheus/common v0.10.0
+## explicit
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
@@ -93,6 +104,7 @@ github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
 # github.com/spf13/cobra v1.0.0
+## explicit
 github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
@@ -132,6 +144,7 @@ google.golang.org/appengine/urlfetch
 # google.golang.org/genproto v0.0.0-20200526211855-cb27e3aa2013
 google.golang.org/genproto/googleapis/rpc/status
 # google.golang.org/grpc v1.28.0
+## explicit
 google.golang.org/grpc
 google.golang.org/grpc/attributes
 google.golang.org/grpc/backoff
@@ -211,6 +224,7 @@ gopkg.in/inf.v0
 # gopkg.in/yaml.v2 v2.2.8
 gopkg.in/yaml.v2
 # k8s.io/api v0.19.0 => k8s.io/api v0.19.0
+## explicit
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
@@ -255,6 +269,7 @@ k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
 # k8s.io/apimachinery v0.19.0 => k8s.io/apimachinery v0.19.0
+## explicit
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/api/meta
@@ -299,6 +314,7 @@ k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/client-go v0.19.0 => k8s.io/client-go v0.19.0
+## explicit
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/fake
 k8s.io/client-go/informers
@@ -510,15 +526,19 @@ k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
 # k8s.io/component-base v0.19.0 => k8s.io/component-base v0.19.0
+## explicit
 k8s.io/component-base/metrics
 k8s.io/component-base/version
 # k8s.io/klog v1.0.0
+## explicit
 k8s.io/klog
 # k8s.io/klog/v2 v2.2.0
+## explicit
 k8s.io/klog/v2
 # k8s.io/kube-openapi v0.0.0-20200805222855-6aeccd4b50c6
 k8s.io/kube-openapi/pkg/util/proto
 # k8s.io/kubernetes v1.19.0
+## explicit
 k8s.io/kubernetes/pkg/apis/admission/fuzzer
 # k8s.io/utils v0.0.0-20200729134348-d5654de09c73
 k8s.io/utils/buffer
@@ -528,3 +548,25 @@ k8s.io/utils/trace
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
+# github.com/kubernetes-csi/external-snapshotter/client/v2 => ./client
+# k8s.io/api => k8s.io/api v0.19.0
+# k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.0
+# k8s.io/apimachinery => k8s.io/apimachinery v0.19.0
+# k8s.io/apiserver => k8s.io/apiserver v0.19.0
+# k8s.io/cli-runtime => k8s.io/cli-runtime v0.19.0
+# k8s.io/client-go => k8s.io/client-go v0.19.0
+# k8s.io/cloud-provider => k8s.io/cloud-provider v0.19.0
+# k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.19.0
+# k8s.io/code-generator => k8s.io/code-generator v0.19.0
+# k8s.io/component-base => k8s.io/component-base v0.19.0
+# k8s.io/cri-api => k8s.io/cri-api v0.19.0
+# k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.19.0
+# k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.19.0
+# k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.19.0
+# k8s.io/kube-proxy => k8s.io/kube-proxy v0.19.0
+# k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.19.0
+# k8s.io/kubectl => k8s.io/kubectl v0.19.0
+# k8s.io/kubelet => k8s.io/kubelet v0.19.0
+# k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.19.0
+# k8s.io/metrics => k8s.io/metrics v0.19.0
+# k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.0
