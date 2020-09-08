@@ -1,6 +1,6 @@
-module github.com/kubernetes-csi/external-snapshotter/client/v2
+module github.com/kubernetes-csi/external-snapshotter/client/v3
 
-go 1.12
+go 1.15
 
 require (
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect

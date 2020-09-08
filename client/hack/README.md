@@ -30,9 +30,9 @@ Run: ./hack/update-generated-code.sh from the client directory.
 Once you run the script, you will get an output as follows:
 ```bash
 Generating deepcopy funcs
-Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/clientset
-Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/listers
-Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v2/informers
+Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v3/clientset
+Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v3/listers
+Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v3/informers
 
 ```
 

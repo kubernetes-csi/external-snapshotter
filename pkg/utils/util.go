@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v2/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
