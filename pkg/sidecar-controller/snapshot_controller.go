@@ -284,7 +284,17 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 		return nil, fmt.Errorf("failed to add VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
 	}
 
-	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(content, class.Parameters, snapshotterCredentials)
+	parameters, err := utils.RemovePrefixedParameters(class.Parameters)
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove CSI Parameters of prefixed keys: %v", err)
+	}
+	if ctrl.extraCreateMetadata {
+		parameters[utils.PrefixedVolumeSnapshotNameKey] = content.Spec.VolumeSnapshotRef.Name
+		parameters[utils.PrefixedVolumeSnapshotNamespaceKey] = content.Spec.VolumeSnapshotRef.Namespace
+		parameters[utils.PrefixedVolumeSnapshotContentNameKey] = content.Name
+	}
+
+	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(content, parameters, snapshotterCredentials)
 	if err != nil {
 		// NOTE(xyang): handle create timeout
 		// If it is a final error, remove annotation to indicate

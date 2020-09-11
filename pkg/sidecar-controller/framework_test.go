@@ -521,6 +521,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		60*time.Second,
 		"snapshot",
 		-1,
+		true,
 	)
 
 	ctrl.eventRecorder = record.NewFakeRecorder(1000)

@@ -62,6 +62,7 @@ var (
 	showVersion            = flag.Bool("version", false, "Show version.")
 	threads                = flag.Int("worker-threads", 10, "Number of worker threads.")
 	csiTimeout             = flag.Duration("timeout", defaultCSITimeout, "The timeout for any RPCs to the CSI driver. Default is 1 minute.")
+	extraCreateMetadata    = flag.Bool("extra-create-metadata", false, "If set, add snapshot metadata to plugin snapshot requests as parameters.")
 
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
@@ -173,6 +174,7 @@ func main() {
 		*resyncPeriod,
 		*snapshotNamePrefix,
 		*snapshotNameUUIDLength,
+		*extraCreateMetadata,
 	)
 
 	run := func(context.Context) {

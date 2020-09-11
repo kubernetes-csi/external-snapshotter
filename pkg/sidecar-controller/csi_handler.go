@@ -24,7 +24,6 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/snapshotter"
-	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 )
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
@@ -74,11 +73,7 @@ func (handler *csiHandler) CreateSnapshot(content *crdv1.VolumeSnapshotContent, 
 	if err != nil {
 		return "", "", time.Time{}, 0, false, err
 	}
-	newParameters, err := utils.RemovePrefixedParameters(parameters)
-	if err != nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("failed to remove CSI Parameters of prefixed keys: %v", err)
-	}
-	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, *content.Spec.Source.VolumeHandle, newParameters, snapshotterCredentials)
+	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, *content.Spec.Source.VolumeHandle, parameters, snapshotterCredentials)
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {
