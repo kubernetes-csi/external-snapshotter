@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v2/apis/volumesnapshot/v1beta1"
+	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/admission/v1"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"

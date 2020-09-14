@@ -38,12 +38,12 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
-	controller "github.com/kubernetes-csi/external-snapshotter/v2/pkg/sidecar-controller"
-	"github.com/kubernetes-csi/external-snapshotter/v2/pkg/snapshotter"
+	controller "github.com/kubernetes-csi/external-snapshotter/v3/pkg/sidecar-controller"
+	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/snapshotter"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v2/clientset/versioned"
-	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v2/clientset/versioned/scheme"
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v2/informers/externalversions"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/scheme"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
 	coreinformers "k8s.io/client-go/informers"
 )
 
