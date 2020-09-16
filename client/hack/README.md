@@ -18,9 +18,9 @@ Pre-requisites for running update-generated-code.sh:
 
 * git clone https://github.com/kubernetes/code-generator.git under ~/go/src/k8s.io
 
-* git checkout to version v0.19.0-rc.2
+* git checkout to version v0.19.0
 ```bash
-git checkout v0.19.0-rc.2
+git checkout v0.19.0
 ```
 
 * Ensure the path exist ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh
