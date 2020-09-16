@@ -56,7 +56,8 @@ For example, the following command will add a metadata section for a nested obje
 +        metadata:
 +          description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
 ```
-* Update the restoreSize property to string in snapshot.storage.k8s.io_volumesnapshots.yaml  
+
+* Update the restoreSize property to string in snapshot.storage.k8s.io_volumesnapshots.yaml
 
 The generated yaml file contains restoreSize property anyOf as described below: 
  
