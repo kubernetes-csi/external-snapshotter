@@ -30,13 +30,9 @@ This information reflects the head of this branch.
 
 | Compatible with CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | Snapshot CRD version |
 | ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | -------------------- |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.17         | v1beta1              |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.17     | v1beta1              |
-| [CSI Spec v1.1.0](https://github.com/container-storage-interface/spec/releases/tag/v1.1.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.17         | v1beta1              |
-| [CSI Spec v1.1.0](https://github.com/container-storage-interface/spec/releases/tag/v1.1.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.17     | v1beta1              |
 | [CSI Spec v1.2.0](https://github.com/container-storage-interface/spec/releases/tag/v1.2.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.17         | v1beta1              |
 | [CSI Spec v1.2.0](https://github.com/container-storage-interface/spec/releases/tag/v1.2.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.17     | v1beta1              |
-
+| [CSI Spec v1.2.0](https://github.com/container-storage-interface/spec/releases/tag/v1.2.0) | k8s.gcr.io/sig-storage/snapshot-validation-webhook  | 1.17     | v1beta1              |
 
 ## Feature Status
 
@@ -67,6 +63,8 @@ The Volume Snapshot feature now depends on a new, volume snapshot controller in 
 Therefore, it is strongly recommended that Kubernetes distributors bundle and deploy the controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver).
 
 If your Kubernetes distribution does not bundle the snapshot controller, you may manually install these components by executing the following steps. Note that the snapshot controller YAML files in the git repository deploy into the default namespace for system testing purposes. For general use, update the snapshot controller YAMLs with an appropriate namespace prior to installing. For example, on a Vanilla Kubernetes cluster update the namespace from 'default' to 'kube-system' prior to issuing the kubectl create command.
+
+There is a new validating webhook server which provides tightened validation on snapshot objects. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs. More details [below](#validating-webhook).
 
 Install Snapshot Beta CRDs:
 * kubectl create -f client/config/crd
@@ -171,6 +169,11 @@ go test -timeout 30s  github.com/kubernetes-csi/external-snapshotter/pkg/common-
 go test -timeout 30s  github.com/kubernetes-csi/external-snapshotter/pkg/sidecar-controller
 ```
 
+## CRDs and Client Library
+
+Volume snapshot APIs and client library are now in a separate sub-module: `github.com/kubernetes-csi/external-snapshotter/client/v3`.
+
+Use the command `go get -u github.com/kubernetes-csi/external-snapshotter/client/v3@v3.0.0` to get the client library.
 
 ## Dependency Management
 
