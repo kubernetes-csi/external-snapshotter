@@ -23,7 +23,7 @@ make
 Build the docker image
 
 ```bash
-docker build -t validation-webhook:latest -f ./cmd/validation-webhook/Dockerfile .
+docker build -t snapshot-validation-webhook:latest -f ./cmd/validation-webhook/Dockerfile .
 ```
 
 ## How to deploy the webhook
@@ -78,4 +78,4 @@ Look into [cert-manager](https://cert-manager.io/) to handle the certificates, a
 
 #### Important
 
-Please see the deployment [yaml](./webhook.yaml) for the arguments expected by the webhook server. The snapshot validation webhook is served at the path `/snapshot`.
+Please see the deployment [yaml](./webhook.yaml) for the arguments expected by the webhook server. The snapshot validation webhook is served at the path `/volumesnapshot`.
