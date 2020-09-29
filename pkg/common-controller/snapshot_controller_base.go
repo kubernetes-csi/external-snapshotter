@@ -317,6 +317,8 @@ func (ctrl *csiSnapshotCommonController) syncContentByKey(key string) error {
 
 // checkAndUpdateSnapshotClass gets the VolumeSnapshotClass from VolumeSnapshot. If it is not set,
 // gets it from default VolumeSnapshotClass and sets it.
+// On error, it must return the original snapshot, not nil, because the caller syncContentByKey
+// needs to check snapshot's timestamp.
 func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
 	className := snapshot.Spec.VolumeSnapshotClassName
 	var class *crdv1.VolumeSnapshotClass
@@ -337,7 +339,7 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 		if err != nil {
 			klog.Errorf("checkAndUpdateSnapshotClass failed to setDefaultClass %v", err)
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
-			return nil, err
+			return snapshot, err
 		}
 	}
 
