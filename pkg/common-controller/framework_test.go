@@ -17,6 +17,7 @@ limitations under the License.
 package common_controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -257,6 +258,30 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated content %s", content.Name)
 		return true, content, nil
+
+	case action.Matches("patch", "volumesnapshotcontents"):
+		patchAction := action.(core.PatchActionImpl)
+		patch := patchAction.GetPatch()
+		var content *crdv1.VolumeSnapshotContent
+		var newcontent *crdv1.VolumeSnapshotContent
+		err := json.Unmarshal(patch, newcontent)
+
+		_, err = createContentPatch(content, newcontent)
+		if err != nil {
+			klog.Error("Test create patch failed ", content.Name)
+		}
+
+	case action.Matches("patch", "volumesnapshot"):
+		patchAction := action.(core.PatchActionImpl)
+		patch := patchAction.GetPatch()
+		var snapshot *crdv1.VolumeSnapshot
+		var newsnapshot *crdv1.VolumeSnapshot
+		err := json.Unmarshal(patch, newsnapshot)
+
+		_, err = createSnapshotPatch(snapshot, newsnapshot)
+		if err != nil {
+			klog.Error("Test create patch failed ", snapshot.Name)
+		}
 
 	case action.Matches("update", "volumesnapshots"):
 		obj := action.(core.UpdateAction).GetObject()
@@ -732,11 +757,13 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshots", reactor.React)
 	client.AddReactor("delete", "volumesnapshotclasses", reactor.React)
+	client.AddReactor("patch", "volumesnapshotcontent", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
 	kubeClient.AddReactor("get", "storageclasses", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
+	kubeClient.AddReactor("patch", "volumesnapshotcontent", reactor.React)
 
 	return reactor
 }

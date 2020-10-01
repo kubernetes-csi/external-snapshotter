@@ -18,6 +18,7 @@ package common_controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -25,9 +26,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
 	klog "k8s.io/klog/v2"
@@ -760,10 +765,15 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
 	contentClone := content.DeepCopy()
 	contentClone.ObjectMeta.Finalizers = append(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
-
-	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var newcontent *crdv1.VolumeSnapshotContent
+	patch, err := createContentPatch(content, newcontent)
 	if err != nil {
-		return newControllerUpdateError(content.Name, err.Error())
+		return fmt.Errorf("Failed to patch volume snapshot content %q: %v", content.Name, err)
+	}
+
+	_, PatchErr := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Patch(context.TODO(), content.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+	if PatchErr != nil {
+		return newControllerUpdateError(content.Name, PatchErr.Error())
 	}
 
 	_, err = ctrl.storeContentUpdate(contentClone)
@@ -773,6 +783,49 @@ func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.Volu
 
 	klog.V(5).Infof("Added protection finalizer to volume snapshot content %s", content.Name)
 	return nil
+}
+
+func createContentPatch(content *crdv1.VolumeSnapshotContent, newcontent *crdv1.VolumeSnapshotContent) ([]byte, error) {
+	oldData, err := json.Marshal(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal old data: %v", err)
+	}
+
+	newData, err := json.Marshal(newcontent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal new data: %v", err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create  2 way merge patch: %v", err)
+	}
+
+	patchBytes, err = addResourceVersion(patchBytes, content.ResourceVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add resource version: %v", err)
+	}
+
+	return patchBytes, nil
+}
+
+func addResourceVersion(patchBytes []byte, resourceVersion string) ([]byte, error) {
+	var patchMap map[string]interface{}
+	err := json.Unmarshal(patchBytes, &patchMap)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling patch: %v", err)
+	}
+	u := unstructured.Unstructured{Object: patchMap}
+	a, err := meta.Accessor(&u)
+	if err != nil {
+		return nil, fmt.Errorf("error creating accessor: %v", err)
+	}
+	a.SetResourceVersion(resourceVersion)
+	versionBytes, err := json.Marshal(patchMap)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling json patch: %v", err)
+	}
+	return versionBytes, nil
 }
 
 // isVolumeBeingCreatedFromSnapshot checks if an volume is being created from the snapshot.
@@ -938,7 +991,12 @@ func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *c
 		className := *(snapshot.Spec.VolumeSnapshotClassName)
 		contentClone.Spec.VolumeSnapshotClassName = &className
 	}
-	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var newcontent *crdv1.VolumeSnapshotContent
+	patch, err := createContentPatch(content, newcontent)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to patch VolumeS snapshot content  %q: %v", content.Name, err)
+	}
+	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Patch(context.TODO(), content.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
 		return nil, err
@@ -1380,8 +1438,12 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
 		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
-
-		updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), content, metav1.UpdateOptions{})
+		var newcontent *crdv1.VolumeSnapshotContent
+		patch, err := createContentPatch(content, newcontent)
+		if err != nil {
+			return fmt.Errorf("Failed to patch volume snaoshot content %q: %v", content.Name, err)
+		}
+		updateContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Patch(context.TODO(), content.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 		if err != nil {
 			return newControllerUpdateError(content.Name, err.Error())
 		}
@@ -1421,7 +1483,12 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content 
 		}
 		contentClone.ObjectMeta.Labels[utils.VolumeSnapshotContentInvalidLabel] = ""
 	}
-	updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var newcontent *crdv1.VolumeSnapshotContent
+	patch, err := createContentPatch(content, newcontent)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to patch Volume snapshot content %q: %v", content.Name, err)
+	}
+	updatedContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Patch(context.TODO(), content.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}
@@ -1462,8 +1529,13 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapsho
 		}
 		snapshotClone.ObjectMeta.Labels[utils.VolumeSnapshotInvalidLabel] = ""
 	}
+	var newsnapshot *crdv1.VolumeSnapshot
+	patch, err := createSnapshotPatch(snapshot, newsnapshot)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to patch Snapshot %q: %v", snapshot.Name, err)
+	}
 
-	updatedSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	updatedSnapshot, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshot.Namespace).Patch(context.TODO(), snapshot.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
 	if err != nil {
 		return snapshot, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
@@ -1480,4 +1552,27 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapsho
 	}
 
 	return updatedSnapshot, nil
+}
+func createSnapshotPatch(snapshot *crdv1.VolumeSnapshot, newsnapshot *crdv1.VolumeSnapshot) ([]byte, error) {
+	oldData, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal old data: %v", err)
+	}
+
+	newData, err := json.Marshal(newsnapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal new data: %v", err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create 2 way merge patch: %v", err)
+	}
+
+	patchBytes, err = addResourceVersion(patchBytes, snapshot.ResourceVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add resource version: %v", err)
+	}
+
+	return patchBytes, nil
 }

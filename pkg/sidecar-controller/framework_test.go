@@ -15,6 +15,7 @@ package sidecar_controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -171,6 +172,30 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 
 	// Test did not request to inject an error, continue simulating API server.
 	switch {
+
+	case action.Matches("patch", "volumesnapshotcontents"):
+		patchAction := action.(core.PatchActionImpl)
+		patch := patchAction.GetPatch()
+		var content *crdv1.VolumeSnapshotContent
+		var newcontent *crdv1.VolumeSnapshotContent
+		err := json.Unmarshal(patch, newcontent)
+
+		_, err = createContentPatch(content, newcontent)
+		if err != nil {
+			klog.Error("Test create patch failed ", newcontent.Name)
+		}
+
+	case action.Matches("patch", "volumesnapshot"):
+		patchAction := action.(core.PatchActionImpl)
+		patch := patchAction.GetPatch()
+		var snapshot *crdv1.VolumeSnapshot
+		var newsnapshot *crdv1.VolumeSnapshot
+		err := json.Unmarshal(patch, newsnapshot)
+
+		_, err = createSnapshotPatch(snapshot, newsnapshot)
+		if err != nil {
+			klog.Error("Test create patch failed ", snapshot.Name)
+		}
 	case action.Matches("create", "volumesnapshotcontents"):
 		obj := action.(core.UpdateAction).GetObject()
 		content := obj.(*crdv1.VolumeSnapshotContent)
@@ -489,6 +514,8 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("patch", "volumesnapshot", reactor.React)
+	client.AddReactor("patch", "volumesnapshotcontents", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
 
 	return reactor

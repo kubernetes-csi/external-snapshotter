@@ -18,6 +18,7 @@ package sidecar_controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -27,7 +28,11 @@ import (
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/strategicpatch"
 	klog "k8s.io/klog/v2"
 )
 
@@ -156,6 +161,7 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 	}
 	ready := false
 	contentClone.Status.ReadyToUse = &ready
+
 	newContent, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().UpdateStatus(context.TODO(), contentClone, metav1.UpdateOptions{})
 
 	// Emit the event even if the status update fails so that user can see the error
@@ -520,10 +526,15 @@ func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.V
 	}
 	contentClone := content.DeepCopy()
 	contentClone.ObjectMeta.Finalizers = utils.RemoveString(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
-
-	_, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var newcontent *crdv1.VolumeSnapshotContent
+	patch, err := createContentPatch(content, newcontent)
 	if err != nil {
-		return newControllerUpdateError(content.Name, err.Error())
+		return fmt.Errorf("Failed to patch volume snapshot content %q: %v", content.Name, err)
+	}
+
+	_, PatchErr := ctrl.clientset.SnapshotV1beta1().VolumeSnapshotContents().Patch(context.TODO(), content.Name, types.StrategicMergePatchType, patch, metav1.PatchOptions{})
+	if PatchErr != nil {
+		return newControllerUpdateError(content.Name, PatchErr.Error())
 	}
 
 	klog.V(5).Infof("Removed protection finalizer from volume snapshot content %s", content.Name)
@@ -532,6 +543,71 @@ func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.V
 		klog.Errorf("failed to update content store %v", err)
 	}
 	return nil
+}
+func addResourceVersion(patchBytes []byte, resourceVersion string) ([]byte, error) {
+	var patchMap map[string]interface{}
+	err := json.Unmarshal(patchBytes, &patchMap)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshalling patch: %v", err)
+	}
+	u := unstructured.Unstructured{Object: patchMap}
+	a, err := meta.Accessor(&u)
+	if err != nil {
+		return nil, fmt.Errorf("error creating accessor: %v", err)
+	}
+	a.SetResourceVersion(resourceVersion)
+	versionBytes, err := json.Marshal(patchMap)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling json patch: %v", err)
+	}
+	return versionBytes, nil
+}
+func createContentPatch(content *crdv1.VolumeSnapshotContent, newcontent *crdv1.VolumeSnapshotContent) ([]byte, error) {
+	oldData, err := json.Marshal(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal old data: %v", err)
+	}
+
+	newData, err := json.Marshal(newcontent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal new data: %v", err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create  2 way merge patch: %v", err)
+	}
+
+	patchBytes, err = addResourceVersion(patchBytes, content.ResourceVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add resource version: %v", err)
+	}
+
+	return patchBytes, nil
+}
+
+func createSnapshotPatch(snapshot *crdv1.VolumeSnapshot, newsnapshot *crdv1.VolumeSnapshot) ([]byte, error) {
+	oldData, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal old data: %v", err)
+	}
+
+	newData, err := json.Marshal(newsnapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal new data: %v", err)
+	}
+
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, snapshot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create 2 way merge patch: %v", err)
+	}
+
+	patchBytes, err = addResourceVersion(patchBytes, snapshot.ResourceVersion)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add resource version: %v", err)
+	}
+
+	return patchBytes, nil
 }
 
 // shouldDelete checks if content object should be deleted
