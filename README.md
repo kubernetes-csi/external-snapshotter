@@ -1,3 +1,4 @@
+testing k8s 1.18 on 1.18 PR Job
 [![Build Status](https://travis-ci.org/kubernetes-csi/external-snapshotter.svg?branch=master)](https://travis-ci.org/kubernetes-csi/external-snapshotter)
 
 # CSI Snapshotter
