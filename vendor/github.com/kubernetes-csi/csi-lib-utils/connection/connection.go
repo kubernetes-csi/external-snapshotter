@@ -109,7 +109,7 @@ func connect(
 		grpc.WithBlock(),                      // Block until connection succeeds.
 		grpc.WithChainUnaryInterceptor(
 			LogGRPC, // Log all messages.
-			extendedCSIMetricsManager{metricsManager}.recordMetricsInterceptor, // Record metrics for each gRPC call.
+			ExtendedCSIMetricsManager{metricsManager}.RecordMetricsClientInterceptor, // Record metrics for each gRPC call.
 		),
 	)
 	unixPrefix := "unix://"
@@ -140,7 +140,7 @@ func connect(
 			}
 			conn, err := net.DialTimeout("unix", address[len(unixPrefix):], timeout)
 			if err == nil {
-				// Connection restablished.
+				// Connection reestablished.
 				haveConnected = true
 				lostConnection = false
 			}
@@ -187,12 +187,13 @@ func LogGRPC(ctx context.Context, method string, req, reply interface{}, cc *grp
 	return err
 }
 
-type extendedCSIMetricsManager struct {
+type ExtendedCSIMetricsManager struct {
 	metrics.CSIMetricsManager
 }
 
-// recordMetricsInterceptor is a gPRC unary interceptor for recording metrics for CSI operations.
-func (cmm extendedCSIMetricsManager) recordMetricsInterceptor(
+// RecordMetricsClientInterceptor is a gPRC unary interceptor for recording metrics for CSI operations
+// in a gRPC client.
+func (cmm ExtendedCSIMetricsManager) RecordMetricsClientInterceptor(
 	ctx context.Context,
 	method string,
 	req, reply interface{},
@@ -208,4 +209,18 @@ func (cmm extendedCSIMetricsManager) recordMetricsInterceptor(
 		duration, /* operationDuration */
 	)
 	return err
+}
+
+// RecordMetricsServerInterceptor is a gPRC unary interceptor for recording metrics for CSI operations
+// in a gRCP server.
+func (cmm ExtendedCSIMetricsManager) RecordMetricsServerInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	start := time.Now()
+	resp, err := handler(ctx, req)
+	duration := time.Since(start)
+	cmm.RecordMetrics(
+		info.FullMethod, /* operationName */
+		err,             /* operationErr */
+		duration,        /* operationDuration */
+	)
+	return resp, err
 }
