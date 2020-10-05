@@ -95,9 +95,9 @@ func main() {
 	ctrl := controller.NewCSISnapshotCommonController(
 		snapClient,
 		kubeClient,
-		factory.Snapshot().V1beta1().VolumeSnapshots(),
-		factory.Snapshot().V1beta1().VolumeSnapshotContents(),
-		factory.Snapshot().V1beta1().VolumeSnapshotClasses(),
+		factory.Snapshot().V1().VolumeSnapshots(),
+		factory.Snapshot().V1().VolumeSnapshotContents(),
+		factory.Snapshot().V1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		*resyncPeriod,
 	)

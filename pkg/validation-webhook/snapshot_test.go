@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/admission/v1"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,8 +37,8 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 
 	testCases := []struct {
 		name              string
-		volumeSnapshot    *volumesnapshotv1beta1.VolumeSnapshot
-		oldVolumeSnapshot *volumesnapshotv1beta1.VolumeSnapshot
+		volumeSnapshot    *volumesnapshotv1.VolumeSnapshot
+		oldVolumeSnapshot *volumesnapshotv1.VolumeSnapshot
 		shouldAdmit       bool
 		msg               string
 		operation         v1.Operation
@@ -52,9 +52,9 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Create: old is nil and new is invalid",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						PersistentVolumeClaimName: &pvcname,
 						VolumeSnapshotContentName: &contentname,
 					},
@@ -67,9 +67,9 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Create: old is nil and new is valid",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 				},
@@ -80,17 +80,17 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Update: old is valid and new is invalid",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 					VolumeSnapshotClassName: &emptyVolumeSnapshotClassName,
 				},
 			},
-			oldVolumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 				},
@@ -101,17 +101,17 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Update: old is valid and new is valid",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 					VolumeSnapshotClassName: &volumeSnapshotClassName,
 				},
 			},
-			oldVolumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 				},
@@ -121,17 +121,17 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Update: old is valid and new is valid but changes immutable field spec.source",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &mutatedField,
 					},
 					VolumeSnapshotClassName: &volumeSnapshotClassName,
 				},
 			},
-			oldVolumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 				},
@@ -142,16 +142,16 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Update: old is invalid and new is valid",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 					},
 				},
 			},
-			oldVolumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						PersistentVolumeClaimName: &pvcname,
 						VolumeSnapshotContentName: &contentname,
 					},
@@ -162,17 +162,17 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		},
 		{
 			name: "Update: old is invalid and new is invalid",
-			volumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						VolumeSnapshotContentName: &contentname,
 						PersistentVolumeClaimName: &pvcname,
 					},
 				},
 			},
-			oldVolumeSnapshot: &volumesnapshotv1beta1.VolumeSnapshot{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotSource{
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
 						PersistentVolumeClaimName: &pvcname,
 						VolumeSnapshotContentName: &contentname,
 					},
@@ -228,9 +228,9 @@ func TestAdmitVolumeSnapshotContent(t *testing.T) {
 	modifiedField := "modified-field"
 	snapshotHandle := "snapshotHandle1"
 	volumeSnapshotClassName := "volume-snapshot-class-1"
-	validContent := &volumesnapshotv1beta1.VolumeSnapshotContent{
-		Spec: volumesnapshotv1beta1.VolumeSnapshotContentSpec{
-			Source: volumesnapshotv1beta1.VolumeSnapshotContentSource{
+	validContent := &volumesnapshotv1.VolumeSnapshotContent{
+		Spec: volumesnapshotv1.VolumeSnapshotContentSpec{
+			Source: volumesnapshotv1.VolumeSnapshotContentSource{
 				SnapshotHandle: &snapshotHandle,
 			},
 			VolumeSnapshotRef: core_v1.ObjectReference{
@@ -240,9 +240,9 @@ func TestAdmitVolumeSnapshotContent(t *testing.T) {
 			VolumeSnapshotClassName: &volumeSnapshotClassName,
 		},
 	}
-	invalidContent := &volumesnapshotv1beta1.VolumeSnapshotContent{
-		Spec: volumesnapshotv1beta1.VolumeSnapshotContentSpec{
-			Source: volumesnapshotv1beta1.VolumeSnapshotContentSource{
+	invalidContent := &volumesnapshotv1.VolumeSnapshotContent{
+		Spec: volumesnapshotv1.VolumeSnapshotContentSpec{
+			Source: volumesnapshotv1.VolumeSnapshotContentSource{
 				SnapshotHandle: &snapshotHandle,
 				VolumeHandle:   &volumeHandle,
 			},
@@ -255,8 +255,8 @@ func TestAdmitVolumeSnapshotContent(t *testing.T) {
 	invalidErrorMsg := fmt.Sprintf("only one of Spec.Source.VolumeHandle = %s and Spec.Source.SnapshotHandle = %s should be set", volumeHandle, snapshotHandle)
 	testCases := []struct {
 		name                     string
-		volumeSnapshotContent    *volumesnapshotv1beta1.VolumeSnapshotContent
-		oldVolumeSnapshotContent *volumesnapshotv1beta1.VolumeSnapshotContent
+		volumeSnapshotContent    *volumesnapshotv1.VolumeSnapshotContent
+		oldVolumeSnapshotContent *volumesnapshotv1.VolumeSnapshotContent
 		shouldAdmit              bool
 		msg                      string
 		operation                v1.Operation
@@ -300,9 +300,9 @@ func TestAdmitVolumeSnapshotContent(t *testing.T) {
 		},
 		{
 			name: "Update: old is valid and new is valid but modifies immutable field",
-			volumeSnapshotContent: &volumesnapshotv1beta1.VolumeSnapshotContent{
-				Spec: volumesnapshotv1beta1.VolumeSnapshotContentSpec{
-					Source: volumesnapshotv1beta1.VolumeSnapshotContentSource{
+			volumeSnapshotContent: &volumesnapshotv1.VolumeSnapshotContent{
+				Spec: volumesnapshotv1.VolumeSnapshotContentSpec{
+					Source: volumesnapshotv1.VolumeSnapshotContentSource{
 						SnapshotHandle: &modifiedField,
 					},
 					VolumeSnapshotRef: core_v1.ObjectReference{

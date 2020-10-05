@@ -8,7 +8,7 @@ This README documents:
 
 This is the script to update clientset/informers/listers and API deepcopy code using [code-generator](https://github.com/kubernetes/code-generator).
 
-Make sure to run this script after making changes to /client/apis/volumesnapshot/v1beta1/types.go.
+Make sure to run this script after making changes to /client/apis/volumesnapshot/v1/types.go.
 
 Pre-requisites for running update-generated-code.sh:
 
@@ -30,18 +30,21 @@ Run: ./hack/update-generated-code.sh from the client directory.
 Once you run the script, you will get an output as follows:
 ```bash
 Generating deepcopy funcs
-Generating clientset for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v3/clientset
-Generating listers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v3/listers
-Generating informers for volumesnapshot:v1beta1 at github.com/kubernetes-csi/external-snapshotter/client/v3/informers
+Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v3/clientset
+Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v3/listers
+Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v3/informers
 
 ```
 
+NOTE: We need to keep both v1beta1 and v1 snapshot clients at the current phase.
 
 ## update-crd.sh
 
+NOTE: We need to serve both v1beta1 and v1 snapshot APIs and keep storage version at v1beta1 at the current phase.
+
 This is the script to update CRD yaml files under /client/config/crd/ based on types.go file.
 
-Make sure to run this script after making changes to /client/apis/volumesnapshot/v1beta1/types.go.
+Make sure to run this script after making changes to /client/apis/volumesnapshot/v1/types.go.
 
 Follow these steps to update the CRD:
 
@@ -55,6 +58,7 @@ For example, the following command will add a metadata section for a nested obje
 ./hack/update-crd.sh; git diff
 +        metadata:
 +          description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
+           type: object
 ```
 
 * Update the restoreSize property to string in snapshot.storage.k8s.io_volumesnapshots.yaml
@@ -95,3 +99,68 @@ Update the restoreSize property to use type string only:
 
 ```
 
+* Because we need to serve both v1 and v1beta1 snapshot APIs, we need to make sure that both v1 and v1beta1 APIs are in the manifest yaml file. Because `update-crd.sh` only generates v1 manifest, make sure to copy the v1beta1 manifest below the v1 manifest after running `update-crd.sh` in the manifest yaml files. See `snapshot.storage.k8s.io_volumesnapshots.yaml` as an example. `served` is true for both v1beta1 and v1. `storage` is true for v1beta and false for v1.
+
+```
+spec:
+  group: snapshot.storage.k8s.io
+  names:
+    kind: VolumeSnapshot
+    listKind: VolumeSnapshotList
+    plural: volumesnapshots
+    singular: volumesnapshot
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - description: Indicates if a snapshot is ready to be used to restore a volume.
+      jsonPath: .status.readyToUse
+      name: ReadyToUse
+      type: boolean
+......
+    - description: Timestamp when the point-in-time snapshot is taken by the underlying storage system.
+      jsonPath: .status.creationTime
+      name: CreationTime
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: VolumeSnapshot is a user's request for either creating a point-in-time snapshot of a persistent volume, or binding to a pre-existing snapshot.
+        properties:
+......
+    served: true
+    storage: false
+    subresources:
+      status: {}
+  - additionalPrinterColumns:
+    - description: Indicates if a snapshot is ready to be used to restore a volume.
+      jsonPath: .status.readyToUse
+      name: ReadyToUse
+      type: boolean
+......
+    - description: Timestamp when the point-in-time snapshot is taken by the underlying storage system.
+      jsonPath: .status.creationTime
+      name: CreationTime
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: VolumeSnapshot is a user's request for either creating a point-in-time snapshot of a persistent volume, or binding to a pre-existing snapshot.
+        properties:
+......
+    served: true
+    storage: true
+    subresources:
+      status: {}
+status:
+  acceptedNames:
+    kind: ""
+    plural: ""
+  conditions: []
+  storedVersions: []
+``````

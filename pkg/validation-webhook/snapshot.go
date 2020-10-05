@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"reflect"
 
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,9 +29,9 @@ import (
 
 var (
 	// SnapshotV1Beta1GVR is GroupVersionResource for volumesnapshots
-	SnapshotV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumesnapshots"}
+	SnapshotV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1.GroupName, Version: "v1beta1", Resource: "volumesnapshots"}
 	// SnapshotContentV1Beta1GVR is GroupVersionResource for volumesnapshotcontents
-	SnapshotContentV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumesnapshotcontents"}
+	SnapshotContentV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1.GroupName, Version: "v1beta1", Resource: "volumesnapshotcontents"}
 )
 
 // Add a label {"added-label": "yes"} to the object
@@ -55,24 +55,24 @@ func admitSnapshot(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	deserializer := codecs.UniversalDeserializer()
 	switch ar.Request.Resource {
 	case SnapshotV1Beta1GVR:
-		snapshot := &volumesnapshotv1beta1.VolumeSnapshot{}
+		snapshot := &volumesnapshotv1.VolumeSnapshot{}
 		if _, _, err := deserializer.Decode(raw, nil, snapshot); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
-		oldSnapshot := &volumesnapshotv1beta1.VolumeSnapshot{}
+		oldSnapshot := &volumesnapshotv1.VolumeSnapshot{}
 		if _, _, err := deserializer.Decode(oldRaw, nil, oldSnapshot); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
 		return decideSnapshot(snapshot, oldSnapshot, isUpdate)
 	case SnapshotContentV1Beta1GVR:
-		snapcontent := &volumesnapshotv1beta1.VolumeSnapshotContent{}
+		snapcontent := &volumesnapshotv1.VolumeSnapshotContent{}
 		if _, _, err := deserializer.Decode(raw, nil, snapcontent); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
-		oldSnapcontent := &volumesnapshotv1beta1.VolumeSnapshotContent{}
+		oldSnapcontent := &volumesnapshotv1.VolumeSnapshotContent{}
 		if _, _, err := deserializer.Decode(oldRaw, nil, oldSnapcontent); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
@@ -85,7 +85,7 @@ func admitSnapshot(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	}
 }
 
-func decideSnapshot(snapshot, oldSnapshot *volumesnapshotv1beta1.VolumeSnapshot, isUpdate bool) *v1.AdmissionResponse {
+func decideSnapshot(snapshot, oldSnapshot *volumesnapshotv1.VolumeSnapshot, isUpdate bool) *v1.AdmissionResponse {
 	reviewResponse := &v1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{},
@@ -97,7 +97,7 @@ func decideSnapshot(snapshot, oldSnapshot *volumesnapshotv1beta1.VolumeSnapshot,
 		// Which allows the remover of finalizers and therefore deletion of this object
 		// Don't rely on the pointers to be nil, because the deserialization method will convert it to
 		// The empty struct value. Instead check the operation type.
-		if err := utils.ValidateSnapshot(oldSnapshot); err != nil {
+		if err := utils.ValidateV1Beta1Snapshot(oldSnapshot); err != nil {
 			return reviewResponse
 		}
 
@@ -110,14 +110,14 @@ func decideSnapshot(snapshot, oldSnapshot *volumesnapshotv1beta1.VolumeSnapshot,
 	}
 	// Enforce strict validation for CREATE requests. Immutable checks don't apply for CREATE requests.
 	// Enforce strict validation for UPDATE requests where old is valid and passes immutability check.
-	if err := utils.ValidateSnapshot(snapshot); err != nil {
+	if err := utils.ValidateV1Beta1Snapshot(snapshot); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
 	}
 	return reviewResponse
 }
 
-func decideSnapshotContent(snapcontent, oldSnapcontent *volumesnapshotv1beta1.VolumeSnapshotContent, isUpdate bool) *v1.AdmissionResponse {
+func decideSnapshotContent(snapcontent, oldSnapcontent *volumesnapshotv1.VolumeSnapshotContent, isUpdate bool) *v1.AdmissionResponse {
 	reviewResponse := &v1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{},
@@ -129,7 +129,7 @@ func decideSnapshotContent(snapcontent, oldSnapcontent *volumesnapshotv1beta1.Vo
 		// Which allows the remover of finalizers and therefore deletion of this object
 		// Don't rely on the pointers to be nil, because the deserialization method will convert it to
 		// The empty struct value. Instead check the operation type.
-		if err := utils.ValidateSnapshotContent(oldSnapcontent); err != nil {
+		if err := utils.ValidateV1Beta1SnapshotContent(oldSnapcontent); err != nil {
 			return reviewResponse
 		}
 
@@ -142,7 +142,7 @@ func decideSnapshotContent(snapcontent, oldSnapcontent *volumesnapshotv1beta1.Vo
 	}
 	// Enforce strict validation for all CREATE requests. Immutable checks don't apply for CREATE requests.
 	// Enforce strict validation for UPDATE requests where old is valid and passes immutability check.
-	if err := utils.ValidateSnapshotContent(snapcontent); err != nil {
+	if err := utils.ValidateV1Beta1SnapshotContent(snapcontent); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
 	}
@@ -155,7 +155,7 @@ func strPtrDereference(s *string) string {
 	}
 	return *s
 }
-func checkSnapshotImmutableFields(snapshot, oldSnapshot *volumesnapshotv1beta1.VolumeSnapshot) error {
+func checkSnapshotImmutableFields(snapshot, oldSnapshot *volumesnapshotv1.VolumeSnapshot) error {
 	if snapshot == nil {
 		return fmt.Errorf("VolumeSnapshot is nil")
 	}
@@ -176,7 +176,7 @@ func checkSnapshotImmutableFields(snapshot, oldSnapshot *volumesnapshotv1beta1.V
 	return nil
 }
 
-func checkSnapshotContentImmutableFields(snapcontent, oldSnapcontent *volumesnapshotv1beta1.VolumeSnapshotContent) error {
+func checkSnapshotContentImmutableFields(snapcontent, oldSnapcontent *volumesnapshotv1.VolumeSnapshotContent) error {
 	if snapcontent == nil {
 		return fmt.Errorf("VolumeSnapshotContent is nil")
 	}

@@ -39,7 +39,7 @@ then
   exit 1;
 fi
 
-$CONTROLLER_GEN crd:crdVersions=v1,trivialVersions=true paths=${SCRIPT_ROOT}/apis/volumesnapshot/v1beta1
+$CONTROLLER_GEN crd:crdVersions=v1,trivialVersions=false paths=${SCRIPT_ROOT}/apis/volumesnapshot/v1
 
 # To use your own boilerplate text use:
 #   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
