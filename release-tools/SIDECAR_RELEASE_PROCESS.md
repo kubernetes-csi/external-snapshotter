@@ -50,7 +50,7 @@ naming convention `<hostpath-deployment-version>-on-<kubernetes-version>`.
 ## Release Process
 1. Identify all issues and ongoing PRs that should go into the release, and
   drive them to resolution.
-1. Download [K8s release notes
+1. Download v2.8+ [K8s release notes
   generator](https://github.com/kubernetes/release/tree/master/cmd/release-notes)
 1. Generate release notes for the release. Replace arguments with the relevant
   information.
@@ -62,13 +62,10 @@ naming convention `<hostpath-deployment-version>-on-<kubernetes-version>`.
         ```
     * For new patch releases on a release branch:
         ```
-        GITHUB_TOKEN=<token> release-notes --branch=release-1.1
-        --start-rev=v1.1.1 --end-sha=f0a9219b29cc9053047c39d149ce9b22bc7b918b
+        GITHUB_TOKEN=<token> release-notes --discover=patch-to-latest --branch=release-1.1
         --github-org=kubernetes-csi --github-repo=external-provisioner
         --required-author="" --output out.md
         ```
-        * `--start-rev` should point to the last patch release from the release branch.
-        * `--end-sha` should point to the latest commit from the release branch.
 1. Compare the generated output to the new commits for the release to check if
    any notable change missed a release note.
 1. Reword release notes as needed. Make sure to check notes for breaking
@@ -89,6 +86,12 @@ naming convention `<hostpath-deployment-version>-on-<kubernetes-version>`.
    [external-provisioner example](https://github.com/kubernetes-csi/external-provisioner/releases/new)
 1. If release was a new major/minor version, create a new `release-<minor>`
    branch at that commit.
+1. Check [image build status](https://k8s-testgrid.appspot.com/sig-storage-image-build).
+1. Promote images from k8s-staging-sig-storage to k8s.gcr.io/sig-storage. From
+   the [k8s image
+   repo](https://github.com/kubernetes/k8s.io/tree/master/k8s.gcr.io/images/k8s-staging-sig-storage),
+   run `./generate.sh > images.yaml`, and send a PR with the updated images.
+   Once merged, the image promoter will copy the images from staging to prod.
 1. Update [kubernetes-csi/docs](https://github.com/kubernetes-csi/docs) sidecar
    and feature pages with the new released version.
 1. After all the sidecars have been released, update
