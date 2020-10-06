@@ -85,7 +85,7 @@ get_versioned_variable () {
     echo "$value"
 }
 
-configvar CSI_PROW_BUILD_PLATFORMS "linux amd64; windows amd64 .exe; linux ppc64le -ppc64le; linux s390x -s390x" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
+configvar CSI_PROW_BUILD_PLATFORMS "linux amd64; windows amd64 .exe; linux ppc64le -ppc64le; linux s390x -s390x; linux arm64 -arm64" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
 
 # If we have a vendor directory, then use it. We must be careful to only
 # use this for "make" invocations inside the project's repo itself because
@@ -211,6 +211,10 @@ configvar CSI_PROW_DRIVER_INSTALL "install_csi_driver" "name of the shell functi
 # still use that name.
 configvar CSI_PROW_DRIVER_CANARY "${CSI_PROW_HOSTPATH_CANARY}" "driver image override for canary images"
 
+# Image registry to use for canary images.
+# Only valid if CSI_PROW_DRIVER_CANARY == "canary".
+configvar CSI_PROW_DRIVER_CANARY_REGISTRY "gcr.io/k8s-staging-sig-storage" "registry for canary images"
+
 # The E2E testing can come from an arbitrary repo. The expectation is that
 # the repo supports "go test ./test/e2e -args --storage.testdriver" (https://github.com/kubernetes/kubernetes/pull/72836)
 # after setting KUBECONFIG. As a special case, if the repository is Kubernetes,
@@ -218,17 +222,18 @@ configvar CSI_PROW_DRIVER_CANARY "${CSI_PROW_HOSTPATH_CANARY}" "driver image ove
 # all generated files are present.
 #
 # CSI_PROW_E2E_REPO=none disables E2E testing.
-# TOOO: remove versioned variables and make e2e version match k8s version
-configvar CSI_PROW_E2E_VERSION_1_15 v1.15.0 "E2E version for Kubernetes 1.15.x"
-configvar CSI_PROW_E2E_VERSION_1_16 v1.16.0 "E2E version for Kubernetes 1.16.x"
-configvar CSI_PROW_E2E_VERSION_1_17 v1.17.0 "E2E version for Kubernetes 1.17.x"
-# TODO: add new CSI_PROW_E2E_VERSION entry for future Kubernetes releases
-configvar CSI_PROW_E2E_VERSION_LATEST master "E2E version for Kubernetes master" # testing against Kubernetes master is already tracking a moving target, so we might as well use a moving E2E version
-configvar CSI_PROW_E2E_REPO_LATEST https://github.com/kubernetes/kubernetes "E2E repo for Kubernetes >= 1.13.x" # currently the same for all versions
-configvar CSI_PROW_E2E_IMPORT_PATH_LATEST k8s.io/kubernetes "E2E package for Kubernetes >= 1.13.x" # currently the same for all versions
-configvar CSI_PROW_E2E_VERSION "$(get_versioned_variable CSI_PROW_E2E_VERSION "${csi_prow_kubernetes_version_suffix}")"  "E2E version"
-configvar CSI_PROW_E2E_REPO "$(get_versioned_variable CSI_PROW_E2E_REPO "${csi_prow_kubernetes_version_suffix}")" "E2E repo"
-configvar CSI_PROW_E2E_IMPORT_PATH "$(get_versioned_variable CSI_PROW_E2E_IMPORT_PATH "${csi_prow_kubernetes_version_suffix}")" "E2E package"
+tag_from_version () {
+    version="$1"
+    shift
+    case "$version" in
+        latest) echo "master";;
+        release-*) echo "$version";;
+        *) echo "v$version";;
+    esac
+}
+configvar CSI_PROW_E2E_VERSION "$(tag_from_version "${CSI_PROW_KUBERNETES_VERSION}")"  "E2E version"
+configvar CSI_PROW_E2E_REPO "https://github.com/kubernetes/kubernetes" "E2E repo"
+configvar CSI_PROW_E2E_IMPORT_PATH "k8s.io/kubernetes" "E2E package"
 
 # csi-sanity testing from the csi-test repo can be run against the installed
 # CSI driver. For this to work, deploying the driver must expose the Unix domain
@@ -513,6 +518,10 @@ go_version_for_kubernetes () (
     if ! [ "$go_version" ]; then
         die "Unable to determine Go version for Kubernetes $version from hack/lib/golang.sh."
     fi
+    # Strip the trailing .0. Kubernetes includes it, Go itself doesn't.
+    # Ignore: See if you can use ${variable//search/replace} instead.
+    # shellcheck disable=SC2001
+    go_version="$(echo "$go_version" | sed -e 's/\.0$//')"
     echo "$go_version"
 )
 
@@ -688,7 +697,11 @@ install_csi_driver () {
     fi
 
     if [ "${CSI_PROW_DRIVER_CANARY}" != "stable" ]; then
+      if [ "${CSI_PROW_DRIVER_CANARY}" == "canary" ]; then
+        images="$images IMAGE_TAG=${CSI_PROW_DRIVER_CANARY} IMAGE_REGISTRY=${CSI_PROW_DRIVER_CANARY_REGISTRY}"
+      else
         images="$images IMAGE_TAG=${CSI_PROW_DRIVER_CANARY}"
+      fi
     fi
     # Ignore: Double quote to prevent globbing and word splitting.
     # It's intentional here for $images.
@@ -1188,4 +1201,24 @@ main () {
     fi
 
     return "$ret"
+}
+
+# This function can be called by a repo's top-level cloudbuild.sh:
+# it handles environment set up in the GCR cloud build and then
+# invokes "make push-multiarch" to do the actual image building.
+gcr_cloud_build () {
+    # Register gcloud as a Docker credential helper.
+    # Required for "docker buildx build --push".
+    gcloud auth configure-docker
+
+    if find . -name Dockerfile | grep -v ^./vendor | xargs --no-run-if-empty cat | grep -q ^RUN; then
+        # Needed for "RUN" steps on non-linux/amd64 platforms.
+        # See https://github.com/multiarch/qemu-user-static#getting-started
+        (set -x; docker run --rm --privileged multiarch/qemu-user-static --reset -p yes)
+    fi
+
+    # Extract tag-n-hash value from GIT_TAG (form vYYYYMMDD-tag-n-hash) for REV value.
+    REV=v$(echo "$GIT_TAG" | cut -f3- -d 'v')
+
+    run_with_go "${CSI_PROW_GO_VERSION_BUILD}" make push-multiarch REV="${REV}" REGISTRY_NAME="${REGISTRY_NAME}" BUILD_PLATFORMS="${CSI_PROW_BUILD_PLATFORMS}"
 }
