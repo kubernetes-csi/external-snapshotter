@@ -215,6 +215,7 @@ configvar CSI_PROW_DRIVER_CANARY "${CSI_PROW_HOSTPATH_CANARY}" "driver image ove
 # Only valid if CSI_PROW_DRIVER_CANARY == "canary".
 configvar CSI_PROW_DRIVER_CANARY_REGISTRY "gcr.io/k8s-staging-sig-storage" "registry for canary images"
 
+
 # The E2E testing can come from an arbitrary repo. The expectation is that
 # the repo supports "go test ./test/e2e -args --storage.testdriver" (https://github.com/kubernetes/kubernetes/pull/72836)
 # after setting KUBECONFIG. As a special case, if the repository is Kubernetes,
@@ -772,7 +773,6 @@ install_snapshot_controller() {
 # collect logs and cluster status (like the version of all components, Kubernetes version, test version)
 collect_cluster_info () {
     cat <<EOF
-=========================================================
 Kubernetes:
 $(kubectl version)
 
@@ -790,7 +790,6 @@ docker exec csi-prow-control-plane docker image ls --format='{{.Repository}} {{.
 done
 )
 
-=========================================================
 EOF
 
 }
