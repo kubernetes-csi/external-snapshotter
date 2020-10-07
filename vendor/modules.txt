@@ -58,7 +58,7 @@ github.com/hashicorp/golang-lru/simplelru
 github.com/imdario/mergo
 # github.com/json-iterator/go v1.1.8
 github.com/json-iterator/go
-# github.com/kubernetes-csi/csi-lib-utils v0.7.0
+# github.com/kubernetes-csi/csi-lib-utils v0.7.1
 github.com/kubernetes-csi/csi-lib-utils/connection
 github.com/kubernetes-csi/csi-lib-utils/leaderelection
 github.com/kubernetes-csi/csi-lib-utils/metrics

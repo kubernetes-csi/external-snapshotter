@@ -92,6 +92,10 @@ func NewCSIMetricsManager(driverName string) CSIMetricsManager {
 		),
 	}
 
+	// https://github.com/open-telemetry/opentelemetry-collector/issues/969
+	// Add process_start_time_seconds into the metric to let the start time be parsed correctly
+	metrics.RegisterProcessStartTime(cmm.registry.RawRegister)
+
 	cmm.SetDriverName(driverName)
 	cmm.registerMetrics()
 	return &cmm
@@ -171,7 +175,11 @@ func VerifyMetricsMatch(expectedMetrics, actualMetrics string, metricToIgnore st
 		wantScanner.Scan()
 		wantLine := strings.TrimSpace(wantScanner.Text())
 		gotLine := strings.TrimSpace(gotScanner.Text())
-		if wantLine != gotLine && (metricToIgnore == "" || !strings.HasPrefix(gotLine, metricToIgnore)) {
+		if wantLine != gotLine &&
+			(metricToIgnore == "" || !strings.HasPrefix(gotLine, metricToIgnore)) &&
+			// We should ignore the comments from metricToIgnore, otherwise the verification will
+			// fail because of the comments.
+			!strings.HasPrefix(gotLine, "#") {
 			return fmt.Errorf("\r\nMetric Want: %q\r\nMetric Got:  %q\r\n", wantLine, gotLine)
 		}
 	}
