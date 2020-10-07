@@ -24,6 +24,7 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	storageinformers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions/volumesnapshot/v1beta1"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 
 	v1 "k8s.io/api/core/v1"
@@ -60,6 +61,8 @@ type csiSnapshotCommonController struct {
 	snapshotStore cache.Store
 	contentStore  cache.Store
 
+	metricsManager metrics.MetricsManager
+
 	resyncPeriod time.Duration
 }
 
@@ -71,6 +74,7 @@ func NewCSISnapshotCommonController(
 	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
+	metricsManager metrics.MetricsManager,
 	resyncPeriod time.Duration,
 ) *csiSnapshotCommonController {
 	broadcaster := record.NewBroadcaster()
@@ -80,14 +84,15 @@ func NewCSISnapshotCommonController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
 
 	ctrl := &csiSnapshotCommonController{
-		clientset:     clientset,
-		client:        client,
-		eventRecorder: eventRecorder,
-		resyncPeriod:  resyncPeriod,
-		snapshotStore: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
-		contentQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
+		clientset:      clientset,
+		client:         client,
+		eventRecorder:  eventRecorder,
+		resyncPeriod:   resyncPeriod,
+		snapshotStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		contentStore:   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		snapshotQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
+		contentQueue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
+		metricsManager: metricsManager,
 	}
 
 	ctrl.pvcLister = pvcInformer.Lister()
@@ -363,6 +368,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSn
 	if !newSnapshot {
 		return nil
 	}
+
 	err = ctrl.syncSnapshot(snapshot)
 	if err != nil {
 		if errors.IsConflict(err) {
@@ -407,6 +413,13 @@ func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnap
 func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot) {
 	_ = ctrl.snapshotStore.Delete(snapshot)
 	klog.V(4).Infof("snapshot %q deleted", utils.SnapshotKey(snapshot))
+	driverName, err := ctrl.getSnapshotDriverName(snapshot)
+	if err != nil {
+		klog.Errorf("failed to getSnapshotDriverName while recording metrics for snapshot %q: %s", utils.SnapshotKey(snapshot), err)
+	} else {
+		deleteOperationKey := metrics.NewOperationKey(metrics.DeleteSnapshotOperationName, snapshot.UID)
+		ctrl.metricsManager.RecordMetrics(deleteOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+	}
 
 	snapshotContentName := ""
 	if snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil {
@@ -416,6 +429,7 @@ func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSn
 		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", utils.SnapshotKey(snapshot))
 		return
 	}
+
 	// sync the content when its snapshot is deleted.  Explicitly sync'ing the
 	// content here in response to snapshot deletion prevents the content from
 	// waiting until the next sync period for its Release.
