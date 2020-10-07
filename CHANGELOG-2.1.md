@@ -1,3 +1,24 @@
+# Release notes for v2.1.2 (Changelog since v2.1.1)
+
+## Changes by Kind
+
+### Uncategorized
+
+- release-2.1: update release-tools ([#392](https://github.com/kubernetes-csi/external-snapshotter/pull/392), [@Jiawei0227](https://github.com/Jiawei0227))
+  - Build with Go 1.15
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/kubernetes-csi/csi-lib-utils: [v0.7.0 → v0.7.1](https://github.com/kubernetes-csi/csi-lib-utils/compare/v0.7.0...v0.7.1)
+
+### Removed
+_Nothing has changed._
+
+
 # v2.1.1 (Changelog since v2.1.0)
 
 ## Bug Fixes
