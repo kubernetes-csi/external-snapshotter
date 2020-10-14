@@ -49,7 +49,9 @@ const (
 	// CSI Parameters prefixed with csiParameterPrefix are not passed through
 	// to the driver on CreateSnapshotRequest calls. Instead they are intended
 	// to be used by the CSI external-snapshotter and maybe used to populate
-	// fields in subsequent CSI calls or Kubernetes API objects.
+	// fields in subsequent CSI calls or Kubernetes API objects. An exception
+	// exists for the volume snapshot and volume snapshot content keys, which are
+	// passed as parameters on CreateSnapshotRequest calls.
 	csiParameterPrefix = "csi.storage.k8s.io/"
 
 	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"      // Prefixed name key for DeleteSnapshot secret
@@ -57,6 +59,10 @@ const (
 
 	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"      // Prefixed name key for ListSnapshots secret
 	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace" // Prefixed namespace key for ListSnapshots secret
+
+	PrefixedVolumeSnapshotNameKey        = csiParameterPrefix + "volumesnapshot/name"        // Prefixed VolumeSnapshot name key
+	PrefixedVolumeSnapshotNamespaceKey   = csiParameterPrefix + "volumesnapshot/namespace"   // Prefixed VolumeSnapshot namespace key
+	PrefixedVolumeSnapshotContentNameKey = csiParameterPrefix + "volumesnapshotcontent/name" // Prefixed VolumeSnapshotContent name key
 
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"

@@ -41,6 +41,11 @@ func TestSyncContent(t *testing.T) {
 					snapshotName: "snapshot-snapuid1-1",
 					driverName:   mockDriverName,
 					snapshotId:   "snapuid1-1",
+					parameters: map[string]string{
+						utils.PrefixedVolumeSnapshotNameKey:        "snap1-1",
+						utils.PrefixedVolumeSnapshotNamespaceKey:   "default",
+						utils.PrefixedVolumeSnapshotContentNameKey: "content1-1",
+					},
 					creationTime: timeNow,
 					readyToUse:   true,
 				},
@@ -63,6 +68,11 @@ func TestSyncContent(t *testing.T) {
 					snapshotName: "snapshot-snapuid1-2",
 					driverName:   mockDriverName,
 					snapshotId:   "snapuid1-2",
+					parameters: map[string]string{
+						utils.PrefixedVolumeSnapshotNameKey:        "snap1-2",
+						utils.PrefixedVolumeSnapshotNamespaceKey:   "default",
+						utils.PrefixedVolumeSnapshotContentNameKey: "content1-2",
+					},
 					creationTime: timeNow,
 					readyToUse:   true,
 					size:         defaultSize,
@@ -114,7 +124,13 @@ func TestSyncContent(t *testing.T) {
 				{
 					volumeHandle: "volume-handle-1-4",
 					snapshotName: "snapshot-snapuid1-4",
-					parameters:   class5Parameters,
+					parameters: map[string]string{
+						utils.AnnDeletionSecretRefName:             "secret",
+						utils.AnnDeletionSecretRefNamespace:        "default",
+						utils.PrefixedVolumeSnapshotNameKey:        "snap1-4",
+						utils.PrefixedVolumeSnapshotNamespaceKey:   "default",
+						utils.PrefixedVolumeSnapshotContentNameKey: "content1-4",
+					},
 					secrets: map[string]string{
 						"foo": "bar",
 					},

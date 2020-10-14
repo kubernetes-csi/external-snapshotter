@@ -169,8 +169,10 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 		{
 			name: "all known prefixed",
 			params: map[string]string{
-				PrefixedSnapshotterSecretNameKey:      "csiBar",
-				PrefixedSnapshotterSecretNamespaceKey: "csiBar",
+				PrefixedSnapshotterSecretNameKey:          "csiBar",
+				PrefixedSnapshotterSecretNamespaceKey:     "csiBar",
+				PrefixedSnapshotterListSecretNameKey:      "csiBar",
+				PrefixedSnapshotterListSecretNamespaceKey: "csiBar",
 			},
 			expectedParams: map[string]string{},
 		},
