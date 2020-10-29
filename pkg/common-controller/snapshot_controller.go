@@ -809,12 +809,12 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
 	if err != nil {
 		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already.", snapshot.Name, err)
-		return newControllerUpdateError(snapshot.Name, "cannot get claim from snapshot")
+		return newControllerUpdateError(snapshot.Name, "failed to retrieve PersistentVolumeClaim referenced by snapshot source")
 	}
 
 	if pvc.ObjectMeta.DeletionTimestamp != nil {
 		klog.Errorf("cannot add finalizer on claim [%s] for snapshot [%s]: claim is being deleted", pvc.Name, snapshot.Name)
-		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
+		return newControllerUpdateError(pvc.Name, "cannot add finalizer on PersistentVolumeClaim because it is being deleted")
 	}
 
 	// If PVC is not being deleted and PVCFinalizer is not added yet, the PVCFinalizer should be added.

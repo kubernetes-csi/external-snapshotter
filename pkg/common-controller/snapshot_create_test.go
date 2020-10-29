@@ -126,7 +126,7 @@ func TestCreateSnapshotSync(t *testing.T) {
 			initialContents:   nocontents,
 			expectedContents:  nocontents,
 			initialSnapshots:  newSnapshotArray("snap7-4", "snapuid7-4", "claim7-4", "", classGold, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap7-4", "snapuid7-4", "claim7-4", "", classGold, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error snapshot controller failed to update snap7-4 on API server: cannot get claim from snapshot"), false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap7-4", "snapuid7-4", "claim7-4", "", classGold, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error snapshot controller failed to update snap7-4 on API server: failed to retrieve PersistentVolumeClaim referenced by snapshot source"), false, true, nil),
 			initialVolumes:    newVolumeArray("volume7-4", "pv-uid7-4", "pv-handle7-4", "1Gi", "pvc-uid7-4", "claim7-4", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			expectedEvents:    []string{"Warning SnapshotContentCreationFailed"},
 			errors:            noerrors,

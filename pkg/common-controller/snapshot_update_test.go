@@ -128,7 +128,7 @@ func TestSync(t *testing.T) {
 			initialContents:   nocontents,
 			expectedContents:  nocontents,
 			initialSnapshots:  newSnapshotArray("snap2-9", "snapuid2-9", "claim2-9", "", validSecretClass, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: newSnapshotArray("snap2-9", "snapuid2-9", "claim2-9", "", validSecretClass, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error snapshot controller failed to update snap2-9 on API server: cannot get claim from snapshot"), false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap2-9", "snapuid2-9", "claim2-9", "", validSecretClass, "", &False, nil, nil, newVolumeError("Failed to create snapshot content with error snapshot controller failed to update snap2-9 on API server: failed to retrieve PersistentVolumeClaim referenced by snapshot source"), false, true, nil),
 			errors: []reactorError{
 				{"get", "persistentvolumeclaims", errors.New("mock update error")},
 				{"get", "persistentvolumeclaims", errors.New("mock update error")},
