@@ -812,22 +812,24 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		return newControllerUpdateError(snapshot.Name, "cannot get claim from snapshot")
 	}
 
-	if pvc.ObjectMeta.DeletionTimestamp != nil {
-		klog.Errorf("cannot add finalizer on claim [%s] for snapshot [%s]: claim is being deleted", pvc.Name, snapshot.Name)
-		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
+	if utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
+		klog.Infof("Protection finalizer already exists for persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
+		return nil
 	}
 
-	// If PVC is not being deleted and PVCFinalizer is not added yet, the PVCFinalizer should be added.
-	if pvc.ObjectMeta.DeletionTimestamp == nil && !utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
-		// Add the finalizer
+	if pvc.ObjectMeta.DeletionTimestamp != nil {
+		klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: claim is being deleted", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name)
+		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
+	} else {
+		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
 		pvcClone := pvc.DeepCopy()
 		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
 		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
 		if err != nil {
-			klog.Errorf("cannot add finalizer on claim [%s] for snapshot [%s]: [%v]", pvc.Name, snapshot.Name, err)
+			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
 			return newControllerUpdateError(pvcClone.Name, err.Error())
 		}
-		klog.Infof("Added protection finalizer to persistent volume claim %s", pvc.Name)
+		klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
 	}
 
 	return nil
