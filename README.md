@@ -175,6 +175,28 @@ Volume snapshot APIs and client library are now in a separate sub-module: `githu
 
 Use the command `go get -u github.com/kubernetes-csi/external-snapshotter/client/v3@v3.0.0` to get the client library.
 
+### Setting Quota limits with Snapshot custom resources
+[`ResourceQuotas`](https://kubernetes.io/docs/concepts/policy/resource-quotas/) are namespaced objects that can be used to set limits on objects of a particular [`Group.Version.Kind`](https://book.kubebuilder.io/cronjob-tutorial/gvks.html). Before we set resource quota, make sure that snapshot CRDs are installed in the cluster. If not please follow [this guide](https://github.com/kubernetes-csi/external-snapshotter#usage).
+```
+kubectl get crds | grep snapshot
+```
+
+Now create a `ResourceQuota` object which sets the limits on number of volumesnapshots that can be created:
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: snapshot-quota
+spec:
+  hard:
+    count/volumesnapshots.snapshot.storage.k8s.io: "10"
+```
+
+If you try to create more snapshots than what is allowed, you will see error like the following:
+```
+Error from server (Forbidden): error when creating "csi-snapshot.yaml": volumesnapshots.snapshot.storage.k8s.io "new-snapshot-demo" is forbidden: exceeded quota: snapshot-quota, requested: count/volumesnapshots.snapshot.storage.k8s.io=1, used: count/volumesnapshots.snapshot.storage.k8s.io=10, limited: count/volumesnapshots.snapshot.storage.k8s.io=10
+```
+
 ## Dependency Management
 
 external-snapshotter uses [go modules](https://blog.golang.org/using-go-modules).
