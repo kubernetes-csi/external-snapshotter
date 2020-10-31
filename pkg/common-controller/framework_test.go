@@ -163,6 +163,21 @@ type reactorError struct {
 	error    error
 }
 
+// testError is an error returned from a test that marks a test as failed even
+// though the test case itself expected a common error (such as API error)
+type testError string
+
+func (t testError) Error() string {
+	return string(t)
+}
+
+var _ error = testError("foo")
+
+func isTestError(err error) bool {
+	_, ok := err.(testError)
+	return ok
+}
+
 func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...string) []*crdv1.VolumeSnapshot {
 	for i := range snapshots {
 		for _, f := range finalizers {
@@ -1159,7 +1174,11 @@ func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *sna
 }
 
 func testUpdateSnapshotClass(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	_, err := ctrl.checkAndUpdateSnapshotClass(test.initialSnapshots[0])
+	snap, err := ctrl.checkAndUpdateSnapshotClass(test.initialSnapshots[0])
+	// syncSnapshotByKey expects that checkAndUpdateSnapshotClass always returns a snapshot
+	if snap == nil {
+		return testError(fmt.Sprintf("checkAndUpdateSnapshotClass returned nil snapshot on error: %v", err))
+	}
 	return err
 }
 
@@ -1497,6 +1516,9 @@ func runUpdateSnapshotClassTests(t *testing.T, tests []controllerTest, snapshotC
 
 		// Run the tested functions
 		err = test.test(ctrl, reactor, test)
+		if err != nil && isTestError(err) {
+			t.Errorf("Test %q failed: %v", test.name, err)
+		}
 		if test.expectSuccess && err != nil {
 			t.Errorf("Test %q failed: %v", test.name, err)
 		}
