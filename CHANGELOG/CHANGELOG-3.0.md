@@ -1,6 +1,31 @@
+# Release notes for v3.0.2
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v3.0.1
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Cherry-pick from https://github.com/kubernetes-csi/external-snapshotter/pull/413. Bug fix to allow creation of snapshot content if pvc finalizer exists, even if pvc is marked for deletion. ([#414](https://github.com/kubernetes-csi/external-snapshotter/pull/414), [@RaunakShah](https://github.com/RaunakShah))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
+
 # Release notes for v3.0.1
 
 [Documentation](https://kubernetes-csi.github.io)
+
 # Changelog since v3.0.0
 
 ## Changes by Kind
