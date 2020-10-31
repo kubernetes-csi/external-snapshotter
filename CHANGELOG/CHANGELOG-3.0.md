@@ -10,7 +10,7 @@
 
 - Cherry-pick from https://github.com/kubernetes-csi/external-snapshotter/pull/413. Bug fix to allow creation of snapshot content if pvc finalizer exists, even if pvc is marked for deletion. ([#414](https://github.com/kubernetes-csi/external-snapshotter/pull/414), [@RaunakShah](https://github.com/RaunakShah))
 
-- Cherry-pick from https://github.com/kubernetes-csi/external-snapshotter/pull/381. Fixed crash of snapshot-controller when source PVC of a snapshot to take does not exist. ([#415](https://github.com/kubernetes-csi/external-snapshotter/pull/415), [@jsafrane](https://github.com/jsafrane))
+- Cherry-pick PR ([#381](https://github.com/kubernetes-csi/external-snapshotter/pull/381), [@jsafrane](https://github.com/jsafrane)). Fix crash of snapshot-controller when source PVC of a snapshot to take does not exist. ([#416](https://github.com/kubernetes-csi/external-snapshotter/pull/416), [@xing-yang](https://github.com/xing-yang)).
 
 ## Dependencies
 
