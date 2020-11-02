@@ -692,10 +692,13 @@ install_csi_driver () {
 # Installs all nessesary snapshotter CRDs  
 install_snapshot_crds() {
   # Wait until volumesnapshot CRDs are in place.
-  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
-  kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotclasses.yaml" --validate=false
-  kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshots.yaml" --validate=false
-  kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotcontents.yaml" --validate=false
+  #CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
+  kubectl apply -f "${REPO_DIR}/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml" --validate=false
+  kubectl apply -f "${REPO_DIR}/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml" --validate=false
+  kubectl apply -f "${REPO_DIR}/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml" --validate=false
+  echo "kubectl apply -f ${REPO_DIR}/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml"
+  echo "kubectl apply -f ${REPO_DIR}/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml"
+  echo "kubectl apply -f ${REPO_DIR}/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml"
   cnt=0
   until kubectl get volumesnapshotclasses.snapshot.storage.k8s.io \
     && kubectl get volumesnapshots.snapshot.storage.k8s.io \
