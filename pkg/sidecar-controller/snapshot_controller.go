@@ -27,7 +27,6 @@ import (
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	klog "k8s.io/klog/v2"
 )
@@ -328,9 +327,9 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *crdv1.VolumeSnapshotContent) error {
 	klog.V(5).Infof("deleteCSISnapshotOperation [%s] started", content.Name)
 
-	_, snapshotterCredentials, err := ctrl.getCSISnapshotInput(content)
-	if err != nil && !errors.IsNotFound(err) {
-		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot class or credentials")
+	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotation(content)
+	if err != nil {
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot credentials")
 		return fmt.Errorf("failed to get input parameters to delete snapshot for content %s: %q", content.Name, err)
 	}
 
