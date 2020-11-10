@@ -78,14 +78,17 @@ type VolumeSnapshotSpec struct {
 	// Required.
 	Source VolumeSnapshotSource `json:"source" protobuf:"bytes,1,opt,name=source"`
 
-	// volumeSnapshotClassName is the name of the VolumeSnapshotClass requested by the VolumeSnapshot.
-	// A given cluster could have multiple default Volume SnapshotClasses: one
+	// VolumeSnapshotClassName is the name of the VolumeSnapshotClass
+	// requested by the VolumeSnapshot.
+	// VolumeSnapshotClassName may be left nil to indicate that the default
+	// SnapshotClass should be used.
+	// A given cluster may have multiple default Volume SnapshotClasses: one
 	// default per CSI Driver. If a VolumeSnapshot does not specify a SnapshotClass,
 	// VolumeSnapshotSource will be checked to figure out what the associated
 	// CSI Driver is, and the default VolumeSnapshotClass associated with that
 	// CSI Driver will be used. If more than one VolumeSnapshotClass exist for
 	// a given CSI Driver and more than one have been marked as default,
-	// CreateSnapshot should fail and generate an event.
+	// CreateSnapshot will fail and generate an event.
 	// Empty string is not allowed for this field.
 	// +optional
 	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotClassName"`
@@ -101,7 +104,7 @@ type VolumeSnapshotSource struct {
 	// object representing the volume from which a snapshot should be created.
 	// This PVC is assumed to be in the same namespace as the VolumeSnapshot
 	// object.
-	// This field should be set if the snapshot does not exists, and should be
+	// This field should be set if the snapshot does not exists, and needs to be
 	// created.
 	// This field is immutable.
 	// +optional
@@ -109,7 +112,7 @@ type VolumeSnapshotSource struct {
 
 	// volumeSnapshotContentName specifies the name of a pre-existing VolumeSnapshotContent
 	// object representing an existing volume snapshot.
-	// This field should be set if the snapshot already exists.
+	// This field should be set if the snapshot already exists and only needs a representation in Kubernetes.
 	// This field is immutable.
 	// +optional
 	VolumeSnapshotContentName *string `json:"volumeSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentName"`
@@ -144,7 +147,7 @@ type VolumeSnapshotStatus struct {
 	// "CreateSnapshot" gRPC call.
 	// For a pre-existing snapshot, this field will be filled with the "creation_time"
 	// value returned from the CSI "ListSnapshots" gRPC call if the driver supports it.
-	// If not specified, it indicates that the creation time of the snapshot is unknown.
+	// If not specified, it may indicate that the creation time of the snapshot is unknown.
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
 
@@ -297,10 +300,11 @@ type VolumeSnapshotContentSpec struct {
 	// Supported values are "Retain" and "Delete".
 	// "Retain" means that the VolumeSnapshotContent and its physical snapshot on underlying storage system are kept.
 	// "Delete" means that the VolumeSnapshotContent and its physical snapshot on underlying storage system are deleted.
-	// In dynamic snapshot creation case, this field will be filled in by the
-	// CSI snapshotter sidecar with the "DeletionPolicy" field defined in the
-	// VolumeSnapshotClass the VolumeSnapshot refers to.
-	// For pre-existing snapshots, users MUST specify this field when creating the VolumeSnapshotContent object.
+	// For dynamically provisioned snapshots, this field will automatically be filled in by the
+	// CSI snapshotter sidecar with the "DeletionPolicy" field defined in the corresponding
+	// VolumeSnapshotClass.
+	// For pre-existing snapshots, users MUST specify this field when creating the
+	//  VolumeSnapshotContent object.
 	// Required.
 	DeletionPolicy DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,2,opt,name=deletionPolicy"`
 
@@ -311,11 +315,16 @@ type VolumeSnapshotContentSpec struct {
 	// Required.
 	Driver string `json:"driver" protobuf:"bytes,3,opt,name=driver"`
 
-	// name of the VolumeSnapshotClass to which this snapshot belongs.
+	// name of the VolumeSnapshotClass from which this snapshot was (or will be)
+	// created.
+	// Note that after provisioning, the VolumeSnapshotClass may be deleted or
+	// recreated with different set of values, and as such, should not be referenced
+	// post-snapshot creation.
 	// +optional
 	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty" protobuf:"bytes,4,opt,name=volumeSnapshotClassName"`
 
-	// source specifies from where a snapshot will be created.
+	// source specifies whether the snapshot is (or should be) dynamically provisioned
+	// or already exists, and just requires a Kubernetes object representation.
 	// This field is immutable after creation.
 	// Required.
 	Source VolumeSnapshotContentSource `json:"source" protobuf:"bytes,5,opt,name=source"`
@@ -334,7 +343,8 @@ type VolumeSnapshotContentSource struct {
 	VolumeHandle *string `json:"volumeHandle,omitempty" protobuf:"bytes,1,opt,name=volumeHandle"`
 
 	// snapshotHandle specifies the CSI "snapshot_id" of a pre-existing snapshot on
-	// the underlying storage system.
+	// the underlying storage system for which a Kubernetes object representation
+	// was (or should be) created.
 	// This field is immutable.
 	// +optional
 	SnapshotHandle *string `json:"snapshotHandle,omitempty" protobuf:"bytes,2,opt,name=snapshotHandle"`
@@ -395,7 +405,8 @@ type VolumeSnapshotContentStatus struct {
 	// +optional.
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,4,opt,name=readyToUse"`
 
-	// error is the latest observed error during snapshot creation, if any.
+	// error is the last observed error during snapshot creation, if any.
+	// Upon success after retry, this error field will be cleared.
 	// +optional
 	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,5,opt,name=error,casttype=VolumeSnapshotError"`
 }
