@@ -10,6 +10,8 @@ kind: ServiceAccount
 metadata:
   name: snapshot-controller
   namespace: default # TODO: replace with the namespace you want for your controller, e.g. kube-system
+  labels:
+    app: csi-snapshotter
 
 ---
 kind: ClusterRole
@@ -17,6 +19,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   # rename if there are conflicts
   name: snapshot-controller-runner
+  labels:
+    app: csi-snapshotter
 rules:
   - apiGroups: [""]
     resources: ["persistentvolumes"]
@@ -48,6 +52,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: snapshot-controller-role
+  labels:
+    app: csi-snapshotter
 subjects:
   - kind: ServiceAccount
     name: snapshot-controller
@@ -64,6 +70,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: default # TODO: replace with the namespace you want for your controller, e.g. kube-system
   name: snapshot-controller-leaderelection
+  labels:
+    app: csi-snapshotter
 rules:
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
@@ -75,6 +83,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: snapshot-controller-leaderelection
   namespace: default # TODO: replace with the namespace you want for your controller, e.g. kube-system
+  labels:
+    app: csi-snapshotter
 subjects:
   - kind: ServiceAccount
     name: snapshot-controller

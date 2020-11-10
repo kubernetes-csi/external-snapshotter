@@ -11,6 +11,8 @@ apiVersion: apps/v1
 metadata:
   name: snapshot-controller
   namespace: default # TODO: replace with the namespace you want for your controller, e.g. kube-system
+  labels:
+    app: csi-snapshotter
 spec:
   serviceName: "snapshot-controller"
   replicas: 1

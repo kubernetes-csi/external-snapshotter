@@ -14,12 +14,16 @@ metadata:
   name: csi-provisioner
   # replace with non-default namespace name
   namespace: default
+  labels:
+    app: csi-provisioner
 
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: external-provisioner-runner
+  labels:
+    app: csi-provisioner
 rules:
   - apiGroups: [""]
     resources: ["secrets"]
@@ -48,6 +52,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-provisioner-role
+  labels:
+    app: csi-provisioner
 subjects:
   - kind: ServiceAccount
     name: csi-provisioner
@@ -67,6 +73,8 @@ metadata:
   # replace with non-default namespace name
   namespace: default
   name: external-provisioner-cfg
+  labels:
+    app: csi-provisioner
 rules:
 - apiGroups: [""]
   resources: ["endpoints"]
@@ -82,6 +90,8 @@ metadata:
   name: csi-provisioner-role-cfg
   # replace with non-default namespace name
   namespace: default
+  labels:
+    app: csi-provisioner
 subjects:
   - kind: ServiceAccount
     name: csi-provisioner

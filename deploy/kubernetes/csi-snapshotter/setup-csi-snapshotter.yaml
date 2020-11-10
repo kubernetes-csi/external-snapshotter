@@ -17,6 +17,8 @@ subjects:
     name: csi-snapshotter # from rbac.yaml
     # replace with non-default namespace name
     namespace: default
+    labels:
+      app: csi-snapshotter
 roleRef:
   kind: ClusterRole
   name: external-provisioner-runner # from rbac-external-provisioner.yaml
@@ -29,6 +31,8 @@ metadata:
   name: csi-snapshotter-provisioner-role-cfg
   # replace with non-default namespace name
   namespace: default
+  labels:
+    app: csi-snapshotter
 subjects:
   - kind: ServiceAccount
     name: csi-snapshotter # from rbac.yaml
@@ -58,6 +62,8 @@ kind: StatefulSet
 apiVersion: apps/v1
 metadata:
   name: csi-snapshotter
+  labels:
+    app: csi-snapshotter
 spec:
   serviceName: "csi-snapshotter"
   replicas: 1

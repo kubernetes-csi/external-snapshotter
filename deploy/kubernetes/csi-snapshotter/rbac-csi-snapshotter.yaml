@@ -12,6 +12,8 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: csi-snapshotter
+  labels:
+    app: csi-snapshotter
 
 ---
 kind: ClusterRole
@@ -19,6 +21,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   # rename if there are conflicts
   name: external-snapshotter-runner
+  labels:
+    app: csi-snapshotter
 rules:
   - apiGroups: [""]
     resources: ["events"]
@@ -45,6 +49,8 @@ kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: csi-snapshotter-role
+  labels:
+    app: csi-snapshotter
 subjects:
   - kind: ServiceAccount
     name: csi-snapshotter
@@ -62,6 +68,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: default # TODO: replace with the namespace you want for your sidecar
   name: external-snapshotter-leaderelection
+  labels:
+    app: csi-snapshotter
 rules:
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
@@ -73,6 +81,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: external-snapshotter-leaderelection
   namespace: default # TODO: replace with the namespace you want for your sidecar
+  labels:
+    app: csi-snapshotter
 subjects:
   - kind: ServiceAccount
     name: csi-snapshotter
