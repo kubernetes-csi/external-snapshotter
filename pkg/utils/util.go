@@ -24,7 +24,8 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
+	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -121,10 +122,25 @@ var SnapshotterListSecretParams = secretParamsMap{
 	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
 }
 
-// ValidateSnapshot performs additional strict validation.
+// ValidateV1Snapshot performs additional strict validation.
 // Do NOT rely on this function to fully validate snapshot objects.
 // This function will only check the additional rules provided by the webhook.
-func ValidateSnapshot(snapshot *crdv1.VolumeSnapshot) error {
+func ValidateV1Snapshot(snapshot *crdv1.VolumeSnapshot) error {
+	if snapshot == nil {
+		return fmt.Errorf("VolumeSnapshot is nil")
+	}
+
+	vscname := snapshot.Spec.VolumeSnapshotClassName
+	if vscname != nil && *vscname == "" {
+		return fmt.Errorf("Spec.VolumeSnapshotClassName must not be the empty string")
+	}
+	return nil
+}
+
+// ValidateV1Beta1Snapshot performs additional strict validation.
+// Do NOT rely on this function to fully validate snapshot objects.
+// This function will only check the additional rules provided by the webhook.
+func ValidateV1Beta1Snapshot(snapshot *crdv1beta1.VolumeSnapshot) error {
 	if snapshot == nil {
 		return fmt.Errorf("VolumeSnapshot is nil")
 	}
@@ -144,10 +160,27 @@ func ValidateSnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	return nil
 }
 
-// ValidateSnapshotContent performs additional strict validation.
+// ValidateV1SnapshotContent performs additional strict validation.
 // Do NOT rely on this function to fully validate snapshot content objects.
 // This function will only check the additional rules provided by the webhook.
-func ValidateSnapshotContent(snapcontent *crdv1.VolumeSnapshotContent) error {
+func ValidateV1SnapshotContent(snapcontent *crdv1.VolumeSnapshotContent) error {
+	if snapcontent == nil {
+		return fmt.Errorf("VolumeSnapshotContent is nil")
+	}
+
+	vsref := snapcontent.Spec.VolumeSnapshotRef
+
+	if vsref.Name == "" || vsref.Namespace == "" {
+		return fmt.Errorf("both Spec.VolumeSnapshotRef.Name = %s and Spec.VolumeSnapshotRef.Namespace = %s must be set", vsref.Name, vsref.Namespace)
+	}
+
+	return nil
+}
+
+// ValidateV1Beta1SnapshotContent performs additional strict validation.
+// Do NOT rely on this function to fully validate snapshot content objects.
+// This function will only check the additional rules provided by the webhook.
+func ValidateV1Beta1SnapshotContent(snapcontent *crdv1beta1.VolumeSnapshotContent) error {
 	if snapcontent == nil {
 		return fmt.Errorf("VolumeSnapshotContent is nil")
 	}

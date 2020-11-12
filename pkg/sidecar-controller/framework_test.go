@@ -25,12 +25,12 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1beta1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -514,8 +514,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		clientset,
 		kubeClient,
 		mockDriverName,
-		informerFactory.Snapshot().V1beta1().VolumeSnapshotContents(),
-		informerFactory.Snapshot().V1beta1().VolumeSnapshotClasses(),
+		informerFactory.Snapshot().V1().VolumeSnapshotContents(),
+		informerFactory.Snapshot().V1().VolumeSnapshotClasses(),
 		fakeSnapshot,
 		5*time.Millisecond,
 		60*time.Second,
@@ -578,7 +578,7 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	if boundToSnapshotName != "" {
 		content.Spec.VolumeSnapshotRef = v1.ObjectReference{
 			Kind:       "VolumeSnapshot",
-			APIVersion: "snapshot.storage.k8s.io/v1beta1",
+			APIVersion: "snapshot.storage.k8s.io/v1",
 			UID:        types.UID(boundToSnapshotUID),
 			Namespace:  testNamespace,
 			Name:       boundToSnapshotName,

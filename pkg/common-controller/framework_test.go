@@ -28,12 +28,12 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/fake"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1beta1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -743,9 +743,9 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	ctrl := NewCSISnapshotCommonController(
 		clientset,
 		kubeClient,
-		informerFactory.Snapshot().V1beta1().VolumeSnapshots(),
-		informerFactory.Snapshot().V1beta1().VolumeSnapshotContents(),
-		informerFactory.Snapshot().V1beta1().VolumeSnapshotClasses(),
+		informerFactory.Snapshot().V1().VolumeSnapshots(),
+		informerFactory.Snapshot().V1().VolumeSnapshotContents(),
+		informerFactory.Snapshot().V1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		metricsManager,
 		60*time.Second,
@@ -803,7 +803,7 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	if boundToSnapshotName != "" {
 		content.Spec.VolumeSnapshotRef = v1.ObjectReference{
 			Kind:       "VolumeSnapshot",
-			APIVersion: "snapshot.storage.k8s.io/v1beta1",
+			APIVersion: "snapshot.storage.k8s.io/v1",
 			UID:        types.UID(boundToSnapshotUID),
 			Namespace:  testNamespace,
 			Name:       boundToSnapshotName,
@@ -907,7 +907,7 @@ func newSnapshot(
 			Namespace:         testNamespace,
 			UID:               types.UID(snapshotUID),
 			ResourceVersion:   "1",
-			SelfLink:          "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + snapshotName,
+			SelfLink:          "/apis/snapshot.storage.k8s.io/v1/namespaces/" + testNamespace + "/volumesnapshots/" + snapshotName,
 			DeletionTimestamp: deletionTimestamp,
 		},
 		Spec: crdv1.VolumeSnapshotSpec{
@@ -970,7 +970,7 @@ func newSnapshotClass(snapshotClassName, snapshotClassUID, driverName string, is
 			Namespace:       testNamespace,
 			UID:             types.UID(snapshotClassUID),
 			ResourceVersion: "1",
-			SelfLink:        "/apis/snapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshotclasses/" + snapshotClassName,
+			SelfLink:        "/apis/snapshot.storage.k8s.io/v1/namespaces/" + testNamespace + "/volumesnapshotclasses/" + snapshotClassName,
 		},
 		Driver: driverName,
 	}

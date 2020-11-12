@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -117,7 +117,7 @@ func TestSync(t *testing.T) {
 			initialVolumes:    newVolumeArray("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:    []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
+				// Inject error to the first client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				// All other calls will succeed.
 				{"update", "volumesnapshots", errors.New("mock update error")},
 			},
@@ -161,7 +161,7 @@ func TestSync(t *testing.T) {
 			initialSnapshots:  newSnapshotArray("snap2-12", "snapuid2-12", "", "content2-12", validSecretClass, "content2-12", &False, nil, nil, nil, false, true, nil),
 			expectedSnapshots: newSnapshotArray("snap2-12", "snapuid2-12", "", "content2-12", validSecretClass, "content2-12", &False, nil, nil, newVolumeError("Snapshot failed to bind VolumeSnapshotContent, mock update error"), false, true, nil),
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
+				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				{"update", "volumesnapshotcontents", errors.New("mock update error")},
 			},
 			test: testSyncSnapshot,
@@ -311,7 +311,7 @@ func TestSync(t *testing.T) {
 			initialVolumes:   newVolumeArray("volume5-2", "pv-uid5-2", "pv-handle5-2", "1Gi", "pvc-uid5-2", "claim5-2", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:   []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
+				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				{"update", "volumesnapshotcontents", errors.New("mock update error")},
 			},
 			expectSuccess: false,
@@ -340,7 +340,7 @@ func TestSync(t *testing.T) {
 			initialVolumes:   newVolumeArray("volume5-4", "pv-uid5-4", "pv-handle5-4", "1Gi", "pvc-uid5-4", "claim5-4", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:   []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
+				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				{"update", "volumesnapshotcontents", errors.New("mock update error")},
 			},
 			expectSuccess: false,
@@ -377,7 +377,7 @@ func TestSync(t *testing.T) {
 			expectedContents: withContentAnnotations(newContentArray("content5-7", "snapuid5-7", "snap5-7", "sid5-7", validSecretClass, "sid5-7", "", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			initialSecrets:   []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
+				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				{"update", "volumesnapshotcontents", errors.New("mock update error")},
 			},
 			expectSuccess: false,
@@ -405,54 +405,6 @@ func TestSync(t *testing.T) {
 			errors:            noerrors,
 			expectSuccess:     false,
 			test:              testSyncSnapshot,
-		},
-		// TODO(xiangqian@): remove test cases 7-2/7-3 when webhooks are in place
-		//                   https://github.com/kubernetes-csi/external-snapshotter/issues/187
-		{
-			name:              "7-2 - validation fail if neither VolumeSnapshotContentName nor PersistentVolumeClaimName has been specified in Snapshot.Spec.Source",
-			initialContents:   nocontents,
-			expectedContents:  nocontents,
-			initialSnapshots:  newSnapshotArray("snap7-2", "snapuid7-2", "", "", validSecretClass, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: withSnapshotInvalidLabel(newSnapshotArray("snap7-2", "snapuid7-2", "", "", validSecretClass, "", &False, nil, nil, newVolumeError("Exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified"), false, true, nil)),
-			expectedEvents:    []string{"Warning SnapshotValidationError"},
-			errors:            noerrors,
-			expectSuccess:     false,
-			test:              testSyncSnapshot,
-		},
-		{
-			name:              "7-3 - validation fail if both VolumeSnapshotContentName and PersistentVolumeClaimName have been specified in Snapshot.Spec.Source",
-			initialContents:   nocontents,
-			expectedContents:  nocontents,
-			initialSnapshots:  newSnapshotArray("snap7-3", "snapuid7-3", "claim7-3", "snaphandle7-3", validSecretClass, "", &False, nil, nil, nil, false, true, nil),
-			expectedSnapshots: withSnapshotInvalidLabel(newSnapshotArray("snap7-3", "snapuid7-3", "claim7-3", "snaphandle7-3", validSecretClass, "", &False, nil, nil, newVolumeError("Exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified"), false, true, nil)),
-			initialClaims:     newClaimArray("claim7-3", "pvc-uid7-3", "1Gi", "volume7-3", v1.ClaimBound, &classEmpty),
-			initialVolumes:    newVolumeArray("volume7-3", "pv-uid7-3", "pv-handle7-3", "1Gi", "pvc-uid7-3", "claim7-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
-			expectedEvents:    []string{"Warning SnapshotValidationError"},
-			errors:            noerrors,
-			expectSuccess:     false,
-			test:              testSyncSnapshot,
-		},
-		{
-			name:              "7-4 - validation fail if both SnapshotHandle and VolumeHandle have been specified in Content.Spec.Source",
-			initialSnapshots:  nosnapshots,
-			expectedSnapshots: nosnapshots,
-			initialContents:   newContentArray("content7-4", "snapuid7-4", "snap7-4", "sid7-4", validSecretClass, "sid7-4", "pv-handle7-4", deletionPolicy, nil, nil, true),
-			expectedContents:  withSnapshotContentInvalidLabel(newContentArray("content7-4", "snapuid7-4", "snap7-4", "sid7-4", validSecretClass, "sid7-4", "pv-handle7-4", deletionPolicy, nil, nil, true)),
-			expectedEvents:    []string{"Warning ContentValidationError"},
-			errors:            noerrors,
-			expectSuccess:     false,
-			test:              testSyncContentError,
-		},
-		{
-			name:              "7-5 - validation fail if neither SnapshotHandle or VolumeHandle has been specified in Content.Spec.Source",
-			initialSnapshots:  nosnapshots,
-			expectedSnapshots: nosnapshots,
-			initialContents:   newContentArray("content7-4", "snapuid7-4", "snap7-4", "sid7-4", validSecretClass, "", "", deletionPolicy, nil, nil, true),
-			expectedContents:  withSnapshotContentInvalidLabel(newContentArray("content7-4", "snapuid7-4", "snap7-4", "sid7-4", validSecretClass, "", "", deletionPolicy, nil, nil, true)),
-			expectedEvents:    []string{"Warning ContentValidationError"},
-			errors:            noerrors,
-			expectSuccess:     false,
-			test:              testSyncContentError,
 		},
 		{
 			// Update Error in snapshot status based on content status

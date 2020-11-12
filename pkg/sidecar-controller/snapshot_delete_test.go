@@ -23,7 +23,7 @@ import (
 
 	"errors"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -227,7 +227,7 @@ func TestDeleteSync(t *testing.T) {
 			expectedEvents:      noevents,
 			expectedDeleteCalls: []deleteCall{{"sid1-1", nil, fmt.Errorf("mock csi driver delete error")}},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshotContents().Delete call.
+				// Inject error to the first client.VolumesnapshotV1().VolumeSnapshotContents().Delete call.
 				// All other calls will succeed.
 				{"get", "secrets", errors.New("mock get invalid secret error")},
 			},
