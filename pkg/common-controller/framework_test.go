@@ -36,7 +36,6 @@ import (
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -94,8 +93,6 @@ type controllerTest struct {
 	initialVolumes []*v1.PersistentVolume
 	// Initial content of controller claim cache.
 	initialClaims []*v1.PersistentVolumeClaim
-	// Initial content of controller StorageClass cache.
-	initialStorageClasses []*storagev1.StorageClass
 	// Initial content of controller Secret cache.
 	initialSecrets []*v1.Secret
 	// Expected events - any event with prefix will pass, we don't check full
@@ -138,7 +135,6 @@ var noerrors = []reactorError{}
 //   the list.
 type snapshotReactor struct {
 	secrets              map[string]*v1.Secret
-	storageClasses       map[string]*storagev1.StorageClass
 	volumes              map[string]*v1.PersistentVolume
 	claims               map[string]*v1.PersistentVolumeClaim
 	contents             map[string]*crdv1.VolumeSnapshotContent
@@ -371,16 +367,6 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated claim %s", claim.Name)
 		return true, claim, nil
-
-	case action.Matches("get", "storageclasses"):
-		name := action.(core.GetAction).GetName()
-		storageClass, found := r.storageClasses[name]
-		if found {
-			klog.V(4).Infof("GetStorageClass: found %s", storageClass.Name)
-			return true, storageClass, nil
-		}
-		klog.V(4).Infof("GetStorageClass: storageClass %s not found", name)
-		return true, nil, fmt.Errorf("cannot find storageClass %s", name)
 
 	case action.Matches("get", "secrets"):
 		name := action.(core.GetAction).GetName()
@@ -710,7 +696,6 @@ func (r *snapshotReactor) addSnapshotEvent(snapshot *crdv1.VolumeSnapshot) {
 func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, ctrl *csiSnapshotCommonController, fakeVolumeWatch, fakeClaimWatch *watch.FakeWatcher, errors []reactorError) *snapshotReactor {
 	reactor := &snapshotReactor{
 		secrets:           make(map[string]*v1.Secret),
-		storageClasses:    make(map[string]*storagev1.StorageClass),
 		volumes:           make(map[string]*v1.PersistentVolume),
 		claims:            make(map[string]*v1.PersistentVolumeClaim),
 		snapshotClasses:   make(map[string]*crdv1.VolumeSnapshotClass),
@@ -735,7 +720,6 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
-	kubeClient.AddReactor("get", "storageclasses", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
 
 	return reactor
@@ -1293,9 +1277,6 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 		for _, volume := range test.initialVolumes {
 			reactor.volumes[volume.Name] = volume
 		}
-		for _, storageClass := range test.initialStorageClasses {
-			reactor.storageClasses[storageClass.Name] = storageClass
-		}
 		for _, secret := range test.initialSecrets {
 			reactor.secrets[secret.Name] = secret
 		}
@@ -1357,9 +1338,6 @@ func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*
 
 		for _, volume := range test.initialVolumes {
 			reactor.volumes[volume.Name] = volume
-		}
-		for _, storageClass := range test.initialStorageClasses {
-			reactor.storageClasses[storageClass.Name] = storageClass
 		}
 		for _, secret := range test.initialSecrets {
 			reactor.secrets[secret.Name] = secret
@@ -1497,9 +1475,6 @@ func runUpdateSnapshotClassTests(t *testing.T, tests []controllerTest, snapshotC
 
 		for _, volume := range test.initialVolumes {
 			reactor.volumes[volume.Name] = volume
-		}
-		for _, storageClass := range test.initialStorageClasses {
-			reactor.storageClasses[storageClass.Name] = storageClass
 		}
 		for _, secret := range test.initialSecrets {
 			reactor.secrets[secret.Name] = secret

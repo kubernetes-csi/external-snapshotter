@@ -23,7 +23,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1149,28 +1148,20 @@ func (ctrl *csiSnapshotCommonController) isVolumeBoundToClaim(volume *v1.Persist
 	return true
 }
 
-func (ctrl *csiSnapshotCommonController) getStorageClassFromVolumeSnapshot(snapshot *crdv1.VolumeSnapshot) (*storagev1.StorageClass, error) {
-	// Get storage class from PVC or PV
-	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
+// pvDriverFromSnapshot is a helper function to get the CSI driver name from the targeted PersistentVolume.
+// It looks up the PVC from which the snapshot is specified to be created from, and looks for the PVC's corresponding
+// PV. Bi-directional binding will be verified between PVC and PV before the PV's CSI driver is returned.
+// For an non-CSI volume, it returns an error immediately as it's not supported.
+func (ctrl *csiSnapshotCommonController) pvDriverFromSnapshot(snapshot *crdv1.VolumeSnapshot) (string, error) {
+	pv, err := ctrl.getVolumeFromVolumeSnapshot(snapshot)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	storageclassName := *pvc.Spec.StorageClassName
-	if len(storageclassName) == 0 {
-		volume, err := ctrl.getVolumeFromVolumeSnapshot(snapshot)
-		if err != nil {
-			return nil, err
-		}
-		storageclassName = volume.Spec.StorageClassName
+	// supports ONLY CSI volumes
+	if pv.Spec.PersistentVolumeSource.CSI == nil {
+		return "", fmt.Errorf("snapshotting non-CSI volumes is not supported, snapshot:%s/%s", snapshot.Namespace, snapshot.Name)
 	}
-	if len(storageclassName) == 0 {
-		return nil, fmt.Errorf("cannot figure out the snapshot class automatically, please specify one in snapshot spec")
-	}
-	storageclass, err := ctrl.client.StorageV1().StorageClasses().Get(context.TODO(), storageclassName, metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-	return storageclass, nil
+	return pv.Spec.PersistentVolumeSource.CSI.Driver, nil
 }
 
 // getSnapshotClass is a helper function to get snapshot class from the class name.
@@ -1186,8 +1177,10 @@ func (ctrl *csiSnapshotCommonController) getSnapshotClass(className string) (*cr
 	return class, nil
 }
 
-// SetDefaultSnapshotClass is a helper function to figure out the default snapshot class from
-// PVC/PV StorageClass and update VolumeSnapshot with this snapshot class name.
+// SetDefaultSnapshotClass is a helper function to figure out the default snapshot class.
+// For pre-provisioned case, it's an no-op.
+// For dynamic provisioning, it gets the default SnapshotClasses in the system if there is any(could be multiple),
+// and finds the one with the same CSI Driver as the PV from which a snapshot will be taken.
 func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *crdv1.VolumeSnapshot, error) {
 	klog.V(5).Infof("SetDefaultSnapshotClass for snapshot [%s]", snapshot.Name)
 
@@ -1197,21 +1190,23 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 		return nil, snapshot, nil
 	}
 
-	storageclass, err := ctrl.getStorageClassFromVolumeSnapshot(snapshot)
-	if err != nil {
-		return nil, nil, err
-	}
 	// Find default snapshot class if available
 	list, err := ctrl.classLister.List(labels.Everything())
 	if err != nil {
 		return nil, nil, err
 	}
-	defaultClasses := []*crdv1.VolumeSnapshotClass{}
 
+	pvDriver, err := ctrl.pvDriverFromSnapshot(snapshot)
+	if err != nil {
+		klog.Errorf("failed to get pv csi driver from snapshot %s/%s: %q", snapshot.Namespace, snapshot.Name, err)
+		return nil, nil, err
+	}
+
+	defaultClasses := []*crdv1.VolumeSnapshotClass{}
 	for _, class := range list {
-		if utils.IsDefaultAnnotation(class.ObjectMeta) && storageclass.Provisioner == class.Driver { //&& ctrl.snapshotterName == class.Snapshotter {
+		if utils.IsDefaultAnnotation(class.ObjectMeta) && pvDriver == class.Driver {
 			defaultClasses = append(defaultClasses, class)
-			klog.V(5).Infof("get defaultClass added: %s", class.Name)
+			klog.V(5).Infof("get defaultClass added: %s, driver: %s", class.Name, pvDriver)
 		}
 	}
 	if len(defaultClasses) == 0 {
