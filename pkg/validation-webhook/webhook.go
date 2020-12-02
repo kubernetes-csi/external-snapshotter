@@ -17,6 +17,8 @@ limitations under the License.
 package webhook
 
 import (
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -175,21 +177,45 @@ func serveSnapshotRequest(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, newDelegateToV1AdmitHandler(admitSnapshot))
 }
 
-func main(cmd *cobra.Command, args []string) {
+func startServer(ctx context.Context, tlsConfig *tls.Config, cw *CertWatcher) error {
+	go func() {
+		klog.Info("Starting certificate watcher")
+		if err := cw.Start(ctx); err != nil {
+			klog.Errorf("certificate watcher error: %v", err)
+		}
+	}()
+
 	fmt.Println("Starting webhook server")
-	config := Config{
-		CertFile: certFile,
-		KeyFile:  keyFile,
+	mux := http.NewServeMux()
+	mux.HandleFunc("/volumesnapshot", serveSnapshotRequest)
+	mux.HandleFunc("/readyz", func(w http.ResponseWriter, req *http.Request) { w.Write([]byte("ok")) })
+	srv := &http.Server{
+		Handler:   mux,
+		TLSConfig: tlsConfig,
 	}
 
-	http.HandleFunc("/volumesnapshot", serveSnapshotRequest)
-	http.HandleFunc("/readyz", func(w http.ResponseWriter, req *http.Request) { w.Write([]byte("ok")) })
-	server := &http.Server{
-		Addr:      fmt.Sprintf(":%d", port),
-		TLSConfig: configTLS(config),
-	}
-	err := server.ListenAndServeTLS("", "")
+	// listener is always closed by srv.Serve
+	listener, err := tls.Listen("tcp", fmt.Sprintf(":%d", port), tlsConfig)
 	if err != nil {
-		panic(err)
+		return err
+	}
+
+	return srv.Serve(listener)
+}
+
+func main(cmd *cobra.Command, args []string) {
+	// Create new cert watcher
+	ctx, cancel := context.WithCancel(cmd.Context())
+	defer cancel() // stops certwatcher
+	cw, err := NewCertWatcher(certFile, keyFile)
+	if err != nil {
+		klog.Fatalf("failed to initialize new cert watcher: %v", err)
+	}
+	tlsConfig := &tls.Config{
+		GetCertificate: cw.GetCertificate,
+	}
+
+	if err := startServer(ctx, tlsConfig, cw); err != nil {
+		klog.Fatalf("server stopped: %v", err)
 	}
 }
