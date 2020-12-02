@@ -167,7 +167,7 @@ func TestSync(t *testing.T) {
 			test: testSyncSnapshot,
 		},
 		{
-			name:              "2-13 - (dynamic) snapshot expects a dynamically provisioned content but found one which is pre-proviioned, bind should fail",
+			name:              "2-13 - (dynamic) snapshot expects a dynamically provisioned content but found one which is pre-provisioned, bind should fail",
 			initialContents:   newContentArray("snapcontent-snapuid2-13", "snapuid2-13", "snap2-13", "sid2-13", validSecretClass, "sid2-13", "", deletionPolicy, nil, nil, false),
 			expectedContents:  newContentArrayWithReadyToUse("snapcontent-snapuid2-13", "snapuid2-13", "snap2-13", "sid2-13", validSecretClass, "sid2-13", "", deletionPolicy, &timeNowStamp, nil, &True, false),
 			initialSnapshots:  newSnapshotArray("snap2-13", "snapuid2-13", "claim2-13", "", validSecretClass, "", &False, metaTimeNow, nil, nil, false, true, nil),
@@ -503,6 +503,18 @@ func TestSync(t *testing.T) {
 			errors:            noerrors,
 			expectSuccess:     true,
 			test:              testNewSnapshotContentCreation,
+		},
+		{
+			name:              "9-1 - snapshot class not found after snapshot is ready",
+			initialContents:   newContentArray("snapcontent-snapuid9-1", "snapuid9-1", "snap9-1", "sid9-1", classNonExisting, "", "pv-handle9-1", deletionPolicy, nil, nil, false),
+			expectedContents:  newContentArrayWithReadyToUse("snapcontent-snapuid9-1", "snapuid9-1", "snap9-1", "sid9-1", classNonExisting, "", "pv-handle9-1", deletionPolicy, &timeNowStamp, nil, &True, false),
+			initialSnapshots:  newSnapshotArray("snap9-1", "snapuid9-1", "claim9-1", "", classNonExisting, "", &True, metaTimeNow, nil, nil, false, true, nil),
+			expectedSnapshots: newSnapshotArray("snap9-1", "snapuid9-1", "claim9-1", "", classNonExisting, "snapcontent-snapuid9-1", &True, metaTimeNow, nil, nil, false, true, nil),
+			initialClaims:     newClaimArray("claim9-1", "pvc-uid9-1", "1Gi", "volume9-1", v1.ClaimBound, &classEmpty),
+			initialVolumes:    newVolumeArray("volume9-1", "pv-uid9-1", "pv-handle9-1", "1Gi", "pvc-uid9-1", "claim9-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
+			initialSecrets:    []*v1.Secret{secret()},
+			errors:            noerrors,
+			test:              testSyncSnapshot,
 		},
 	}
 

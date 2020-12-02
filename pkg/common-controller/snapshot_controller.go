@@ -211,7 +211,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		(snapshot.Spec.Source.PersistentVolumeClaimName != nil && snapshot.Spec.Source.VolumeSnapshotContentName != nil) {
 		err := fmt.Errorf("Exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified")
 		klog.Errorf("syncSnapshot[%s]: validation error, %s", utils.SnapshotKey(snapshot), err.Error())
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotValidationError", err.Error())
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotValidationError", err.Error())
 		return err
 	}
 
@@ -396,13 +396,13 @@ func (ctrl *csiSnapshotCommonController) syncReadySnapshot(snapshot *crdv1.Volum
 	if content == nil {
 		// this meant there is no matching content in cache found
 		// update status of the snapshot and return
-		return ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
+		return ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
 	}
 	klog.V(5).Infof("syncReadySnapshot[%s]: VolumeSnapshotContent %q found", utils.SnapshotKey(snapshot), content.Name)
 	// check binding from content side to make sure the binding is still valid
 	if !utils.IsVolumeSnapshotRefSet(snapshot, content) {
 		// snapshot is bound but content is not pointing to the snapshot
-		return ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotMisbound", "VolumeSnapshotContent is not bound to the VolumeSnapshot correctly")
+		return ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotMisbound", "VolumeSnapshotContent is not bound to the VolumeSnapshot correctly")
 	}
 
 	// everything is verified, return
@@ -446,7 +446,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		// if no content found yet, update status and return
 		if content == nil {
 			// can not find the desired VolumeSnapshotContent from cache store
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
 			klog.V(4).Infof("syncUnreadySnapshot[%s]: snapshot content %q requested but not found, will try again", utils.SnapshotKey(snapshot), *snapshot.Spec.Source.VolumeSnapshotContentName)
 
 			return fmt.Errorf("snapshot %s requests an non-existing content %s", utils.SnapshotKey(snapshot), *snapshot.Spec.Source.VolumeSnapshotContentName)
@@ -456,7 +456,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		newContent, err := ctrl.checkandBindSnapshotContent(snapshot, content)
 		if err != nil {
 			// snapshot is bound but content is not bound to snapshot correctly
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotBindFailed", fmt.Sprintf("Snapshot failed to bind VolumeSnapshotContent, %v", err))
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotBindFailed", fmt.Sprintf("Snapshot failed to bind VolumeSnapshotContent, %v", err))
 			return fmt.Errorf("snapshot %s is bound, but VolumeSnapshotContent %s is not bound to the VolumeSnapshot correctly, %v", uniqueSnapshotName, content.Name, err)
 		}
 
@@ -465,7 +465,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		if _, err = ctrl.updateSnapshotStatus(snapshot, newContent); err != nil {
 			// update snapshot status failed
 			klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, false, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 			return err
 		}
 
@@ -483,7 +483,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 	if contentObj != nil {
 		klog.V(5).Infof("Found VolumeSnapshotContent object %s for snapshot %s", contentObj.Name, uniqueSnapshotName)
 		if contentObj.Spec.Source.SnapshotHandle != nil {
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotHandleSet", fmt.Sprintf("Snapshot handle should not be set in content %s for dynamic provisioning", uniqueSnapshotName))
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotHandleSet", fmt.Sprintf("Snapshot handle should not be set in content %s for dynamic provisioning", uniqueSnapshotName))
 			return fmt.Errorf("snapshotHandle should not be set in the content for dynamic provisioning for snapshot %s", uniqueSnapshotName)
 		}
 		newSnapshot, err := ctrl.bindandUpdateVolumeSnapshot(contentObj, snapshot)
@@ -497,12 +497,12 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 
 	// If we reach here, it is a dynamically provisioned snapshot, and the volumeSnapshotContent object is not yet created.
 	if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotPVCSourceMissing", fmt.Sprintf("PVC source for snapshot %s is missing", uniqueSnapshotName))
 		return fmt.Errorf("expected PVC source for snapshot %s but got nil", uniqueSnapshotName)
 	}
 	var content *crdv1.VolumeSnapshotContent
 	if content, err = ctrl.createSnapshotContent(snapshot); err != nil {
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentCreationFailed", fmt.Sprintf("Failed to create snapshot content with error %v", err))
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentCreationFailed", fmt.Sprintf("Failed to create snapshot content with error %v", err))
 		return err
 	}
 
@@ -510,7 +510,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 	klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update snapshot status", utils.SnapshotKey(snapshot))
 	if _, err = ctrl.updateSnapshotStatus(snapshot, content); err != nil {
 		// update snapshot status failed
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, false, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 		return err
 	}
 	return nil
@@ -545,7 +545,7 @@ func (ctrl *csiSnapshotCommonController) getPreprovisionedContentFromStore(snaps
 	if content.Spec.Source.SnapshotHandle == nil {
 		// found a content which represents a dynamically provisioned snapshot
 		// update the snapshot and return an error
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMismatch", "VolumeSnapshotContent is dynamically provisioned while expecting a pre-provisioned one")
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMismatch", "VolumeSnapshotContent is dynamically provisioned while expecting a pre-provisioned one")
 		klog.V(4).Infof("sync snapshot[%s]: snapshot content %q is dynamically provisioned while expecting a pre-provisioned one", utils.SnapshotKey(snapshot), contentName)
 		return nil, fmt.Errorf("snapshot %s expects a pre-provisioned VolumeSnapshotContent %s but gets a dynamically provisioned one", utils.SnapshotKey(snapshot), contentName)
 	}
@@ -554,7 +554,7 @@ func (ctrl *csiSnapshotCommonController) getPreprovisionedContentFromStore(snaps
 	if ref.Name != snapshot.Name || ref.Namespace != snapshot.Namespace || (ref.UID != "" && ref.UID != snapshot.UID) {
 		klog.V(4).Infof("sync snapshot[%s]: VolumeSnapshotContent %s is bound to another snapshot %v", utils.SnapshotKey(snapshot), contentName, ref)
 		msg := fmt.Sprintf("VolumeSnapshotContent [%s] is bound to a different snapshot", contentName)
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMisbound", msg)
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMisbound", msg)
 		return nil, fmt.Errorf(msg)
 	}
 	return content, nil
@@ -587,7 +587,7 @@ func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedContentFromSto
 	}
 	// check whether the content represents a dynamically provisioned snapshot
 	if content.Spec.Source.VolumeHandle == nil {
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMismatch", "VolumeSnapshotContent "+contentName+" is pre-provisioned while expecting a dynamically provisioned one")
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMismatch", "VolumeSnapshotContent "+contentName+" is pre-provisioned while expecting a dynamically provisioned one")
 		klog.V(4).Infof("sync snapshot[%s]: snapshot content %s is pre-provisioned while expecting a dynamically provisioned one", utils.SnapshotKey(snapshot), contentName)
 		return nil, fmt.Errorf("snapshot %s expects a dynamically provisioned VolumeSnapshotContent %s but gets a pre-provisioned one", utils.SnapshotKey(snapshot), contentName)
 	}
@@ -600,7 +600,7 @@ func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedContentFromSto
 	if ref.Name != snapshot.Name || ref.Namespace != snapshot.Namespace || ref.UID != snapshot.UID {
 		klog.V(4).Infof("sync snapshot[%s]: VolumeSnapshotContent %s is bound to another snapshot %v", utils.SnapshotKey(snapshot), contentName, ref)
 		msg := fmt.Sprintf("VolumeSnapshotContent [%s] is bound to a different snapshot", contentName)
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMisbound", msg)
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMisbound", msg)
 		return nil, fmt.Errorf(msg)
 	}
 	return content, nil
@@ -754,17 +754,20 @@ func (ctrl *csiSnapshotCommonController) storeContentUpdate(content interface{})
 	return utils.StoreObjectUpdate(ctrl.contentStore, content, "content")
 }
 
-// updateSnapshotStatusWithEvent saves new snapshot.Status to API server and emits
+// updateSnapshotErrorStatusWithEvent saves new snapshot.Status to API server and emits
 // given event on the snapshot. It saves the status and emits the event only when
 // the status has actually changed from the version saved in API server.
 // Parameters:
 //   snapshot - snapshot to update
+//   setReadyToFalse bool - indicates whether to set the snapshot's ReadyToUse status to false.
+//                          if true, ReadyToUse will be set to false;
+//                          otherwise, ReadyToUse will not be changed.
 //   eventtype, reason, message - event to send, see EventRecorder.Event()
-func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snapshot *crdv1.VolumeSnapshot, eventtype, reason, message string) error {
-	klog.V(5).Infof("updateSnapshotStatusWithEvent[%s]", utils.SnapshotKey(snapshot))
+func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snapshot *crdv1.VolumeSnapshot, setReadyToFalse bool, eventtype, reason, message string) error {
+	klog.V(5).Infof("updateSnapshotErrorStatusWithEvent[%s]", utils.SnapshotKey(snapshot))
 
 	if snapshot.Status != nil && snapshot.Status.Error != nil && *snapshot.Status.Error.Message == message {
-		klog.V(4).Infof("updateSnapshotStatusWithEvent[%s]: the same error %v is already set", snapshot.Name, snapshot.Status.Error)
+		klog.V(4).Infof("updateSnapshotErrorStatusWithEvent[%s]: the same error %v is already set", snapshot.Name, snapshot.Status.Error)
 		return nil
 	}
 	snapshotClone := snapshot.DeepCopy()
@@ -778,8 +781,11 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 		Message: &message,
 	}
 	snapshotClone.Status.Error = statusError
-	ready := false
-	snapshotClone.Status.ReadyToUse = &ready
+	// Only update ReadyToUse in VolumeSnapshot's Status to false if setReadyToFalse is true.
+	if setReadyToFalse {
+		ready := false
+		snapshotClone.Status.ReadyToUse = &ready
+	}
 	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 
 	// Emit the event even if the status update fails so that user can see the error
@@ -1015,7 +1021,7 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeSnapshot(snapshotCon
 	if err != nil {
 		// update snapshot status failed
 		klog.V(4).Infof("failed to update snapshot %s status: %v", utils.SnapshotKey(snapshot), err)
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshotCopy, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
+		ctrl.updateSnapshotErrorStatusWithEvent(snapshotCopy, true, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 		return nil, err
 	}
 
