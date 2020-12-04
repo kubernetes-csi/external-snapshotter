@@ -22,7 +22,7 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 // This file originated from github.com/kubernetes-sigs/controller-runtime/pkg/webhook/internal/certwatcher.

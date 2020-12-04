@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -66,7 +67,8 @@ var (
 	leaderElection          = flag.Bool("leader-election", false, "Enables leader election.")
 	leaderElectionNamespace = flag.String("leader-election-namespace", "", "The namespace where the leader election resource exists. Defaults to the pod namespace if not set.")
 
-	metricsAddress = flag.String("metrics-address", "", "The TCP network address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled.")
+	metricsAddress = flag.String("metrics-address", "", "(deprecated) The TCP network address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
+	httpEndpoint   = flag.String("http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
 	metricsPath    = flag.String("metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
 )
 
@@ -111,6 +113,15 @@ func main() {
 	// Add Snapshot types to the default Kubernetes so events can be logged for them
 	snapshotscheme.AddToScheme(scheme.Scheme)
 
+	if *metricsAddress != "" && *httpEndpoint != "" {
+		klog.Error("only one of `--metrics-address` and `--http-endpoint` can be set.")
+		os.Exit(1)
+	}
+	addr := *metricsAddress
+	if addr == "" {
+		addr = *httpEndpoint
+	}
+
 	// Connect to CSI.
 	metricsManager := metrics.NewCSIMetricsManager("" /* driverName */)
 	csiConn, err := connection.Connect(
@@ -134,8 +145,20 @@ func main() {
 	}
 
 	klog.V(2).Infof("CSI driver name: %q", driverName)
-	metricsManager.SetDriverName(driverName)
-	metricsManager.StartMetricsEndpoint(*metricsAddress, *metricsPath)
+
+	// Prepare http endpoint for metrics + leader election healthz
+	mux := http.NewServeMux()
+	if addr != "" {
+		metricsManager.RegisterToServer(mux, *metricsPath)
+		metricsManager.SetDriverName(driverName)
+		go func() {
+			klog.Infof("ServeMux listening at %q", addr)
+			err := http.ListenAndServe(*metricsAddress, mux)
+			if err != nil {
+				klog.Fatalf("Failed to start HTTP server at specified address (%q) and metrics path (%q): %s", addr, *metricsPath, err)
+			}
+		}()
+	}
 
 	// Check it's ready
 	if err = csirpc.ProbeForever(csiConn, *csiTimeout); err != nil {
@@ -200,6 +223,10 @@ func main() {
 			klog.Fatalf("failed to create leaderelection client: %v", err)
 		}
 		le := leaderelection.NewLeaderElection(leClientset, lockName, run)
+		if *httpEndpoint != "" {
+			le.PrepareHealthCheck(mux, leaderelection.DefaultHealthCheckTimeout)
+		}
+
 		if *leaderElectionNamespace != "" {
 			le.WithNamespace(*leaderElectionNamespace)
 		}
