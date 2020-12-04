@@ -27,7 +27,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/component-base/metrics"
-	"k8s.io/klog"
 )
 
 const (
@@ -90,10 +89,15 @@ type CSIMetricsManager interface {
 	// driverName - Name of the CSI driver against which this operation was executed.
 	SetDriverName(driverName string)
 
-	// StartMetricsEndpoint starts the metrics endpoint at the specified address/path
-	// for this metrics manager.
-	// If the metricsAddress is an empty string, this will be a no op.
-	StartMetricsEndpoint(metricsAddress, metricsPath string)
+	// RegisterToServer registers an HTTP handler for this metrics manager to the
+	// given server at the specified address/path.
+	RegisterToServer(s Server, metricsPath string)
+}
+
+// Server represents any type that could serve HTTP requests for the metrics
+// endpoint.
+type Server interface {
+	Handle(pattern string, handler http.Handler)
 }
 
 // MetricsManagerOption is used to pass optional configuration to a
@@ -145,6 +149,22 @@ func WithLabels(labels map[string]string) MetricsManagerOption {
 	}
 }
 
+// WithProcessStartTime controlls whether process_start_time_seconds is registered
+// in the registry of the metrics manager. It's enabled by default out of convenience
+// (no need to do anything special in most sidecars) but should be disabled in more
+// complex scenarios (more than one metrics manager per process, metric already
+// provided elsewhere like via the Prometheus Golang collector).
+//
+// In particular, registering this metric via metric manager and thus the Kubernetes
+// component base conflicts with the Prometheus Golang collector (gathered metric family
+// process_start_time_seconds has help "[ALPHA] Start time of the process since unix epoch in seconds."
+// but should have "Start time of the process since unix epoch in seconds."
+func WithProcessStartTime(registerProcessStartTime bool) MetricsManagerOption {
+	return func(cmm *csiMetricsManager) {
+		cmm.registerProcessStartTime = registerProcessStartTime
+	}
+}
+
 // NewCSIMetricsManagerForSidecar creates and registers metrics for CSI Sidecars and
 // returns an object that can be used to trigger the metrics. It uses "csi_sidecar"
 // as subsystem.
@@ -177,18 +197,27 @@ func NewCSIMetricsManagerForPlugin(driverName string) CSIMetricsManager {
 //              If unknown, leave empty, and use SetDriverName method to update later.
 func NewCSIMetricsManagerWithOptions(driverName string, options ...MetricsManagerOption) CSIMetricsManager {
 	cmm := csiMetricsManager{
-		registry:       metrics.NewKubeRegistry(),
-		subsystem:      SubsystemSidecar,
-		stabilityLevel: metrics.ALPHA,
+		registry:                 metrics.NewKubeRegistry(),
+		subsystem:                SubsystemSidecar,
+		stabilityLevel:           metrics.ALPHA,
+		registerProcessStartTime: true,
 	}
-
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/969
-	// Add process_start_time_seconds into the metric to let the start time be parsed correctly
-	metrics.RegisterProcessStartTime(cmm.registry.Register)
 
 	for _, option := range options {
 		option(&cmm)
 	}
+
+	if cmm.registerProcessStartTime {
+		// https://github.com/open-telemetry/opentelemetry-collector/issues/969
+		// Add process_start_time_seconds into the metric to let the start time be parsed correctly
+		metrics.RegisterProcessStartTime(cmm.registry.Register)
+		// TODO: This is a bug in component-base library. We need to remove this after upgrade component-base dependency
+		// BugFix: https://github.com/kubernetes/kubernetes/pull/96435
+		// The first call to RegisterProcessStartTime can only create the metric, so we need a second call to actually
+		// register the metric.
+		metrics.RegisterProcessStartTime(cmm.registry.Register)
+	}
+
 	labels := []string{labelCSIDriverName, labelCSIOperationName, labelGrpcStatusCode}
 	labels = append(labels, cmm.additionalLabelNames...)
 	for _, label := range cmm.additionalLabels {
@@ -219,6 +248,7 @@ type csiMetricsManager struct {
 	additionalLabelNames       []string
 	additionalLabels           []label
 	csiOperationsLatencyMetric *metrics.HistogramVec
+	registerProcessStartTime   bool
 }
 
 type label struct {
@@ -325,27 +355,13 @@ func (cmm *csiMetricsManager) SetDriverName(driverName string) {
 	}
 }
 
-// StartMetricsEndpoint starts the metrics endpoint at the specified address/path
-// for this metrics manager  on a new go routine.
-// If the metricsAddress is an empty string, this will be a no op.
-func (cmm *csiMetricsManager) StartMetricsEndpoint(metricsAddress, metricsPath string) {
-	if metricsAddress == "" {
-		klog.Warningf("metrics endpoint will not be started because `metrics-address` was not specified.")
-		return
-	}
-
-	http.Handle(metricsPath, metrics.HandlerFor(
+// RegisterToServer registers an HTTP handler for this metrics manager to the
+// given server at the specified address/path.
+func (cmm *csiMetricsManager) RegisterToServer(s Server, metricsPath string) {
+	s.Handle(metricsPath, metrics.HandlerFor(
 		cmm.GetRegistry(),
 		metrics.HandlerOpts{
 			ErrorHandling: metrics.ContinueOnError}))
-
-	// Spawn a new go routine to listen on specified endpoint
-	go func() {
-		err := http.ListenAndServe(metricsAddress, nil)
-		if err != nil {
-			klog.Fatalf("Failed to start prometheus metrics endpoint on specified address (%q) and path (%q): %s", metricsAddress, metricsPath, err)
-		}
-	}()
 }
 
 // VerifyMetricsMatch is a helper function that verifies that the expected and
