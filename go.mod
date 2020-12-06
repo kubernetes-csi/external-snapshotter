@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/container-storage-interface/spec v1.2.0
+	github.com/fsnotify/fsnotify v1.4.9
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.2
 	github.com/google/gofuzz v1.1.0
