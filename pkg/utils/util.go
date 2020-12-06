@@ -513,8 +513,3 @@ func IsSnapshotReady(snapshot *crdv1.VolumeSnapshot) bool {
 	}
 	return true
 }
-
-// IsSnapshotCreated indicates that the snapshot has been cut on a storage system
-func IsSnapshotCreated(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.Status != nil && snapshot.Status.CreationTime != nil
-}
