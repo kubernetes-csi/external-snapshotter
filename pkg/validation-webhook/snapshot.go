@@ -24,7 +24,7 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 var (

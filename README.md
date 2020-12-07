@@ -106,7 +106,9 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * `--leader-election-namespace <namespace>`: The namespace where the leader election resource exists. Defaults to the pod namespace if not set.
 
-* `--metrics-address`: The TCP network address where the prometheus metrics endpoint will run (example: `:8080` which corresponds to port 8080 on local host). The default is empty string, which means metrics endpoint is disabled.
+* `--http-endpoint`: The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080` which corresponds to port 8080 on local host). The default is empty string, which means the server is disabled.
+
+* `--metrics-address`: (deprecated) The TCP network address where the prometheus metrics endpoint will run (example: `:8080` which corresponds to port 8080 on local host). The default is empty string, which means metrics endpoint is disabled.
 
 * `--metrics-path`: The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.
 
@@ -147,6 +149,13 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * All glog / klog arguments are supported, such as `-v <log level>` or `-alsologtostderr`.
 
+#### HTTP endpoint
+
+The external-snapshotter optionally exposes an HTTP endpoint at address:port specified by `--http-endpoint` argument. When set, these two paths are exposed:
+
+* Metrics path, as set by `--metrics-path` argument (default is `/metrics`).
+
+* Leader election health check at `/healthz/leader-election`. It is recommended to run a liveness probe against this endpoint when leader election is used to kill external-provisioner leader that fails to connect to the API server to renew its leadership. See https://github.com/kubernetes-csi/csi-lib-utils/issues/66 for details.
 
 ## Upgrade from v1alpha1 to v1beta1
 
