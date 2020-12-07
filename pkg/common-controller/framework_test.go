@@ -34,7 +34,6 @@ import (
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v3/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v3/informers/externalversions"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v3/listers/volumesnapshot/v1beta1"
-	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	storagev1 "k8s.io/api/storage/v1"
@@ -751,10 +750,6 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 	}
 
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, utils.NoResyncPeriodFunc())
-	metricsManager := metrics.NewMetricsManager()
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	metricsManager.StartMetricsEndpoint("/metrics", "localhost:0", nil, wg)
 
 	ctrl := NewCSISnapshotCommonController(
 		clientset,
@@ -763,7 +758,6 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Snapshot().V1beta1().VolumeSnapshotContents(),
 		informerFactory.Snapshot().V1beta1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
-		metricsManager,
 		60*time.Second,
 	)
 
