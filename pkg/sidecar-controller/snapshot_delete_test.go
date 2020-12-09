@@ -339,7 +339,7 @@ func TestDeleteSync(t *testing.T) {
 		{
 			name:                "1-15 - (dynamic)deletion of content with no snapshotclass should succeed",
 			initialContents:     newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "sid1-15", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:    newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "sid1-15", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, false, &timeNowMetav1),
 			errors:              noerrors,
 			expectedDeleteCalls: []deleteCall{{"sid1-15", nil, nil}},
 			test:                testSyncContent,
