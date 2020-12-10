@@ -65,7 +65,8 @@ get_versioned_variable () {
     echo "$value"
 }
 
-configvar CSI_PROW_BUILD_PLATFORMS "linux amd64; windows amd64 .exe; linux ppc64le -ppc64le; linux s390x -s390x; linux arm64 -arm64" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
+# Note that in the release-2.1 branch the s390x architecture is not supported.
+configvar CSI_PROW_BUILD_PLATFORMS "linux amd64; windows amd64 .exe; linux ppc64le -ppc64le; linux arm64 -arm64" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
 
 # If we have a vendor directory, then use it. We must be careful to only
 # use this for "make" invocations inside the project's repo itself because
@@ -335,7 +336,8 @@ default_csi_snapshotter_version () {
 	if [ "${CSI_PROW_KUBERNETES_VERSION}" = "latest" ] || [ "${CSI_PROW_DRIVER_CANARY}" = "canary" ]; then
 		echo "master"
 	else
-		echo "v3.0.2"
+		# This is specific to the release-2.1 branch of external-snapshotter.
+		echo "v2.1.2"
 	fi
 }
 configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external-snapshotter version tag"
@@ -700,9 +702,10 @@ install_csi_driver () {
 # Installs all nessesary snapshotter CRDs  
 install_snapshot_crds() {
   # Wait until volumesnapshot CRDs are in place.
-  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
+  # This CRD path is specific to the release-2.1 external-snapshotter branch.
+  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/config/crd"
   if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
-      CRD_BASE_DIR="${REPO_DIR}/client/config/crd"
+      CRD_BASE_DIR="${REPO_DIR}/config/crd"
   fi
   echo "Installing snapshot CRDs from ${CRD_BASE_DIR}"
   kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotclasses.yaml" --validate=false
