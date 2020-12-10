@@ -57,7 +57,7 @@ const (
 var (
 	kubeconfig             = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
 	csiAddress             = flag.String("csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
-	resyncPeriod           = flag.Duration("resync-period", 60*time.Second, "Resync interval of the controller.")
+	resyncPeriod           = flag.Duration("resync-period", 15*time.Minute, "Resync interval of the controller.")
 	snapshotNamePrefix     = flag.String("snapshot-name-prefix", "snapshot", "Prefix to apply to the name of a created snapshot")
 	snapshotNameUUIDLength = flag.Int("snapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created snapshot. Defaults behavior is to NOT truncate.")
 	showVersion            = flag.Bool("version", false, "Show version.")
