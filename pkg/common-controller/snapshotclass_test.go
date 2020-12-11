@@ -86,6 +86,19 @@ func TestUpdateSnapshotClass(t *testing.T) {
 			},
 			test: testUpdateSnapshotClass,
 		},
+		{
+			// PVC does not exist
+			name:                  "1-5 - snapshot update with default class name failed because PVC was not found",
+			initialContents:       nocontents,
+			initialSnapshots:      newSnapshotArray("snap1-5", "snapuid1-5", "claim1-5", "", "", "", &True, nil, nil, nil, false, true, nil),
+			expectedSnapshots:     newSnapshotArray("snap1-5", "snapuid1-5", "claim1-5", "", "", "", &False, nil, nil, newVolumeError("Failed to set default snapshot class with error failed to retrieve PVC claim1-5 from the lister: \"persistentvolumeclaim \\\"claim1-5\\\" not found\""), false, true, nil),
+			initialClaims:         nil,
+			initialVolumes:        nil,
+			initialStorageClasses: []*storage.StorageClass{},
+			expectedEvents:        []string{"Warning SetDefaultSnapshotClassFailed"},
+			errors:                noerrors,
+			test:                  testUpdateSnapshotClass,
+		},
 	}
 
 	runUpdateSnapshotClassTests(t, tests, snapshotClasses)
