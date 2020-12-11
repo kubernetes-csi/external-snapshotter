@@ -1,3 +1,26 @@
+# Release notes for v2.1.3 (Changelog since v2.1.2)
+
+## Changes by Kind
+
+### Uncategorized
+
+- Update release-tools and prow script for release-2.1 ([#448](https://github.com/kubernetes-csi/external-snapshotter/pull/448), [@mattcary](https://github.com/mattcary))
+
+### Bug or Regression
+
+- Backports fix #381 for crashloop when there are errors in the VolumeSnapshot, like a missing VolumeSnapshotClass. ([#446](https://github.com/kubernetes-csi/external-snapshotter/pull/446), [@mattcary](https://github.com/mattcary))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v2.1.2 (Changelog since v2.1.1)
 
 ## Changes by Kind
