@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/snapshotter"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/snapshotter"
 )
 
 // Handler is responsible for handling VolumeSnapshot events from informer.

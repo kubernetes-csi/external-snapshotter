@@ -1,4 +1,4 @@
-module github.com/kubernetes-csi/external-snapshotter/v3
+module github.com/kubernetes-csi/external-snapshotter/v4
 
 go 1.15
 
@@ -11,7 +11,7 @@ require (
 	github.com/imdario/mergo v0.3.9 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.9.0
 	github.com/kubernetes-csi/csi-test v2.0.0+incompatible
-	github.com/kubernetes-csi/external-snapshotter/client/v3 v3.0.0
+	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.0.0
 	github.com/prometheus/client_golang v1.7.1
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.10.0
@@ -26,7 +26,7 @@ require (
 )
 
 replace (
-	github.com/kubernetes-csi/external-snapshotter/client/v3 => ./client
+	github.com/kubernetes-csi/external-snapshotter/client/v4 => ./client
 	k8s.io/api => k8s.io/api v0.19.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.19.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.19.0

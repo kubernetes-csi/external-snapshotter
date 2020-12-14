@@ -31,9 +31,9 @@ import (
 	ref "k8s.io/client-go/tools/reference"
 	klog "k8s.io/klog/v2"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/metrics"
-	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/metrics"
+	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
 )
 
 // ==================================================================
