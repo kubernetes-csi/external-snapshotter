@@ -6,7 +6,7 @@ webhooks:
 - name: "validation-webhook.snapshot.storage.k8s.io"
   rules:
   - apiGroups:   ["snapshot.storage.k8s.io"]
-    apiVersions: ["v1beta1"]
+    apiVersions: ["v1", "v1beta1"]
     operations:  ["CREATE", "UPDATE"]
     resources:   ["volumesnapshots", "volumesnapshotcontents"]
     scope:       "*"

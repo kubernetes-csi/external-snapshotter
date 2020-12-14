@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 )
@@ -165,7 +165,7 @@ func TestSyncContent(t *testing.T) {
 			}), initialSecrets: []*v1.Secret{}, // no initial secret created
 			expectedEvents: []string{"Warning SnapshotCreationFailed"},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1beta1().VolumeSnapshots().Update call.
+				// Inject error to the first client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				// All other calls will succeed.
 				{"get", "secrets", errors.New("mock secrets error")},
 			},

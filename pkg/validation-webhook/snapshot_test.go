@@ -21,13 +21,14 @@ import (
 	"fmt"
 	"testing"
 
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1"
 	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/admission/v1"
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-func TestAdmitVolumeSnapshot(t *testing.T) {
+func TestAdmitVolumeSnapshotV1beta1(t *testing.T) {
 	pvcname := "pvcname1"
 	mutatedField := "changed-immutable-field"
 	contentname := "snapcontent1"
@@ -223,7 +224,191 @@ func TestAdmitVolumeSnapshot(t *testing.T) {
 		})
 	}
 }
-func TestAdmitVolumeSnapshotContent(t *testing.T) {
+
+func TestAdmitVolumeSnapshotV1(t *testing.T) {
+	pvcname := "pvcname1"
+	mutatedField := "changed-immutable-field"
+	contentname := "snapcontent1"
+	volumeSnapshotClassName := "volume-snapshot-class-1"
+	emptyVolumeSnapshotClassName := ""
+
+	testCases := []struct {
+		name              string
+		volumeSnapshot    *volumesnapshotv1.VolumeSnapshot
+		oldVolumeSnapshot *volumesnapshotv1.VolumeSnapshot
+		shouldAdmit       bool
+		msg               string
+		operation         v1.Operation
+	}{
+		{
+			name:              "Delete: new and old are nil. Should admit",
+			volumeSnapshot:    nil,
+			oldVolumeSnapshot: nil,
+			shouldAdmit:       true,
+			operation:         v1.Delete,
+		},
+		{
+			name: "Create: old is nil and new is valid",
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			oldVolumeSnapshot: nil,
+			shouldAdmit:       true,
+			operation:         v1.Create,
+		},
+		{
+			name: "Update: old is valid and new is invalid",
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+					VolumeSnapshotClassName: &emptyVolumeSnapshotClassName,
+				},
+			},
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			shouldAdmit: false,
+			operation:   v1.Update,
+			msg:         "Spec.VolumeSnapshotClassName must not be the empty string",
+		},
+		{
+			name: "Update: old is valid and new is valid",
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+					VolumeSnapshotClassName: &volumeSnapshotClassName,
+				},
+			},
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			shouldAdmit: true,
+			operation:   v1.Update,
+		},
+		{
+			name: "Update: old is valid and new is valid but changes immutable field spec.source",
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &mutatedField,
+					},
+					VolumeSnapshotClassName: &volumeSnapshotClassName,
+				},
+			},
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			shouldAdmit: false,
+			operation:   v1.Update,
+			msg:         fmt.Sprintf("Spec.Source.VolumeSnapshotContentName is immutable but was changed from %s to %s", contentname, mutatedField),
+		},
+		{
+			name: "Update: old is invalid and new is valid",
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						PersistentVolumeClaimName: &pvcname,
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			shouldAdmit: false,
+			operation:   v1.Update,
+			msg:         fmt.Sprintf("Spec.Source.PersistentVolumeClaimName is immutable but was changed from %s to <nil string pointer>", pvcname),
+		},
+		{
+			// will be handled by schema validation
+			name: "Update: old is invalid and new is invalid",
+			volumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						VolumeSnapshotContentName: &contentname,
+						PersistentVolumeClaimName: &pvcname,
+					},
+				},
+			},
+			oldVolumeSnapshot: &volumesnapshotv1.VolumeSnapshot{
+				Spec: volumesnapshotv1.VolumeSnapshotSpec{
+					Source: volumesnapshotv1.VolumeSnapshotSource{
+						PersistentVolumeClaimName: &pvcname,
+						VolumeSnapshotContentName: &contentname,
+					},
+				},
+			},
+			shouldAdmit: true,
+			operation:   v1.Update,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot := tc.volumeSnapshot
+			raw, err := json.Marshal(snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			oldSnapshot := tc.oldVolumeSnapshot
+			oldRaw, err := json.Marshal(oldSnapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			review := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					Object: runtime.RawExtension{
+						Raw: raw,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldRaw,
+					},
+					Resource:  SnapshotV1GVR,
+					Operation: tc.operation,
+				},
+			}
+			response := admitSnapshot(review)
+			shouldAdmit := response.Allowed
+			msg := response.Result.Message
+
+			expectedResponse := tc.shouldAdmit
+			expectedMsg := tc.msg
+
+			if shouldAdmit != expectedResponse {
+				t.Errorf("expected \"%v\" to equal \"%v\"", shouldAdmit, expectedResponse)
+			}
+			if msg != expectedMsg {
+				t.Errorf("expected \"%v\" to equal \"%v\"", msg, expectedMsg)
+			}
+		})
+	}
+}
+
+func TestAdmitVolumeSnapshotContentV1beta1(t *testing.T) {
 	volumeHandle := "volumeHandle1"
 	modifiedField := "modified-field"
 	snapshotHandle := "snapshotHandle1"
@@ -353,6 +538,150 @@ func TestAdmitVolumeSnapshotContent(t *testing.T) {
 						Raw: oldRaw,
 					},
 					Resource:  SnapshotContentV1Beta1GVR,
+					Operation: tc.operation,
+				},
+			}
+			response := admitSnapshot(review)
+			shouldAdmit := response.Allowed
+			msg := response.Result.Message
+
+			expectedResponse := tc.shouldAdmit
+			expectedMsg := tc.msg
+
+			if shouldAdmit != expectedResponse {
+				t.Errorf("expected \"%v\" to equal \"%v\"", shouldAdmit, expectedResponse)
+			}
+			if msg != expectedMsg {
+				t.Errorf("expected \"%v\" to equal \"%v\"", msg, expectedMsg)
+			}
+		})
+	}
+}
+
+func TestAdmitVolumeSnapshotContentV1(t *testing.T) {
+	volumeHandle := "volumeHandle1"
+	modifiedField := "modified-field"
+	snapshotHandle := "snapshotHandle1"
+	volumeSnapshotClassName := "volume-snapshot-class-1"
+	validContent := &volumesnapshotv1.VolumeSnapshotContent{
+		Spec: volumesnapshotv1.VolumeSnapshotContentSpec{
+			Source: volumesnapshotv1.VolumeSnapshotContentSource{
+				SnapshotHandle: &snapshotHandle,
+			},
+			VolumeSnapshotRef: core_v1.ObjectReference{
+				Name:      "snapshot-ref",
+				Namespace: "default-ns",
+			},
+			VolumeSnapshotClassName: &volumeSnapshotClassName,
+		},
+	}
+	invalidContent := &volumesnapshotv1.VolumeSnapshotContent{
+		Spec: volumesnapshotv1.VolumeSnapshotContentSpec{
+			Source: volumesnapshotv1.VolumeSnapshotContentSource{
+				SnapshotHandle: &snapshotHandle,
+				VolumeHandle:   &volumeHandle,
+			},
+			VolumeSnapshotRef: core_v1.ObjectReference{
+				Name:      "",
+				Namespace: "default-ns",
+			},
+		},
+	}
+
+	testCases := []struct {
+		name                     string
+		volumeSnapshotContent    *volumesnapshotv1.VolumeSnapshotContent
+		oldVolumeSnapshotContent *volumesnapshotv1.VolumeSnapshotContent
+		shouldAdmit              bool
+		msg                      string
+		operation                v1.Operation
+	}{
+		{
+			name:                     "Delete: both new and old are nil",
+			volumeSnapshotContent:    nil,
+			oldVolumeSnapshotContent: nil,
+			shouldAdmit:              true,
+			operation:                v1.Delete,
+		},
+		{
+			name:                     "Create: old is nil and new is valid",
+			volumeSnapshotContent:    validContent,
+			oldVolumeSnapshotContent: nil,
+			shouldAdmit:              true,
+			operation:                v1.Create,
+		},
+		{
+			name:                     "Update: old is valid and new is invalid",
+			volumeSnapshotContent:    invalidContent,
+			oldVolumeSnapshotContent: validContent,
+			shouldAdmit:              false,
+			operation:                v1.Update,
+			msg:                      fmt.Sprintf("Spec.Source.VolumeHandle is immutable but was changed from %s to %s", strPtrDereference(nil), volumeHandle),
+		},
+		{
+			name:                     "Update: old is valid and new is valid",
+			volumeSnapshotContent:    validContent,
+			oldVolumeSnapshotContent: validContent,
+			shouldAdmit:              true,
+			operation:                v1.Update,
+		},
+		{
+			name: "Update: old is valid and new is valid but modifies immutable field",
+			volumeSnapshotContent: &volumesnapshotv1.VolumeSnapshotContent{
+				Spec: volumesnapshotv1.VolumeSnapshotContentSpec{
+					Source: volumesnapshotv1.VolumeSnapshotContentSource{
+						SnapshotHandle: &modifiedField,
+					},
+					VolumeSnapshotRef: core_v1.ObjectReference{
+						Name:      "snapshot-ref",
+						Namespace: "default-ns",
+					},
+				},
+			},
+			oldVolumeSnapshotContent: validContent,
+			shouldAdmit:              false,
+			operation:                v1.Update,
+			msg:                      fmt.Sprintf("Spec.Source.SnapshotHandle is immutable but was changed from %s to %s", snapshotHandle, modifiedField),
+		},
+		{
+			name:                     "Update: old is invalid and new is valid",
+			volumeSnapshotContent:    validContent,
+			oldVolumeSnapshotContent: invalidContent,
+			shouldAdmit:              false,
+			operation:                v1.Update,
+			msg:                      fmt.Sprintf("Spec.Source.VolumeHandle is immutable but was changed from %s to <nil string pointer>", volumeHandle),
+		},
+		{
+			name:                     "Update: old is invalid and new is invalid",
+			volumeSnapshotContent:    invalidContent,
+			oldVolumeSnapshotContent: invalidContent,
+			shouldAdmit:              false,
+			operation:                v1.Update,
+			msg:                      fmt.Sprintf("both Spec.VolumeSnapshotRef.Name =  and Spec.VolumeSnapshotRef.Namespace = default-ns must be set"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshotContent := tc.volumeSnapshotContent
+			raw, err := json.Marshal(snapshotContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			oldSnapshotContent := tc.oldVolumeSnapshotContent
+			oldRaw, err := json.Marshal(oldSnapshotContent)
+			if err != nil {
+				t.Fatal(err)
+			}
+			review := v1.AdmissionReview{
+				Request: &v1.AdmissionRequest{
+					Object: runtime.RawExtension{
+						Raw: raw,
+					},
+					OldObject: runtime.RawExtension{
+						Raw: oldRaw,
+					},
+					Resource:  SnapshotContentV1GVR,
 					Operation: tc.operation,
 				},
 			}
