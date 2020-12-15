@@ -1,3 +1,26 @@
+# Release notes for v3.0.3
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v3.0.2
+
+## Changes by Kind
+
+### Other Notable Changes
+
+- Update snapshot controller image to 3.0.3. ([#452](https://github.com/kubernetes-csi/external-snapshotter/pull/452), [@xing-yang](https://github.com/xing-yang))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v3.0.2
 
 [Documentation](https://kubernetes-csi.github.io)
