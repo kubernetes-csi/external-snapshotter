@@ -334,7 +334,7 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 		class, err = ctrl.getSnapshotClass(*className)
 		if err != nil {
 			klog.Errorf("checkAndUpdateSnapshotClass failed to getSnapshotClass %v", err)
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, false, v1.EventTypeWarning, "GetSnapshotClassFailed", fmt.Sprintf("Failed to get snapshot class with error %v", err))
 			// we need to return the original snapshot even if the class isn't found, as it may need to be deleted
 			return newSnapshot, err
 		}
@@ -343,7 +343,7 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 		class, newSnapshot, err = ctrl.SetDefaultSnapshotClass(snapshot)
 		if err != nil {
 			klog.Errorf("checkAndUpdateSnapshotClass failed to setDefaultClass %v", err)
-			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, false, v1.EventTypeWarning, "SetDefaultSnapshotClassFailed", fmt.Sprintf("Failed to set default snapshot class with error %v", err))
 			return snapshot, err
 		}
 	}
