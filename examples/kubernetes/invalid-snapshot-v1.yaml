@@ -1,0 +1,9 @@
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: new-snapshot-demo-v1
+spec:
+  volumeSnapshotClassName: csi-hostpath-snapclass-v1
+  source: # Only one of the two fields should be set for a snapshot. Therefore this snapshot is invalid.
+    persistentVolumeClaimName: pvc 
+    volumeSnapshotContentName: vsc 
