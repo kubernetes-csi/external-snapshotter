@@ -8,6 +8,7 @@
 # - optionally rename the non-namespaced ClusterRole if there
 #   are conflicts with other deployments
 
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
