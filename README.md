@@ -94,11 +94,11 @@ Users should run this to identify, remove any invalid objects, and correct their
 
 If there are no existing invalid v1beta1 objects, after upgrading to v1, the webhook and schema validation will prevent the user from creating new invalid v1 and v1beta1 objects.
 
-If there are existing invalid v1beta1 objects, the user should install the validation webhook before upgrading to v1 so that those invalid objects will be labeled and can be identified easily and removed before upgrading to v1.
+If there are existing invalid v1beta1 objects, the user should make sure that the snapshot controller is upgraded to v3.0.0 or higher (v3.0.3 is the latest recommended v3.0.x release) and install the corresponding validation webhook before upgrading to v1 so that those invalid objects will be labeled and can be identified easily and removed before upgrading to v1.
 
-If there are existing invalid v1beta1 objects and the user didn't install the validation webhook before upgrading to v1, those existing invalid v1beta1 objects will not be labeled by the snapshot controller.
+If there are existing invalid v1beta1 objects and the user didn't upgrade to the snapshot controller 3.0.0 or higher and install the corresponding validation webhook before upgrading to v1, those existing invalid v1beta1 objects will not be labeled by the snapshot controller.
 
-So the recommendation is that before upgrading to v1, the user should install the validation webhook so that all existing invalid objects will be labeled and can be easily identified and deleted.
+So the recommendation is that before upgrading to v1 CRDs and upgrading snapshot controller and validation webhook to v4.0, the user should upgrade to the snapshot controller 3.0.0 and higher (v3.0.3 is the latest recommended version for 3.0.x) and install the corresponding validation webhook so that all existing invalid objects will be labeled and can be easily identified and deleted.
 
 > :warning: **WARNING**: Cluster admins choosing not to install the webhook server and participate in the phased release process can cause future problems when upgrading from `v1beta1` to `v1` volumesnapshot API, if there are currently persisted objects which fail the new stricter validation. Potential impacts include being unable to delete invalid snapshot objects.
 
