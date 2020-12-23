@@ -6,14 +6,13 @@
 # Vanilla Kubernetes, kube-system makes sense for the namespace.
 
 ---
-kind: StatefulSet
+kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: snapshot-controller
-  namespace: default # TODO: replace with the namespace you want for your controller, e.g. kube-system
+  namespace: kube-system
 spec:
-  serviceName: "snapshot-controller"
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: snapshot-controller
@@ -28,5 +27,5 @@ spec:
           image: k8s.gcr.io/sig-storage/snapshot-controller:v4.0.0
           args:
             - "--v=5"
-            - "--leader-election=false"
+            - "--leader-election=true"
           imagePullPolicy: IfNotPresent
