@@ -6,6 +6,10 @@
 
 ## Changes by Kind
 
+### Bug or Regression
+
+- Cherry-pick of ([#429](https://github.com/kubernetes-csi/external-snapshotter/pull/429), [@ggriffiths](https://github.com/ggriffiths)). The validation-webhook server will now watch for changes to --tls-cert-file and --tls-private-key-file and update the server's TLS config accordingly. ([#435](https://github.com/kubernetes-csi/external-snapshotter/pull/435), [@ggriffiths](https://github.com/ggriffiths)).
+
 ### Other Notable Changes
 
 - Update snapshot controller image to 3.0.3. ([#452](https://github.com/kubernetes-csi/external-snapshotter/pull/452), [@xing-yang](https://github.com/xing-yang))
