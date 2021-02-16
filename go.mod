@@ -13,7 +13,7 @@ require (
 	github.com/googleapis/gnostic v0.5.3 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/imdario/mergo v0.3.11 // indirect
-	github.com/kubernetes-csi/csi-lib-utils v0.9.0
+	github.com/kubernetes-csi/csi-lib-utils v0.9.1
 	github.com/kubernetes-csi/csi-test/v4 v4.0.2
 	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.0.0
 	github.com/prometheus/client_golang v1.8.0
@@ -34,6 +34,7 @@ require (
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v1.20.0
 	k8s.io/component-base v0.20.0
+	k8s.io/csi-translation-lib v0.20.0
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/kubernetes v1.20.0
 )

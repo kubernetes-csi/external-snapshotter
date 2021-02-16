@@ -46,6 +46,7 @@ import (
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	coreinformers "k8s.io/client-go/informers"
+	csitrans "k8s.io/csi-translation-lib"
 )
 
 const (
@@ -146,6 +147,20 @@ func main() {
 	}
 
 	klog.V(2).Infof("CSI driver name: %q", driverName)
+
+	// Create a new connection with the metrics manager with migrated label if the driver is migrated
+	translator := csitrans.New()
+	if translator.IsMigratedCSIDriverByName(driverName) {
+		metricsManager = metrics.NewCSIMetricsManagerWithOptions("" /* driverName */, metrics.WithMigration())
+		migratedCsiConn, err := connection.Connect(
+			*csiAddress,
+			metricsManager,
+			connection.OnConnectionLoss(connection.ExitOnConnectionLoss()))
+		if err == nil {
+			csiConn.Close()
+			csiConn = migratedCsiConn
+		}
+	}
 
 	// Prepare http endpoint for metrics + leader election healthz
 	mux := http.NewServeMux()

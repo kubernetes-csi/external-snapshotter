@@ -23,10 +23,12 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/protobuf/ptypes"
+	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 
 	"google.golang.org/grpc"
 
+	csitrans "k8s.io/csi-translation-lib"
 	klog "k8s.io/klog/v2"
 )
 
@@ -68,6 +70,7 @@ func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volu
 		Secrets:        snapshotterCredentials,
 	}
 
+	ctx = s.checkAndMarkAsMigrated(ctx)
 	rsp, err := client.CreateSnapshot(ctx, &req)
 	if err != nil {
 		return "", "", time.Time{}, 0, false, err
@@ -89,6 +92,7 @@ func (s *snapshot) DeleteSnapshot(ctx context.Context, snapshotID string, snapsh
 		Secrets:    snapshotterCredentials,
 	}
 
+	ctx = s.checkAndMarkAsMigrated(ctx)
 	if _, err := client.DeleteSnapshot(ctx, &req); err != nil {
 		return err
 	}
@@ -129,6 +133,7 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, sna
 		SnapshotId: snapshotID,
 		Secrets:    snapshotterListCredentials,
 	}
+	ctx = s.checkAndMarkAsMigrated(ctx)
 	rsp, err := client.ListSnapshots(ctx, &req)
 	if err != nil {
 		return false, time.Time{}, 0, err
@@ -143,4 +148,16 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, sna
 		return false, time.Time{}, 0, err
 	}
 	return rsp.Entries[0].Snapshot.ReadyToUse, creationTime, rsp.Entries[0].Snapshot.SizeBytes, nil
+}
+
+func (s *snapshot) checkAndMarkAsMigrated(parent context.Context) context.Context {
+	driverName, err := csirpc.GetDriverName(parent, s.conn)
+	if err != nil {
+		return parent
+	}
+	translator := csitrans.New()
+	if translator.IsMigratedCSIDriverByName(driverName) {
+		return context.WithValue(parent, connection.AdditionalInfoKey, connection.AdditionalInfo{Migrated: "true"})
+	}
+	return parent
 }
