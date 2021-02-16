@@ -245,9 +245,10 @@ test-vendor:
 
 .PHONY: test-subtree
 test: test-subtree
+# For the release-3.0 branch, we have forked release-tools and so cannot run
+# the subtree test.
 test-subtree:
-	@ echo; echo "### $@:"
-	./release-tools/verify-subtree.sh release-tools
+	@ echo; echo "### $@: skipping test-subtree"
 
 # Components can extend the set of directories which must pass shellcheck.
 # The default is to check only the release-tools directory itself.
