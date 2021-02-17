@@ -1,3 +1,22 @@
+# Release notes for v2.1.4 (Changelog since v2.1.3)
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Cherry pick of #287: Allows the sidecar to delete volume snapshots if the volume snapshot class is not found. ([#466](https://github.com/kubernetes-csi/external-snapshotter/pull/466), [@ialidzhikov](https://github.com/ialidzhikov))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v2.1.3 (Changelog since v2.1.2)
 
 ## Changes by Kind
