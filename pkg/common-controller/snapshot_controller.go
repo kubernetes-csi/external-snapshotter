@@ -34,6 +34,7 @@ import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
+	webhook "github.com/kubernetes-csi/external-snapshotter/v4/pkg/validation-webhook"
 )
 
 // ==================================================================
@@ -1505,7 +1506,7 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 // checkAndSetInvalidContentLabel adds a label to unlabeled invalid content objects and removes the label from valid ones.
 func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	hasLabel := utils.MapContainsKey(content.ObjectMeta.Labels, utils.VolumeSnapshotContentInvalidLabel)
-	err := utils.ValidateV1SnapshotContent(content)
+	err := webhook.ValidateV1SnapshotContent(content)
 	if err != nil {
 		klog.Errorf("syncContent[%s]: Invalid content detected, %s", content.Name, err.Error())
 	}
@@ -1546,7 +1547,7 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content 
 // checkAndSetInvalidSnapshotLabel adds a label to unlabeled invalid snapshot objects and removes the label from valid ones.
 func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
 	hasLabel := utils.MapContainsKey(snapshot.ObjectMeta.Labels, utils.VolumeSnapshotInvalidLabel)
-	err := utils.ValidateV1Snapshot(snapshot)
+	err := webhook.ValidateV1Snapshot(snapshot)
 	if err != nil {
 		klog.Errorf("syncSnapshot[%s]: Invalid snapshot detected, %s", utils.SnapshotKey(snapshot), err.Error())
 	}
