@@ -34,7 +34,7 @@ var emptySize int64
 var deletePolicy = crdv1.VolumeSnapshotContentDelete
 var retainPolicy = crdv1.VolumeSnapshotContentRetain
 var timeNow = time.Now()
-var timeNowMetav1 = metav1.Now()
+var timeNowMetav1 = metav1.Time{Time: time.Now().Round(time.Second)}
 var False = false
 var True = true
 
@@ -345,5 +345,6 @@ func TestDeleteSync(t *testing.T) {
 			test:                testSyncContent,
 		},
 	}
+
 	runSyncContentTests(t, tests, snapshotClasses)
 }

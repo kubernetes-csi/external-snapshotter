@@ -34,13 +34,16 @@ rules:
     verbs: ["get", "list", "watch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshotcontents"]
-    verbs: ["create", "get", "list", "watch", "update", "delete"]
+    verbs: ["create", "get", "list", "watch", "delete", "patch"]
+  - apiGroups: ["snapshot.storage.k8s.io"]
+    resources: ["volumesnapshotcontents/status"]
+    verbs: ["patch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots"]
-    verbs: ["get", "list", "watch", "update"]
+    verbs: ["get", "list", "watch", "patch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots/status"]
-    verbs: ["update"]
+    verbs: ["patch"]
 
 ---
 kind: ClusterRoleBinding

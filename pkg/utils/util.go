@@ -108,6 +108,10 @@ const (
 	// VolumeSnapshotInvalidLabel is applied to invalid snapshot as a label key. The value does not matter.
 	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
 	VolumeSnapshotInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-resource"
+
+	// StatusSubResource is the subresource used for interacting with
+	// a volumesnapshot or volumesnapshotcontent status subresource
+	StatusSubResource = "status"
 )
 
 var SnapshotterSecretParams = secretParamsMap{

@@ -26,7 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var timeNow = time.Now()
+var timeNow = time.Now().Round(time.Second)
 var timeNowStamp = timeNow.UnixNano()
 var False = false
 var True = true
@@ -161,10 +161,10 @@ func TestCreateSnapshotSync(t *testing.T) {
 			initialClaims:     newClaimArray("claim7-9", "pvc-uid7-9", "1Gi", "volume7-9", v1.ClaimBound, &classGold),
 			initialVolumes:    newVolumeArray("volume7-9", "pv-uid7-9", "pv-handle7-9", "1Gi", "pvc-uid7-9", "claim7-9", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classGold),
 			errors: []reactorError{
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
-				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"patch", "volumesnapshots", errors.New("mock update error")},
+				{"patch", "volumesnapshots", errors.New("mock update error")},
+				{"patch", "volumesnapshots", errors.New("mock update error")},
+				{"patch", "volumesnapshots", errors.New("mock update error")},
 			},
 			expectSuccess: false,
 			test:          testSyncSnapshot,

@@ -4,6 +4,7 @@ go 1.15
 
 require (
 	github.com/container-storage-interface/spec v1.3.0
+	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-logr/logr v0.3.0 // indirect
 	github.com/golang/mock v1.4.4

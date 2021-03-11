@@ -19,6 +19,7 @@ package common_controller
 import (
 	"errors"
 	"testing"
+	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
@@ -49,7 +50,7 @@ var class5Parameters = map[string]string{
 	utils.PrefixedSnapshotterSecretNamespaceKey: "default",
 }
 
-var timeNowMetav1 = metav1.Now()
+var timeNowMetav1 = metav1.Time{Time: time.Now().Round(time.Second)}
 
 var content31 = "content3-1"
 var claim31 = "claim3-1"
