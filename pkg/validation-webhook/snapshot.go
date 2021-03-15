@@ -22,7 +22,6 @@ import (
 
 	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
@@ -126,7 +125,7 @@ func decideSnapshotV1beta1(snapshot, oldSnapshot *volumesnapshotv1beta1.VolumeSn
 		// Which allows the remover of finalizers and therefore deletion of this object
 		// Don't rely on the pointers to be nil, because the deserialization method will convert it to
 		// The empty struct value. Instead check the operation type.
-		if err := utils.ValidateV1Beta1Snapshot(oldSnapshot); err != nil {
+		if err := ValidateV1Beta1Snapshot(oldSnapshot); err != nil {
 			return reviewResponse
 		}
 
@@ -139,7 +138,7 @@ func decideSnapshotV1beta1(snapshot, oldSnapshot *volumesnapshotv1beta1.VolumeSn
 	}
 	// Enforce strict validation for CREATE requests. Immutable checks don't apply for CREATE requests.
 	// Enforce strict validation for UPDATE requests where old is valid and passes immutability check.
-	if err := utils.ValidateV1Beta1Snapshot(snapshot); err != nil {
+	if err := ValidateV1Beta1Snapshot(snapshot); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
 	}
@@ -162,7 +161,7 @@ func decideSnapshotV1(snapshot, oldSnapshot *volumesnapshotv1.VolumeSnapshot, is
 	}
 	// Enforce strict validation for CREATE requests. Immutable checks don't apply for CREATE requests.
 	// Enforce strict validation for UPDATE requests where old is valid and passes immutability check.
-	if err := utils.ValidateV1Snapshot(snapshot); err != nil {
+	if err := ValidateV1Snapshot(snapshot); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
 	}
@@ -181,7 +180,7 @@ func decideSnapshotContentV1beta1(snapcontent, oldSnapcontent *volumesnapshotv1b
 		// Which allows the remover of finalizers and therefore deletion of this object
 		// Don't rely on the pointers to be nil, because the deserialization method will convert it to
 		// The empty struct value. Instead check the operation type.
-		if err := utils.ValidateV1Beta1SnapshotContent(oldSnapcontent); err != nil {
+		if err := ValidateV1Beta1SnapshotContent(oldSnapcontent); err != nil {
 			return reviewResponse
 		}
 
@@ -194,7 +193,7 @@ func decideSnapshotContentV1beta1(snapcontent, oldSnapcontent *volumesnapshotv1b
 	}
 	// Enforce strict validation for all CREATE requests. Immutable checks don't apply for CREATE requests.
 	// Enforce strict validation for UPDATE requests where old is valid and passes immutability check.
-	if err := utils.ValidateV1Beta1SnapshotContent(snapcontent); err != nil {
+	if err := ValidateV1Beta1SnapshotContent(snapcontent); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
 	}
@@ -217,7 +216,7 @@ func decideSnapshotContentV1(snapcontent, oldSnapcontent *volumesnapshotv1.Volum
 	}
 	// Enforce strict validation for all CREATE requests. Immutable checks don't apply for CREATE requests.
 	// Enforce strict validation for UPDATE requests where old is valid and passes immutability check.
-	if err := utils.ValidateV1SnapshotContent(snapcontent); err != nil {
+	if err := ValidateV1SnapshotContent(snapcontent); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
 	}
