@@ -1,6 +1,6 @@
 module github.com/kubernetes-csi/external-snapshotter/v4
 
-go 1.15
+go 1.16
 
 require (
 	github.com/container-storage-interface/spec v1.3.0
