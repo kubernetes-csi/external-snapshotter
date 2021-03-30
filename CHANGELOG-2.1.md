@@ -1,3 +1,27 @@
+# Release notes for v2.1.5 (Changelog since v2.1.4)
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Cherry pick of [#413](https://github.com/kubernetes-csi/external-snapshotter/pull/413):
+  Bug fix to allow creation of snapshot content if pvc finalizer exists, even if
+  pvc is marked for deletion. ([#488](https://github.com/kubernetes-csi/external-snapshotter/pull/488),
+  [@mattcary](https://github.com/mattcary))
+- Cherry pick of [#334](https://github.com/kubernetes-csi/external-snapshotter/pull/335):
+  Call dynamic VS content creation unconditionally. 
+  ([#478](https://github.com/kubernetes-csi/external-snapshotter/pull/478),
+  [@saikat-royc](https://github.com/saikat-royc))
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v2.1.4 (Changelog since v2.1.3)
 
 ## Changes by Kind
