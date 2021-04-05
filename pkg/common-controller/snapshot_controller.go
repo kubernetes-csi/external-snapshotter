@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
+	csilib "k8s.io/csi-translation-lib"
 	klog "k8s.io/klog/v2"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -80,6 +81,19 @@ const snapshotKind = "VolumeSnapshot"
 const snapshotAPIGroup = crdv1.GroupName
 
 const controllerUpdateFailMsg = "snapshot controller failed to update"
+
+// AnnDynamicallyProvisioned annotation is added to a PV that has been dynamically provisioned by
+// Kubernetes. Its value is name of volume plugin that created the volume.
+// It serves both user (to show where a PV comes from) and Kubernetes (to
+// recognize dynamically provisioned PVs in its decisions).
+const AnnDynamicallyProvisioned = "pv.kubernetes.io/provisioned-by"
+
+// AnnMigratedTo annotation is added to a PVC and PV that is supposed to be
+// dynamically provisioned/deleted by by its corresponding CSI driver
+// through the CSIMigration feature flags. When this annotation is set the
+// Kubernetes components will "stand-down" and the external-provisioner will
+// act on the objects
+const AnnMigratedTo = "pv.kubernetes.io/migrated-to"
 
 // syncContent deals with one key off the queue
 func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapshotContent) error {
@@ -648,7 +662,19 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 
 	// Create VolumeSnapshotContent in the database
 	if volume.Spec.CSI == nil {
-		return nil, fmt.Errorf("cannot find CSI PersistentVolumeSource for volume %s", volume.Name)
+		// Check if in-tree PV can be translated to CSI PV
+		csiTranslator := csilib.New()
+		migratedTo, _ := volume.Annotations[AnnMigratedTo]
+		provisionedBy, _ := volume.Annotations[AnnDynamicallyProvisioned]
+		canTranslate := csiTranslator.IsMigratedCSIDriverByName(migratedTo) || csiTranslator.IsMigratedCSIDriverByName(provisionedBy)
+		if !canTranslate {
+			return nil, fmt.Errorf("cannot find CSI PersistentVolumeSource for volume %s", volume.Name)
+		}
+		// Attempt to translate in-tree PV to CSI PV
+		volume, err = csiTranslator.TranslateInTreePVToCSI(volume)
+		if err != nil {
+			return nil, fmt.Errorf("failed to translate in-tree PV %s: %q", volume.Name, err)
+		}
 	}
 	snapshotRef, err := ref.GetReference(scheme.Scheme, snapshot)
 	if err != nil {
