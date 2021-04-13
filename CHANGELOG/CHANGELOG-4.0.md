@@ -1,3 +1,33 @@
+# Release notes for v4.0.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v4.0.0
+
+## Changes by Kind
+
+### Deprecations
+
+- VolumeSnapshot CRD version v1beta1 is deprecated and will be removed in a future release. It is recommended for users to upgrade to VolumeSnapshot CRD version v1 as soon as possible.
+
+### Uncategorized
+
+- External-snapshotter manifests adjusted to reflect more common example ([#459](https://github.com/kubernetes-csi/external-snapshotter/pull/459), [@kvaps](https://github.com/kvaps))
+- Retain error from CreateSnapshot call ([#470](https://github.com/kubernetes-csi/external-snapshotter/pull/470), [@timoreimann](https://github.com/timoreimann))
+- Updated runtime (Go 1.16) and dependencies ([#483](https://github.com/kubernetes-csi/external-snapshotter/pull/483), [@pohly](https://github.com/pohly))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
+
 # Release notes for v4.0.0
 
 [Documentation](https://kubernetes-csi.github.io)
