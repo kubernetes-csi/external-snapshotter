@@ -34,6 +34,7 @@ require (
 	k8s.io/apimachinery v0.20.0
 	k8s.io/client-go v1.20.0
 	k8s.io/component-base v0.20.0
+	k8s.io/csi-translation-lib v0.20.5
 	k8s.io/klog/v2 v2.4.0
 	k8s.io/kubernetes v1.20.0
 )
