@@ -149,6 +149,7 @@ $(CMDS:%=push-multiarch-%): push-multiarch-%: check-pull-base-ref build-%
 				--platform=$$os/$$arch \
 				--file $$(eval echo \$${dockerfile_$$os}) \
 				--build-arg binary=./bin/$*$$suffix \
+				--build-arg ARCH=$$arch \
 				--label revision=$(REV) \
 				.; \
 		done; \
@@ -275,3 +276,16 @@ test-shellcheck:
 .PHONY: check-go-version-%
 check-go-version-%:
 	./release-tools/verify-go-version.sh "$*"
+
+# Test for spelling errors.
+.PHONY: test-spelling
+test-spelling:
+	@ echo; echo "### $@:"
+	@ ./release-tools/verify-spelling.sh "$(pwd)"
+
+# Test the boilerplates of the files.
+.PHONY: test-boilerplate
+test-boilerplate:
+	@ echo; echo "### $@:"
+	@ ./release-tools/verify-boilerplate.sh "$(pwd)"
+
