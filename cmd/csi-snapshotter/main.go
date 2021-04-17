@@ -154,7 +154,7 @@ func main() {
 		metricsManager.SetDriverName(driverName)
 		go func() {
 			klog.Infof("ServeMux listening at %q", addr)
-			err := http.ListenAndServe(*metricsAddress, mux)
+			err := http.ListenAndServe(addr, mux)
 			if err != nil {
 				klog.Fatalf("Failed to start HTTP server at specified address (%q) and metrics path (%q): %s", addr, *metricsPath, err)
 			}
