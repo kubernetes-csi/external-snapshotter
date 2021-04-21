@@ -3,7 +3,7 @@ module github.com/kubernetes-csi/external-snapshotter/v4
 go 1.16
 
 require (
-	github.com/container-storage-interface/spec v1.3.0
+	github.com/container-storage-interface/spec v1.4.0
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-logr/logr v0.3.0 // indirect
 	github.com/golang/mock v1.4.4
