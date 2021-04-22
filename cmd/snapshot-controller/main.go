@@ -29,6 +29,10 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	klog "k8s.io/klog/v2"
 
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
@@ -58,6 +62,45 @@ var (
 var (
 	version = "unknown"
 )
+
+// Checks that the VolumeSnapshot v1 CRDs exist.
+func ensureCustomResourceDefinitionsExist(kubeClient *kubernetes.Clientset, client *clientset.Clientset) error {
+	condition := func() (bool, error) {
+		var err error
+		_, err = kubeClient.CoreV1().Namespaces().Get(context.TODO(), "kube-system", metav1.GetOptions{})
+		if err != nil {
+			// only execute list VolumeSnapshots if the kube-system namespace exists
+			_, err = client.SnapshotV1().VolumeSnapshots("kube-system").List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				klog.Errorf("Failed to list v1 volumesnapshots with error=%+v", err)
+				return false, nil
+			}
+		}
+		_, err = client.SnapshotV1().VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			klog.Errorf("Failed to list v1 volumesnapshotclasses with error=%+v", err)
+			return false, nil
+		}
+		_, err = client.SnapshotV1().VolumeSnapshotContents().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			klog.Errorf("Failed to list v1 volumesnapshotcontents with error=%+v", err)
+			return false, nil
+		}
+		return true, nil
+	}
+
+	// with a Factor of 1.5 we wait up to 7.5 seconds (the 10th attempt)
+	backoff := wait.Backoff{
+		Duration: 100 * time.Millisecond,
+		Factor:   1.5,
+		Steps:    10,
+	}
+	if err := wait.ExponentialBackoff(backoff, condition); err != nil {
+		return err
+	}
+
+	return nil
+}
 
 func main() {
 	klog.InitFlags(nil)
@@ -129,6 +172,11 @@ func main() {
 		metricsManager,
 		*resyncPeriod,
 	)
+
+	if err := ensureCustomResourceDefinitionsExist(kubeClient, snapClient); err != nil {
+		klog.Errorf("Exiting due to failure to ensure CRDs exist during startup: %+v", err)
+		os.Exit(1)
+	}
 
 	run := func(context.Context) {
 		// run...
