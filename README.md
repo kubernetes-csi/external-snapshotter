@@ -20,13 +20,13 @@ Blog post for the GA feature can be found [here](https://kubernetes.io/blog/2020
 
 This information reflects the head of this branch.
 
-| Compatible with CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) |
-| ------------------------------------------------------------------------------------------ | ----------------------------| --------------- |
-| [CSI Spec v1.2.0](https://github.com/container-storage-interface/spec/releases/tag/v1.2.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.17         |
-| [CSI Spec v1.2.0](https://github.com/container-storage-interface/spec/releases/tag/v1.2.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.17     |
-| [CSI Spec v1.2.0](https://github.com/container-storage-interface/spec/releases/tag/v1.2.0) | k8s.gcr.io/sig-storage/snapshot-validation-webhook  | 1.17     |
+| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version)
+| ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | --------------- |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.4.0](https://github.com/container-storage-interface/spec/releases/tag/v1.4.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.20         | 1.20         |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.4.0](https://github.com/container-storage-interface/spec/releases/tag/v1.4.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.20     | 1.20         |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.4.0](https://github.com/container-storage-interface/spec/releases/tag/v1.4.0) | k8s.gcr.io/sig-storage/snapshot-validation-webhook  | 1.20     | 1.20         |
 
-Note: snapshot-controller, snapshot-validation-webhook, csi-snapshotter v4.0 requires v1 snapshot CRDs to be installed, but it supports both v1 and v1beta1 snapshot objects.
+Note: snapshot-controller, snapshot-validation-webhook, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
 
 ## Feature Status
 
@@ -43,7 +43,7 @@ The CSI external-snapshotter sidecar talks to CSI over socket (/run/csi/socket b
 
 ### Snapshot v1 APIs
 
-Other than introducing tightening validation, there is no difference between the v1beta1 and v1 Kubernetes volume snapshot API. In the current release, both v1 and v1beta1 are served while the stored API version is still v1beta1. Future releases will switch the stored version to v1 and gradually remove v1beta1 support.
+In the current release, both v1 and v1beta1 APIs are served while the stored API version is changed from v1beta1 to v1. v1beta1 APIs is deprecated and will be removed in a future release. It is recommended for users to switch to v1 APIs as soon as possible. Any previously created invalid v1beta1 objects have to be deleted before upgrading to version 4.1.
 
 
 ## Usage
@@ -186,7 +186,9 @@ If you have already deployed v1alpha1 snapshot APIs and external-snapshotter sid
 
 Validation webhook should be installed before upgrading to v1. Potential impacts of not installing the validation webhook before upgrading to v1 include being unable to delete invalid snapshot objects. See the section on Validation Webhook for details.
 
-Change from v1beta1 to v1 is backward compatible. Both v1 and v1beta1 are served while the stored API version is still v1beta1. Future releases will switch the stored version to v1 and gradually remove v1beta1 support.
+* When upgrading to 4.0, change from v1beta1 to v1 is backward compatible because both v1 and v1beta1 are served while the stored API version is still v1beta1. Future releases will switch the stored version to v1 and gradually remove v1beta1 support.
+* When upgrading from 3.x to 4.1, change from v1beta1 to v1 is no longer backward compatible because stored API version is changed to v1 although both v1 and v1beta1 are still served. v1beta1 is deprecated in 4.1.
+* v1beta1 support will be removed in a future release. It is recommended for users to switch to v1 as soon as possible. Any previously created invalid v1beta1 objects have to be deleted before upgrading to version 4.1.
 
 ## Testing
 
@@ -202,7 +204,7 @@ go test -timeout 30s  github.com/kubernetes-csi/external-snapshotter/pkg/sidecar
 
 Volume snapshot APIs and client library are now in a separate sub-module: `github.com/kubernetes-csi/external-snapshotter/client/v4`.
 
-Use the command `go get -u github.com/kubernetes-csi/external-snapshotter/client/v4@v4.0.0` to get the client library.
+Use the command `go get -u github.com/kubernetes-csi/external-snapshotter/client/v4@v4.1.0` to get the client library.
 
 ### Setting Quota limits with Snapshot custom resources
 [`ResourceQuotas`](https://kubernetes.io/docs/concepts/policy/resource-quotas/) are namespaced objects that can be used to set limits on objects of a particular [`Group.Version.Kind`](https://book.kubebuilder.io/cronjob-tutorial/gvks.html). Before we set resource quota, make sure that snapshot CRDs are installed in the cluster. If not please follow [this guide](https://github.com/kubernetes-csi/external-snapshotter#usage).
