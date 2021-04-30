@@ -20,8 +20,8 @@ Blog post for the GA feature can be found [here](https://kubernetes.io/blog/2020
 
 This information reflects the head of this branch.
 
-| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version)
-| ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | --------------- |
+| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version) |
+| ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | --------------- |  --------------- |
 | [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.4.0](https://github.com/container-storage-interface/spec/releases/tag/v1.4.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.20         | 1.20         |
 | [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.4.0](https://github.com/container-storage-interface/spec/releases/tag/v1.4.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.20     | 1.20         |
 | [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.4.0](https://github.com/container-storage-interface/spec/releases/tag/v1.4.0) | k8s.gcr.io/sig-storage/snapshot-validation-webhook  | 1.20     | 1.20         |
