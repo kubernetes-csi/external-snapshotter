@@ -23,7 +23,7 @@
 
 ### Uncategorized
 
-- External-snapshotter manifests adjusted to reflect more common example ([#459](https://github.com/kubernetes-csi/external-snapshotter/pull/459), [@kvaps](https://github.com/kvaps))
+- External-snapshotter manifests adjusted to reflect more common example. Snapshot-controller is deployed as a Deployment rather than a Statefulset in the example deployment file. ([#459](https://github.com/kubernetes-csi/external-snapshotter/pull/459), [@kvaps](https://github.com/kvaps))
 - Updated runtime (Go 1.16) and dependencies ([#483](https://github.com/kubernetes-csi/external-snapshotter/pull/483), [@pohly](https://github.com/pohly))
 
 ## Dependencies
