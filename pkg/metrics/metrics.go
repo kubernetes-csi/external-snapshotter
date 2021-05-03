@@ -30,13 +30,48 @@ import (
 )
 
 const (
-	opStatusUnknown      = "Unknown"
-	labelDriverName      = "driver_name"
-	labelOperationName   = "operation_name"
-	labelOperationStatus = "operation_status"
-	subSystem            = "snapshot_controller"
-	metricName           = "operation_total_seconds"
-	metricHelpMsg        = "Total number of seconds spent by the controller on an operation from end to end"
+	labelDriverName               = "driver_name"
+	labelOperationName            = "operation_name"
+	labelOperationStatus          = "operation_status"
+	labelSnapshotType             = "snapshot_type"
+	subSystem                     = "snapshot_controller"
+	operationLatencyMetricName    = "operation_total_seconds"
+	operationLatencyMetricHelpMsg = "Total number of seconds spent by the controller on an operation"
+	unknownDriverName             = "unknown"
+
+	// CreateSnapshotOperationName is the operation that tracks how long the controller takes to create a snapshot.
+	// Specifically, the operation metric is emitted based on the following timestamps:
+	// - Start_time: controller notices the first time that there is a new VolumeSnapshot CR to dynamically provision a snapshot
+	// - End_time:   controller notices that the CR has a status with CreationTime field set to be non-nil
+	CreateSnapshotOperationName = "CreateSnapshot"
+
+	// CreateSnapshotAndReadyOperationName is the operation that tracks how long the controller takes to create a snapshot and for it to be ready.
+	// Specifically, the operation metric is emitted based on the following timestamps:
+	// - Start_time: controller notices the first time that there is a new VolumeSnapshot CR(both dynamic and pre-provisioned cases)
+	// - End_time:   controller notices that the CR has a status with Ready field set to be true
+	CreateSnapshotAndReadyOperationName = "CreateSnapshotAndReady"
+
+	// DeleteSnapshotOperationName is the operation that tracks how long a snapshot deletion takes.
+	// Specifically, the operation metric is emitted based on the following timestamps:
+	// - Start_time: controller notices the first time that there is a deletion timestamp placed on the VolumeSnapshot CR and the CR is ready to be deleted. Note that if the CR is being used by a PVC for rehydration, the controller should *NOT* set the start_time.
+	// - End_time: controller removed all finalizers on the VolumeSnapshot CR such that the CR is ready to be removed in the API server.
+	DeleteSnapshotOperationName = "DeleteSnapshot"
+
+	// DynamicSnapshotType represents a snapshot that is being dynamically provisioned
+	DynamicSnapshotType = snapshotProvisionType("dynamic")
+	// PreProvisionedSnapshotType represents a snapshot that is pre-provisioned
+	PreProvisionedSnapshotType = snapshotProvisionType("pre-provisioned")
+
+	// SnapshotStatusTypeUnknown represents that the status is unknown
+	SnapshotStatusTypeUnknown snapshotStatusType = "unknown"
+	// Success and Cancel are statuses for operation time (operation_total_seconds) as seen by snapshot controller
+	// SnapshotStatusTypeSuccess represents that a CreateSnapshot, CreateSnapshotAndReady,
+	// or DeleteSnapshot has finished successfully.
+	// Individual reconciliations (reconciliation_total_seconds) also use this status.
+	SnapshotStatusTypeSuccess snapshotStatusType = "success"
+	// SnapshotStatusTypeCancel represents that a CreateSnapshot, CreateSnapshotAndReady,
+	// or DeleteSnapshot has been deleted before finishing.
+	SnapshotStatusTypeCancel snapshotStatusType = "cancel"
 )
 
 // OperationStatus is the interface type for representing an operation's execution
@@ -57,11 +92,11 @@ type MetricsManager interface {
 
 	// OperationStart takes in an operation and caches its start time.
 	// if the operation already exists, it's an no-op.
-	OperationStart(op Operation)
+	OperationStart(key OperationKey, val OperationValue)
 
 	// DropOperation removes an operation from cache.
 	// if the operation does not exist, it's an no-op.
-	DropOperation(op Operation)
+	DropOperation(op OperationKey)
 
 	// RecordMetrics records a metric point. Note that it will be an no-op if an
 	// operation has NOT been marked "Started" previously via invoking "OperationStart".
@@ -69,18 +104,47 @@ type MetricsManager interface {
 	// op - the operation which the metric is associated with.
 	// status - the operation status, if not specified, i.e., status == nil, an
 	//          "Unknown" status of the passed-in operation is assumed.
-	RecordMetrics(op Operation, status OperationStatus)
+	RecordMetrics(op OperationKey, status OperationStatus, driverName string)
 }
 
-// Operation is a structure which holds information to identify a snapshot
-// related operation
-type Operation struct {
-	// the name of the operation, for example: "CreateSnapshot", "DeleteSnapshot"
+// OperationKey is a structure which holds information to
+// uniquely identify a snapshot related operation
+type OperationKey struct {
+	// Name is the name of the operation, for example: "CreateSnapshot", "DeleteSnapshot"
 	Name string
-	// the name of the driver which executes the operation
-	Driver string
-	// the resource UID to which the operation has been executed against
+	// ResourceID is the resource UID to which the operation has been executed against
 	ResourceID types.UID
+}
+
+// OperationValue is a structure which holds operation metadata
+type OperationValue struct {
+	// Driver is the driver name which executes the operation
+	Driver string
+	// SnapshotType represents the snapshot type, for example: "dynamic", "pre-provisioned"
+	SnapshotType string
+
+	// startTime is the time when the operation first started
+	startTime time.Time
+}
+
+// NewOperationKey initializes a new OperationKey
+func NewOperationKey(name string, snapshotUID types.UID) OperationKey {
+	return OperationKey{
+		Name:       name,
+		ResourceID: snapshotUID,
+	}
+}
+
+// NewOperationValue initializes a new OperationValue
+func NewOperationValue(driver string, snapshotType snapshotProvisionType) OperationValue {
+	if driver == "" {
+		driver = unknownDriverName
+	}
+
+	return OperationValue{
+		Driver:       driver,
+		SnapshotType: string(snapshotType),
+	}
 }
 
 type operationMetricsManager struct {
@@ -93,10 +157,11 @@ type operationMetricsManager struct {
 	// registry is a wrapper around Prometheus Registry
 	registry k8smetrics.KubeRegistry
 
-	// opLatencyMetrics is a Histogram metrics
+	// opLatencyMetrics is a Histogram metrics for operation time per request
 	opLatencyMetrics *k8smetrics.HistogramVec
 }
 
+// NewMetricsManager creates a new MetricsManager instance
 func NewMetricsManager() MetricsManager {
 	mgr := &operationMetricsManager{
 		cache: sync.Map{},
@@ -105,34 +170,83 @@ func NewMetricsManager() MetricsManager {
 	return mgr
 }
 
-func (opMgr *operationMetricsManager) OperationStart(op Operation) {
-	opMgr.cache.LoadOrStore(op, time.Now())
+// OperationStart starts a new operation
+func (opMgr *operationMetricsManager) OperationStart(key OperationKey, val OperationValue) {
+	val.startTime = time.Now()
+	opMgr.cache.LoadOrStore(key, val)
 }
 
-func (opMgr *operationMetricsManager) DropOperation(op Operation) {
+// OperationStart drops an operation
+func (opMgr *operationMetricsManager) DropOperation(op OperationKey) {
 	opMgr.cache.Delete(op)
 }
 
-func (opMgr *operationMetricsManager) RecordMetrics(op Operation, status OperationStatus) {
-	obj, exists := opMgr.cache.Load(op)
+// RecordMetrics emits operation metrics
+func (opMgr *operationMetricsManager) RecordMetrics(opKey OperationKey, opStatus OperationStatus, driverName string) {
+	obj, exists := opMgr.cache.Load(opKey)
 	if !exists {
 		// the operation has not been cached, return directly
 		return
 	}
-	ts, ok := obj.(time.Time)
+	opVal, ok := obj.(OperationValue)
 	if !ok {
-		// the cached item is not a time.Time, should NEVER happen, clean and return
-		klog.Errorf("Invalid cache entry for key %v", op)
-		opMgr.cache.Delete(op)
+		// the cached item is not a OperationValue, should NEVER happen, clean and return
+		klog.Errorf("Invalid cache entry for key %v", opKey)
+		opMgr.cache.Delete(opKey)
 		return
 	}
-	strStatus := opStatusUnknown
-	if status != nil {
-		strStatus = status.String()
+	status := string(SnapshotStatusTypeUnknown)
+	if opStatus != nil {
+		status = opStatus.String()
 	}
-	duration := time.Since(ts).Seconds()
-	opMgr.opLatencyMetrics.WithLabelValues(op.Driver, op.Name, strStatus).Observe(duration)
-	opMgr.cache.Delete(op)
+
+	// if we do not know the driverName while recording metrics,
+	// refer to the cached version instead.
+	if driverName == "" || driverName == unknownDriverName {
+		driverName = opVal.Driver
+	}
+
+	operationDuration := time.Since(opVal.startTime).Seconds()
+	opMgr.opLatencyMetrics.WithLabelValues(driverName, opKey.Name, opVal.SnapshotType, status).Observe(operationDuration)
+
+	// Report cancel metrics if we are deleting an unfinished VolumeSnapshot
+	if opKey.Name == DeleteSnapshotOperationName {
+		// check if we have a CreateSnapshot operation pending for this
+		createKey := NewOperationKey(CreateSnapshotOperationName, opKey.ResourceID)
+		obj, exists := opMgr.cache.Load(createKey)
+		if exists {
+			// record a cancel metric if found
+			opMgr.recordCancelMetric(obj, createKey, operationDuration)
+		}
+
+		// check if we have a CreateSnapshotAndReady operation pending for this
+		createAndReadyKey := NewOperationKey(CreateSnapshotAndReadyOperationName, opKey.ResourceID)
+		obj, exists = opMgr.cache.Load(createAndReadyKey)
+		if exists {
+			// record a cancel metric if found
+			opMgr.recordCancelMetric(obj, createAndReadyKey, operationDuration)
+		}
+	}
+
+	opMgr.cache.Delete(opKey)
+}
+
+// recordCancelMetric records a metric for a create operation that hasn't finished
+func (opMgr *operationMetricsManager) recordCancelMetric(obj interface{}, key OperationKey, duration float64) {
+	// record a cancel metric if found
+	val, ok := obj.(OperationValue)
+	if !ok {
+		klog.Errorf("Invalid cache entry for key %v", key)
+		opMgr.cache.Delete(key)
+		return
+	}
+	opMgr.opLatencyMetrics.WithLabelValues(
+		val.Driver,
+		key.Name,
+		val.SnapshotType,
+		string(SnapshotStatusTypeCancel),
+	).Observe(duration)
+	opMgr.cache.Delete(key)
 }
 
 func (opMgr *operationMetricsManager) init() {
@@ -140,11 +254,11 @@ func (opMgr *operationMetricsManager) init() {
 	opMgr.opLatencyMetrics = k8smetrics.NewHistogramVec(
 		&k8smetrics.HistogramOpts{
 			Subsystem: subSystem,
-			Name:      metricName,
-			Help:      metricHelpMsg,
+			Name:      operationLatencyMetricName,
+			Help:      operationLatencyMetricHelpMsg,
 			Buckets:   metricBuckets,
 		},
-		[]string{labelDriverName, labelOperationName, labelOperationStatus},
+		[]string{labelDriverName, labelOperationName, labelSnapshotType, labelOperationStatus},
 	)
 	opMgr.registry.MustRegister(opMgr.opLatencyMetrics)
 }
@@ -174,4 +288,26 @@ func (opMgr *operationMetricsManager) StartMetricsEndpoint(pattern, addr string,
 		}
 	}()
 	return srv, nil
+}
+
+// snapshotProvisionType represents which kind of snapshot a metric is
+type snapshotProvisionType string
+
+// snapshotStatusType represents the type of snapshot status to report
+type snapshotStatusType string
+
+// SnapshotOperationStatus represents the status for a snapshot controller operation
+type SnapshotOperationStatus struct {
+	status snapshotStatusType
+}
+
+// NewSnapshotOperationStatus returns a new SnapshotOperationStatus
+func NewSnapshotOperationStatus(status snapshotStatusType) SnapshotOperationStatus {
+	return SnapshotOperationStatus{
+		status: status,
+	}
+}
+
+func (sos SnapshotOperationStatus) String() string {
+	return string(sos.status)
 }

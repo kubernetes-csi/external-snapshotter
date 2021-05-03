@@ -33,6 +33,7 @@ import (
 	klog "k8s.io/klog/v2"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v3/apis/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v3/pkg/utils"
 )
 
@@ -236,6 +237,20 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 // 2. Call checkandRemoveSnapshotFinalizersAndCheckandDeleteContent() with information obtained from step 1. This function name is very long but the name suggests what it does. It determines whether to remove finalizers on snapshot and whether to delete content.
 func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(snapshot *crdv1.VolumeSnapshot) error {
 	klog.V(5).Infof("processSnapshotWithDeletionTimestamp VolumeSnapshot[%s]: %s", utils.SnapshotKey(snapshot), utils.GetSnapshotStatusForLogging(snapshot))
+	driverName, err := ctrl.getSnapshotDriverName(snapshot)
+	if err != nil {
+		klog.Errorf("failed to getSnapshotDriverName while recording metrics for snapshot %q: %v", utils.SnapshotKey(snapshot), err)
+	}
+
+	snapshotProvisionType := metrics.DynamicSnapshotType
+	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
+		snapshotProvisionType = metrics.PreProvisionedSnapshotType
+	}
+
+	// Processing delete, start operation metric
+	deleteOperationKey := metrics.NewOperationKey(metrics.DeleteSnapshotOperationName, snapshot.UID)
+	deleteOperationValue := metrics.NewOperationValue(driverName, snapshotProvisionType)
+	ctrl.metricsManager.OperationStart(deleteOperationKey, deleteOperationValue)
 
 	var contentName string
 	if snapshot.Status != nil && snapshot.Status.BoundVolumeSnapshotContentName != nil {
@@ -270,6 +285,7 @@ func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(sn
 	}
 
 	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
+
 	return ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, content, deleteContent)
 }
 
@@ -389,6 +405,7 @@ func (ctrl *csiSnapshotCommonController) syncReadySnapshot(snapshot *crdv1.Volum
 		// snapshot is bound but content is not pointing to the snapshot
 		return ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotMisbound", "VolumeSnapshotContent is not bound to the VolumeSnapshot correctly")
 	}
+
 	// everything is verified, return
 	return nil
 }
@@ -397,6 +414,28 @@ func (ctrl *csiSnapshotCommonController) syncReadySnapshot(snapshot *crdv1.Volum
 func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.VolumeSnapshot) error {
 	uniqueSnapshotName := utils.SnapshotKey(snapshot)
 	klog.V(5).Infof("syncUnreadySnapshot %s", uniqueSnapshotName)
+	driverName, err := ctrl.getSnapshotDriverName(snapshot)
+	if err != nil {
+		klog.Errorf("failed to getSnapshotDriverName while recording metrics for snapshot %q: %s", utils.SnapshotKey(snapshot), err)
+	}
+
+	snapshotProvisionType := metrics.DynamicSnapshotType
+	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
+		snapshotProvisionType = metrics.PreProvisionedSnapshotType
+	}
+
+	// Start metrics operations
+	if !utils.IsSnapshotCreated(snapshot) {
+		// Only start CreateSnapshot operation if the snapshot has not been cut
+		ctrl.metricsManager.OperationStart(
+			metrics.NewOperationKey(metrics.CreateSnapshotOperationName, snapshot.UID),
+			metrics.NewOperationValue(driverName, snapshotProvisionType),
+		)
+	}
+	ctrl.metricsManager.OperationStart(
+		metrics.NewOperationKey(metrics.CreateSnapshotAndReadyOperationName, snapshot.UID),
+		metrics.NewOperationValue(driverName, snapshotProvisionType),
+	)
 
 	// Pre-provisioned snapshot
 	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
@@ -404,13 +443,16 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		if err != nil {
 			return err
 		}
+
 		// if no content found yet, update status and return
 		if content == nil {
 			// can not find the desired VolumeSnapshotContent from cache store
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotContentMissing", "VolumeSnapshotContent is missing")
 			klog.V(4).Infof("syncUnreadySnapshot[%s]: snapshot content %q requested but not found, will try again", utils.SnapshotKey(snapshot), *snapshot.Spec.Source.VolumeSnapshotContentName)
+
 			return fmt.Errorf("snapshot %s requests an non-existing content %s", utils.SnapshotKey(snapshot), *snapshot.Spec.Source.VolumeSnapshotContentName)
 		}
+
 		// Set VolumeSnapshotRef UID
 		newContent, err := ctrl.checkandBindSnapshotContent(snapshot, content)
 		if err != nil {
@@ -427,8 +469,10 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
 			return err
 		}
+
 		return nil
 	}
+
 	// snapshot.Spec.Source.VolumeSnapshotContentName == nil - dynamically creating snapshot
 	klog.V(5).Infof("getDynamicallyProvisionedContentFromStore for snapshot %s", uniqueSnapshotName)
 	contentObj, err := ctrl.getDynamicallyProvisionedContentFromStore(snapshot)
@@ -1095,10 +1139,30 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 	if updated {
 		snapshotClone := snapshotObj.DeepCopy()
 		snapshotClone.Status = newStatus
+
+		// We need to record metrics before updating the status due to a bug causing cache entries after a failed UpdateStatus call.
+		// Must meet the following criteria to emit a successful CreateSnapshot status
+		// 1. Previous status was nil OR Previous status had a nil CreationTime
+		// 2. New status must be non-nil with a non-nil CreationTime
+		driverName := content.Spec.Driver
+		createOperationKey := metrics.NewOperationKey(metrics.CreateSnapshotOperationName, snapshot.UID)
+		if !utils.IsSnapshotCreated(snapshotObj) && utils.IsSnapshotCreated(snapshotClone) {
+			ctrl.metricsManager.RecordMetrics(createOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+		}
+
+		// Must meet the following criteria to emit a successful CreateSnapshotAndReady status
+		// 1. Previous status was nil OR Previous status had a nil ReadyToUse OR Previous status had a false ReadyToUse
+		// 2. New status must be non-nil with a ReadyToUse as true
+		if !utils.IsSnapshotReady(snapshotObj) && utils.IsSnapshotReady(snapshotClone) {
+			createAndReadyOperation := metrics.NewOperationKey(metrics.CreateSnapshotAndReadyOperationName, snapshot.UID)
+			ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+		}
+
 		newSnapshotObj, err := ctrl.clientset.SnapshotV1beta1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 		}
+
 		return newSnapshotObj, nil
 	}
 
@@ -1186,8 +1250,49 @@ func (ctrl *csiSnapshotCommonController) getSnapshotClass(className string) (*cr
 	return class, nil
 }
 
-// SetDefaultSnapshotClass is a helper function to figure out the default snapshot class from
-// PVC/PV StorageClass and update VolumeSnapshot with this snapshot class name.
+// getSnapshotDriverName is a helper function to get snapshot driver from the VolumeSnapshot.
+// We try to get the driverName in multiple ways, as snapshot controller metrics depend on the correct driverName.
+func (ctrl *csiSnapshotCommonController) getSnapshotDriverName(vs *crdv1.VolumeSnapshot) (string, error) {
+	klog.V(5).Infof("getSnapshotDriverName: VolumeSnapshot[%s]", vs.Name)
+	var driverName string
+
+	// Pre-Provisioned snapshots have contentName as source
+	var contentName string
+	if vs.Spec.Source.VolumeSnapshotContentName != nil {
+		contentName = *vs.Spec.Source.VolumeSnapshotContentName
+	}
+
+	// Get Driver name from SnapshotContent if we found a contentName
+	if contentName != "" {
+		content, err := ctrl.contentLister.Get(contentName)
+		if err != nil {
+			klog.Errorf("getSnapshotDriverName: failed to get snapshotContent: %v", contentName)
+		} else {
+			driverName = content.Spec.Driver
+		}
+
+		if driverName != "" {
+			return driverName, nil
+		}
+	}
+
+	// Dynamic snapshots will have a snapshotclass with a driver
+	if vs.Spec.VolumeSnapshotClassName != nil {
+		class, err := ctrl.getSnapshotClass(*vs.Spec.VolumeSnapshotClassName)
+		if err != nil {
+			klog.Errorf("getSnapshotDriverName: failed to get snapshotClass: %v", *vs.Spec.VolumeSnapshotClassName)
+		} else {
+			driverName = class.Driver
+		}
+	}
+
+	return driverName, nil
+}
+
+// SetDefaultSnapshotClass is a helper function to figure out the default snapshot class.
+// For pre-provisioned case, it's an no-op.
+// For dynamic provisioning, it gets the default SnapshotClasses in the system if there is any(could be multiple),
+// and finds the one with the same CSI Driver as the PV from which a snapshot will be taken.
 func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshotClass, *crdv1.VolumeSnapshot, error) {
 	klog.V(5).Infof("SetDefaultSnapshotClass for snapshot [%s]", snapshot.Name)
 
