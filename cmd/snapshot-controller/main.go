@@ -64,18 +64,17 @@ var (
 )
 
 // Checks that the VolumeSnapshot v1 CRDs exist.
-func ensureCustomResourceDefinitionsExist(kubeClient *kubernetes.Clientset, client *clientset.Clientset) error {
+func ensureCustomResourceDefinitionsExist(client *clientset.Clientset) error {
 	condition := func() (bool, error) {
 		var err error
-		_, err = kubeClient.CoreV1().Namespaces().Get(context.TODO(), "kube-system", metav1.GetOptions{})
-		if err == nil {
-			// only execute list VolumeSnapshots if the kube-system namespace exists
-			_, err = client.SnapshotV1().VolumeSnapshots("kube-system").List(context.TODO(), metav1.ListOptions{})
-			if err != nil {
-				klog.Errorf("Failed to list v1 volumesnapshots with error=%+v", err)
-				return false, nil
-			}
+
+		// scoping to an empty namespace makes `List` work across all namespaces
+		_, err = client.SnapshotV1().VolumeSnapshots("").List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			klog.Errorf("Failed to list v1 volumesnapshots with error=%+v", err)
+			return false, nil
 		}
+
 		_, err = client.SnapshotV1().VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
 		if err != nil {
 			klog.Errorf("Failed to list v1 volumesnapshotclasses with error=%+v", err)
@@ -173,7 +172,7 @@ func main() {
 		*resyncPeriod,
 	)
 
-	if err := ensureCustomResourceDefinitionsExist(kubeClient, snapClient); err != nil {
+	if err := ensureCustomResourceDefinitionsExist(snapClient); err != nil {
 		klog.Errorf("Exiting due to failure to ensure CRDs exist during startup: %+v", err)
 		os.Exit(1)
 	}
