@@ -1,6 +1,16 @@
-# Release notes for v4.1.0
+# Release notes for v4.1.1
 
 [Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v4.1.0
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Cherry-pick [#515](https://github.com/kubernetes-csi/external-snapshotter/pull/515): Remove kube-system namespace verification during startup and instead list volumesnapshots across all namespaces. ([#517](https://github.com/kubernetes-csi/external-snapshotter/pull/517), [@mauriciopoppe](https://github.com/mauriciopoppe))
+
+# Release notes for v4.1.0
 
 # Changelog since v4.0.0
 
