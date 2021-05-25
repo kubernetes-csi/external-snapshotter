@@ -140,11 +140,17 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *c
 func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(content *crdv1.VolumeSnapshotContent, eventtype, reason, message string) error {
 	klog.V(5).Infof("updateContentStatusWithEvent[%s]", content.Name)
 
+	latestContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), content.Name, metav1.GetOptions{})
+	if err != nil {
+		klog.V(4).Infof("updateContentStatusWithEvent[%s]: error obtaining volumeSnapshotContent %v", content.Name, err)
+		return nil
+	}
+
 	if content.Status != nil && content.Status.Error != nil && *content.Status.Error.Message == message {
 		klog.V(4).Infof("updateContentStatusWithEvent[%s]: the same error %v is already set", content.Name, content.Status.Error)
 		return nil
 	}
-	contentClone := content.DeepCopy()
+	contentClone := latestContent.DeepCopy()
 	if contentClone.Status == nil {
 		contentClone.Status = &crdv1.VolumeSnapshotContentStatus{}
 	}
