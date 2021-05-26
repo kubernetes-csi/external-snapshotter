@@ -190,15 +190,35 @@ func PatchVolumeSnapshotContent(
 	client clientset.Interface,
 	subresources ...string,
 ) (*crdv1.VolumeSnapshotContent, error) {
-	patch, err := createContentPatch(existingSnapshotContent, updatedSnapshotContent)
-	if err != nil {
+	// patch, err := createContentPatch(existingSnapshotContent, updatedSnapshotContent)
+	// if err != nil {
+	// 	return updatedSnapshotContent, err
+	// }
+	type patchOp struct {
+		Op    string      `json:"op"`
+		Path  string      `json:"path"`
+		Value interface{} `json:"value,omitempty"`
+	}
+	patch := []patchOp{
+		{
+			Op:    "replace",
+			Path:  "/status/error",
+			Value: updatedSnapshotContent.Status.Error,
+		},
+	}
+	data, err := json.Marshal(patch)
+	if nil != err {
 		return updatedSnapshotContent, err
 	}
 
-	newSnapshotContent, err := client.SnapshotV1().VolumeSnapshotContents().Patch(context.TODO(), existingSnapshotContent.Name, types.MergePatchType, patch, metav1.PatchOptions{}, subresources...)
+	newSnapshotContent, err := client.SnapshotV1().VolumeSnapshotContents().Patch(context.TODO(), existingSnapshotContent.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
 	if err != nil {
 		return updatedSnapshotContent, err
 	}
+	// newSnapshotContent, err := client.SnapshotV1().VolumeSnapshotContents().Patch(context.TODO(), existingSnapshotContent.Name, types.MergePatchType, patch, metav1.PatchOptions{}, subresources...)
+	// if err != nil {
+	// 	return updatedSnapshotContent, err
+	// }
 
 	return newSnapshotContent, nil
 }
