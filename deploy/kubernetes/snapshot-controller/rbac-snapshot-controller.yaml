@@ -40,10 +40,10 @@ rules:
     verbs: ["patch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots"]
-    verbs: ["get", "list", "watch", "update"]
+    verbs: ["get", "list", "watch", "update", "patch"]
   - apiGroups: ["snapshot.storage.k8s.io"]
     resources: ["volumesnapshots/status"]
-    verbs: ["update"]
+    verbs: ["update", "patch"]
 
 ---
 kind: ClusterRoleBinding
