@@ -72,6 +72,7 @@ func NewCSISnapshotSideCarController(
 	snapshotNamePrefix string,
 	snapshotNameUUIDLength int,
 	extraCreateMetadata bool,
+	contentRateLimiter workqueue.RateLimiter,
 ) *csiSnapshotSideCarController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -87,7 +88,7 @@ func NewCSISnapshotSideCarController(
 		handler:             NewCSIHandler(snapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
 		resyncPeriod:        resyncPeriod,
 		contentStore:        cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentQueue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "csi-snapshotter-content"),
+		contentQueue:        workqueue.NewNamedRateLimitingQueue(contentRateLimiter, "csi-snapshotter-content"),
 		extraCreateMetadata: extraCreateMetadata,
 	}
 

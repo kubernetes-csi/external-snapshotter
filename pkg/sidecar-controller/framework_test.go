@@ -46,6 +46,7 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	klog "k8s.io/klog/v2"
 )
 
@@ -522,6 +523,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		"snapshot",
 		-1,
 		true,
+		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 	)
 
 	ctrl.eventRecorder = record.NewFakeRecorder(1000)
