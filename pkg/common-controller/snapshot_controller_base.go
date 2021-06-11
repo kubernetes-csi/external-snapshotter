@@ -76,6 +76,8 @@ func NewCSISnapshotCommonController(
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
 	metricsManager metrics.MetricsManager,
 	resyncPeriod time.Duration,
+	snapshotRateLimiter workqueue.RateLimiter,
+	contentRateLimiter workqueue.RateLimiter,
 ) *csiSnapshotCommonController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -90,8 +92,8 @@ func NewCSISnapshotCommonController(
 		resyncPeriod:   resyncPeriod,
 		snapshotStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		contentStore:   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-snapshot"),
-		contentQueue:   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "snapshot-controller-content"),
+		snapshotQueue:  workqueue.NewNamedRateLimitingQueue(snapshotRateLimiter, "snapshot-controller-snapshot"),
+		contentQueue:   workqueue.NewNamedRateLimitingQueue(contentRateLimiter, "snapshot-controller-content"),
 		metricsManager: metricsManager,
 	}
 
