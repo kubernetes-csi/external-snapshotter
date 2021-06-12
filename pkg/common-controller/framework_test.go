@@ -19,6 +19,7 @@ package common_controller
 import (
 	"errors"
 	"fmt"
+	"k8s.io/client-go/util/workqueue"
 	"reflect"
 	sysruntime "runtime"
 	"strconv"
@@ -749,6 +750,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		metricsManager,
 		60*time.Second,
+		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
+		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 	)
 
 	ctrl.eventRecorder = record.NewFakeRecorder(1000)
