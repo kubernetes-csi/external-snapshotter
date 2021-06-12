@@ -23,8 +23,8 @@ import (
 
 // KernelRandom contains information about to the kernel's random number generator.
 type KernelRandom struct {
-	// EntropyAvaliable gives the available entropy, in bits.
-	EntropyAvaliable *uint64
+	// EntropyAvailable gives the available entropy, in bits.
+	EntropyAvailable *uint64
 	// PoolSize gives the size of the entropy pool, in bits.
 	PoolSize *uint64
 	// URandomMinReseedSeconds is the number of seconds after which the DRNG will be reseeded.
@@ -42,7 +42,7 @@ func (fs FS) KernelRandom() (KernelRandom, error) {
 	random := KernelRandom{}
 
 	for file, p := range map[string]**uint64{
-		"entropy_avail":           &random.EntropyAvaliable,
+		"entropy_avail":           &random.EntropyAvailable,
 		"poolsize":                &random.PoolSize,
 		"urandom_min_reseed_secs": &random.URandomMinReseedSeconds,
 		"write_wakeup_threshold":  &random.WriteWakeupThreshold,
