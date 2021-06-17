@@ -1114,7 +1114,7 @@ func testAddPVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotRea
 }
 
 func testRemovePVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	return ctrl.checkandRemovePVCFinalizer(test.initialSnapshots[0])
+	return ctrl.checkandRemovePVCFinalizer(test.initialSnapshots[0], false)
 }
 
 func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {

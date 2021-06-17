@@ -169,7 +169,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	klog.V(5).Infof("syncSnapshot [%s]: check if we should remove finalizer on snapshot PVC source and remove it if we can", utils.SnapshotKey(snapshot))
 
 	// Check if we should remove finalizer on PVC and remove it if we can.
-	if err := ctrl.checkandRemovePVCFinalizer(snapshot); err != nil {
+	if err := ctrl.checkandRemovePVCFinalizer(snapshot, false); err != nil {
 		klog.Errorf("error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, err)
 		// Log an event and keep the original error from checkandRemovePVCFinalizer
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
@@ -179,7 +179,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	// created from a PVC with a finalizer. This is to ensure that the PVC finalizer
 	// can be removed even if a delete snapshot request is received before create
 	// snapshot has completed.
-	if snapshot.ObjectMeta.DeletionTimestamp != nil && !ctrl.isPVCwithFinalizerInUseByCurrentSnapshot(snapshot) {
+	if snapshot.ObjectMeta.DeletionTimestamp != nil {
 		return ctrl.processSnapshotWithDeletionTimestamp(snapshot)
 	}
 
@@ -858,7 +858,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 }
 
 // removePVCFinalizer removes a Finalizer for VolumeSnapshot Source PVC.
-func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVolumeClaim, snapshot *crdv1.VolumeSnapshot) error {
+func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVolumeClaim) error {
 	// Get snapshot source which is a PVC
 	// TODO(xyang): We get PVC from informer but it may be outdated
 	// Should get it from API server directly before removing finalizer
@@ -874,8 +874,9 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 	return nil
 }
 
-// isPVCBeingUsed checks if a PVC is being used as a source to create a snapshot
-func (ctrl *csiSnapshotCommonController) isPVCBeingUsed(pvc *v1.PersistentVolumeClaim, snapshot *crdv1.VolumeSnapshot) bool {
+// isPVCBeingUsed checks if a PVC is being used as a source to create a snapshot.
+// If skipCurrentSnapshot is true, skip checking if the current snapshot is using the PVC as source.
+func (ctrl *csiSnapshotCommonController) isPVCBeingUsed(pvc *v1.PersistentVolumeClaim, snapshot *crdv1.VolumeSnapshot, skipCurrentSnapshot bool) bool {
 	klog.V(5).Infof("Checking isPVCBeingUsed for snapshot [%s]", utils.SnapshotKey(snapshot))
 
 	// Going through snapshots in the cache (snapshotLister). If a snapshot's PVC source
@@ -886,6 +887,10 @@ func (ctrl *csiSnapshotCommonController) isPVCBeingUsed(pvc *v1.PersistentVolume
 		return false
 	}
 	for _, snap := range snapshots {
+		// Skip the current snapshot
+		if skipCurrentSnapshot && snap.Name == snapshot.Name {
+			continue
+		}
 		// Skip pre-provisioned snapshot without a PVC source
 		if snap.Spec.Source.PersistentVolumeClaimName == nil && snap.Spec.Source.VolumeSnapshotContentName != nil {
 			klog.V(4).Infof("Skipping static bound snapshot %s when checking PVC %s/%s", snap.Name, pvc.Namespace, pvc.Name)
@@ -902,8 +907,9 @@ func (ctrl *csiSnapshotCommonController) isPVCBeingUsed(pvc *v1.PersistentVolume
 }
 
 // checkandRemovePVCFinalizer checks if the snapshot source finalizer should be removed
-// and removed it if needed.
-func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *crdv1.VolumeSnapshot) error {
+// and removed it if needed. If skipCurrentSnapshot is true, skip checking if the current
+// snapshot is using the PVC as source.
+func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *crdv1.VolumeSnapshot, skipCurrentSnapshot bool) error {
 	if snapshot.Spec.Source.PersistentVolumeClaimName == nil {
 		// PVC finalizer is only needed for dynamic provisioning
 		return nil
@@ -922,10 +928,10 @@ func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *cr
 	if slice.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer, nil) {
 		// There is a Finalizer on PVC. Check if PVC is used
 		// and remove finalizer if it's not used.
-		inUse := ctrl.isPVCBeingUsed(pvc, snapshot)
+		inUse := ctrl.isPVCBeingUsed(pvc, snapshot, skipCurrentSnapshot)
 		if !inUse {
 			klog.Infof("checkandRemovePVCFinalizer[%s]: Remove Finalizer for PVC %s as it is not used by snapshots in creation", snapshot.Name, pvc.Name)
-			err = ctrl.removePVCFinalizer(pvc, snapshot)
+			err = ctrl.removePVCFinalizer(pvc)
 			if err != nil {
 				klog.Errorf("checkandRemovePVCFinalizer [%s]: removePVCFinalizer failed to remove finalizer %v", snapshot.Name, err)
 				return err
@@ -1317,6 +1323,16 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, removeSourceFinalizer bool, removeBoundFinalizer bool) error {
 	if !removeSourceFinalizer && !removeBoundFinalizer {
 		return nil
+	}
+
+	// If we are here, it means we are going to remove finalizers from the snapshot so that the snapshot can be deleted.
+	// We need to check if there is still PVC finalizer that needs to be removed before removing the snapshot finalizers.
+	// Once snapshot is deleted, there won't be any snapshot update event that can trigger the PVC finalizer removal.
+	if err := ctrl.checkandRemovePVCFinalizer(snapshot, true); err != nil {
+		klog.Errorf("removeSnapshotFinalizer: error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, err)
+		// Log an event and keep the original error from checkandRemovePVCFinalizer
+		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
+		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
 
 	snapshotClone := snapshot.DeepCopy()
