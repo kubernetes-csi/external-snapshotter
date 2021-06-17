@@ -166,7 +166,10 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 	// Snapshot won't be deleted until content is deleted
 	// due to the finalizer.
 	if snapshot != nil && utils.IsSnapshotDeletionCandidate(snapshot) {
-		return ctrl.setAnnVolumeSnapshotBeingDeleted(content)
+		// Do not need to use the returned content here, as syncContent will get
+		// the correct version from the cache next time. It is also not used after this.
+		_, err = ctrl.setAnnVolumeSnapshotBeingDeleted(content)
+		return err
 	}
 
 	return nil
@@ -311,10 +314,12 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	// a delete operation whenever the content has deletion timestamp set.
 	if content != nil {
 		klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: Set VolumeSnapshotBeingDeleted annotation on the content [%s]", utils.SnapshotKey(snapshot), content.Name)
-		if err := ctrl.setAnnVolumeSnapshotBeingDeleted(content); err != nil {
+		updatedContent, err := ctrl.setAnnVolumeSnapshotBeingDeleted(content)
+		if err != nil {
 			klog.V(4).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: failed to set VolumeSnapshotBeingDeleted annotation on the content [%s]", utils.SnapshotKey(snapshot), content.Name)
 			return err
 		}
+		content = updatedContent
 	}
 
 	// VolumeSnapshot should be deleted. Check and remove finalizers
@@ -811,12 +816,12 @@ func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.Volu
 	contentClone := content.DeepCopy()
 	contentClone.ObjectMeta.Finalizers = append(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
 
-	_, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
 
-	_, err = ctrl.storeContentUpdate(contentClone)
+	_, err = ctrl.storeContentUpdate(newContent)
 	if err != nil {
 		klog.Errorf("failed to update content store %v", err)
 	}
@@ -991,13 +996,13 @@ func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *c
 	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
-		return nil, err
+		return content, err
 	}
 
 	_, err = ctrl.storeContentUpdate(newContent)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status: cannot update internal cache %v", newContent.Name, err)
-		return nil, err
+		return newContent, err
 	}
 	return newContent, nil
 }
@@ -1303,13 +1308,13 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 	// Find default snapshot class if available
 	list, err := ctrl.classLister.List(labels.Everything())
 	if err != nil {
-		return nil, nil, err
+		return nil, snapshot, err
 	}
 
 	pvDriver, err := ctrl.pvDriverFromSnapshot(snapshot)
 	if err != nil {
 		klog.Errorf("failed to get pv csi driver from snapshot %s/%s: %q", snapshot.Namespace, snapshot.Name, err)
-		return nil, nil, err
+		return nil, snapshot, err
 	}
 
 	defaultClasses := []*crdv1.VolumeSnapshotClass{}
@@ -1320,11 +1325,11 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 		}
 	}
 	if len(defaultClasses) == 0 {
-		return nil, nil, fmt.Errorf("cannot find default snapshot class")
+		return nil, snapshot, fmt.Errorf("cannot find default snapshot class")
 	}
 	if len(defaultClasses) > 1 {
 		klog.V(4).Infof("get DefaultClass %d defaults found", len(defaultClasses))
-		return nil, nil, fmt.Errorf("%d default snapshot classes were found", len(defaultClasses))
+		return nil, snapshot, fmt.Errorf("%d default snapshot classes were found", len(defaultClasses))
 	}
 	klog.V(5).Infof("setDefaultSnapshotClass [%s]: default VolumeSnapshotClassName [%s]", snapshot.Name, defaultClasses[0].Name)
 	snapshotClone := snapshot.DeepCopy()
@@ -1394,17 +1399,17 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	if addBoundFinalizer {
 		snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
 	}
-	_, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
 		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
-	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
 		klog.Errorf("failed to update snapshot store %v", err)
 	}
 
-	klog.V(5).Infof("Added protection finalizer to volume snapshot %s", utils.SnapshotKey(snapshot))
+	klog.V(5).Infof("Added protection finalizer to volume snapshot %s", utils.SnapshotKey(newSnapshot))
 	return nil
 }
 
@@ -1438,12 +1443,12 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	if removeBoundFinalizer {
 		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
 	}
-	_, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
 
-	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
 		klog.Errorf("failed to update snapshot store %v", err)
 	}
@@ -1477,9 +1482,9 @@ func (ctrl *csiSnapshotCommonController) getSnapshotFromStore(snapshotName strin
 	return snapshot, nil
 }
 
-func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(content *crdv1.VolumeSnapshotContent) error {
+func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	if content == nil {
-		return nil
+		return content, nil
 	}
 	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
@@ -1488,7 +1493,7 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 
 		updateContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), content, metav1.UpdateOptions{})
 		if err != nil {
-			return newControllerUpdateError(content.Name, err.Error())
+			return content, newControllerUpdateError(content.Name, err.Error())
 		}
 		// update content if update is successful
 		content = updateContent
@@ -1496,11 +1501,11 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 		_, err = ctrl.storeContentUpdate(content)
 		if err != nil {
 			klog.V(4).Infof("setAnnVolumeSnapshotBeingDeleted for content [%s]: cannot update internal cache %v", content.Name, err)
-			return err
+			return content, err
 		}
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: volume snapshot content %+v", content)
 	}
-	return nil
+	return content, nil
 }
 
 // checkAndSetInvalidContentLabel adds a label to unlabeled invalid content objects and removes the label from valid ones.
@@ -1531,7 +1536,7 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content 
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}
 
-	_, err = ctrl.storeContentUpdate(contentClone)
+	_, err = ctrl.storeContentUpdate(updatedContent)
 	if err != nil {
 		klog.Errorf("failed to update content store %v", err)
 	}
@@ -1573,7 +1578,7 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapsho
 		return snapshot, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
-	_, err = ctrl.storeSnapshotUpdate(snapshotClone)
+	_, err = ctrl.storeSnapshotUpdate(updatedSnapshot)
 	if err != nil {
 		klog.Errorf("failed to update snapshot store %v", err)
 	}
