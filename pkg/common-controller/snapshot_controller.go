@@ -1159,6 +1159,8 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		createOperationKey := metrics.NewOperationKey(metrics.CreateSnapshotOperationName, snapshot.UID)
 		if !utils.IsSnapshotCreated(snapshotObj) && utils.IsSnapshotCreated(snapshotClone) {
 			ctrl.metricsManager.RecordMetrics(createOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+			msg := fmt.Sprintf("Snapshot %s was successfully created by the CSI driver.", utils.SnapshotKey(snapshot))
+			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotCreated", msg)
 		}
 
 		// Must meet the following criteria to emit a successful CreateSnapshotAndReady status
@@ -1167,6 +1169,8 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		if !utils.IsSnapshotReady(snapshotObj) && utils.IsSnapshotReady(snapshotClone) {
 			createAndReadyOperation := metrics.NewOperationKey(metrics.CreateSnapshotAndReadyOperationName, snapshot.UID)
 			ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+			msg := fmt.Sprintf("Snapshot %s is ready to use.", utils.SnapshotKey(snapshot))
+			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotReady", msg)
 		}
 
 		newSnapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
