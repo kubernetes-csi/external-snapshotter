@@ -146,19 +146,26 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 		klog.V(4).Infof("updateContentStatusWithEvent[%s]: the same error %v is already set", content.Name, content.Status.Error)
 		return nil
 	}
-	contentClone := content.DeepCopy()
-	if contentClone.Status == nil {
-		contentClone.Status = &crdv1.VolumeSnapshotContentStatus{}
-	}
-	contentClone.Status.Error = &crdv1.VolumeSnapshotError{
-		Time: &metav1.Time{
-			Time: time.Now(),
-		},
-		Message: &message,
-	}
+
 	ready := false
-	contentClone.Status.ReadyToUse = &ready
-	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), contentClone, metav1.UpdateOptions{})
+	patch := []utils.PatchOp{
+		{
+			Op:   "replace",
+			Path: "/status/error",
+			Value: &crdv1.VolumeSnapshotError{
+				Time: &metav1.Time{
+					Time: time.Now(),
+				},
+				Message: &message,
+			},
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/readyToUse",
+			Value: &ready,
+		},
+	}
+	newContent, err := utils.PatchVolumeSnapshotContent(content, patch, ctrl.clientset, "status")
 
 	// Emit the event even if the status update fails so that user can see the error
 	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
