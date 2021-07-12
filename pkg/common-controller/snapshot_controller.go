@@ -96,17 +96,6 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		return err
 	}
 
-	// TODO(xiangqian): Putting this check in controller as webhook has not been implemented
-	//                   yet. Remove the source checking once issue #187 is resolved:
-	//                   https://github.com/kubernetes-csi/external-snapshotter/issues/187
-	if (content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil) ||
-		(content.Spec.Source.VolumeHandle != nil && content.Spec.Source.SnapshotHandle != nil) {
-		err := fmt.Errorf("Exactly one of VolumeHandle and SnapshotHandle should be specified")
-		klog.Errorf("syncContent[%s]: validation error, %s", content.Name, err.Error())
-		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "ContentValidationError", err.Error())
-		return err
-	}
-
 	// The VolumeSnapshotContent is reserved for a VolumeSnapshot;
 	// that VolumeSnapshot has not yet been bound to this VolumeSnapshotContent;
 	// syncSnapshot will handle it.
@@ -205,18 +194,6 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	// Proceed with snapshot deletion and remove finalizers when needed
 	if snapshot.ObjectMeta.DeletionTimestamp != nil {
 		return ctrl.processSnapshotWithDeletionTimestamp(snapshot)
-	}
-
-	// TODO(xiangqian@): Putting this check in controller as webhook has not been implemented
-	//                   yet. Remove the source checking once issue #187 is resolved:
-	//                   https://github.com/kubernetes-csi/external-snapshotter/issues/187
-	klog.V(5).Infof("syncSnapshot[%s]: validate snapshot to make sure source has been correctly specified", utils.SnapshotKey(snapshot))
-	if (snapshot.Spec.Source.PersistentVolumeClaimName == nil && snapshot.Spec.Source.VolumeSnapshotContentName == nil) ||
-		(snapshot.Spec.Source.PersistentVolumeClaimName != nil && snapshot.Spec.Source.VolumeSnapshotContentName != nil) {
-		err := fmt.Errorf("Exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified")
-		klog.Errorf("syncSnapshot[%s]: validation error, %s", utils.SnapshotKey(snapshot), err.Error())
-		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotValidationError", err.Error())
-		return err
 	}
 
 	klog.V(5).Infof("syncSnapshot[%s]: check if we should add finalizers on snapshot", utils.SnapshotKey(snapshot))
