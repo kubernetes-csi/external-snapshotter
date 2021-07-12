@@ -8,6 +8,7 @@
 #   provisioner, in which case leadership election must be enabled;
 #   this influences the RBAC setup, see below
 
+---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
