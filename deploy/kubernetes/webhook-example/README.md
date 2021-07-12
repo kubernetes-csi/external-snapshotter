@@ -23,7 +23,7 @@ make
 Build the docker image
 
 ```bash
-docker build -t snapshot-validation-webhook:latest -f ./cmd/validation-webhook/Dockerfile .
+docker build -t snapshot-validation-webhook:latest -f ./cmd/snapshot-validation-webhook/Dockerfile .
 ```
 
 ## How to deploy the webhook
@@ -69,7 +69,7 @@ Once all the pods from the deployment are up and running, you should be ready to
 Try to create an invalid snapshot object, the snapshot creation should fail.
 
 ```bash
-kubectl create -f ./examples/kubernetes/invalid-snapshot.yaml
+kubectl create -f ./examples/kubernetes/invalid-snapshot-v1.yaml
 ```
 
 ### Other methods to deploy the webhook server
