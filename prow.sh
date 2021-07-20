@@ -33,8 +33,6 @@
 # The expected environment is:
 # - $GOPATH/src/<import path> for the repository that is to be tested,
 #   with PR branch merged (when testing a PR)
-# - optional: bazel installed (when testing against Kubernetes master),
-#   must be recent enough for Kubernetes master
 # - running on linux-amd64
 # - kind (https://github.com/kubernetes-sigs/kind) installed
 # - optional: Go already installed
@@ -77,7 +75,10 @@ version_to_git () {
     esac
 }
 
-configvar CSI_PROW_BUILD_PLATFORMS "linux amd64; windows amd64 .exe; linux ppc64le -ppc64le; linux s390x -s390x; linux arm64 -arm64" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
+# the list of windows versions was matched from:
+# - https://hub.docker.com/_/microsoft-windows-nanoserver
+# - https://hub.docker.com/_/microsoft-windows-servercore
+configvar CSI_PROW_BUILD_PLATFORMS "linux amd64; linux ppc64le -ppc64le; linux s390x -s390x; linux arm64 -arm64; windows amd64 .exe nanoserver:1809 servercore:ltsc2019; windows amd64 .exe nanoserver:1909 servercore:1909; windows amd64 .exe nanoserver:2004 servercore:2004; windows amd64 .exe nanoserver:20H2 servercore:20H2" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
 
 # If we have a vendor directory, then use it. We must be careful to only
 # use this for "make" invocations inside the project's repo itself because
@@ -137,7 +138,7 @@ kind_version_default () {
         latest|master)
             echo main;;
         *)
-            echo v0.10.0;;
+            echo v0.11.0;;
     esac
 }
 
@@ -148,21 +149,14 @@ configvar CSI_PROW_KIND_VERSION "$(kind_version_default)" "kind"
 
 # kind images to use. Must match the kind version.
 # The release notes of each kind release list the supported images.
-configvar CSI_PROW_KIND_IMAGES "kindest/node:v1.20.2@sha256:8f7ea6e7642c0da54f04a7ee10431549c0257315b3a634f6ef2fecaaedb19bab
-kindest/node:v1.19.7@sha256:a70639454e97a4b733f9d9b67e12c01f6b0297449d5b9cbbef87473458e26dca
-kindest/node:v1.18.15@sha256:5c1b980c4d0e0e8e7eb9f36f7df525d079a96169c8a8f20d8bd108c0d0889cc4
-kindest/node:v1.17.17@sha256:7b6369d27eee99c7a85c48ffd60e11412dc3f373658bc59b7f4d530b7056823e
-kindest/node:v1.16.15@sha256:c10a63a5bda231c0a379bf91aebf8ad3c79146daca59db816fb963f731852a99
-kindest/node:v1.15.12@sha256:67181f94f0b3072fb56509107b380e38c55e23bf60e6f052fbd8052d26052fb5
-kindest/node:v1.14.10@sha256:3fbed72bcac108055e46e7b4091eb6858ad628ec51bf693c21f5ec34578f6180" "kind images"
-
-# Use kind node-image --type=bazel by default, but allow to disable that.
-configvar CSI_PROW_USE_BAZEL true "use Bazel during 'kind node-image' invocation"
-
-# Work directory. It has to allow running executables, therefore /tmp
-# is avoided. Cleaning up after the script is intentionally left to
-# the caller.
-configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csiprow.XXXXXXXXXX")" "work directory"
+configvar CSI_PROW_KIND_IMAGES "kindest/node:v1.21.1@sha256:fae9a58f17f18f06aeac9772ca8b5ac680ebbed985e266f711d936e91d113bad
+kindest/node:v1.20.7@sha256:e645428988191fc824529fd0bb5c94244c12401cf5f5ea3bd875eb0a787f0fe9
+kindest/node:v1.19.11@sha256:7664f21f9cb6ba2264437de0eb3fe99f201db7a3ac72329547ec4373ba5f5911
+kindest/node:v1.18.19@sha256:530378628c7c518503ade70b1df698b5de5585dcdba4f349328d986b8849b1ee
+kindest/node:v1.17.17@sha256:c581fbf67f720f70aaabc74b44c2332cc753df262b6c0bca5d26338492470c17
+kindest/node:v1.16.15@sha256:430c03034cd856c1f1415d3e37faf35a3ea9c5aaa2812117b79e6903d1fc9651
+kindest/node:v1.15.12@sha256:8d575f056493c7778935dd855ded0e95c48cb2fab90825792e8fc9af61536bf9
+kindest/node:v1.14.10@sha256:6033e04bcfca7c5f2a9c4ce77551e1abf385bcd2709932ec2f6a9c8c0aff6d4f" "kind images"
 
 # By default, this script tests sidecars with the CSI hostpath driver,
 # using the install_csi_driver function. That function depends on
@@ -190,8 +184,8 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 #   CSI_PROW_DEPLOYMENT variable can be set in the
 #   .prow.sh of each component when there are breaking changes
 #   that require using a non-default deployment. The default
-#   is a deployment named "kubernetes-x.yy" (if available),
-#   otherwise "kubernetes-latest".
+#   is a deployment named "kubernetes-x.yy${CSI_PROW_DEPLOYMENT_SUFFIX}" (if available),
+#   otherwise "kubernetes-latest${CSI_PROW_DEPLOYMENT_SUFFIX}".
 #   "none" disables the deployment of the hostpath driver.
 #
 # When no deploy script is found (nothing in `deploy` directory,
@@ -203,6 +197,7 @@ configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csip
 configvar CSI_PROW_DRIVER_VERSION "v1.3.0" "CSI driver version"
 configvar CSI_PROW_DRIVER_REPO https://github.com/kubernetes-csi/csi-driver-host-path "CSI driver repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
+configvar CSI_PROW_DEPLOYMENT_SUFFIX "" "additional suffix in kubernetes-x.yy[suffix].yaml files"
 
 # The install_csi_driver function may work also for other CSI drivers,
 # as long as they follow the conventions of the CSI hostpath driver.
@@ -237,7 +232,7 @@ configvar CSI_PROW_E2E_IMPORT_PATH "k8s.io/kubernetes" "E2E package"
 # of the cluster. The alternative would have been to (cross-)compile csi-sanity
 # and install it inside the cluster, which is not necessarily easier.
 configvar CSI_PROW_SANITY_REPO https://github.com/kubernetes-csi/csi-test "csi-test repo"
-configvar CSI_PROW_SANITY_VERSION v4.0.2 "csi-test version" # v4.0.2
+configvar CSI_PROW_SANITY_VERSION v4.2.0 "csi-test version"
 configvar CSI_PROW_SANITY_PACKAGE_PATH github.com/kubernetes-csi/csi-test "csi-test package"
 configvar CSI_PROW_SANITY_SERVICE "hostpath-service" "Kubernetes TCP service name that exposes csi.sock"
 configvar CSI_PROW_SANITY_POD "csi-hostpathplugin-0" "Kubernetes pod with CSI driver"
@@ -297,6 +292,19 @@ tests_need_alpha_cluster () {
     tests_enabled "parallel-alpha" "serial-alpha"
 }
 
+# Enabling mock tests adds the "CSI mock volume" tests from https://github.com/kubernetes/kubernetes/blob/master/test/e2e/storage/csi_mock_volume.go
+# to the e2e.test invocations (serial, parallel, and the corresponding alpha variants).
+# When testing canary images, those get used instead of the images specified
+# in the e2e.test's normal YAML files.
+#
+# The default is to enable this for all jobs which use canary images
+# and the latest Kubernetes because those images will be used for mock
+# testing once they are released. Using them for mock testing with
+# older Kubernetes releases is too risky because the deployment files
+# can be very old (for example, still using a removed -provisioner
+# parameter in external-provisioner).
+configvar CSI_PROW_E2E_MOCK "$(if [ "${CSI_PROW_DRIVER_CANARY}" = "canary" ] && [ "${CSI_PROW_KUBERNETES_VERSION}" = "latest" ]; then echo true; else echo false; fi)" "enable CSI mock volume tests"
+
 # Regex for non-alpha, feature-tagged tests that should be run.
 #
 configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:VolumeSnapshotDataSource\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
@@ -355,16 +363,25 @@ configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external
 # whether they can run with the current cluster provider, but until
 # they are, we filter them out by name. Like the other test selection
 # variables, this is again a space separated list of regular expressions.
-#
-# "different node" test skips can be removed once
-# https://github.com/kubernetes/kubernetes/pull/82678 has been backported
-# to all the K8s versions we test against
-configvar CSI_PROW_E2E_SKIP 'Disruptive|different\s+node' "tests that need to be skipped"
+configvar CSI_PROW_E2E_SKIP 'Disruptive' "tests that need to be skipped"
 
-# This is the directory for additional result files. Usually set by Prow, but
-# if not (for example, when invoking manually) it defaults to the work directory.
-configvar ARTIFACTS "${CSI_PROW_WORK}/artifacts" "artifacts"
-mkdir -p "${ARTIFACTS}"
+# This creates directories that are required for testing.
+ensure_paths () {
+    # Work directory. It has to allow running executables, therefore /tmp
+    # is avoided. Cleaning up after the script is intentionally left to
+    # the caller.
+    configvar CSI_PROW_WORK "$(mkdir -p "$GOPATH/pkg" && mktemp -d "$GOPATH/pkg/csiprow.XXXXXXXXXX")" "work directory"
+
+    # This is the directory for additional result files. Usually set by Prow, but
+    # if not (for example, when invoking manually) it defaults to the work directory.
+    configvar ARTIFACTS "${CSI_PROW_WORK}/artifacts" "artifacts"
+    mkdir -p "${ARTIFACTS}"
+
+    # For additional tools.
+    CSI_PROW_BIN="${CSI_PROW_WORK}/bin"
+    mkdir -p "${CSI_PROW_BIN}"
+    PATH="${CSI_PROW_BIN}:$PATH"
+}
 
 run () {
     echo "$(date) $(go version | sed -e 's/.*version \(go[^ ]*\).*/\1/') $(if [ "$(pwd)" != "${REPO_DIR}" ]; then pwd; fi)\$" "$@" >&2
@@ -383,11 +400,6 @@ die () {
     echo >&2 ERROR: "$@"
     exit 1
 }
-
-# For additional tools.
-CSI_PROW_BIN="${CSI_PROW_WORK}/bin"
-mkdir -p "${CSI_PROW_BIN}"
-PATH="${CSI_PROW_BIN}:$PATH"
 
 # Ensure that PATH has the desired version of the Go tools, then run command given as argument.
 # Empty parameter uses the already installed Go. In Prow, that version is kept up-to-date by
@@ -574,17 +586,12 @@ start_cluster () {
             if [ "$version" = "latest" ]; then
                 version=master
             fi
-            if ${CSI_PROW_USE_BAZEL}; then
-                type="bazel"
-            else
-                type="docker"
-            fi
             git_clone https://github.com/kubernetes/kubernetes "${CSI_PROW_WORK}/src/kubernetes" "$(version_to_git "$version")" || die "checking out Kubernetes $version failed"
 
             go_version="$(go_version_for_kubernetes "${CSI_PROW_WORK}/src/kubernetes" "$version")" || die "cannot proceed without knowing Go version for Kubernetes"
             # Changing into the Kubernetes source code directory is a workaround for https://github.com/kubernetes-sigs/kind/issues/1910
             # shellcheck disable=SC2046
-            (cd "${CSI_PROW_WORK}/src/kubernetes" && run_with_go "$go_version" kind build node-image --image csiprow/node:latest $(if [ "$CSI_PROW_KIND_VERSION" != "main" ]; then echo --type="$type"; fi) --kube-root "${CSI_PROW_WORK}/src/kubernetes") || die "'kind build node-image' failed"
+            (cd "${CSI_PROW_WORK}/src/kubernetes" && run_with_go "$go_version" kind build node-image --image csiprow/node:latest --kube-root "${CSI_PROW_WORK}/src/kubernetes") || die "'kind build node-image' failed"
             csi_prow_kind_have_kubernetes=true
         fi
         image="csiprow/node:latest"
@@ -618,11 +625,16 @@ EOF
 
 # Deletes kind cluster inside a prow job
 delete_cluster_inside_prow_job() {
+    local name="$1"
+
     # Inside a real Prow job it is better to clean up at runtime
     # instead of leaving that to the Prow job cleanup code
     # because the later sometimes times out (https://github.com/kubernetes-csi/csi-release-tools/issues/24#issuecomment-554765872).
+    #
+    # This is also a good time to collect logs.
     if [ "$JOB_NAME" ]; then
         if kind get clusters | grep -q csi-prow; then
+            run kind export logs --name=csi-prow "${ARTIFACTS}/cluster-logs/$name"
             run kind delete cluster --name=csi-prow || die "kind delete failed"
         fi
         unset KUBECONFIG
@@ -632,24 +644,38 @@ delete_cluster_inside_prow_job() {
 # Looks for the deployment as specified by CSI_PROW_DEPLOYMENT and CSI_PROW_KUBERNETES_VERSION
 # in the given directory.
 find_deployment () {
-    local dir file
-    dir="$1"
+    local dir="$1"
+    local file
 
-    # Fixed deployment name? Use it if it exists, otherwise fail.
-    if [ "${CSI_PROW_DEPLOYMENT}" ]; then
-        file="$dir/${CSI_PROW_DEPLOYMENT}/deploy.sh"
-        if ! [ -e "$file" ]; then
-            return 1
-        fi
-        echo "$file"
-        return 0
-    fi
-
+    # major/minor without release- prefix.
+    local k8sver
     # Ignore: See if you can use ${variable//search/replace} instead.
     # shellcheck disable=SC2001
-    file="$dir/kubernetes-$(echo "${CSI_PROW_KUBERNETES_VERSION}" | sed -e 's/\([0-9]*\)\.\([0-9]*\).*/\1.\2/')/deploy.sh"
+    k8sver="$(echo "${CSI_PROW_KUBERNETES_VERSION}" | sed -e 's/^release-//' -e 's/\([0-9]*\)\.\([0-9]*\).*/\1.\2/')"
+
+    # Desired deployment, either specified completely, including version, or derived from other variables.
+    local deployment
+    deployment=${CSI_PROW_DEPLOYMENT:-kubernetes-${k8sver}${CSI_PROW_DEPLOYMENT_SUFFIX}}
+
+    # Fixed deployment name? Use it if it exists.
+    if [ "${CSI_PROW_DEPLOYMENT}" ]; then
+        file="$dir/${CSI_PROW_DEPLOYMENT}/deploy.sh"
+        if [ -e "$file" ]; then
+            echo "$file"
+            return 0
+        fi
+
+        # CSI_PROW_DEPLOYMENT=kubernetes-x.yy must be mapped to kubernetes-latest
+        # as fallback. Same for kubernetes-distributed-x.yy.
+    fi
+
+    file="$dir/${deployment}/deploy.sh"
     if ! [ -e "$file" ]; then
-        file="$dir/kubernetes-latest/deploy.sh"
+        # Replace the first xx.yy number with "latest", for example
+        # kubernetes-1.21-test -> kubernetes-latest-test.
+        # Ignore: See if you can use ${variable//search/replace} instead.
+        # shellcheck disable=SC2001
+        file="$dir/$(echo "$deployment" | sed -e 's/[0-9][0-9]*\.[0-9][0-9]*/latest/')/deploy.sh"
         if ! [ -e "$file" ]; then
             return 1
         fi
@@ -709,7 +735,7 @@ install_csi_driver () {
     fi
 }
 
-# Installs all nessesary snapshotter CRDs  
+# Installs all nessesary snapshotter CRDs
 install_snapshot_crds() {
   # Wait until volumesnapshot CRDs are in place.
   CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
@@ -756,7 +782,7 @@ install_snapshot_controller() {
     fi
     echo "$(date +%H:%M:%S)" "waiting for snapshot RBAC setup complete, attempt #$cnt"
 	cnt=$((cnt + 1))
-    sleep 10   
+    sleep 10
   done
 
   SNAPSHOT_CONTROLLER_YAML="${CONTROLLER_DIR}/deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml"
@@ -825,7 +851,7 @@ install_snapshot_controller() {
     fi
     echo "$(date +%H:%M:%S)" "waiting for snapshot controller deployment to complete, attempt #$cnt"
 	cnt=$((cnt + 1))
-    sleep 10   
+    sleep 10
   done
 }
 
@@ -870,6 +896,29 @@ start_loggers () {
     done
 }
 
+# Patches the image versions of test/e2e/testing-manifests/storage-csi/mock in the k/k
+# source code, if needed.
+patch_kubernetes () {
+    local source="$1" target="$2"
+
+    if [ "${CSI_PROW_DRIVER_CANARY}" = "canary" ]; then
+        # We cannot replace k8s.gcr.io/sig-storage with gcr.io/k8s-staging-sig-storage because
+        # e2e.test does not support it (see test/utils/image/manifest.go). Instead we
+        # invoke the e2e.test binary with KUBE_TEST_REPO_LIST set to a file that
+        # overrides that registry.
+        find "$source/test/e2e/testing-manifests/storage-csi/mock" -name '*.yaml' -print0 | xargs -0 sed -i -e 's;k8s.gcr.io/sig-storage/\(.*\):v.*;k8s.gcr.io/sig-storage/\1:canary;'
+        cat >"$target/e2e-repo-list" <<EOF
+sigStorageRegistry: gcr.io/k8s-staging-sig-storage
+EOF
+        cat >&2 <<EOF
+
+Using a modified version of k/k/test/e2e:
+$(cd "$source" && git diff 2>&1)
+
+EOF
+    fi
+}
+
 # Makes the E2E test suite binary available as "${CSI_PROW_WORK}/e2e.test".
 install_e2e () {
     if [ -e "${CSI_PROW_WORK}/e2e.test" ]; then
@@ -878,6 +927,7 @@ install_e2e () {
 
     git_checkout "${CSI_PROW_E2E_REPO}" "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" "${CSI_PROW_E2E_VERSION}" --depth=1 &&
     if [ "${CSI_PROW_E2E_IMPORT_PATH}" = "k8s.io/kubernetes" ]; then
+        patch_kubernetes "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" "${CSI_PROW_WORK}" &&
         go_version="${CSI_PROW_GO_VERSION_E2E:-$(go_version_for_kubernetes "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" "${CSI_PROW_E2E_VERSION}")}" &&
         run_with_go "$go_version" make WHAT=test/e2e/e2e.test "-C${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
         ln -s "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}/_output/bin/e2e.test" "${CSI_PROW_WORK}"
@@ -923,25 +973,33 @@ run_e2e () (
     # the full Kubernetes E2E testsuite while only running a few tests.
     move_junit () {
         if ls "${ARTIFACTS}"/junit_[0-9]*.xml 2>/dev/null >/dev/null; then
-            run_filter_junit -t="External Storage" -o "${ARTIFACTS}/junit_${name}.xml" "${ARTIFACTS}"/junit_[0-9]*.xml && rm -f "${ARTIFACTS}"/junit_[0-9]*.xml
+            run_filter_junit -t="External.Storage|CSI.mock.volume" -o "${ARTIFACTS}/junit_${name}.xml" "${ARTIFACTS}"/junit_[0-9]*.xml && rm -f "${ARTIFACTS}"/junit_[0-9]*.xml
         fi
     }
     trap move_junit EXIT
 
     cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
-    run_with_loggers ginkgo -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
+    run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
 )
 
 # Run csi-sanity against installed CSI driver.
 run_sanity () (
     install_sanity || die "installing csi-sanity failed"
 
+    if [[ "${CSI_PROW_SANITY_POD}" =~ " " ]]; then
+        # Contains spaces, more complex than a simple pod name.
+        # Evaluate as a shell command.
+        pod=$(eval "${CSI_PROW_SANITY_POD}") || die "evaluation failed: CSI_PROW_SANITY_POD=${CSI_PROW_SANITY_POD}"
+    else
+        pod="${CSI_PROW_SANITY_POD}"
+    fi
+
     cat >"${CSI_PROW_WORK}/mkdir_in_pod.sh" <<EOF
 #!/bin/sh
-kubectl exec "${CSI_PROW_SANITY_POD}" -c "${CSI_PROW_SANITY_CONTAINER}" -- mkdir "\$@" && echo "\$@"
+kubectl exec "$pod" -c "${CSI_PROW_SANITY_CONTAINER}" -- mkdir "\$@" && echo "\$@"
 EOF
     # Using "rm -rf" as fallback for "rmdir" is a workaround for:
-    # Node Service 
+    # Node Service
     #     should work
     # /nvme/gopath.tmp/src/github.com/kubernetes-csi/csi-test/pkg/sanity/node.go:624
     # STEP: reusing connection to CSI driver at dns:///172.17.0.2:30896
@@ -963,11 +1021,29 @@ EOF
     # why it happened.
     cat >"${CSI_PROW_WORK}/rmdir_in_pod.sh" <<EOF
 #!/bin/sh
-if ! kubectl exec "${CSI_PROW_SANITY_POD}" -c "${CSI_PROW_SANITY_CONTAINER}" -- rmdir "\$@"; then
-    kubectl exec "${CSI_PROW_SANITY_POD}" -c "${CSI_PROW_SANITY_CONTAINER}" -- rm -rf "\$@"
+if ! kubectl exec "$pod" -c "${CSI_PROW_SANITY_CONTAINER}" -- rmdir "\$@"; then
+    kubectl exec "$pod" -c "${CSI_PROW_SANITY_CONTAINER}" -- rm -rf "\$@"
     exit 1
 fi
 EOF
+
+    cat >"${CSI_PROW_WORK}/checkdir_in_pod.sh" <<EOF
+#!/bin/sh
+CHECK_PATH=\$(cat <<SCRIPT
+if [ -f "\$@" ]; then
+    echo "file"
+elif [ -d "\$@" ]; then
+    echo "directory"
+elif [ -e "\$@" ]; then
+    echo "other"
+else
+    echo "not_found"
+fi
+SCRIPT
+)
+kubectl exec "$pod" -c "${CSI_PROW_SANITY_CONTAINER}" -- /bin/sh -c "\${CHECK_PATH}"
+EOF
+
     chmod u+x "${CSI_PROW_WORK}"/*dir_in_pod.sh
 
     # This cannot run in parallel, because -csi.junitfile output
@@ -983,6 +1059,7 @@ EOF
                      -csi.createmountpathcmd "${CSI_PROW_WORK}/mkdir_in_pod.sh" \
                      -csi.removestagingpathcmd "${CSI_PROW_WORK}/rmdir_in_pod.sh" \
                      -csi.removemountpathcmd "${CSI_PROW_WORK}/rmdir_in_pod.sh" \
+                     -csi.checkpathcmd "${CSI_PROW_WORK}/checkdir_in_pod.sh" \
 )
 
 ascii_to_xml () {
@@ -1086,7 +1163,7 @@ make_test_to_junit () {
 # version_gt 1.3.1 v1.2.0  (returns true)
 # version_gt 1.1.1 release-1.2.0  (returns false)
 # version_gt 1.2.0 1.2.2  (returns false)
-function version_gt() { 
+function version_gt() {
     versions=$(for ver in "$@"; do ver=${ver#release-}; ver=${ver#kubernetes-}; echo "${ver#v}"; done)
     greaterVersion=${1#"release-"};
     greaterVersion=${greaterVersion#"kubernetes-"};
@@ -1097,6 +1174,9 @@ function version_gt() {
 main () {
     local images ret
     ret=0
+
+    # Set up work directory.
+    ensure_paths
 
     images=
     if ${CSI_PROW_BUILD_JOB}; then
@@ -1146,7 +1226,7 @@ main () {
                 if [ "$rbac_file_path" == "" ]; then
                     rbac_file_path="$(pwd)/deploy/kubernetes/rbac.yaml"
                 fi
-                
+
                 if [ -e "$rbac_file_path" ]; then
                     # This is one of those components which has its own RBAC rules (like external-provisioner).
                     # We are testing a locally built image and also want to test with the the current,
@@ -1157,12 +1237,19 @@ main () {
             done
         fi
 
+        # Run the external driver tests and optionally also mock tests.
+        local focus="External.Storage"
+        if "$CSI_PROW_E2E_MOCK"; then
+            focus="($focus|CSI.mock.volume)"
+        fi
+
         if tests_need_non_alpha_cluster; then
             start_cluster || die "starting the non-alpha cluster failed"
 
             # Install necessary snapshot CRDs and snapshot controller
             install_snapshot_crds
             install_snapshot_controller
+
 
             # Installing the driver might be disabled.
             if ${CSI_PROW_DRIVER_INSTALL} "$images"; then
@@ -1178,7 +1265,7 @@ main () {
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
                     if ! run_e2e parallel ${CSI_PROW_GINKO_PARALLEL} \
-                         -focus="External.Storage" \
+                         -focus="$focus" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}" "${CSI_PROW_E2E_ALPHA}" "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E parallel failed"
                         ret=1
@@ -1188,7 +1275,7 @@ main () {
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
                     if ! run_e2e parallel-features ${CSI_PROW_GINKO_PARALLEL} \
-                         -focus="External.Storage.*($(regex_join "${CSI_PROW_E2E_FOCUS}"))" \
+                         -focus="$focus.*($(regex_join "${CSI_PROW_E2E_FOCUS}"))" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}")"; then
                         warn "E2E parallel features failed"
                         ret=1
@@ -1197,14 +1284,14 @@ main () {
 
                 if tests_enabled "serial"; then
                     if ! run_e2e serial \
-                         -focus="External.Storage.*($(regex_join "${CSI_PROW_E2E_SERIAL}"))" \
+                         -focus="$focus.*($(regex_join "${CSI_PROW_E2E_SERIAL}"))" \
                          -skip="$(regex_join "${CSI_PROW_E2E_ALPHA}" "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E serial failed"
                         ret=1
                     fi
                 fi
             fi
-            delete_cluster_inside_prow_job
+            delete_cluster_inside_prow_job non-alpha
         fi
 
         if tests_need_alpha_cluster && [ "${CSI_PROW_E2E_ALPHA_GATES}" ]; then
@@ -1223,7 +1310,7 @@ main () {
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
                     if ! run_e2e parallel-alpha ${CSI_PROW_GINKO_PARALLEL} \
-                         -focus="External.Storage.*($(regex_join "${CSI_PROW_E2E_ALPHA}"))" \
+                         -focus="$focus.*($(regex_join "${CSI_PROW_E2E_ALPHA}"))" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}" "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E parallel alpha failed"
                         ret=1
@@ -1232,14 +1319,14 @@ main () {
 
                 if tests_enabled "serial-alpha"; then
                     if ! run_e2e serial-alpha \
-                         -focus="External.Storage.*(($(regex_join "${CSI_PROW_E2E_SERIAL}")).*($(regex_join "${CSI_PROW_E2E_ALPHA}"))|($(regex_join "${CSI_PROW_E2E_ALPHA}")).*($(regex_join "${CSI_PROW_E2E_SERIAL}")))" \
+                         -focus="$focus.*(($(regex_join "${CSI_PROW_E2E_SERIAL}")).*($(regex_join "${CSI_PROW_E2E_ALPHA}"))|($(regex_join "${CSI_PROW_E2E_ALPHA}")).*($(regex_join "${CSI_PROW_E2E_SERIAL}")))" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E serial alpha failed"
                         ret=1
                     fi
                 fi
             fi
-            delete_cluster_inside_prow_job
+            delete_cluster_inside_prow_job alpha
         fi
     fi
 
@@ -1258,6 +1345,9 @@ gcr_cloud_build () {
     # Register gcloud as a Docker credential helper.
     # Required for "docker buildx build --push".
     gcloud auth configure-docker
+
+    # Might not be needed here, but call it just in case.
+    ensure_paths
 
     if find . -name Dockerfile | grep -v ^./vendor | xargs --no-run-if-empty cat | grep -q ^RUN; then
         # Needed for "RUN" steps on non-linux/amd64 platforms.
