@@ -96,9 +96,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 		return err
 	}
 
-	// TODO(xiangqian): Putting this check in controller as webhook has not been implemented
-	//                   yet. Remove the source checking once issue #187 is resolved:
-	//                   https://github.com/kubernetes-csi/external-snapshotter/issues/187
+	// Keep this check in the controller since the validation webhook may not have been deployed.
 	if (content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil) ||
 		(content.Spec.Source.VolumeHandle != nil && content.Spec.Source.SnapshotHandle != nil) {
 		err := fmt.Errorf("Exactly one of VolumeHandle and SnapshotHandle should be specified")
@@ -207,9 +205,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 		return ctrl.processSnapshotWithDeletionTimestamp(snapshot)
 	}
 
-	// TODO(xiangqian@): Putting this check in controller as webhook has not been implemented
-	//                   yet. Remove the source checking once issue #187 is resolved:
-	//                   https://github.com/kubernetes-csi/external-snapshotter/issues/187
+	// Keep this check in the controller since the validation webhook may not have been deployed.
 	klog.V(5).Infof("syncSnapshot[%s]: validate snapshot to make sure source has been correctly specified", utils.SnapshotKey(snapshot))
 	if (snapshot.Spec.Source.PersistentVolumeClaimName == nil && snapshot.Spec.Source.VolumeSnapshotContentName == nil) ||
 		(snapshot.Spec.Source.PersistentVolumeClaimName != nil && snapshot.Spec.Source.VolumeSnapshotContentName != nil) {
