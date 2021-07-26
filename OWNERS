@@ -1,7 +1,14 @@
+# See the OWNERS docs at https://go.k8s.io/owners
+
 approvers:
-- saad-ali
-- lpabon
+- kubernetes-csi-approvers
 - jingxu97
-- xing-yang
-- wackxu
 - yuxiangqian
+
+reviewers:
+- kubernetes-csi-reviewers
+- jingxu97
+- yuxiangqian
+
+emeritus_approvers:
+- wackxu
