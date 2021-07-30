@@ -478,6 +478,83 @@ snapshot_controller_operation_total_seconds_count{driver_name="driver5",operatio
 	}
 }
 
+func TestInFlightMetric(t *testing.T) {
+	inFlightCheckInterval = time.Millisecond * 50
+
+	mgr, wg, srv := initMgr()
+	defer shutdown(srv, wg)
+	srvAddr := "http://" + srv.Addr + httpPattern
+
+	//  Start first operation, should be 1
+	opKey := OperationKey{
+		Name:       "leaked",
+		ResourceID: types.UID("uid"),
+	}
+	opVal := NewOperationValue("driver", "test")
+	mgr.OperationStart(opKey, opVal)
+	time.Sleep(500 * time.Millisecond)
+
+	if err := verifyInFlightMetric(`snapshot_controller_operations_in_flight 1`, srvAddr); err != nil {
+		t.Errorf("failed testing [%v]", err)
+	}
+
+	//  Start second operation, should be 2
+	opKey = OperationKey{
+		Name:       "leaked2",
+		ResourceID: types.UID("uid"),
+	}
+	opVal = NewOperationValue("driver2", "test2")
+	mgr.OperationStart(opKey, opVal)
+	time.Sleep(500 * time.Millisecond)
+
+	if err := verifyInFlightMetric(`snapshot_controller_operations_in_flight 2`, srvAddr); err != nil {
+		t.Errorf("failed testing [%v]", err)
+	}
+
+	//  Record, should be down to 1
+	mgr.RecordMetrics(opKey, nil, "driver")
+	time.Sleep(500 * time.Millisecond)
+
+	if err := verifyInFlightMetric(`snapshot_controller_operations_in_flight 1`, srvAddr); err != nil {
+		t.Errorf("failed testing [%v]", err)
+	}
+
+	//  Start 50 operations, should be 51
+	for i := 0; i < 50; i++ {
+		opKey := OperationKey{
+			Name:       fmt.Sprintf("op%d", i),
+			ResourceID: types.UID("uid%d"),
+		}
+		opVal := NewOperationValue("driver1", "test")
+		mgr.OperationStart(opKey, opVal)
+	}
+	time.Sleep(500 * time.Millisecond)
+
+	if err := verifyInFlightMetric(`snapshot_controller_operations_in_flight 51`, srvAddr); err != nil {
+		t.Errorf("failed testing [%v]", err)
+	}
+}
+
+func verifyInFlightMetric(expected string, srvAddr string) error {
+	rsp, err := http.Get(srvAddr)
+	if err != nil {
+		return err
+	}
+	if rsp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to get response from serve: %s", http.StatusText(rsp.StatusCode))
+	}
+	r, err := ioutil.ReadAll(rsp.Body)
+	if err != nil {
+		return err
+	}
+
+	if !strings.Contains(string(r), expected) {
+		return fmt.Errorf("failed, not equal")
+	}
+
+	return nil
+}
+
 func verifyMetric(expected, srvAddr string) error {
 	rsp, err := http.Get(srvAddr)
 	if err != nil {
@@ -490,6 +567,7 @@ func verifyMetric(expected, srvAddr string) error {
 	if err != nil {
 		return err
 	}
+
 	format := expfmt.ResponseFormat(rsp.Header)
 	gotReader := strings.NewReader(string(r))
 	gotDecoder := expfmt.NewDecoder(gotReader, format)
