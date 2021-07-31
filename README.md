@@ -13,7 +13,7 @@ The volume snapshot feature supports CSI v1.0 and higher. It was introduced as a
 
 With the promotion of Volume Snapshot to GA, the feature is enabled by default on standard Kubernetes deployments and cannot be turned off.
 
-Blog post for the GA feature can be found [here](https://kubernetes.io/blog/2020/12/10/kubernetes-1.20-volume-snapshot-moves-to-ga/)
+Blog post for the GA feature can be found [here](https://kubernetes.io/blog/2020/12/10/kubernetes-1.20-volume-snapshot-moves-to-ga/).
 
 
 ## Compatibility
