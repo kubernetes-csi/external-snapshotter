@@ -11,7 +11,7 @@ require (
 	github.com/imdario/mergo v0.3.11 // indirect
 	github.com/kubernetes-csi/csi-lib-utils v0.9.0
 	github.com/kubernetes-csi/csi-test/v4 v4.0.2
-	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.0.0
+	github.com/kubernetes-csi/external-snapshotter/client/v4 v4.1.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.26.0
