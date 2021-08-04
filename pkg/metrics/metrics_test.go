@@ -44,8 +44,9 @@ var (
 )
 
 const (
-	httpPattern = "/metrics"
-	addr        = "localhost:0"
+	httpPattern            = "/metrics"
+	addr                   = "localhost:0"
+	processStartTimeMetric = "process_start_time_seconds"
 )
 
 type fakeOpStatus struct {
@@ -628,4 +629,25 @@ func containsMetrics(expectedMfs, gotMfs []*cmg.MetricFamily) bool {
 	}
 
 	return true
+}
+
+func TestProcessStartTimeMetricExist(t *testing.T) {
+	mgr, wg, srv := initMgr()
+	defer shutdown(srv, wg)
+	metricsFamilies, err := mgr.GetRegistry().Gather()
+	if err != nil {
+		t.Fatalf("Error fetching metrics: %v", err)
+	}
+
+	for _, metricsFamily := range metricsFamilies {
+		if metricsFamily.GetName() == processStartTimeMetric {
+			return
+		}
+		m := metricsFamily.GetMetric()
+		if m[0].GetGauge().GetValue() <= 0 {
+			t.Fatalf("Expected non zero timestamp for process start time")
+		}
+	}
+
+	t.Fatalf("Metrics does not contain %v. Scraped content: %v", processStartTimeMetric, metricsFamilies)
 }

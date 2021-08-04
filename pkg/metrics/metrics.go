@@ -105,6 +105,9 @@ type MetricsManager interface {
 	// status - the operation status, if not specified, i.e., status == nil, an
 	//          "Unknown" status of the passed-in operation is assumed.
 	RecordMetrics(op OperationKey, status OperationStatus, driverName string)
+
+	// GetRegistry() returns the metrics.KubeRegistry used by this metrics manager.
+	GetRegistry() k8smetrics.KubeRegistry
 }
 
 // OperationKey is a structure which holds information to
@@ -251,6 +254,7 @@ func (opMgr *operationMetricsManager) recordCancelMetric(obj interface{}, key Op
 
 func (opMgr *operationMetricsManager) init() {
 	opMgr.registry = k8smetrics.NewKubeRegistry()
+	k8smetrics.RegisterProcessStartTime(opMgr.registry.Register)
 	opMgr.opLatencyMetrics = k8smetrics.NewHistogramVec(
 		&k8smetrics.HistogramOpts{
 			Subsystem: subSystem,
@@ -288,6 +292,10 @@ func (opMgr *operationMetricsManager) StartMetricsEndpoint(pattern, addr string,
 		}
 	}()
 	return srv, nil
+}
+
+func (opMgr *operationMetricsManager) GetRegistry() k8smetrics.KubeRegistry {
+	return opMgr.registry
 }
 
 // snapshotProvisionType represents which kind of snapshot a metric is
