@@ -67,7 +67,7 @@ github.com/kubernetes-csi/csi-lib-utils/rpc
 ## explicit
 github.com/kubernetes-csi/csi-test/v4/driver
 github.com/kubernetes-csi/csi-test/v4/utils
-# github.com/kubernetes-csi/external-snapshotter/client/v4 v4.0.0 => ./client
+# github.com/kubernetes-csi/external-snapshotter/client/v4 v4.1.0 => ./client
 ## explicit
 github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1
