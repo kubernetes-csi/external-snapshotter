@@ -809,23 +809,14 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 
 // addContentFinalizer adds a Finalizer for VolumeSnapshotContent.
 func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
-	// patches := []utils.PatchOp{
-	// 	{
-	// 		Op:    "add",
-	// 		Path:  "/metadata/finalizers/-",
-	// 		Value: utils.VolumeSnapshotContentFinalizer,
-	// 	},
-	// }
+	var patches []utils.PatchOp
+	patches = append(patches, utils.PatchOp{
+		Op:    "add",
+		Path:  "/metadata/finalizers/-",
+		Value: utils.VolumeSnapshotContentFinalizer,
+	})
 
-	// newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
-	// if err != nil {
-	// 	return newControllerUpdateError(content.Name, err.Error())
-	// }
-
-	contentClone := content.DeepCopy()
-	contentClone.ObjectMeta.Finalizers = append(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
-
-	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
@@ -1440,8 +1431,6 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 			})
 		}
 
-		klog.Infof("GGCSI - ADD SNAPSHOT FINALIZER - snapshot: %v", snapshot)
-		klog.Infof("GGCSI - ADD SNAPSHOT FINALIZER - patches: %v", patches)
 		updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
 		if err != nil {
 			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
