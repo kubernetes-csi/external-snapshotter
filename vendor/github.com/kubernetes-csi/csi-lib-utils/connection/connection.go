@@ -84,7 +84,8 @@ func ExitOnConnectionLoss() func() bool {
 		if err := ioutil.WriteFile(terminationLogPath, []byte(terminationMsg), 0644); err != nil {
 			klog.Errorf("%s: %s", terminationLogPath, err)
 		}
-		klog.Fatalf(terminationMsg)
+		klog.Exit(terminationMsg)
+		// Not reached.
 		return false
 	}
 }
@@ -150,7 +151,7 @@ func connect(
 		return nil, errors.New("OnConnectionLoss callback only supported for unix:// addresses")
 	}
 
-	klog.Infof("Connecting to %s", address)
+	klog.V(5).Infof("Connecting to %s", address)
 
 	// Connect in background.
 	var conn *grpc.ClientConn
@@ -191,6 +192,13 @@ type ExtendedCSIMetricsManager struct {
 	metrics.CSIMetricsManager
 }
 
+type AdditionalInfo struct {
+	Migrated string
+}
+type AdditionalInfoKeyType struct{}
+
+var AdditionalInfoKey AdditionalInfoKeyType
+
 // RecordMetricsClientInterceptor is a gPRC unary interceptor for recording metrics for CSI operations
 // in a gRPC client.
 func (cmm ExtendedCSIMetricsManager) RecordMetricsClientInterceptor(
@@ -203,11 +211,35 @@ func (cmm ExtendedCSIMetricsManager) RecordMetricsClientInterceptor(
 	start := time.Now()
 	err := invoker(ctx, method, req, reply, cc, opts...)
 	duration := time.Since(start)
-	cmm.RecordMetrics(
+
+	var cmmBase metrics.CSIMetricsManager
+	cmmBase = cmm
+	if cmm.HaveAdditionalLabel(metrics.LabelMigrated) {
+		// record migration status
+		additionalInfo := ctx.Value(AdditionalInfoKey)
+		migrated := "false"
+		if additionalInfo != nil {
+			additionalInfoVal, ok := additionalInfo.(AdditionalInfo)
+			if !ok {
+				klog.Errorf("Failed to record migrated status, cannot convert additional info %v", additionalInfo)
+				return err
+			}
+			migrated = additionalInfoVal.Migrated
+		}
+		cmmv, metricsErr := cmm.WithLabelValues(map[string]string{metrics.LabelMigrated: migrated})
+		if metricsErr != nil {
+			klog.Errorf("Failed to record migrated status, error: %v", metricsErr)
+		} else {
+			cmmBase = cmmv
+		}
+	}
+	// Record the default metric
+	cmmBase.RecordMetrics(
 		method,   /* operationName */
 		err,      /* operationErr */
 		duration, /* operationDuration */
 	)
+
 	return err
 }
 
