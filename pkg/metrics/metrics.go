@@ -17,8 +17,6 @@ limitations under the License.
 package metrics
 
 import (
-	"fmt"
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -26,7 +24,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/apimachinery/pkg/types"
 	k8smetrics "k8s.io/component-base/metrics"
-	klog "k8s.io/klog/v2"
 )
 
 const (
@@ -89,12 +86,11 @@ type OperationStatus interface {
 var metricBuckets = []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 15, 30, 60, 120, 300, 600}
 
 type MetricsManager interface {
-	// StartMetricsEndpoint starts the metrics endpoint at the specified addr/pattern for
-	// metrics managed by this MetricsManager. It spawns a goroutine to listen to
-	// and serve HTTP requests received on addr/pattern.
-	// If the "pattern" is empty (i.e., ""), no endpoint will be started.
+	// PrepareMetricsPath prepares the metrics path the specified pattern for
+	// metrics managed by this MetricsManager.
+	// If the "pattern" is empty (i.e., ""), it will not be registered.
 	// An error will be returned if there is any.
-	StartMetricsEndpoint(pattern, addr string, logger promhttp.Logger, wg *sync.WaitGroup) (*http.Server, error)
+	PrepareMetricsPath(mux *http.ServeMux, pattern string, logger promhttp.Logger) error
 
 	// OperationStart takes in an operation and caches its start time.
 	// if the operation already exists, it's an no-op.
@@ -304,31 +300,15 @@ func (opMgr *operationMetricsManager) scheduleOpsInFlightMetric() {
 	}
 }
 
-func (opMgr *operationMetricsManager) StartMetricsEndpoint(pattern, addr string, logger promhttp.Logger, wg *sync.WaitGroup) (*http.Server, error) {
-	if addr == "" {
-		return nil, fmt.Errorf("metrics endpoint will not be started as endpoint address is not specified")
-	}
-	// start listening
-	l, err := net.Listen("tcp", addr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to listen on address[%s], error[%v]", addr, err)
-	}
-	mux := http.NewServeMux()
+func (opMgr *operationMetricsManager) PrepareMetricsPath(mux *http.ServeMux, pattern string, logger promhttp.Logger) error {
 	mux.Handle(pattern, k8smetrics.HandlerFor(
 		opMgr.registry,
 		k8smetrics.HandlerOpts{
 			ErrorLog:      logger,
 			ErrorHandling: k8smetrics.ContinueOnError,
 		}))
-	srv := &http.Server{Addr: l.Addr().String(), Handler: mux}
-	// start serving the endpoint
-	go func() {
-		defer wg.Done()
-		if err := srv.Serve(l); err != http.ErrServerClosed {
-			klog.Fatalf("failed to start endpoint at:%s/%s, error: %v", addr, pattern, err)
-		}
-	}()
-	return srv, nil
+
+	return nil
 }
 
 func (opMgr *operationMetricsManager) GetRegistry() k8smetrics.KubeRegistry {
