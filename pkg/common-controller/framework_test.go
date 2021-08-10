@@ -19,7 +19,7 @@ package common_controller
 import (
 	"errors"
 	"fmt"
-	"k8s.io/client-go/util/workqueue"
+	"net/http"
 	"reflect"
 	sysruntime "runtime"
 	"strconv"
@@ -28,6 +28,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"k8s.io/client-go/util/workqueue"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
@@ -737,9 +739,14 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, utils.NoResyncPeriodFunc())
 	metricsManager := metrics.NewMetricsManager()
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
-	metricsManager.StartMetricsEndpoint("/metrics", "localhost:0", nil, wg)
+	mux := http.NewServeMux()
+	metricsManager.PrepareMetricsPath(mux, "/metrics", nil)
+	go func() {
+		err := http.ListenAndServe("localhost:0", mux)
+		if err != nil {
+			t.Errorf("failed to prepare metrics path: %v", err)
+		}
+	}()
 
 	ctrl := NewCSISnapshotCommonController(
 		clientset,

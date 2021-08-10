@@ -20,6 +20,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"sync"
@@ -143,23 +145,15 @@ func main() {
 	// Create and register metrics manager
 	metricsManager := metrics.NewMetricsManager()
 	wg := &sync.WaitGroup{}
-	wg.Add(1)
+
+	mux := http.NewServeMux()
 	if *httpEndpoint != "" {
-		srv, err := metricsManager.StartMetricsEndpoint(*metricsPath, *httpEndpoint, promklog{}, wg)
+		err := metricsManager.PrepareMetricsPath(mux, *metricsPath, promklog{})
 		if err != nil {
-			klog.Errorf("Failed to start metrics server: %s", err.Error())
+			klog.Errorf("Failed to prepare metrics path: %s", err.Error())
 			os.Exit(1)
 		}
-		defer func() {
-			err := srv.Shutdown(context.Background())
-			if err != nil {
-				klog.Errorf("Failed to shutdown metrics server: %s", err.Error())
-			}
-
-			klog.Infof("Metrics server successfully shutdown")
-			wg.Done()
-		}()
-		klog.Infof("Metrics server successfully started on %s, %s", *httpEndpoint, *metricsPath)
+		klog.Infof("Metrics path successfully registered at %s", *metricsPath)
 	}
 
 	// Add Snapshot types to the default Kubernetes so events can be logged for them
@@ -199,6 +193,32 @@ func main() {
 		close(stopCh)
 	}
 
+	// start listening & serving http endpoint if set
+	if *httpEndpoint != "" {
+		l, err := net.Listen("tcp", *httpEndpoint)
+		if err != nil {
+			klog.Fatalf("failed to listen on address[%s], error[%v]", *httpEndpoint, err)
+		}
+		srv := &http.Server{Addr: l.Addr().String(), Handler: mux}
+		go func() {
+			defer wg.Done()
+			if err := srv.Serve(l); err != http.ErrServerClosed {
+				klog.Fatalf("failed to start endpoint at:%s/%s, error: %v", *httpEndpoint, *metricsPath, err)
+			}
+		}()
+		klog.Infof("Metrics http server successfully started on %s, %s", *httpEndpoint, *metricsPath)
+
+		defer func() {
+			err := srv.Shutdown(context.Background())
+			if err != nil {
+				klog.Errorf("Failed to shutdown metrics server: %s", err.Error())
+			}
+
+			klog.Infof("Metrics server successfully shutdown")
+			wg.Done()
+		}()
+	}
+
 	if !*leaderElection {
 		run(context.TODO())
 	} else {
@@ -210,6 +230,10 @@ func main() {
 			klog.Fatalf("failed to create leaderelection client: %v", err)
 		}
 		le := leaderelection.NewLeaderElection(leClientset, lockName, run)
+		if *httpEndpoint != "" {
+			le.PrepareHealthCheck(mux, leaderelection.DefaultHealthCheckTimeout)
+		}
+
 		if *leaderElectionNamespace != "" {
 			le.WithNamespace(*leaderElectionNamespace)
 		}

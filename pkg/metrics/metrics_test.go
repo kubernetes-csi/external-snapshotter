@@ -22,6 +22,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"reflect"
 	"sort"
@@ -60,35 +61,44 @@ func (s *fakeOpStatus) String() string {
 	return "Unknown"
 }
 
-func initMgr() (MetricsManager, *sync.WaitGroup, *http.Server) {
-	wg := &sync.WaitGroup{}
-	wg.Add(1)
+func initMgr() (MetricsManager, *http.Server) {
 	mgr := NewMetricsManager()
-	srv, err := mgr.StartMetricsEndpoint(httpPattern, addr, nil, wg)
+	mux := http.NewServeMux()
+	err := mgr.PrepareMetricsPath(mux, httpPattern, nil)
 	if err != nil {
 		log.Fatalf("failed to start serving [%v]", err)
 	}
-	return mgr, wg, srv
+	l, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatalf("failed to listen on address[%s], error[%v]", addr, err)
+	}
+	srv := &http.Server{Addr: l.Addr().String(), Handler: mux}
+	go func() {
+		if err := srv.Serve(l); err != http.ErrServerClosed {
+			log.Fatalf("failed to start endpoint at:%s/%s, error: %v", addr, httpPattern, err)
+		}
+	}()
+
+	return mgr, srv
 }
 
-func shutdown(srv *http.Server, wg *sync.WaitGroup) {
+func shutdown(srv *http.Server) {
 	if err := srv.Shutdown(context.Background()); err != nil {
 		panic(err)
 	}
-	wg.Wait()
 }
 
 func TestNew(t *testing.T) {
-	mgr, wg, srv := initMgr()
-	defer shutdown(srv, wg)
+	mgr, srv := initMgr()
+	defer shutdown(srv)
 	if mgr == nil {
 		t.Errorf("failed testing new")
 	}
 }
 
 func TestDropNonExistingOperation(t *testing.T) {
-	mgr, wg, srv := initMgr()
-	defer shutdown(srv, wg)
+	mgr, srv := initMgr()
+	defer shutdown(srv)
 	op := OperationKey{
 		Name:       "drop-non-existing-operation-should-be-noop",
 		ResourceID: types.UID("uid"),
@@ -97,9 +107,9 @@ func TestDropNonExistingOperation(t *testing.T) {
 }
 
 func TestRecordMetricsForNonExistingOperation(t *testing.T) {
-	mgr, wg, srv := initMgr()
+	mgr, srv := initMgr()
 	srvAddr := "http://" + srv.Addr + httpPattern
-	defer shutdown(srv, wg)
+	defer shutdown(srv)
 	opKey := OperationKey{
 		Name:       "no-metrics-should-be-recorded-as-operation-did-not-start",
 		ResourceID: types.UID("uid"),
@@ -119,9 +129,9 @@ func TestRecordMetricsForNonExistingOperation(t *testing.T) {
 }
 
 func TestDropOperation(t *testing.T) {
-	mgr, wg, srv := initMgr()
+	mgr, srv := initMgr()
 	srvAddr := "http://" + srv.Addr + httpPattern
-	defer shutdown(srv, wg)
+	defer shutdown(srv)
 	opKey := OperationKey{
 		Name:       "should-have-been-dropped",
 		ResourceID: types.UID("uid"),
@@ -176,9 +186,9 @@ snapshot_controller_operation_total_seconds_count{driver_name="driver",operation
 }
 
 func TestUnknownStatus(t *testing.T) {
-	mgr, wg, srv := initMgr()
+	mgr, srv := initMgr()
 	srvAddr := "http://" + srv.Addr + httpPattern
-	defer shutdown(srv, wg)
+	defer shutdown(srv)
 	opKey := OperationKey{
 		Name:       "unknown-status-operation",
 		ResourceID: types.UID("uid"),
@@ -214,9 +224,9 @@ snapshot_controller_operation_total_seconds_count{driver_name="driver",operation
 }
 
 func TestRecordMetrics(t *testing.T) {
-	mgr, wg, srv := initMgr()
+	mgr, srv := initMgr()
 	srvAddr := "http://" + srv.Addr + httpPattern
-	defer shutdown(srv, wg)
+	defer shutdown(srv)
 	// add an operation
 	opKey := OperationKey{
 		Name:       "op1",
@@ -284,9 +294,9 @@ snapshot_controller_operation_total_seconds_count{driver_name="driver2",operatio
 }
 
 func TestConcurrency(t *testing.T) {
-	mgr, wg, srv := initMgr()
+	mgr, srv := initMgr()
 	srvAddr := "http://" + srv.Addr + httpPattern
-	defer shutdown(srv, wg)
+	defer shutdown(srv)
 	success := &fakeOpStatus{
 		statusCode: 0,
 	}
@@ -482,8 +492,8 @@ snapshot_controller_operation_total_seconds_count{driver_name="driver5",operatio
 func TestInFlightMetric(t *testing.T) {
 	inFlightCheckInterval = time.Millisecond * 50
 
-	mgr, wg, srv := initMgr()
-	defer shutdown(srv, wg)
+	mgr, srv := initMgr()
+	defer shutdown(srv)
 	srvAddr := "http://" + srv.Addr + httpPattern
 
 	//  Start first operation, should be 1
@@ -710,8 +720,8 @@ func containsMetrics(expectedMfs, gotMfs []*cmg.MetricFamily) bool {
 }
 
 func TestProcessStartTimeMetricExist(t *testing.T) {
-	mgr, wg, srv := initMgr()
-	defer shutdown(srv, wg)
+	mgr, srv := initMgr()
+	defer shutdown(srv)
 	metricsFamilies, err := mgr.GetRegistry().Gather()
 	if err != nil {
 		t.Fatalf("Error fetching metrics: %v", err)
