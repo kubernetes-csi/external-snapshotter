@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/kubernetes-csi/external-snapshotter.svg?branch=master)](https://travis-ci.org/kubernetes-csi/external-snapshotter)
-
 # CSI Snapshotter
 
 The CSI snapshotter is part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec).
