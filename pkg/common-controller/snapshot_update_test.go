@@ -466,7 +466,7 @@ func TestSync(t *testing.T) {
 			// Snapshot status nil, no initial content, new content should be created.
 			name:              "8-1 - Snapshot status nil, no initial snapshot content, new content should be created",
 			initialContents:   nocontents,
-			expectedContents:  withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid8-1", "snapuid8-1", "snap8-1", "sid8-1", validSecretClass, "", "pv-handle8-1", deletionPolicy, nil, nil, false, false), map[string]string{utils.AnnDeletionSecretRefName: "secret", utils.AnnDeletionSecretRefNamespace: "default"}),
+			expectedContents:  withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid8-1", "snapuid8-1", "snap8-1", "sid8-1", validSecretClass, "", "pv-handle8-1", deletionPolicy, nil, nil, false, false), map[string]string{utils.AnnDeletionSecretRefName: "secret", utils.AnnDeletionSecretRefNamespace: "default", utils.PrefixedSnapshotterSecretNameKey: "secret", utils.PrefixedSnapshotterSecretNamespaceKey: "default"}),
 			initialSnapshots:  newSnapshotArray("snap8-1", "snapuid8-1", "claim8-1", "", validSecretClass, "", nil, nil, nil, nil, true, false, nil),
 			expectedSnapshots: newSnapshotArray("snap8-1", "snapuid8-1", "claim8-1", "", validSecretClass, "snapcontent-snapuid8-1", &False, nil, nil, nil, false, false, nil),
 			initialClaims:     newClaimArray("claim8-1", "pvc-uid8-1", "1Gi", "volume8-1", v1.ClaimBound, &classEmpty),
@@ -480,7 +480,7 @@ func TestSync(t *testing.T) {
 			// Snapshot status with nil error, no initial content, new content should be created.
 			name:              "8-2 - Snapshot status with nil error, no initial snapshot content, new content should be created",
 			initialContents:   nocontents,
-			expectedContents:  withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid8-2", "snapuid8-2", "snap8-2", "sid8-2", validSecretClass, "", "pv-handle8-2", deletionPolicy, nil, nil, false, false), map[string]string{utils.AnnDeletionSecretRefName: "secret", utils.AnnDeletionSecretRefNamespace: "default"}),
+			expectedContents:  withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid8-2", "snapuid8-2", "snap8-2", "sid8-2", validSecretClass, "", "pv-handle8-2", deletionPolicy, nil, nil, false, false), map[string]string{utils.AnnDeletionSecretRefName: "secret", utils.AnnDeletionSecretRefNamespace: "default", utils.PrefixedSnapshotterSecretNameKey: "secret", utils.PrefixedSnapshotterSecretNamespaceKey: "default"}),
 			initialSnapshots:  newSnapshotArray("snap8-2", "snapuid8-2", "claim8-2", "", validSecretClass, "", nil, nil, nil, nil, false, false, nil),
 			expectedSnapshots: newSnapshotArray("snap8-2", "snapuid8-2", "claim8-2", "", validSecretClass, "snapcontent-snapuid8-2", &False, nil, nil, nil, false, false, nil),
 			initialClaims:     newClaimArray("claim8-2", "pvc-uid8-2", "1Gi", "volume8-2", v1.ClaimBound, &classEmpty),
@@ -494,7 +494,7 @@ func TestSync(t *testing.T) {
 			// Snapshot status with error, no initial content, new content should be created, snapshot error should be cleared.
 			name:              "8-3 - Snapshot status with error, no initial content, new content should be created, snapshot error should be cleared",
 			initialContents:   nocontents,
-			expectedContents:  withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid8-3", "snapuid8-3", "snap8-3", "sid8-3", validSecretClass, "", "pv-handle8-3", deletionPolicy, nil, nil, false, false), map[string]string{utils.AnnDeletionSecretRefName: "secret", utils.AnnDeletionSecretRefNamespace: "default"}),
+			expectedContents:  withContentAnnotations(newContentArrayNoStatus("snapcontent-snapuid8-3", "snapuid8-3", "snap8-3", "sid8-3", validSecretClass, "", "pv-handle8-3", deletionPolicy, nil, nil, false, false), map[string]string{utils.AnnDeletionSecretRefName: "secret", utils.AnnDeletionSecretRefNamespace: "default", utils.PrefixedSnapshotterSecretNameKey: "secret", utils.PrefixedSnapshotterSecretNamespaceKey: "default"}),
 			initialSnapshots:  newSnapshotArray("snap8-3", "snapuid8-3", "claim8-3", "", validSecretClass, "", nil, nil, nil, snapshotErr, false, false, nil),
 			expectedSnapshots: newSnapshotArray("snap8-3", "snapuid8-3", "claim8-3", "", validSecretClass, "snapcontent-snapuid8-3", &False, nil, nil, nil, false, false, nil),
 			initialClaims:     newClaimArray("claim8-3", "pvc-uid8-3", "1Gi", "volume8-3", v1.ClaimBound, &classEmpty),

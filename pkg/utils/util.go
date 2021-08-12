@@ -235,9 +235,9 @@ func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
 	return false
 }
 
-// verifyAndGetSecretNameAndNamespaceTemplate gets the values (templates) associated
+// VerifyAndGetSecretNameAndNamespaceTemplate gets the values (templates) associated
 // with the parameters specified in "secret" and verifies that they are specified correctly.
-func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshotClassParams map[string]string) (nameTemplate, namespaceTemplate string, err error) {
+func VerifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshotClassParams map[string]string) (nameTemplate, namespaceTemplate string, err error) {
 	numName := 0
 	numNamespace := 0
 	if t, ok := snapshotClassParams[secret.secretNameKey]; ok {
@@ -285,7 +285,7 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshot
 // - the resolved name is not a valid secret name
 // - the resolved namespace is not a valid namespace name
 func GetSecretReference(secretParams secretParamsMap, snapshotClassParams map[string]string, snapContentName string, snapshot *crdv1.VolumeSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretParams, snapshotClassParams)
+	nameTemplate, namespaceTemplate, err := VerifyAndGetSecretNameAndNamespaceTemplate(secretParams, snapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
 	}

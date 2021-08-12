@@ -63,6 +63,8 @@ func TestCreateSnapshotSync(t *testing.T) {
 				map[string]string{
 					"snapshot.storage.kubernetes.io/deletion-secret-name":      "secret",
 					"snapshot.storage.kubernetes.io/deletion-secret-namespace": "default",
+					"csi.storage.k8s.io/snapshotter-secret-name":               "secret",
+					"csi.storage.k8s.io/snapshotter-secret-namespace":          "default",
 				}),
 			initialSnapshots:  newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", validSecretClass, "", &False, nil, nil, nil, false, true, nil),
 			expectedSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", validSecretClass, "snapcontent-snapuid6-2", &False, nil, nil, nil, false, true, nil),

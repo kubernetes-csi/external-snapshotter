@@ -678,6 +678,17 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 
 		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.AnnDeletionSecretRefNamespace, snapshotContent.Name)
 		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, snapshotterSecretRef.Namespace)
+
+		nameTemplate, namespaceTemplate, err := utils.VerifyAndGetSecretNameAndNamespaceTemplate(utils.SnapshotterSecretParams, class.Parameters)
+		if err != nil {
+			return nil, err
+		}
+
+		klog.V(6).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.PrefixedSnapshotterSecretNameKey, nameTemplate)
+		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.PrefixedSnapshotterSecretNameKey, nameTemplate)
+
+		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.PrefixedSnapshotterSecretNamespaceKey, namespaceTemplate)
+		metav1.SetMetaDataAnnotation(&snapshotContent.ObjectMeta, utils.PrefixedSnapshotterSecretNamespaceKey, namespaceTemplate)
 	}
 
 	var updateContent *crdv1.VolumeSnapshotContent
