@@ -125,8 +125,6 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * `--http-endpoint`: The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080` which corresponds to port 8080 on local host). The default is empty string, which means the server is disabled.
 
-* `--metrics-address`: (deprecated) The TCP network address where the prometheus metrics endpoint will run (example: `:8080` which corresponds to port 8080 on local host). The default is empty string, which means metrics endpoint is disabled.
-
 * `--metrics-path`: The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.
 
 * `--worker-threads`: Number of worker threads. Default value is 10.
@@ -134,6 +132,7 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 * `--retry-interval-start`: Initial retry interval of failed volume snapshot creation or deletion. It doubles with each failure, up to retry-interval-max. Default value is 1 second.
 
 *`--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
+
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the snapshot controller uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
 
