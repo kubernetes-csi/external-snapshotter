@@ -72,7 +72,7 @@ spec:
       serviceAccount: csi-snapshotter
       containers:
         - name: csi-provisioner
-          image: k8s.gcr.io/sig-storage/csi-provisioner:v2.0.2
+          image: k8s.gcr.io/sig-storage/csi-provisioner:v3.0.0
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -84,7 +84,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-snapshotter
-          image: k8s.gcr.io/sig-storage/csi-snapshotter:v4.1.1
+          image: k8s.gcr.io/sig-storage/csi-snapshotter:v4.2.0
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
@@ -97,7 +97,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: hostpath
-          image: k8s.gcr.io/sig-storage/hostpathplugin:v1.4.0
+          image: k8s.gcr.io/sig-storage/hostpathplugin:v1.7.2
           args:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
