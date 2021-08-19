@@ -231,7 +231,7 @@ func (opMgr *operationMetricsManager) RecordMetrics(opKey OperationKey, opStatus
 		obj, exists := opMgr.cache[createKey]
 		if exists {
 			// record a cancel metric if found
-			opMgr.recordCancelMetric(obj, createKey, operationDuration)
+			opMgr.recordCancelMetricLocked(obj, createKey, operationDuration)
 		}
 
 		// check if we have a CreateSnapshotAndReady operation pending for this
@@ -239,7 +239,7 @@ func (opMgr *operationMetricsManager) RecordMetrics(opKey OperationKey, opStatus
 		obj, exists = opMgr.cache[createAndReadyKey]
 		if exists {
 			// record a cancel metric if found
-			opMgr.recordCancelMetric(obj, createAndReadyKey, operationDuration)
+			opMgr.recordCancelMetricLocked(obj, createAndReadyKey, operationDuration)
 		}
 	}
 
@@ -248,9 +248,8 @@ func (opMgr *operationMetricsManager) RecordMetrics(opKey OperationKey, opStatus
 }
 
 // recordCancelMetric records a metric for a create operation that hasn't finished
-func (opMgr *operationMetricsManager) recordCancelMetric(val OperationValue, key OperationKey, duration float64) {
-	opMgr.mu.Lock()
-	defer opMgr.mu.Unlock()
+// This function must be called with opMgr mutex locked (to prevent recursive locks).
+func (opMgr *operationMetricsManager) recordCancelMetricLocked(val OperationValue, key OperationKey, duration float64) {
 	// record a cancel metric if found
 
 	opMgr.opLatencyMetrics.WithLabelValues(
