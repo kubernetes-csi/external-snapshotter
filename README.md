@@ -1,6 +1,6 @@
 # CSI Snapshotter
 
-The CSI snapshotter is part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec).
+The CSI snapshotter is a part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec).
 
 The volume snapshot feature supports CSI v1.0 and higher. It was introduced as an Alpha feature in Kubernetes v1.12 and has been promoted to a Beta feature in Kubernetes 1.17. In Kubernetes 1.20, the volume snapshot feature moves to GA.
 
