@@ -1,3 +1,17 @@
+# Release notes for v4.2.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v4.2.0
+
+## Changes by Kind
+
+### Bug or Regression
+
+#### Snapshot Controller
+
+- Cherry-pick ([#581](https://github.com/kubernetes-csi/external-snapshotter/pull/581), [@jsafrane](https://github.com/jsafrane)): Fixed deadlock in reporting metrics. ([#583](https://github.com/kubernetes-csi/external-snapshotter/pull/583), [@xing-yang](https://github.com/xing-yang))
+
 # Release notes for v4.2.0
 
 [Documentation](https://kubernetes-csi.github.io)
