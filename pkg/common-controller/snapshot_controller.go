@@ -987,15 +987,37 @@ func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *c
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
 		return content, nil
 	}
-	contentClone := content.DeepCopy()
-	contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
+	// contentClone := content.DeepCopy()
+	// contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
+	// if snapshot.Spec.VolumeSnapshotClassName != nil {
+	// 	className := *(snapshot.Spec.VolumeSnapshotClassName)
+	// 	contentClone.Spec.VolumeSnapshotClassName = &className
+	// }
+	// newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	// if err != nil {
+	// 	klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
+	// 	return content, err
+	// }
+
+	patches := []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/spec/volumeSnapshotRef/uid",
+			Value: string(snapshot.UID),
+		},
+	}
 	if snapshot.Spec.VolumeSnapshotClassName != nil {
 		className := *(snapshot.Spec.VolumeSnapshotClassName)
-		contentClone.Spec.VolumeSnapshotClassName = &className
+		patches = append(patches, utils.PatchOp{
+			Op:    "replace",
+			Path:  "/spec/volumeSnapshotClassName",
+			Value: className,
+		})
 	}
-	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+
+	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
-		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
+		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", content.Name, err)
 		return content, err
 	}
 
