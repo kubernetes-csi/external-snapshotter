@@ -809,13 +809,24 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 
 // addContentFinalizer adds a Finalizer for VolumeSnapshotContent.
 func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
-	var patches []utils.PatchOp
-	patches = append(patches, utils.PatchOp{
-		Op:    "add",
-		Path:  "/metadata/finalizers/-",
-		Value: utils.VolumeSnapshotContentFinalizer,
-	})
 
+	var patches []utils.PatchOp
+	if len(content.Finalizers) > 0 {
+		// Add to the end of the finalizers if we have any other finalizers
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers/-",
+			Value: utils.VolumeSnapshotContentFinalizer,
+		})
+
+	} else {
+		// Replace finalizers with new array if there are no other finalizers
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers",
+			Value: []string{utils.VolumeSnapshotContentFinalizer},
+		})
+	}
 	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
@@ -987,17 +998,6 @@ func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *c
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
 		return content, nil
 	}
-	// contentClone := content.DeepCopy()
-	// contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
-	// if snapshot.Spec.VolumeSnapshotClassName != nil {
-	// 	className := *(snapshot.Spec.VolumeSnapshotClassName)
-	// 	contentClone.Spec.VolumeSnapshotClassName = &className
-	// }
-	// newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
-	// if err != nil {
-	// 	klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
-	// 	return content, err
-	// }
 
 	patches := []utils.PatchOp{
 		{

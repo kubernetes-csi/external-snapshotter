@@ -17,6 +17,7 @@ limitations under the License.
 package common_controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -29,8 +30,7 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/client-go/util/workqueue"
-
+	jsonpatch "github.com/evanphx/json-patch"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
@@ -55,6 +55,7 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	klog "k8s.io/klog/v2"
 )
 
@@ -258,6 +259,46 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		klog.V(4).Infof("saved updated content %s", content.Name)
 		return true, content, nil
 
+	case action.Matches("patch", "volumesnapshotcontents"):
+		content := &crdv1.VolumeSnapshotContent{}
+		action := action.(core.PatchAction)
+
+		// Check and bump object version
+		storedSnapshotContent, found := r.contents[action.GetName()]
+		if found {
+			// Apply patch
+			storedSnapshotBytes, err := json.Marshal(storedSnapshotContent)
+			if err != nil {
+				return true, nil, err
+			}
+			contentPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+
+			modified, err := contentPatch.Apply(storedSnapshotBytes)
+			if err != nil {
+				return true, nil, err
+			}
+
+			err = json.Unmarshal(modified, content)
+			if err != nil {
+				return true, nil, err
+			}
+
+			storedVer, _ := strconv.Atoi(content.ResourceVersion)
+			content.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update snapshot content %s: snapshot content not found", action.GetName())
+		}
+
+		// Store the updated object to appropriate places.
+		r.contents[content.Name] = content
+		r.changedObjects = append(r.changedObjects, content)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated content %s", content.Name)
+		return true, content, nil
+
 	case action.Matches("update", "volumesnapshots"):
 		obj := action.(core.UpdateAction).GetObject()
 		snapshot := obj.(*crdv1.VolumeSnapshot)
@@ -283,6 +324,52 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated snapshot %s", snapshot.Name)
 		return true, snapshot, nil
+
+	case action.Matches("patch", "volumesnapshots"):
+		snapshot := &crdv1.VolumeSnapshot{}
+		action := action.(core.PatchAction)
+
+		// Check and bump object version
+		storedSnapshot, found := r.snapshots[action.GetName()]
+		if found {
+			// Apply patch
+			storedSnapshotBytes, err := json.Marshal(storedSnapshot)
+			if err != nil {
+				return true, nil, err
+			}
+			snapPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+
+			modified, err := snapPatch.Apply(storedSnapshotBytes)
+			if err != nil {
+				return true, nil, err
+			}
+
+			err = json.Unmarshal(modified, storedSnapshot)
+			if err != nil {
+				return true, nil, err
+			}
+
+			storedVer, _ := strconv.Atoi(storedSnapshot.ResourceVersion)
+			storedSnapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
+
+			// // If we were updating annotations and the new annotations are nil, leave as empty.
+			// // This seems to be the behavior for merge-patching nil & empty annotations
+			// if !reflect.DeepEqual(storedSnapshotContent.Annotations, content.Annotations) && content.Annotations == nil {
+			// 	content.Annotations = make(map[string]string)
+			// }
+		} else {
+			return true, nil, fmt.Errorf("cannot update snapshot %s: snapshot not found", action.GetName())
+		}
+
+		// Store the updated object to appropriate places.
+		r.snapshots[snapshot.Name] = storedSnapshot
+		r.changedObjects = append(r.changedObjects, storedSnapshot)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated snapshot %s", storedSnapshot.Name)
+		return true, storedSnapshot, nil
 
 	case action.Matches("get", "volumesnapshotcontents"):
 		name := action.(core.GetAction).GetName()
@@ -437,6 +524,7 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 		}
 		gotMap[v.Name] = v
 	}
+
 	if !reflect.DeepEqual(expectedMap, gotMap) {
 		// Print ugly but useful diff of expected and received objects for
 		// easier debugging.
@@ -714,6 +802,8 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshots", reactor.React)
+	client.AddReactor("patch", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("patch", "volumesnapshots", reactor.React)
 	client.AddReactor("update", "volumesnapshotclasses", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshots", reactor.React)
