@@ -1544,14 +1544,21 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
+		var patches []utils.PatchOp
 		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
+		patches = append(patches, utils.PatchOp{
+			Op:    "replace",
+			Path:  "/metadata/annotations",
+			Value: content.ObjectMeta.GetAnnotations(),
+		})
 
-		updateContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), content, metav1.UpdateOptions{})
+		patchedContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 		if err != nil {
 			return content, newControllerUpdateError(content.Name, err.Error())
 		}
+
 		// update content if update is successful
-		content = updateContent
+		content = patchedContent
 
 		_, err = ctrl.storeContentUpdate(content)
 		if err != nil {
