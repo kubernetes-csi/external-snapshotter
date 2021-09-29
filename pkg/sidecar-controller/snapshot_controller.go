@@ -583,18 +583,23 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 	}
 
 	// Set AnnVolumeSnapshotBeingCreated
+	// Combine existing annotations with the new annotations.
+	// If there are no existing annotations, we create a new map.
 	klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:yes] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, content.Name)
-	contentClone := content.DeepCopy()
-	metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
+	patchedAnnotations := make(map[string]string)
+	for k, v := range content.GetAnnotations() {
+		patchedAnnotations[k] = v
+	}
+	patchedAnnotations[utils.AnnVolumeSnapshotBeingCreated] = "yes"
 
 	var patches []utils.PatchOp
 	patches = append(patches, utils.PatchOp{
 		Op:    "replace",
 		Path:  "/metadata/annotations",
-		Value: contentClone.ObjectMeta.GetAnnotations(),
+		Value: patchedAnnotations,
 	})
 
-	patchedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
+	patchedContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}

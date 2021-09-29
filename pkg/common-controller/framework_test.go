@@ -354,12 +354,6 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 
 			storedVer, _ := strconv.Atoi(storedSnapshot.ResourceVersion)
 			storedSnapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
-
-			// // If we were updating annotations and the new annotations are nil, leave as empty.
-			// // This seems to be the behavior for merge-patching nil & empty annotations
-			// if !reflect.DeepEqual(storedSnapshotContent.Annotations, content.Annotations) && content.Annotations == nil {
-			// 	content.Annotations = make(map[string]string)
-			// }
 		} else {
 			return true, nil, fmt.Errorf("cannot update snapshot %s: snapshot not found", action.GetName())
 		}
