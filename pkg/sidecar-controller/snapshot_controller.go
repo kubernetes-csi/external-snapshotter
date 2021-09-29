@@ -587,12 +587,19 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 	contentClone := content.DeepCopy()
 	metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
 
-	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var patches []utils.PatchOp
+	patches = append(patches, utils.PatchOp{
+		Op:    "replace",
+		Path:  "/metadata/annotations",
+		Value: contentClone.ObjectMeta.GetAnnotations(),
+	})
+
+	patchedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}
 	// update content if update is successful
-	content = updatedContent
+	content = patchedContent
 
 	_, err = ctrl.storeContentUpdate(content)
 	if err != nil {
