@@ -19,6 +19,7 @@ package common_controller
 import (
 	"testing"
 
+	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -70,7 +71,14 @@ func TestSnapshotFinalizer(t *testing.T) {
 			expectSuccess:    true,
 		},
 		{
-			name:             "2-1 - successful remove Snapshot finalizer",
+			name:             "2-2 - successful add single Snapshot finalizer with patch",
+			initialSnapshots: withSnapshotFinalizers(newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false, false, nil), utils.VolumeSnapshotBoundFinalizer),
+			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
+			test:             testAddSingleSnapshotFinalizer,
+			expectSuccess:    true,
+		},
+		{
+			name:             "2-3 - successful remove Snapshot finalizer",
 			initialSnapshots: newSnapshotArray("snap6-2", "snapuid6-2", "claim6-2", "", classSilver, "", &False, nil, nil, nil, false, true, nil),
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemoveSnapshotFinalizer,

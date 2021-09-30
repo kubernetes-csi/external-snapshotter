@@ -1421,16 +1421,25 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	var updatedSnapshot *crdv1.VolumeSnapshot
 	var err error
 
-	var patches []utils.PatchOp
+	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
+	// Unable to find a patch that correctly updated the finalizers if none currently exist.
 	if len(snapshot.ObjectMeta.Finalizers) == 0 {
-		// Replace finalizers with new array if there are no other finalizers
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers",
-			Value: []string{utils.VolumeSnapshotContentFinalizer},
-		})
+		snapshotClone := snapshot.DeepCopy()
+		if addSourceFinalizer {
+			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+		}
+		if addBoundFinalizer {
+			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+		}
+		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+		if err != nil {
+			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+		}
 	} else {
 		// Otherwise, perform a patch
+		var patches []utils.PatchOp
+
+		// If finalizers exist already, add new ones to the end of the array
 		if addSourceFinalizer {
 			patches = append(patches, utils.PatchOp{
 				Op:    "add",
@@ -1445,10 +1454,11 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 				Value: utils.VolumeSnapshotBoundFinalizer,
 			})
 		}
-	}
-	updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
-	if err != nil {
-		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+
+		updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
+		if err != nil {
+			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+		}
 	}
 
 	_, err = ctrl.storeSnapshotUpdate(updatedSnapshot)

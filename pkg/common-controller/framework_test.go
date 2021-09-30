@@ -326,9 +326,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		return true, snapshot, nil
 
 	case action.Matches("patch", "volumesnapshots"):
-		snapshot := &crdv1.VolumeSnapshot{}
 		action := action.(core.PatchAction)
-
 		// Check and bump object version
 		storedSnapshot, found := r.snapshots[action.GetName()]
 		if found {
@@ -359,9 +357,10 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		}
 
 		// Store the updated object to appropriate places.
-		r.snapshots[snapshot.Name] = storedSnapshot
+		r.snapshots[storedSnapshot.Name] = storedSnapshot
 		r.changedObjects = append(r.changedObjects, storedSnapshot)
 		r.changedSinceLastSync++
+
 		klog.V(4).Infof("saved updated snapshot %s", storedSnapshot.Name)
 		return true, storedSnapshot, nil
 
@@ -1253,6 +1252,10 @@ func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapsh
 	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
 
+func testAddSingleSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], false, true)
+}
+
 func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
@@ -1510,8 +1513,10 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 		if funcName == "testAddSnapshotFinalizer" {
 			for _, snapshot := range reactor.snapshots {
 				if test.initialSnapshots[0].Name == snapshot.Name {
-					if !utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) && utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
-						!utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) && utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
+					if !utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
+						utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
+						!utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) &&
+						utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
 						klog.V(4).Infof("test %q succeeded. Finalizers are added to snapshot %s", test.name, snapshot.Name)
 						bHasSnapshotFinalizer = true
 					}
@@ -1519,15 +1524,18 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 				}
 			}
 			if test.expectSuccess && !bHasSnapshotFinalizer {
-				t.Errorf("Test %q: failed to add finalizer to Snapshot %s", test.name, test.initialSnapshots[0].Name)
+				t.Errorf("Test %q: failed to add finalizer to Snapshot %s. Finalizers: %s", test.name, test.initialSnapshots[0].Name, test.initialSnapshots[0].GetFinalizers())
 			}
 		}
 		bHasSnapshotFinalizer = true
 		if funcName == "testRemoveSnapshotFinalizer" {
 			for _, snapshot := range reactor.snapshots {
 				if test.initialSnapshots[0].Name == snapshot.Name {
-					if utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) && !utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
-						utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) && !utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
+					if utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
+						!utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
+						utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) &&
+						!utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
+
 						klog.V(4).Infof("test %q succeeded. SnapshotFinalizer is removed from Snapshot %s", test.name, snapshot.Name)
 						bHasSnapshotFinalizer = false
 					}
