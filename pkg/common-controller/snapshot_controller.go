@@ -1198,7 +1198,7 @@ func (ctrl *csiSnapshotCommonController) getVolumeFromVolumeSnapshot(snapshot *c
 
 	// Verify binding between PV/PVC is still valid
 	bound := ctrl.isVolumeBoundToClaim(pv, pvc)
-	if bound == false {
+	if !bound {
 		klog.Warningf("binding between PV %s and PVC %s is broken", pvName, pvc.Name)
 		return nil, fmt.Errorf("claim in dataSource not bound or invalid")
 	}
