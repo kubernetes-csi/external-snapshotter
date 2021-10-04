@@ -379,7 +379,7 @@ type VolumeSnapshotContentStatus struct {
 	// On Unix, the command `date +%s%N` returns the current time in nanoseconds
 	// since 1970-01-01 00:00:00 UTC.
 	// +optional
-	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,2,opt,name=creationTime"`
+	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"varint,2,opt,name=creationTime"`
 
 	// restoreSize represents the complete size of the snapshot in bytes.
 	// In dynamic snapshot creation case, this field will be filled in by the
@@ -392,7 +392,7 @@ type VolumeSnapshotContentStatus struct {
 	// If not specified, it indicates that the size is unknown.
 	// +kubebuilder:validation:Minimum=0
 	// +optional
-	RestoreSize *int64 `json:"restoreSize,omitempty" protobuf:"bytes,3,opt,name=restoreSize"`
+	RestoreSize *resource.Quantity `json:"restoreSize,omitempty" protobuf:"bytes,3,opt,name=restoreSize"`
 
 	// readyToUse indicates if a snapshot is ready to be used to restore a volume.
 	// In dynamic snapshot creation case, this field will be filled in by the
