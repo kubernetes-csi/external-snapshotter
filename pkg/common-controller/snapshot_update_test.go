@@ -162,7 +162,7 @@ func TestSync(t *testing.T) {
 			expectedSnapshots: newSnapshotArray("snap2-12", "snapuid2-12", "", "content2-12", validSecretClass, "content2-12", &False, nil, nil, newVolumeError("Snapshot failed to bind VolumeSnapshotContent, mock update error"), false, true, nil),
 			errors: []reactorError{
 				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
-				{"update", "volumesnapshotcontents", errors.New("mock update error")},
+				{"patch", "volumesnapshotcontents", errors.New("mock update error")},
 			},
 			test: testSyncSnapshot,
 		},
@@ -312,7 +312,7 @@ func TestSync(t *testing.T) {
 			initialSecrets:   []*v1.Secret{secret()},
 			errors: []reactorError{
 				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
-				{"update", "volumesnapshotcontents", errors.New("mock update error")},
+				{"patch", "volumesnapshotcontents", errors.New("mock update error")},
 			},
 			expectSuccess: false,
 			test:          testSyncContentError,

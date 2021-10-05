@@ -146,19 +146,26 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 		klog.V(4).Infof("updateContentStatusWithEvent[%s]: the same error %v is already set", content.Name, content.Status.Error)
 		return nil
 	}
-	contentClone := content.DeepCopy()
-	if contentClone.Status == nil {
-		contentClone.Status = &crdv1.VolumeSnapshotContentStatus{}
-	}
-	contentClone.Status.Error = &crdv1.VolumeSnapshotError{
-		Time: &metav1.Time{
-			Time: time.Now(),
-		},
-		Message: &message,
-	}
+
 	ready := false
-	contentClone.Status.ReadyToUse = &ready
-	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), contentClone, metav1.UpdateOptions{})
+	patch := []utils.PatchOp{
+		{
+			Op:   "replace",
+			Path: "/status/error",
+			Value: &crdv1.VolumeSnapshotError{
+				Time: &metav1.Time{
+					Time: time.Now(),
+				},
+				Message: &message,
+			},
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/readyToUse",
+			Value: &ready,
+		},
+	}
+	newContent, err := utils.PatchVolumeSnapshotContent(content, patch, ctrl.clientset, "status")
 
 	// Emit the event even if the status update fails so that user can see the error
 	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
@@ -576,16 +583,28 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 	}
 
 	// Set AnnVolumeSnapshotBeingCreated
+	// Combine existing annotations with the new annotations.
+	// If there are no existing annotations, we create a new map.
 	klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:yes] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, content.Name)
-	contentClone := content.DeepCopy()
-	metav1.SetMetaDataAnnotation(&contentClone.ObjectMeta, utils.AnnVolumeSnapshotBeingCreated, "yes")
+	patchedAnnotations := make(map[string]string)
+	for k, v := range content.GetAnnotations() {
+		patchedAnnotations[k] = v
+	}
+	patchedAnnotations[utils.AnnVolumeSnapshotBeingCreated] = "yes"
 
-	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var patches []utils.PatchOp
+	patches = append(patches, utils.PatchOp{
+		Op:    "replace",
+		Path:  "/metadata/annotations",
+		Value: patchedAnnotations,
+	})
+
+	patchedContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}
 	// update content if update is successful
-	content = updatedContent
+	content = patchedContent
 
 	_, err = ctrl.storeContentUpdate(content)
 	if err != nil {

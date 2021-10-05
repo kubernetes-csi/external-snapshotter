@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	github.com/container-storage-interface/spec v1.5.0
+	github.com/evanphx/json-patch v4.11.0+incompatible
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/golang/mock v1.4.4
 	github.com/golang/protobuf v1.5.2

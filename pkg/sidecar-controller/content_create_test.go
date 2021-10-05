@@ -85,7 +85,7 @@ func TestSyncContent(t *testing.T) {
 		{
 			name: "1-3: Basic sync content create snapshot with non-existent secret",
 			initialContents: withContentAnnotations(withContentStatus(newContentArray("content1-3", "snapuid1-3", "snap1-3", "sid1-3", invalidSecretClass, "", "volume-handle-1-3", retainPolicy, nil, &defaultSize, true),
-				nil), map[string]string{
+				&crdv1.VolumeSnapshotContentStatus{}), map[string]string{
 				utils.AnnDeletionSecretRefName:      "",
 				utils.AnnDeletionSecretRefNamespace: "",
 			}),
@@ -94,12 +94,12 @@ func TestSyncContent(t *testing.T) {
 					SnapshotHandle: nil,
 					RestoreSize:    nil,
 					ReadyToUse:     &False,
-					Error:          newSnapshotError("Failed to create snapshot: failed to get input parameters to create snapshot for content content1-3: \"cannot retrieve secrets for snapshot content \\\"content1-3\\\", err: secret name or namespace not specified\""),
+					Error:          newSnapshotError("Failed to check and update snapshot content: failed to get input parameters to create snapshot for content content1-3: \"cannot retrieve secrets for snapshot content \\\"content1-3\\\", err: secret name or namespace not specified\""),
 				}), map[string]string{
 				utils.AnnDeletionSecretRefName:      "",
 				utils.AnnDeletionSecretRefNamespace: "",
 			}), initialSecrets: []*v1.Secret{}, // no initial secret created
-			expectedEvents: []string{"Warning SnapshotCreationFailed"},
+			expectedEvents: []string{"Warning SnapshotContentCheckandUpdateFailed"},
 			errors:         noerrors,
 			test:           testSyncContent,
 		},
@@ -149,7 +149,7 @@ func TestSyncContent(t *testing.T) {
 		{
 			name: "1-5: Basic sync content create snapshot with failed secret call",
 			initialContents: withContentAnnotations(withContentStatus(newContentArray("content1-5", "snapuid1-5", "snap1-5", "sid1-5", invalidSecretClass, "", "volume-handle-1-5", retainPolicy, nil, &defaultSize, true),
-				nil), map[string]string{
+				&crdv1.VolumeSnapshotContentStatus{}), map[string]string{
 				utils.AnnDeletionSecretRefName:      "secret",
 				utils.AnnDeletionSecretRefNamespace: "default",
 			}),
@@ -158,12 +158,12 @@ func TestSyncContent(t *testing.T) {
 					SnapshotHandle: nil,
 					RestoreSize:    nil,
 					ReadyToUse:     &False,
-					Error:          newSnapshotError("Failed to create snapshot: failed to get input parameters to create snapshot for content content1-5: \"cannot get credentials for snapshot content \\\"content1-5\\\"\""),
+					Error:          newSnapshotError(`Failed to check and update snapshot content: failed to get input parameters to create snapshot for content content1-5: "cannot get credentials for snapshot content \"content1-5\""`),
 				}), map[string]string{
 				utils.AnnDeletionSecretRefName:      "secret",
 				utils.AnnDeletionSecretRefNamespace: "default",
 			}), initialSecrets: []*v1.Secret{}, // no initial secret created
-			expectedEvents: []string{"Warning SnapshotCreationFailed"},
+			expectedEvents: []string{"Warning SnapshotContentCheckandUpdateFailed"},
 			errors: []reactorError{
 				// Inject error to the first client.VolumesnapshotV1().VolumeSnapshots().Update call.
 				// All other calls will succeed.

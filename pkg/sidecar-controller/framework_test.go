@@ -15,6 +15,7 @@ package sidecar_controller
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -25,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
@@ -206,6 +208,46 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			content.ResourceVersion = strconv.Itoa(storedVer + 1)
 		} else {
 			return true, nil, fmt.Errorf("cannot update content %s: content not found", content.Name)
+		}
+
+		// Store the updated object to appropriate places.
+		r.contents[content.Name] = content
+		r.changedObjects = append(r.changedObjects, content)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated content %s", content.Name)
+		return true, content, nil
+
+	case action.Matches("patch", "volumesnapshotcontents"):
+		content := &crdv1.VolumeSnapshotContent{}
+		action := action.(core.PatchAction)
+
+		// Check and bump object version
+		storedSnapshotContent, found := r.contents[action.GetName()]
+		if found {
+			// Apply patch
+			storedSnapshotBytes, err := json.Marshal(storedSnapshotContent)
+			if err != nil {
+				return true, nil, err
+			}
+			contentPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+
+			modified, err := contentPatch.Apply(storedSnapshotBytes)
+			if err != nil {
+				return true, nil, err
+			}
+
+			err = json.Unmarshal(modified, content)
+			if err != nil {
+				return true, nil, err
+			}
+
+			storedVer, _ := strconv.Atoi(content.ResourceVersion)
+			content.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update snapshot content %s: snapshot content not found", action.GetName())
 		}
 
 		// Store the updated object to appropriate places.
@@ -488,6 +530,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("patch", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
