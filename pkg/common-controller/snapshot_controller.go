@@ -809,25 +809,10 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 
 // addContentFinalizer adds a Finalizer for VolumeSnapshotContent.
 func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
+	contentClone := content.DeepCopy()
+	contentClone.ObjectMeta.Finalizers = append(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
 
-	var patches []utils.PatchOp
-	if len(content.Finalizers) > 0 {
-		// Add to the end of the finalizers if we have any other finalizers
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers/-",
-			Value: utils.VolumeSnapshotContentFinalizer,
-		})
-
-	} else {
-		// Replace finalizers with new array if there are no other finalizers
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers",
-			Value: []string{utils.VolumeSnapshotContentFinalizer},
-		})
-	}
-	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
+	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
@@ -998,26 +983,15 @@ func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *c
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
 		return content, nil
 	}
-
-	patches := []utils.PatchOp{
-		{
-			Op:    "replace",
-			Path:  "/spec/volumeSnapshotRef/uid",
-			Value: string(snapshot.UID),
-		},
-	}
+	contentClone := content.DeepCopy()
+	contentClone.Spec.VolumeSnapshotRef.UID = snapshot.UID
 	if snapshot.Spec.VolumeSnapshotClassName != nil {
 		className := *(snapshot.Spec.VolumeSnapshotClassName)
-		patches = append(patches, utils.PatchOp{
-			Op:    "replace",
-			Path:  "/spec/volumeSnapshotClassName",
-			Value: className,
-		})
+		contentClone.Spec.VolumeSnapshotClassName = &className
 	}
-
-	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
+	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
 	if err != nil {
-		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", content.Name, err)
+		klog.V(4).Infof("updating VolumeSnapshotContent[%s] error status failed %v", contentClone.Name, err)
 		return content, err
 	}
 
@@ -1418,55 +1392,24 @@ func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
 
 // addSnapshotFinalizer adds a Finalizer for VolumeSnapshot.
 func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, addSourceFinalizer bool, addBoundFinalizer bool) error {
-	var updatedSnapshot *crdv1.VolumeSnapshot
-	var err error
-
-	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
-	// Unable to find a patch that correctly updated the finalizers if none currently exist.
-	if len(snapshot.ObjectMeta.Finalizers) == 0 {
-		snapshotClone := snapshot.DeepCopy()
-		if addSourceFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
-		}
-		if addBoundFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
-		}
-		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
-		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
-		}
-	} else {
-		// Otherwise, perform a patch
-		var patches []utils.PatchOp
-
-		// If finalizers exist already, add new ones to the end of the array
-		if addSourceFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeSnapshotAsSourceFinalizer,
-			})
-		}
-		if addBoundFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeSnapshotBoundFinalizer,
-			})
-		}
-
-		updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
-		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
-		}
+	snapshotClone := snapshot.DeepCopy()
+	if addSourceFinalizer {
+		snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+	}
+	if addBoundFinalizer {
+		snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+	}
+	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	if err != nil {
+		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
-	_, err = ctrl.storeSnapshotUpdate(updatedSnapshot)
+	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
 		klog.Errorf("failed to update snapshot store %v", err)
 	}
 
-	klog.V(5).Infof("Added protection finalizer to volume snapshot %s", utils.SnapshotKey(updatedSnapshot))
+	klog.V(5).Infof("Added protection finalizer to volume snapshot %s", utils.SnapshotKey(newSnapshot))
 	return nil
 }
 
@@ -1546,21 +1489,14 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 	// Set AnnVolumeSnapshotBeingDeleted if it is not set yet
 	if !metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: set annotation [%s] on content [%s].", utils.AnnVolumeSnapshotBeingDeleted, content.Name)
-		var patches []utils.PatchOp
 		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted, "yes")
-		patches = append(patches, utils.PatchOp{
-			Op:    "replace",
-			Path:  "/metadata/annotations",
-			Value: content.ObjectMeta.GetAnnotations(),
-		})
 
-		patchedContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
+		updateContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), content, metav1.UpdateOptions{})
 		if err != nil {
 			return content, newControllerUpdateError(content.Name, err.Error())
 		}
-
 		// update content if update is successful
-		content = patchedContent
+		content = updateContent
 
 		_, err = ctrl.storeContentUpdate(content)
 		if err != nil {

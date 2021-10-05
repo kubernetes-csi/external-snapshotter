@@ -17,7 +17,6 @@ limitations under the License.
 package common_controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -30,7 +29,8 @@ import (
 	"testing"
 	"time"
 
-	jsonpatch "github.com/evanphx/json-patch"
+	"k8s.io/client-go/util/workqueue"
+
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/fake"
@@ -55,7 +55,6 @@ import (
 	core "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/client-go/util/workqueue"
 	klog "k8s.io/klog/v2"
 )
 
@@ -259,46 +258,6 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		klog.V(4).Infof("saved updated content %s", content.Name)
 		return true, content, nil
 
-	case action.Matches("patch", "volumesnapshotcontents"):
-		content := &crdv1.VolumeSnapshotContent{}
-		action := action.(core.PatchAction)
-
-		// Check and bump object version
-		storedSnapshotContent, found := r.contents[action.GetName()]
-		if found {
-			// Apply patch
-			storedSnapshotBytes, err := json.Marshal(storedSnapshotContent)
-			if err != nil {
-				return true, nil, err
-			}
-			contentPatch, err := jsonpatch.DecodePatch(action.GetPatch())
-			if err != nil {
-				return true, nil, err
-			}
-
-			modified, err := contentPatch.Apply(storedSnapshotBytes)
-			if err != nil {
-				return true, nil, err
-			}
-
-			err = json.Unmarshal(modified, content)
-			if err != nil {
-				return true, nil, err
-			}
-
-			storedVer, _ := strconv.Atoi(content.ResourceVersion)
-			content.ResourceVersion = strconv.Itoa(storedVer + 1)
-		} else {
-			return true, nil, fmt.Errorf("cannot update snapshot content %s: snapshot content not found", action.GetName())
-		}
-
-		// Store the updated object to appropriate places.
-		r.contents[content.Name] = content
-		r.changedObjects = append(r.changedObjects, content)
-		r.changedSinceLastSync++
-		klog.V(4).Infof("saved updated content %s", content.Name)
-		return true, content, nil
-
 	case action.Matches("update", "volumesnapshots"):
 		obj := action.(core.UpdateAction).GetObject()
 		snapshot := obj.(*crdv1.VolumeSnapshot)
@@ -324,45 +283,6 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated snapshot %s", snapshot.Name)
 		return true, snapshot, nil
-
-	case action.Matches("patch", "volumesnapshots"):
-		action := action.(core.PatchAction)
-		// Check and bump object version
-		storedSnapshot, found := r.snapshots[action.GetName()]
-		if found {
-			// Apply patch
-			storedSnapshotBytes, err := json.Marshal(storedSnapshot)
-			if err != nil {
-				return true, nil, err
-			}
-			snapPatch, err := jsonpatch.DecodePatch(action.GetPatch())
-			if err != nil {
-				return true, nil, err
-			}
-
-			modified, err := snapPatch.Apply(storedSnapshotBytes)
-			if err != nil {
-				return true, nil, err
-			}
-
-			err = json.Unmarshal(modified, storedSnapshot)
-			if err != nil {
-				return true, nil, err
-			}
-
-			storedVer, _ := strconv.Atoi(storedSnapshot.ResourceVersion)
-			storedSnapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
-		} else {
-			return true, nil, fmt.Errorf("cannot update snapshot %s: snapshot not found", action.GetName())
-		}
-
-		// Store the updated object to appropriate places.
-		r.snapshots[storedSnapshot.Name] = storedSnapshot
-		r.changedObjects = append(r.changedObjects, storedSnapshot)
-		r.changedSinceLastSync++
-
-		klog.V(4).Infof("saved updated snapshot %s", storedSnapshot.Name)
-		return true, storedSnapshot, nil
 
 	case action.Matches("get", "volumesnapshotcontents"):
 		name := action.(core.GetAction).GetName()
@@ -517,7 +437,6 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 		}
 		gotMap[v.Name] = v
 	}
-
 	if !reflect.DeepEqual(expectedMap, gotMap) {
 		// Print ugly but useful diff of expected and received objects for
 		// easier debugging.
@@ -795,8 +714,6 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshots", reactor.React)
-	client.AddReactor("patch", "volumesnapshotcontents", reactor.React)
-	client.AddReactor("patch", "volumesnapshots", reactor.React)
 	client.AddReactor("update", "volumesnapshotclasses", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshots", reactor.React)
@@ -1252,10 +1169,6 @@ func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapsh
 	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
 
-func testAddSingleSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], false, true)
-}
-
 func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
@@ -1513,10 +1426,8 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 		if funcName == "testAddSnapshotFinalizer" {
 			for _, snapshot := range reactor.snapshots {
 				if test.initialSnapshots[0].Name == snapshot.Name {
-					if !utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
-						utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
-						!utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) &&
-						utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
+					if !utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) && utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
+						!utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) && utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
 						klog.V(4).Infof("test %q succeeded. Finalizers are added to snapshot %s", test.name, snapshot.Name)
 						bHasSnapshotFinalizer = true
 					}
@@ -1524,18 +1435,15 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 				}
 			}
 			if test.expectSuccess && !bHasSnapshotFinalizer {
-				t.Errorf("Test %q: failed to add finalizer to Snapshot %s. Finalizers: %s", test.name, test.initialSnapshots[0].Name, test.initialSnapshots[0].GetFinalizers())
+				t.Errorf("Test %q: failed to add finalizer to Snapshot %s", test.name, test.initialSnapshots[0].Name)
 			}
 		}
 		bHasSnapshotFinalizer = true
 		if funcName == "testRemoveSnapshotFinalizer" {
 			for _, snapshot := range reactor.snapshots {
 				if test.initialSnapshots[0].Name == snapshot.Name {
-					if utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
-						!utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
-						utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) &&
-						!utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
-
+					if utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) && !utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) &&
+						utils.ContainsString(test.initialSnapshots[0].ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) && !utils.ContainsString(snapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
 						klog.V(4).Infof("test %q succeeded. SnapshotFinalizer is removed from Snapshot %s", test.name, snapshot.Name)
 						bHasSnapshotFinalizer = false
 					}
