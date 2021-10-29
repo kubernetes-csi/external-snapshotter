@@ -29,7 +29,7 @@ import (
 // VolumeSnapshot is a user's request for either creating a point-in-time
 // snapshot of a persistent volume, or binding to a pre-existing snapshot.
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Namespaced
+// +kubebuilder:resource:scope=Namespaced,shortName=vs
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ReadyToUse",type=boolean,JSONPath=`.status.readyToUse`,description="Indicates if the snapshot is ready to be used to restore a volume."
 // +kubebuilder:printcolumn:name="SourcePVC",type=string,JSONPath=`.spec.source.persistentVolumeClaimName`,description="If a new snapshot needs to be created, this contains the name of the source PVC from which this snapshot was (or will be) created."
@@ -194,7 +194,7 @@ type VolumeSnapshotStatus struct {
 // name in a VolumeSnapshot object.
 // VolumeSnapshotClasses are non-namespaced
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,shortName=vsclass;vsclasses
 // +kubebuilder:printcolumn:name="Driver",type=string,JSONPath=`.driver`
 // +kubebuilder:printcolumn:name="DeletionPolicy",type=string,JSONPath=`.deletionPolicy`,description="Determines whether a VolumeSnapshotContent created through the VolumeSnapshotClass should be deleted when its bound VolumeSnapshot is deleted."
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
@@ -245,7 +245,7 @@ type VolumeSnapshotClassList struct {
 // VolumeSnapshotContent represents the actual "on-disk" snapshot object in the
 // underlying storage system
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster
+// +kubebuilder:resource:scope=Cluster,shortName=vsc;vscs
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="ReadyToUse",type=boolean,JSONPath=`.status.readyToUse`,description="Indicates if the snapshot is ready to be used to restore a volume."
 // +kubebuilder:printcolumn:name="RestoreSize",type=integer,JSONPath=`.status.restoreSize`,description="Represents the complete size of the snapshot in bytes"
