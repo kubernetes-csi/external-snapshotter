@@ -147,25 +147,40 @@ func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(cont
 		return nil
 	}
 
+	var patches []utils.PatchOp
 	ready := false
-	patch := []utils.PatchOp{
-		{
-			Op:   "replace",
-			Path: "/status/error",
-			Value: &crdv1.VolumeSnapshotError{
-				Time: &metav1.Time{
-					Time: time.Now(),
-				},
-				Message: &message,
-			},
+	contentStatusError := &crdv1.VolumeSnapshotError{
+		Time: &metav1.Time{
+			Time: time.Now(),
 		},
-		{
+		Message: &message,
+	}
+	if content.Status == nil {
+		// Initialize status if nil
+		patches = append(patches, utils.PatchOp{
+			Op:   "replace",
+			Path: "/status",
+			Value: &crdv1.VolumeSnapshotContentStatus{
+				ReadyToUse: &ready,
+				Error:      contentStatusError,
+			},
+		})
+	} else {
+		// Patch status if non-nil
+		patches = append(patches, utils.PatchOp{
+			Op:    "replace",
+			Path:  "/status/error",
+			Value: contentStatusError,
+		})
+		patches = append(patches, utils.PatchOp{
 			Op:    "replace",
 			Path:  "/status/readyToUse",
 			Value: &ready,
-		},
+		})
+
 	}
-	newContent, err := utils.PatchVolumeSnapshotContent(content, patch, ctrl.clientset, "status")
+
+	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset, "status")
 
 	// Emit the event even if the status update fails so that user can see the error
 	ctrl.eventRecorder.Event(newContent, eventtype, reason, message)
