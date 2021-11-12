@@ -33,7 +33,9 @@ spec:
       serviceAccount: snapshot-controller
       containers:
         - name: snapshot-controller
-          image: k8s.gcr.io/sig-storage/snapshot-controller:v4.2.1
+          # TODO GG: Replace w/ v5.0.0 once released
+          # https://github.com/kubernetes-csi/external-snapshotter/issues/610
+          image: gcr.io/k8s-staging-sig-storage/snapshot-controller:v5.0.0-rc1
           args:
             - "--v=5"
             - "--leader-election=true"
