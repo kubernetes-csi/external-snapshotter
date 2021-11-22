@@ -101,11 +101,11 @@ spec:
           args:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
-            - "--nodeid=$(KUBE_NODE_NAME)"
+            - "--nodeid=$(NODE_NAME)"
           env:
             - name: CSI_ENDPOINT
               value: unix:///csi/csi.sock
-            - name: KUBE_NODE_NAME
+            - name: NODE_NAME
               valueFrom:
                 fieldRef:
                   apiVersion: v1
