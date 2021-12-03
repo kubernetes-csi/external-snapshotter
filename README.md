@@ -62,20 +62,19 @@ If your Kubernetes distribution does not bundle the snapshot controller, you may
 There is a new validating webhook server which provides tightened validation on snapshot objects. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs. More details [below](#validating-webhook).
 
 Install Snapshot CRDs:
-* kubectl create -f client/config/crd
+* kubectl kustomize client/config/crd | kubectl create -f -
 * https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
 * Do this once per cluster
 
 Install Common Snapshot Controller:
 * Update the namespace to an appropriate value for your environment (e.g. kube-system)
-* kubectl create -f deploy/kubernetes/snapshot-controller
-* https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/snapshot-controller
+* kubectl -n kube-system kustomize deploy/kubernetes/snapshot-controller | kubectl create -f -
 * Do this once per cluster
 
 Install CSI Driver:
 * Follow instructions provided by your CSI Driver vendor.
 * Here is an example to install the sample hostpath CSI driver
-  * kubectl create -f deploy/kubernetes/csi-snapshotter
+  * kubectl kustomize deploy/kubernetes/csi-snapshotter | kubectl create -f -
   * https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/csi-snapshotter
 
 ### Validating Webhook
