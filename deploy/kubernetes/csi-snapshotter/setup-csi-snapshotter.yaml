@@ -118,4 +118,4 @@ spec:
               mountPath: /csi
       volumes:
         - name: socket-dir
-          emptyDir:
+          emptyDir: {}
