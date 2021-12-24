@@ -109,6 +109,20 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * `--port`: Secure port that the webhook listens on (default 443)
 
+### Distributed Snapshotting
+
+The distributed snapshotting feature is provided to handle snapshot operations for local volumes. To use this functionality, the snapshotter sidecar should be deployed along with the csi driver on each node so that every node manages the snapshot operations only for the volumes local to that node. This feature can be enabled by setting the following command line options to true:
+
+#### Snapshot controller option
+
+* `--enable-distributed-snapshotting`: This option lets the snapshot controller know that distributed snapshotting is enabled and the snapshotter sidecar will be running on each node. Off by default. 
+
+#### CSI external snapshotter sidecar option
+
+* `--node-deployment`: Enables the snapshotter sidecar to handle snapshot operations for the volumes local to the node on which it is deployed. Off by default. 
+
+Other than this, the NODE_NAME environment variable must be set where the CSI snapshotter sidecar is deployed. The value of NODE_NAME should be the name of the node where the sidecar is running.
+
 ### Snapshot controller command line options
 
 #### Important optional arguments that are highly recommended to be used
@@ -134,7 +148,9 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * `--retry-interval-start`: Initial retry interval of failed volume snapshot creation or deletion. It doubles with each failure, up to retry-interval-max. Default value is 1 second.
 
-*`--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
+* `--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
+
+* `--enable-distributed-snapshotting` : Enables each node to handle snapshots for the volumes local to that node. Off by default. It should be set to true only if `--node-deployment` parameter for the csi external snapshotter sidecar is set to true. See https://github.com/kubernetes-csi/external-snapshotter/blob/master/README.md#distributed-snapshotting for details.
 
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the snapshot controller uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
@@ -172,9 +188,11 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * `--worker-threads`: Number of worker threads for running create snapshot and delete snapshot operations. Default value is 10.
 
+* `--node-deployment`: Enables deploying the sidecar controller together with a CSI driver on nodes to manage node-local volumes. Off by default. This should be set to true along with the `--enable-distributed-snapshotting` in the snapshot controller parameters to make use of distributed snapshotting. See https://github.com/kubernetes-csi/external-snapshotter/blob/master/README.md#distributed-snapshotting for details.
+
 * `--retry-interval-start`: Initial retry interval of failed volume snapshot creation or deletion. It doubles with each failure, up to retry-interval-max. Default value is 1 second.
 
-*`--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
+* `--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the CSI external-snapshotter uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the external-snapshotter does not run as a Kubernetes pod, e.g. for debugging.
 

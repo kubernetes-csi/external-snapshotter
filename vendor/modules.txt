@@ -638,6 +638,10 @@ k8s.io/client-go/util/workqueue
 ## explicit; go 1.16
 k8s.io/component-base/metrics
 k8s.io/component-base/version
+# k8s.io/component-helpers v0.23.0 => k8s.io/component-helpers v0.23.0
+## explicit; go 1.16
+k8s.io/component-helpers/scheduling/corev1
+k8s.io/component-helpers/scheduling/corev1/nodeaffinity
 # k8s.io/klog v1.0.0
 ## explicit; go 1.12
 k8s.io/klog
