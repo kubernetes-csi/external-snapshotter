@@ -838,10 +838,12 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Snapshot().V1().VolumeSnapshotContents(),
 		informerFactory.Snapshot().V1().VolumeSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
+		nil,
 		metricsManager,
 		60*time.Second,
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
+		false,
 	)
 
 	ctrl.eventRecorder = record.NewFakeRecorder(1000)
