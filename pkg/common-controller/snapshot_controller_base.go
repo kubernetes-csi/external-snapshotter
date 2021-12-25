@@ -57,6 +57,8 @@ type csiSnapshotCommonController struct {
 	classListerSynced    cache.InformerSynced
 	pvcLister            corelisters.PersistentVolumeClaimLister
 	pvcListerSynced      cache.InformerSynced
+	nodeLister           corelisters.NodeLister
+	nodeListerSynced     cache.InformerSynced
 
 	snapshotStore cache.Store
 	contentStore  cache.Store
@@ -64,6 +66,8 @@ type csiSnapshotCommonController struct {
 	metricsManager metrics.MetricsManager
 
 	resyncPeriod time.Duration
+
+	enableDistributedSnapshotting bool
 }
 
 // NewCSISnapshotController returns a new *csiSnapshotCommonController
@@ -74,10 +78,12 @@ func NewCSISnapshotCommonController(
 	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
+	nodeInformer coreinformers.NodeInformer,
 	metricsManager metrics.MetricsManager,
 	resyncPeriod time.Duration,
 	snapshotRateLimiter workqueue.RateLimiter,
 	contentRateLimiter workqueue.RateLimiter,
+	enableDistributedSnapshotting bool,
 ) *csiSnapshotCommonController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -125,6 +131,13 @@ func NewCSISnapshotCommonController(
 	ctrl.classLister = volumeSnapshotClassInformer.Lister()
 	ctrl.classListerSynced = volumeSnapshotClassInformer.Informer().HasSynced
 
+	ctrl.enableDistributedSnapshotting = enableDistributedSnapshotting
+
+	if enableDistributedSnapshotting {
+		ctrl.nodeLister = nodeInformer.Lister()
+		ctrl.nodeListerSynced = nodeInformer.Informer().HasSynced
+	}
+
 	return ctrl
 }
 
@@ -135,7 +148,12 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 	klog.Infof("Starting snapshot controller")
 	defer klog.Infof("Shutting snapshot controller")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced, ctrl.pvcListerSynced) {
+	informersSynced := []cache.InformerSynced{ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced, ctrl.pvcListerSynced}
+	if ctrl.enableDistributedSnapshotting {
+		informersSynced = append(informersSynced, ctrl.nodeListerSynced)
+	}
+
+	if !cache.WaitForCacheSync(stopCh, informersSynced...) {
 		klog.Errorf("Cannot sync caches")
 		return
 	}

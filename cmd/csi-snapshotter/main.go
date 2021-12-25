@@ -26,8 +26,12 @@ import (
 	"strings"
 	"time"
 
+	utils "github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
+
 	"google.golang.org/grpc"
 
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -75,11 +79,12 @@ var (
 	kubeAPIQPS   = flag.Float64("kube-api-qps", 5, "QPS to use while communicating with the kubernetes apiserver. Defaults to 5.0.")
 	kubeAPIBurst = flag.Int("kube-api-burst", 10, "Burst to use while communicating with the kubernetes apiserver. Defaults to 10.")
 
-	metricsAddress     = flag.String("metrics-address", "", "(deprecated) The TCP network address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
-	httpEndpoint       = flag.String("http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
-	metricsPath        = flag.String("metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
-	retryIntervalStart = flag.Duration("retry-interval-start", time.Second, "Initial retry interval of failed volume snapshot creation or deletion. It doubles with each failure, up to retry-interval-max. Default is 1 second.")
-	retryIntervalMax   = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
+	metricsAddress       = flag.String("metrics-address", "", "(deprecated) The TCP network address where the prometheus metrics endpoint will listen (example: `:8080`). The default is empty string, which means metrics endpoint is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
+	httpEndpoint         = flag.String("http-endpoint", "", "The TCP network address where the HTTP server for diagnostics, including metrics and leader election health check, will listen (example: `:8080`). The default is empty string, which means the server is disabled. Only one of `--metrics-address` and `--http-endpoint` can be set.")
+	metricsPath          = flag.String("metrics-path", "/metrics", "The HTTP path where prometheus metrics will be exposed. Default is `/metrics`.")
+	retryIntervalStart   = flag.Duration("retry-interval-start", time.Second, "Initial retry interval of failed volume snapshot creation or deletion. It doubles with each failure, up to retry-interval-max. Default is 1 second.")
+	retryIntervalMax     = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
+	enableNodeDeployment = flag.Bool("node-deployment", false, "Enables deploying the sidecar controller together with a CSI driver on nodes to manage snapshots for node-local volumes.")
 )
 
 var (
@@ -97,6 +102,12 @@ func main() {
 		os.Exit(0)
 	}
 	klog.Infof("Version: %s", version)
+
+	// If distributed snapshotting is enabled and leaderElection is also set to true, return
+	if *enableNodeDeployment && *leaderElection {
+		klog.Error("Leader election cannot happen when node-deployment is set to true")
+		os.Exit(1)
+	}
 
 	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
 	config, err := buildConfig(*kubeconfig)
@@ -122,6 +133,19 @@ func main() {
 
 	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
 	coreFactory := coreinformers.NewSharedInformerFactory(kubeClient, *resyncPeriod)
+	var snapshotContentfactory informers.SharedInformerFactory
+	if *enableNodeDeployment {
+		node := os.Getenv("NODE_NAME")
+		if node == "" {
+			klog.Fatal("The NODE_NAME environment variable must be set when using --enable-node-deployment.")
+		}
+		snapshotContentfactory = informers.NewSharedInformerFactoryWithOptions(snapClient, *resyncPeriod, informers.WithTweakListOptions(func(lo *v1.ListOptions) {
+			lo.LabelSelector = labels.Set{utils.VolumeSnapshotContentManagedByLabel: node}.AsSelector().String()
+		}),
+		)
+	} else {
+		snapshotContentfactory = factory
+	}
 
 	// Add Snapshot types to the default Kubernetes so events can be logged for them
 	snapshotscheme.AddToScheme(scheme.Scheme)
@@ -202,7 +226,7 @@ func main() {
 		snapClient,
 		kubeClient,
 		driverName,
-		factory.Snapshot().V1().VolumeSnapshotContents(),
+		snapshotContentfactory.Snapshot().V1().VolumeSnapshotContents(),
 		factory.Snapshot().V1().VolumeSnapshotClasses(),
 		snapShotter,
 		*csiTimeout,
@@ -216,6 +240,7 @@ func main() {
 	run := func(context.Context) {
 		// run...
 		stopCh := make(chan struct{})
+		snapshotContentfactory.Start(stopCh)
 		factory.Start(stopCh)
 		coreFactory.Start(stopCh)
 		go ctrl.Run(*threads, stopCh)

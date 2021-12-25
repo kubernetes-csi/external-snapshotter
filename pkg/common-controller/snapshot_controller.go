@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
+	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	klog "k8s.io/klog/v2"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
@@ -669,6 +670,18 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 			DeletionPolicy:          class.DeletionPolicy,
 			Driver:                  class.Driver,
 		},
+	}
+
+	if ctrl.enableDistributedSnapshotting {
+		nodeName, err := ctrl.getManagedByNode(volume)
+		if err != nil {
+			return nil, err
+		}
+		if nodeName != "" {
+			snapshotContent.Labels = map[string]string{
+				utils.VolumeSnapshotContentManagedByLabel: nodeName,
+			}
+		}
 	}
 
 	// Set AnnDeletionSecretRefName and AnnDeletionSecretRefNamespace
@@ -1654,4 +1667,28 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapsho
 	}
 
 	return updatedSnapshot, nil
+}
+
+func (ctrl *csiSnapshotCommonController) getManagedByNode(pv *v1.PersistentVolume) (string, error) {
+	if pv.Spec.NodeAffinity == nil {
+		klog.V(5).Infof("NodeAffinity not set for pv %s", pv.Name)
+		return "", nil
+	}
+	nodeSelectorTerms := pv.Spec.NodeAffinity.Required
+
+	nodes, err := ctrl.nodeLister.List(labels.Everything())
+	if err != nil {
+		klog.Errorf("failed to get the list of nodes: %q", err)
+		return "", err
+	}
+
+	for _, node := range nodes {
+		match, _ := corev1helpers.MatchNodeSelectorTerms(node, nodeSelectorTerms)
+		if match {
+			return node.Name, nil
+		}
+	}
+
+	klog.Errorf("failed to find nodes that match the node affinity requirements for pv[%s]", pv.Name)
+	return "", nil
 }
