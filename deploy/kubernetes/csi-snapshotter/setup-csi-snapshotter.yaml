@@ -84,9 +84,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-snapshotter
-          # TODO GG: Replace w/ v5.0.0 once released
-          # https://github.com/kubernetes-csi/external-snapshotter/issues/610
-          image: gcr.io/k8s-staging-sig-storage/csi-snapshotter:v5.0.0-rc1
+          image: gcr.io/k8s-staging-sig-storage/csi-snapshotter:v5.0.0
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
