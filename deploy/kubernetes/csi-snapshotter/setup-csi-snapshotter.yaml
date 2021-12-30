@@ -84,7 +84,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: csi-snapshotter
-          image: k8s.gcr.io/sig-storage/csi-snapshotter:v4.2.1
+          image: gcr.io/k8s-staging-sig-storage/csi-snapshotter:v5.0.0
           args:
             - "--v=5"
             - "--csi-address=$(ADDRESS)"
