@@ -1,0 +1,16 @@
+name: Static Checks
+on:
+    pull_request: {}
+    push: {}
+jobs:
+    go_lint:
+        name: Go Lint
+        runs-on: ubuntu-18.04
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@master
+            - name: Run linter
+              uses: golangci/golangci-lint-action@v2
+              with:
+                  version: v1.37
+                  args: -E=gofmt,deadcode,unused,varcheck,ineffassign,golint,misspell,exportloopref --timeout=30m0s
