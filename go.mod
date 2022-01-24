@@ -5,6 +5,7 @@ go 1.15
 require (
 	github.com/container-storage-interface/spec v1.2.0
 	github.com/fsnotify/fsnotify v1.4.9
+	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.4.3
 	github.com/golang/protobuf v1.4.3
 	github.com/google/gofuzz v1.1.0
@@ -16,6 +17,8 @@ require (
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.10.0
 	github.com/spf13/cobra v1.1.1
+	golang.org/x/crypto v0.0.0-20201216223049-8b5274cf687f // indirect
+	golang.org/x/text v0.3.7 // indirect
 	google.golang.org/grpc v1.29.0
 	k8s.io/api v0.20.0
 	k8s.io/apimachinery v0.20.0
