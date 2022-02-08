@@ -1,4 +1,4 @@
-FROM gcr.io/distroless/base:latest
+FROM gcr.io/distroless/static:latest
 LABEL maintainers="Kubernetes Authors"
 LABEL description="Snapshot Validation Webhook"
 ARG binary=./bin/snapshot-validation-webhook
