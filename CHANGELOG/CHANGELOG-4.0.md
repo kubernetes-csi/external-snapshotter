@@ -8,12 +8,12 @@
 
 ### Other (Cleanup or Flake)
 
-- --http-endpoint will now correctly be used for the metrics server address when --metrics-address is not provided. (#497, @ggriffiths)
-- Changed the webhook image from distroless/base to distroless/static. (#550, @WanzenBug)
+- --http-endpoint will now correctly be used for the metrics server address when --metrics-address is not provided. ([#497](https://github.com/kubernetes-csi/external-snapshotter/pull/497), [@ggriffiths](https://github.com/ggriffiths))
+- Changed the webhook image from distroless/base to distroless/static. ([#550](https://github.com/kubernetes-csi/external-snapshotter/pull/550), [@WanzenBug](https://github.com/WanzenBug))
 
 ### Uncategorized
 
-- Cherry-pick #470: Retain CreateSnapshot Error (#547, @ialidzhikov)
+- Cherry-pick #470: Retain CreateSnapshot Error ([#547](https://github.com/kubernetes-csi/external-snapshotter/pull/547), [@ialidzhikov](https://github.com/ialidzhikov))
 
 ## Dependencies
 
