@@ -1,3 +1,31 @@
+# Release notes for v4.0.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v4.0.0
+
+## Changes by Kind
+
+### Other (Cleanup or Flake)
+
+- --http-endpoint will now correctly be used for the metrics server address when --metrics-address is not provided. (#497, @ggriffiths)
+- Changed the webhook image from distroless/base to distroless/static. (#550, @WanzenBug)
+
+### Uncategorized
+
+- Cherry-pick #470: Retain CreateSnapshot Error (#547, @ialidzhikov)
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v4.0.0
 
 [Documentation](https://kubernetes-csi.github.io)
