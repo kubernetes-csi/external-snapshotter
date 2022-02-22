@@ -328,6 +328,12 @@ type VolumeSnapshotContentSpec struct {
 	// This field is immutable after creation.
 	// Required.
 	Source VolumeSnapshotContentSource `json:"source" protobuf:"bytes,5,opt,name=source"`
+
+	// SourceVolumeMode is the mode of the volume whose snapshot is taken.
+	// Can be either “Filesystem” or “Block”.
+	// If not specified, it indicates the source volume's mode is unknown.
+	// +optional
+	SourceVolumeMode *SourceVolumeMode `json:"sourceVolumeMode" protobuf:"bytes,6,opt,name=sourceVolumeMode"`
 }
 
 // VolumeSnapshotContentSource represents the CSI source of a snapshot.
@@ -438,3 +444,14 @@ type VolumeSnapshotError struct {
 	// +optional
 	Message *string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
 }
+
+// SourceVolumeMode describes the volume mode of the source volume from which a snapshot was created.
+// +enum
+type SourceVolumeMode string
+
+const (
+	// SourceVolumeModeBlock describes a snapshot that is created from a raw block volume.
+	SourceVolumeModeBlock SourceVolumeMode = "Block"
+	// SourceVolumeModeFilesystem describes a snapshot that is created from a filesystem volume.
+	SourceVolumeModeFilesystem SourceVolumeMode = "Filesystem"
+)

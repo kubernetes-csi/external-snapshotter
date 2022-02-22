@@ -28,7 +28,7 @@ then
   TMP_DIR=$(mktemp -d);
   cd $TMP_DIR;
   go mod init tmp;
-  go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.4.0;
+  go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.8.0;
   rm -rf $TMP_DIR;
   CONTROLLER_GEN=$(which controller-gen)
 fi
@@ -39,7 +39,7 @@ then
   exit 1;
 fi
 
-$CONTROLLER_GEN crd:crdVersions=v1,trivialVersions=false paths=${SCRIPT_ROOT}/apis/volumesnapshot/v1
+$CONTROLLER_GEN crd:crdVersions=v1 paths=${SCRIPT_ROOT}/apis/volumesnapshot/v1
 
 # To use your own boilerplate text use:
 #   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt

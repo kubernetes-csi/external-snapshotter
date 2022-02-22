@@ -10,37 +10,51 @@ This is the script to update clientset/informers/listers and API deepcopy code u
 
 Make sure to run this script after making changes to /client/apis/volumesnapshot/v1/types.go.
 
-Pre-requisites for running update-generated-code.sh:
+### Pre-requisites for running update-generated-code.sh:
 
-* GOPATH=~/go
+* Set `GOPATH`
+    ```bash
+    export GOPATH=~/go
+    ```
 
-* Ensure external-snapshotter repository is at ~/go/src/github.com/kubernetes-csi/external-snapshotter
+* Ensure external-snapshotter repository is at `~/go/src/github.com/kubernetes-csi/external-snapshotter`
 
-* git clone https://github.com/kubernetes/code-generator.git under ~/go/src/k8s.io
+* Clone code-generator 
+    ```bash
+    cd ~/go/src/k8s.io
+    git clone https://github.com/kubernetes/code-generator.git 
+    ```
+* Checkout latest release version
+    ```bash
+    git checkout v0.23.4
+    ```
 
-* git checkout to version v0.19.0
+* Ensure the file `generate-groups.sh` exists
+
+    ```bash
+    ls ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh
+    ```
+  
+Update generated client code in external-snapshotter
+    
 ```bash
-git checkout v0.19.0
-```
-
-* Ensure the path exist ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh
-
-Run: ./hack/update-generated-code.sh from the client directory.
+    cd ~/go/src/github.com/kubernetes-csi/external-snapshotter/client
+    ./hack/update-generated-code.sh
+``` 
 
 Once you run the script, you will get an output as follows:
+    
 ```bash
-Generating deepcopy funcs
-Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v4/clientset
-Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v4/listers
-Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v4/informers
-
+    Generating deepcopy funcs
+    Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v4/clientset
+    Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v4/listers
+    Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v4/informers
+    
 ```
-
-NOTE: We need to keep both v1beta1 and v1 snapshot clients at the current phase.
 
 ## update-crd.sh
 
-NOTE: We need to serve both v1beta1 and v1 snapshot APIs and keep storage version at v1beta1 at the current phase.
+NOTE: `v1beta1` APIs are deprecated and will be removed in a future release.
 
 This is the script to update CRD yaml files under /client/config/crd/ based on types.go file.
 
@@ -203,3 +217,5 @@ status:
   conditions: []
   storedVersions: []
 ``````
+
+* Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
