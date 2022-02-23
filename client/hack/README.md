@@ -58,7 +58,7 @@ For example, the following command will add a metadata section for a nested obje
 ```bash
 ./hack/update-crd.sh; git diff
 +        metadata:
-+          description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
++          description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
            type: object
 ```
 
