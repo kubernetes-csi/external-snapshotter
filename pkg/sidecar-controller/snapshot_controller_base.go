@@ -25,6 +25,7 @@ import (
 	storageinformers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions/volumesnapshot/v1"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/snapshotter"
+	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -94,8 +95,22 @@ func NewCSISnapshotSideCarController(
 
 	volumeSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { ctrl.enqueueContentWork(obj) },
-			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueContentWork(newObj) },
+			AddFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
+			UpdateFunc: func(oldObj, newObj interface{}) {
+				// If the CSI driver fails to create a snapshot and returns a failure, the CSI Snapshotter sidecar
+				// will remove the "AnnVolumeSnapshotBeingCreated" annotation from the VolumeSnapshotContent.
+				// This will trigger a VolumeSnapshotContent update and it will cause the obj to be re-queued immediately
+				// and CSI CreateSnapshot will be called again without exponential backoff.
+				// So we are skipping the re-queue here to avoid CreateSnapshot being called without exponential backoff.
+				newSnapContent := newObj.(*crdv1.VolumeSnapshotContent)
+				oldSnapContent := oldObj.(*crdv1.VolumeSnapshotContent)
+				_, newExists := newSnapContent.ObjectMeta.Annotations[utils.AnnVolumeSnapshotBeingCreated]
+				_, oldExists := oldSnapContent.ObjectMeta.Annotations[utils.AnnVolumeSnapshotBeingCreated]
+				if !newExists && oldExists {
+					return
+				}
+				ctrl.enqueueContentWork(newObj)
+			},
 			DeleteFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
 		},
 		ctrl.resyncPeriod,
