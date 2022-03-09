@@ -104,7 +104,7 @@ func NewCSISnapshotSideCarController(
 				// and CSI CreateSnapshot will be called again without exponential backoff.
 				// So we are skipping the re-queue here to avoid CreateSnapshot being called without exponential backoff.
 				newSnapContent := newObj.(*crdv1.VolumeSnapshotContent)
-				if newSnapContent.Status.Error != nil {
+				if newSnapContent.Status != nil && newSnapContent.Status.Error != nil {
 					oldSnapContent := oldObj.(*crdv1.VolumeSnapshotContent)
 					_, newExists := newSnapContent.ObjectMeta.Annotations[utils.AnnVolumeSnapshotBeingCreated]
 					_, oldExists := oldSnapContent.ObjectMeta.Annotations[utils.AnnVolumeSnapshotBeingCreated]
