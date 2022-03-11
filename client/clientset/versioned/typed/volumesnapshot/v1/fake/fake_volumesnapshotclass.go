@@ -1,5 +1,5 @@
 /*
-Copyright 2020 The Kubernetes Authors.
+Copyright 2022 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -99,7 +99,7 @@ func (c *FakeVolumeSnapshotClasses) Update(ctx context.Context, volumeSnapshotCl
 // Delete takes name of the volumeSnapshotClass and deletes it. Returns an error if one occurs.
 func (c *FakeVolumeSnapshotClasses) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(volumesnapshotclassesResource, name), &volumesnapshotv1.VolumeSnapshotClass{})
+		Invokes(testing.NewRootDeleteActionWithOptions(volumesnapshotclassesResource, name, opts), &volumesnapshotv1.VolumeSnapshotClass{})
 	return err
 }
 
