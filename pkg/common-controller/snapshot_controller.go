@@ -32,10 +32,10 @@ import (
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	klog "k8s.io/klog/v2"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/metrics"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
-	webhook "github.com/kubernetes-csi/external-snapshotter/v4/pkg/validation-webhook"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/metrics"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
+	webhook "github.com/kubernetes-csi/external-snapshotter/v6/pkg/validation-webhook"
 )
 
 // ==================================================================

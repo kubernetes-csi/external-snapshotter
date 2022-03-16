@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 )
 

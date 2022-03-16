@@ -19,7 +19,7 @@ package common_controller
 import (
 	"testing"
 
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 )
 

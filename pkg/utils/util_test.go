@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

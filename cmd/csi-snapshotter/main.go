@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	utils "github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
+	utils "github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 
 	"google.golang.org/grpc"
 
@@ -44,12 +44,12 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
-	controller "github.com/kubernetes-csi/external-snapshotter/v4/pkg/sidecar-controller"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/snapshotter"
+	controller "github.com/kubernetes-csi/external-snapshotter/v6/pkg/sidecar-controller"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/snapshotter"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/scheme"
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/scheme"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v5/informers/externalversions"
 	coreinformers "k8s.io/client-go/informers"
 )
 

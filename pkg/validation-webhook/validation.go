@@ -19,8 +19,8 @@ package webhook
 import (
 	"fmt"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
+	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1beta1"
 )
 
 // ValidateV1Snapshot performs additional strict validation.
