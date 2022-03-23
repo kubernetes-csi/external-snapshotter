@@ -40,12 +40,12 @@ import (
 	klog "k8s.io/klog/v2"
 
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
-	controller "github.com/kubernetes-csi/external-snapshotter/v4/pkg/common-controller"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/metrics"
+	controller "github.com/kubernetes-csi/external-snapshotter/v6/pkg/common-controller"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/metrics"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned/scheme"
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/scheme"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v5/informers/externalversions"
 	coreinformers "k8s.io/client-go/informers"
 )
 
