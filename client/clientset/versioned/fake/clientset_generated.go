@@ -19,11 +19,11 @@ limitations under the License.
 package fake
 
 import (
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned"
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/typed/volumesnapshot/v1"
-	fakesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/typed/volumesnapshot/v1/fake"
-	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/typed/volumesnapshot/v1beta1"
-	fakesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/typed/volumesnapshot/v1beta1/fake"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1"
+	fakesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1/fake"
+	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1beta1"
+	fakesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1beta1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

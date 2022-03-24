@@ -23,9 +23,9 @@ import (
 	sync "sync"
 	time "time"
 
-	versioned "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned"
-	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v5/informers/externalversions/internalinterfaces"
-	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v5/informers/externalversions/volumesnapshot"
+	versioned "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/internalinterfaces"
+	volumesnapshot "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
