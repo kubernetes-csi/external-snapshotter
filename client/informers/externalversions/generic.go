@@ -21,8 +21,8 @@ package externalversions
 import (
 	"fmt"
 
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
-	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1beta1"
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1beta1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )

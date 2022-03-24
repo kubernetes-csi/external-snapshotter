@@ -21,8 +21,8 @@ package v1beta1
 import (
 	"net/http"
 
-	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1beta1"
-	"github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/scheme"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1beta1"
+	"github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 

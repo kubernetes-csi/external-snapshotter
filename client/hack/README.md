@@ -46,9 +46,9 @@ Once you run the script, you will get an output as follows:
     
 ```bash
     Generating deepcopy funcs
-    Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v5/clientset
-    Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v5/listers
-    Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v5/informers
+    Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/clientset
+    Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/listers
+    Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/informers
     
 ```
 

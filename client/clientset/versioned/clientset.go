@@ -22,8 +22,8 @@ import (
 	"fmt"
 	"net/http"
 
-	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/typed/volumesnapshot/v1"
-	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/typed/volumesnapshot/v1beta1"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1"
+	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1beta1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
