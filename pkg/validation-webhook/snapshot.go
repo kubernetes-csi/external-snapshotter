@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"reflect"
 
-	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1beta1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -271,14 +271,15 @@ func decideSnapshotClassV1beta1(snapClass, oldSnapClass *volumesnapshotv1beta1.V
 			continue
 		}
 		if _, ok := driverToSnapshotDefautlMap[snapshotClass.Driver]; ok {
-			// Log an error or something here because this means that old behavior is present.
 			// We probably should just preserve behavior in this case.
-			return reviewResponse
+			// but not let the problem get worse. having a single one will
+			// suffice.
+			klog.V(2).Infof("snapshot driver: %v has multiple default classes", snapshotClass.Driver)
 		}
 		driverToSnapshotDefautlMap[snapshotClass.Driver] = snapshotClass
 	}
 
-	if _, ok := driverToSnapshotDefautlMap[snapClass.Driver]; !ok {
+	if _, ok := driverToSnapshotDefautlMap[snapClass.Driver]; ok {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = fmt.Sprintf("default snapshot class already exits for driver: %v", snapClass.Driver)
 		return reviewResponse

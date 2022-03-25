@@ -26,11 +26,11 @@ import (
 	"os"
 	"time"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
 	"github.com/spf13/cobra"
 
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions"
 	v1 "k8s.io/api/admission/v1"
 	"k8s.io/api/admission/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
