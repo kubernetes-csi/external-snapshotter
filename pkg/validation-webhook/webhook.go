@@ -23,19 +23,27 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"time"
 
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v4/clientset/versioned"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1"
 	"github.com/spf13/cobra"
 
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v4/informers/externalversions"
 	v1 "k8s.io/api/admission/v1"
 	"k8s.io/api/admission/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
 )
 
 var (
-	certFile string
-	keyFile  string
-	port     int
+	certFile       string
+	keyFile        string
+	kubeconfigFile string
+	port           int
 )
 
 // CmdWebhook is used by Cobra.
@@ -58,13 +66,15 @@ func init() {
 		"Secure port that the webhook listens on")
 	CmdWebhook.MarkFlagRequired("tls-cert-file")
 	CmdWebhook.MarkFlagRequired("tls-private-key-file")
+	// Add optional flag for kubeconfig
+	CmdWebhook.Flags().StringVar(&kubeconfigFile, "kubeconfig", "", "kubeconfig file to use for volumesnapshotclasses")
 }
 
 // admitv1beta1Func handles a v1beta1 admission
-type admitv1beta1Func func(v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
+type admitv1beta1Func func(v1beta1.AdmissionReview, storagelisters.VolumeSnapshotClassLister) *v1beta1.AdmissionResponse
 
 // admitv1beta1Func handles a v1 admission
-type admitv1Func func(v1.AdmissionReview) *v1.AdmissionResponse
+type admitv1Func func(v1.AdmissionReview, storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse
 
 // admitHandler is a handler, for both validators and mutators, that supports multiple admission review versions
 type admitHandler struct {
@@ -80,16 +90,16 @@ func newDelegateToV1AdmitHandler(f admitv1Func) admitHandler {
 }
 
 func delegateV1beta1AdmitToV1(f admitv1Func) admitv1beta1Func {
-	return func(review v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
+	return func(review v1beta1.AdmissionReview, lister storagelisters.VolumeSnapshotClassLister) *v1beta1.AdmissionResponse {
 		in := v1.AdmissionReview{Request: convertAdmissionRequestToV1(review.Request)}
-		out := f(in)
+		out := f(in, lister)
 		return convertAdmissionResponseToV1beta1(out)
 	}
 }
 
 // serve handles the http portion of a request prior to handing to an admit
 // function
-func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
+func serve(w http.ResponseWriter, r *http.Request, admit admitHandler, lister storagelisters.VolumeSnapshotClassLister) {
 	var body []byte
 	if r.Body == nil {
 		msg := "Expected request body to be non-empty"
@@ -137,7 +147,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
 		}
 		responseAdmissionReview := &v1beta1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = admit.v1beta1(*requestedAdmissionReview)
+		responseAdmissionReview.Response = admit.v1beta1(*requestedAdmissionReview, lister)
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	case v1.SchemeGroupVersion.WithKind("AdmissionReview"):
@@ -150,7 +160,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
 		}
 		responseAdmissionReview := &v1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = admit.v1(*requestedAdmissionReview)
+		responseAdmissionReview.Response = admit.v1(*requestedAdmissionReview, lister)
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	default:
@@ -173,21 +183,29 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
 	}
 }
 
-func serveSnapshotRequest(w http.ResponseWriter, r *http.Request) {
-	serve(w, r, newDelegateToV1AdmitHandler(admitSnapshot))
+type serveWebhook struct {
+	lister storagelisters.VolumeSnapshotClassLister
 }
 
-func startServer(ctx context.Context, tlsConfig *tls.Config, cw *CertWatcher) error {
+func (s serveWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	serve(w, r, newDelegateToV1AdmitHandler(admitSnapshot), s.lister)
+}
+
+func startServer(ctx context.Context, tlsConfig *tls.Config, cw *CertWatcher, lister storagelisters.VolumeSnapshotClassLister) error {
 	go func() {
 		klog.Info("Starting certificate watcher")
 		if err := cw.Start(ctx); err != nil {
 			klog.Errorf("certificate watcher error: %v", err)
 		}
 	}()
+	// Pipe through the informer at some point here.
+	s := &serveWebhook{
+		lister: lister,
+	}
 
 	fmt.Println("Starting webhook server")
 	mux := http.NewServeMux()
-	mux.HandleFunc("/volumesnapshot", serveSnapshotRequest)
+	mux.Handle("/volumesnapshot", s)
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, req *http.Request) { w.Write([]byte("ok")) })
 	srv := &http.Server{
 		Handler:   mux,
@@ -215,7 +233,33 @@ func main(cmd *cobra.Command, args []string) {
 		GetCertificate: cw.GetCertificate,
 	}
 
-	if err := startServer(ctx, tlsConfig, cw); err != nil {
+	// Create an indexer.
+	// Create the client config. Use kubeconfig if given, otherwise assume in-cluster.
+	config, err := buildConfig(kubeconfigFile)
+	if err != nil {
+		klog.Error(err.Error())
+		os.Exit(1)
+	}
+	snapClient, err := clientset.NewForConfig(config)
+	if err != nil {
+		klog.Errorf("Error building snapshot clientset: %s", err.Error())
+		os.Exit(1)
+	}
+
+	r := 0 * time.Second
+	resyncPeriod := &r
+
+	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
+	lister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
+
+	if err := startServer(ctx, tlsConfig, cw, lister); err != nil {
 		klog.Fatalf("server stopped: %v", err)
 	}
+}
+
+func buildConfig(kubeconfig string) (*rest.Config, error) {
+	if kubeconfig != "" {
+		return clientcmd.BuildConfigFromFlags("", kubeconfig)
+	}
+	return rest.InClusterConfig()
 }

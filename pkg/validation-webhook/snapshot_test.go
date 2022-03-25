@@ -208,7 +208,7 @@ func TestAdmitVolumeSnapshotV1beta1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review)
+			response := admitSnapshot(review, nil)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -391,7 +391,7 @@ func TestAdmitVolumeSnapshotV1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review)
+			response := admitSnapshot(review, nil)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -541,7 +541,7 @@ func TestAdmitVolumeSnapshotContentV1beta1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review)
+			response := admitSnapshot(review, nil)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -685,7 +685,7 @@ func TestAdmitVolumeSnapshotContentV1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review)
+			response := admitSnapshot(review, nil)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -700,4 +700,8 @@ func TestAdmitVolumeSnapshotContentV1(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
+
 }

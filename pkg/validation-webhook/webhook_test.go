@@ -14,7 +14,21 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
+
+type fakeSnapshotLister struct {
+}
+
+func (f *fakeSnapshotLister) List(selector labels.Selector) (ret []*v1.VolumeSnapshotClass, err error) {
+	return nil, nil
+}
+
+func (f *fakeSnapshotLister) Get(name string) (*v1.VolumeSnapshotClass, error) {
+	return nil, nil
+}
 
 func TestWebhookCertReload(t *testing.T) {
 	// Initialize test space
@@ -32,6 +46,9 @@ func TestWebhookCertReload(t *testing.T) {
 			t.Errorf("unexpected error occurred while deleting certs: %v", err)
 		}
 	}()
+
+	//Create a fake lister
+
 	generateTestCertKeyPair(t, certFile, keyFile)
 
 	// Start test server
@@ -45,7 +62,7 @@ func TestWebhookCertReload(t *testing.T) {
 		GetCertificate: cw.GetCertificate,
 	}
 	go func() {
-		if err := startServer(ctx, tlsConfig, cw); err != nil {
+		if err := startServer(ctx, tlsConfig, cw, &fakeSnapshotLister{}); err != nil {
 			panic(err)
 		}
 	}()

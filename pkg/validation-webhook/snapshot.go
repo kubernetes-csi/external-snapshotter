@@ -20,10 +20,13 @@ import (
 	"fmt"
 	"reflect"
 
-	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1beta1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1beta1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v4/listers/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v4/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog/v2"
 )
 
@@ -36,10 +39,14 @@ var (
 	SnapshotContentV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumesnapshotcontents"}
 	// SnapshotContentV1GVR is GroupVersionResource for v1 VolumeSnapshotContents
 	SnapshotContentV1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1.GroupName, Version: "v1", Resource: "volumesnapshotcontents"}
+	// SnapshotContentV1Beta1GVR is GroupVersionResource for v1beta1 VolumeSnapshotContents
+	SnapshotClassV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumesnapshotclasses"}
+	// SnapshotContentV1GVR is GroupVersionResource for v1 VolumeSnapshotContents
+	SnapshotClassV1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1.GroupName, Version: "v1", Resource: "volumesnapshotclasses"}
 )
 
 // Add a label {"added-label": "yes"} to the object
-func admitSnapshot(ar v1.AdmissionReview) *v1.AdmissionResponse {
+func admitSnapshot(ar v1.AdmissionReview, lister storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse {
 	klog.V(2).Info("admitting volumesnapshots or volumesnapshotcontents")
 
 	reviewResponse := &v1.AdmissionResponse{
@@ -106,6 +113,18 @@ func admitSnapshot(ar v1.AdmissionReview) *v1.AdmissionResponse {
 			return toV1AdmissionResponse(err)
 		}
 		return decideSnapshotContentV1(snapcontent, oldSnapcontent, isUpdate)
+	case SnapshotClassV1Beta1GVR:
+		snapClass := &volumesnapshotv1beta1.VolumeSnapshotClass{}
+		if _, _, err := deserializer.Decode(raw, nil, snapClass); err != nil {
+			klog.Error(err)
+			return toV1AdmissionResponse(err)
+		}
+		oldSnapClass := &volumesnapshotv1beta1.VolumeSnapshotClass{}
+		if _, _, err := deserializer.Decode(oldRaw, nil, oldSnapClass); err != nil {
+			klog.Error(err)
+			return toV1AdmissionResponse(err)
+		}
+		return decideSnapshotClassV1beta1(snapClass, oldSnapClass, lister)
 	default:
 		err := fmt.Errorf("expect resource to be %s or %s", SnapshotV1Beta1GVR, SnapshotContentV1Beta1GVR)
 		klog.Error(err)
@@ -219,6 +238,50 @@ func decideSnapshotContentV1(snapcontent, oldSnapcontent *volumesnapshotv1.Volum
 	if err := ValidateV1SnapshotContent(snapcontent); err != nil {
 		reviewResponse.Allowed = false
 		reviewResponse.Result.Message = err.Error()
+	}
+	return reviewResponse
+}
+
+func decideSnapshotClassV1beta1(snapClass, oldSnapClass *volumesnapshotv1beta1.VolumeSnapshotClass, lister storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse {
+	reviewResponse := &v1.AdmissionResponse{
+		Allowed: true,
+		Result:  &metav1.Status{},
+	}
+
+	// Only Validate when a new snapClass is being set as a default.
+	if snapClass.Annotations[utils.IsDefaultSnapshotClassAnnotation] != "true" {
+		return reviewResponse
+	}
+
+	// If Old snapshot class has this, then we can assume that it was validated
+	if oldSnapClass.Annotations[utils.IsDefaultSnapshotClassAnnotation] == "true" {
+		return reviewResponse
+	}
+
+	ret, err := lister.List(labels.Everything())
+	if err != nil {
+		reviewResponse.Allowed = false
+		reviewResponse.Result.Message = err.Error()
+		return reviewResponse
+	}
+
+	driverToSnapshotDefautlMap := map[string]*volumesnapshotv1.VolumeSnapshotClass{}
+	for _, snapshotClass := range ret {
+		if snapshotClass.Annotations[utils.IsDefaultSnapshotClassAnnotation] != "true" {
+			continue
+		}
+		if _, ok := driverToSnapshotDefautlMap[snapshotClass.Driver]; ok {
+			// Log an error or something here because this means that old behavior is present.
+			// We probably should just preserve behavior in this case.
+			return reviewResponse
+		}
+		driverToSnapshotDefautlMap[snapshotClass.Driver] = snapshotClass
+	}
+
+	if _, ok := driverToSnapshotDefautlMap[snapClass.Driver]; !ok {
+		reviewResponse.Allowed = false
+		reviewResponse.Result.Message = fmt.Sprintf("default snapshot class already exits for driver: %v", snapClass.Driver)
+		return reviewResponse
 	}
 	return reviewResponse
 }
