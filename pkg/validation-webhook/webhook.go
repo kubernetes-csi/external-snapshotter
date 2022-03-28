@@ -24,7 +24,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"time"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
@@ -71,35 +70,33 @@ func init() {
 }
 
 // admitv1beta1Func handles a v1beta1 admission
-type admitv1beta1Func func(v1beta1.AdmissionReview, storagelisters.VolumeSnapshotClassLister) *v1beta1.AdmissionResponse
+type admitv1beta1Func func(v1beta1.AdmissionReview) *v1beta1.AdmissionResponse
 
 // admitv1beta1Func handles a v1 admission
-type admitv1Func func(v1.AdmissionReview, storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse
+type admitv1Func func(v1.AdmissionReview) *v1.AdmissionResponse
 
 // admitHandler is a handler, for both validators and mutators, that supports multiple admission review versions
 type admitHandler struct {
-	v1beta1 admitv1beta1Func
-	v1      admitv1Func
+	SnapshotAdmitter
 }
 
-func newDelegateToV1AdmitHandler(f admitv1Func) admitHandler {
+func newDelegateToV1AdmitHandler(sa SnapshotAdmitter) admitHandler {
 	return admitHandler{
-		v1beta1: delegateV1beta1AdmitToV1(f),
-		v1:      f,
+		SnapshotAdmitter: sa,
 	}
 }
 
 func delegateV1beta1AdmitToV1(f admitv1Func) admitv1beta1Func {
-	return func(review v1beta1.AdmissionReview, lister storagelisters.VolumeSnapshotClassLister) *v1beta1.AdmissionResponse {
+	return func(review v1beta1.AdmissionReview) *v1beta1.AdmissionResponse {
 		in := v1.AdmissionReview{Request: convertAdmissionRequestToV1(review.Request)}
-		out := f(in, lister)
+		out := f(in)
 		return convertAdmissionResponseToV1beta1(out)
 	}
 }
 
 // serve handles the http portion of a request prior to handing to an admit
 // function
-func serve(w http.ResponseWriter, r *http.Request, admit admitHandler, lister storagelisters.VolumeSnapshotClassLister) {
+func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
 	var body []byte
 	if r.Body == nil {
 		msg := "Expected request body to be non-empty"
@@ -147,7 +144,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler, lister st
 		}
 		responseAdmissionReview := &v1beta1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = admit.v1beta1(*requestedAdmissionReview, lister)
+		responseAdmissionReview.Response = delegateV1beta1AdmitToV1(admit.Admit)(*requestedAdmissionReview)
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	case v1.SchemeGroupVersion.WithKind("AdmissionReview"):
@@ -160,7 +157,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler, lister st
 		}
 		responseAdmissionReview := &v1.AdmissionReview{}
 		responseAdmissionReview.SetGroupVersionKind(*gvk)
-		responseAdmissionReview.Response = admit.v1(*requestedAdmissionReview, lister)
+		responseAdmissionReview.Response = admit.Admit(*requestedAdmissionReview)
 		responseAdmissionReview.Response.UID = requestedAdmissionReview.Request.UID
 		responseObj = responseAdmissionReview
 	default:
@@ -188,7 +185,7 @@ type serveWebhook struct {
 }
 
 func (s serveWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	serve(w, r, newDelegateToV1AdmitHandler(admitSnapshot), s.lister)
+	serve(w, r, newDelegateToV1AdmitHandler(NewSnapshotAdmitter(s.lister)))
 }
 
 func startServer(ctx context.Context, tlsConfig *tls.Config, cw *CertWatcher, lister storagelisters.VolumeSnapshotClassLister) error {
@@ -246,11 +243,13 @@ func main(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	r := 0 * time.Second
-	resyncPeriod := &r
-
-	factory := informers.NewSharedInformerFactory(snapClient, *resyncPeriod)
+	factory := informers.NewSharedInformerFactory(snapClient, 0)
 	lister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
+
+	//Start the informers
+	factory.Start(ctx.Done())
+	//wait for the caches to sync
+	factory.WaitForCacheSync(ctx.Done())
 
 	if err := startServer(ctx, tlsConfig, cw, lister); err != nil {
 		klog.Fatalf("server stopped: %v", err)

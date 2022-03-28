@@ -212,7 +212,8 @@ func TestAdmitVolumeSnapshotV1beta1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review, nil)
+			sa := NewSnapshotAdmitter(nil)
+			response := sa.Admit(review)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -395,7 +396,8 @@ func TestAdmitVolumeSnapshotV1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review, nil)
+			sa := NewSnapshotAdmitter(nil)
+			response := sa.Admit(review)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -545,7 +547,8 @@ func TestAdmitVolumeSnapshotContentV1beta1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review, nil)
+			sa := NewSnapshotAdmitter(nil)
+			response := sa.Admit(review)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -689,7 +692,8 @@ func TestAdmitVolumeSnapshotContentV1(t *testing.T) {
 					Operation: tc.operation,
 				},
 			}
-			response := admitSnapshot(review, nil)
+			sa := NewSnapshotAdmitter(nil)
+			response := sa.Admit(review)
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
 
@@ -723,11 +727,11 @@ func (f *fakeSnapshotLister) Get(name string) (*volumesnapshotv1.VolumeSnapshotC
 	return nil, nil
 }
 
-func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
+func TestAdmitVolumeSnapshotClassV1(t *testing.T) {
 	testCases := []struct {
 		name                   string
-		volumeSnapshotClass    *volumesnapshotv1beta1.VolumeSnapshotClass
-		oldVolumeSnapshotClass *volumesnapshotv1beta1.VolumeSnapshotClass
+		volumeSnapshotClass    *volumesnapshotv1.VolumeSnapshotClass
+		oldVolumeSnapshotClass *volumesnapshotv1.VolumeSnapshotClass
 		shouldAdmit            bool
 		msg                    string
 		operation              v1.Operation
@@ -735,7 +739,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 	}{
 		{
 			name: "new default for class with no existing classes",
-			volumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -744,7 +748,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldVolumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{},
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            true,
 			msg:                    "",
 			operation:              v1.Create,
@@ -752,7 +756,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 		},
 		{
 			name: "new default for class for  with existing default class different drivers",
-			volumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -761,7 +765,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldVolumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{},
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            true,
 			msg:                    "",
 			operation:              v1.Create,
@@ -779,7 +783,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 		},
 		{
 			name: "new default for class with existing default class same driver",
-			volumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -788,14 +792,15 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldVolumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{},
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            false,
-			msg:                    "default snapshot class already exits for driver: test.csi.io",
+			msg:                    "default snapshot class: driver-a already exits for driver: test.csi.io",
 			operation:              v1.Create,
 			lister: &fakeSnapshotLister{values: []*volumesnapshotv1.VolumeSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
+						Name: "driver-a",
 						Annotations: map[string]string{
 							utils.IsDefaultSnapshotClassAnnotation: "true",
 						},
@@ -806,7 +811,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 		},
 		{
 			name: "default for class with existing default class same driver update",
-			volumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -815,7 +820,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldVolumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -841,12 +846,12 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 		},
 		{
 			name: "new snapshot for class with existing default class same driver",
-			volumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta:   metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{},
 				Driver:     "test.csi.io",
 			},
-			oldVolumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{},
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            true,
 			msg:                    "",
 			operation:              v1.Create,
@@ -864,7 +869,7 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 		},
 		{
 			name: "new snapshot for class with existing default classes",
-			volumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -873,14 +878,15 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldVolumeSnapshotClass: &volumesnapshotv1beta1.VolumeSnapshotClass{},
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            false,
-			msg:                    "default snapshot class already exits for driver: test.csi.io",
+			msg:                    "default snapshot class: driver-is-default already exits for driver: test.csi.io",
 			operation:              v1.Create,
 			lister: &fakeSnapshotLister{values: []*volumesnapshotv1.VolumeSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
+						Name: "driver-is-default",
 						Annotations: map[string]string{
 							utils.IsDefaultSnapshotClassAnnotation: "true",
 						},
@@ -920,12 +926,12 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 					OldObject: runtime.RawExtension{
 						Raw: oldRaw,
 					},
-					Resource:  SnapshotClassV1Beta1GVR,
+					Resource:  SnapshotClassV1GVR,
 					Operation: tc.operation,
 				},
 			}
-
-			response := admitSnapshot(review, tc.lister)
+			sa := NewSnapshotAdmitter(tc.lister)
+			response := sa.Admit(review)
 
 			shouldAdmit := response.Allowed
 			msg := response.Result.Message
@@ -940,7 +946,5 @@ func TestAdmitVolumeSnapshotClassV1beta1(t *testing.T) {
 				t.Errorf("expected \"%v\" to equal \"%v\"", msg, expectedMsg)
 			}
 		})
-
 	}
-
 }

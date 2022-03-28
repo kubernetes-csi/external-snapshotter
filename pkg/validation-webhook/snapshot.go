@@ -39,14 +39,26 @@ var (
 	SnapshotContentV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumesnapshotcontents"}
 	// SnapshotContentV1GVR is GroupVersionResource for v1 VolumeSnapshotContents
 	SnapshotContentV1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1.GroupName, Version: "v1", Resource: "volumesnapshotcontents"}
-	// SnapshotContentV1Beta1GVR is GroupVersionResource for v1beta1 VolumeSnapshotContents
-	SnapshotClassV1Beta1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumesnapshotclasses"}
 	// SnapshotContentV1GVR is GroupVersionResource for v1 VolumeSnapshotContents
 	SnapshotClassV1GVR = metav1.GroupVersionResource{Group: volumesnapshotv1.GroupName, Version: "v1", Resource: "volumesnapshotclasses"}
 )
 
+type SnapshotAdmitter interface {
+	Admit(v1.AdmissionReview) *v1.AdmissionResponse
+}
+
+type admitter struct {
+	lister storagelisters.VolumeSnapshotClassLister
+}
+
+func NewSnapshotAdmitter(lister storagelisters.VolumeSnapshotClassLister) SnapshotAdmitter {
+	return &admitter{
+		lister: lister,
+	}
+}
+
 // Add a label {"added-label": "yes"} to the object
-func admitSnapshot(ar v1.AdmissionReview, lister storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse {
+func (a admitter) Admit(ar v1.AdmissionReview) *v1.AdmissionResponse {
 	klog.V(2).Info("admitting volumesnapshots or volumesnapshotcontents")
 
 	reviewResponse := &v1.AdmissionResponse{
@@ -113,18 +125,18 @@ func admitSnapshot(ar v1.AdmissionReview, lister storagelisters.VolumeSnapshotCl
 			return toV1AdmissionResponse(err)
 		}
 		return decideSnapshotContentV1(snapcontent, oldSnapcontent, isUpdate)
-	case SnapshotClassV1Beta1GVR:
-		snapClass := &volumesnapshotv1beta1.VolumeSnapshotClass{}
+	case SnapshotClassV1GVR:
+		snapClass := &volumesnapshotv1.VolumeSnapshotClass{}
 		if _, _, err := deserializer.Decode(raw, nil, snapClass); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
-		oldSnapClass := &volumesnapshotv1beta1.VolumeSnapshotClass{}
+		oldSnapClass := &volumesnapshotv1.VolumeSnapshotClass{}
 		if _, _, err := deserializer.Decode(oldRaw, nil, oldSnapClass); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
-		return decideSnapshotClassV1beta1(snapClass, oldSnapClass, lister)
+		return decideSnapshotClassV1(snapClass, oldSnapClass, a.lister)
 	default:
 		err := fmt.Errorf("expect resource to be %s or %s", SnapshotV1Beta1GVR, SnapshotContentV1Beta1GVR)
 		klog.Error(err)
@@ -242,7 +254,7 @@ func decideSnapshotContentV1(snapcontent, oldSnapcontent *volumesnapshotv1.Volum
 	return reviewResponse
 }
 
-func decideSnapshotClassV1beta1(snapClass, oldSnapClass *volumesnapshotv1beta1.VolumeSnapshotClass, lister storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse {
+func decideSnapshotClassV1(snapClass, oldSnapClass *volumesnapshotv1.VolumeSnapshotClass, lister storagelisters.VolumeSnapshotClassLister) *v1.AdmissionResponse {
 	reviewResponse := &v1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{},
@@ -265,25 +277,17 @@ func decideSnapshotClassV1beta1(snapClass, oldSnapClass *volumesnapshotv1beta1.V
 		return reviewResponse
 	}
 
-	driverToSnapshotDefautlMap := map[string]*volumesnapshotv1.VolumeSnapshotClass{}
 	for _, snapshotClass := range ret {
 		if snapshotClass.Annotations[utils.IsDefaultSnapshotClassAnnotation] != "true" {
 			continue
 		}
-		if _, ok := driverToSnapshotDefautlMap[snapshotClass.Driver]; ok {
-			// We probably should just preserve behavior in this case.
-			// but not let the problem get worse. having a single one will
-			// suffice.
-			klog.V(2).Infof("snapshot driver: %v has multiple default classes", snapshotClass.Driver)
+		if snapshotClass.Driver == snapClass.Driver {
+			reviewResponse.Allowed = false
+			reviewResponse.Result.Message = fmt.Sprintf("default snapshot class: %v already exits for driver: %v", snapshotClass.Name, snapClass.Driver)
+			return reviewResponse
 		}
-		driverToSnapshotDefautlMap[snapshotClass.Driver] = snapshotClass
 	}
 
-	if _, ok := driverToSnapshotDefautlMap[snapClass.Driver]; ok {
-		reviewResponse.Allowed = false
-		reviewResponse.Result.Message = fmt.Sprintf("default snapshot class already exits for driver: %v", snapClass.Driver)
-		return reviewResponse
-	}
 	return reviewResponse
 }
 
