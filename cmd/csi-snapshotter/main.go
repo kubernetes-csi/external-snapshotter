@@ -47,9 +47,9 @@ import (
 	controller "github.com/kubernetes-csi/external-snapshotter/v6/pkg/sidecar-controller"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/snapshotter"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned"
-	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned/scheme"
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v5/informers/externalversions"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/scheme"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions"
 	coreinformers "k8s.io/client-go/informers"
 )
 

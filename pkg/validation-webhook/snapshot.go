@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"reflect"
 
-	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
-	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1beta1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	volumesnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1beta1"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"

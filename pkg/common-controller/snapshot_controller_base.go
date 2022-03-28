@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v5/apis/volumesnapshot/v1"
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v5/clientset/versioned"
-	storageinformers "github.com/kubernetes-csi/external-snapshotter/client/v5/informers/externalversions/volumesnapshot/v1"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v5/listers/volumesnapshot/v1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	storageinformers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot/v1"
+	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 

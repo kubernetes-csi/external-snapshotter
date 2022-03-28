@@ -11,7 +11,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/kubernetes-csi/csi-lib-utils v0.10.0
 	github.com/kubernetes-csi/csi-test/v4 v4.0.2
-	github.com/kubernetes-csi/external-snapshotter/client/v5 v5.0.0
+	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.0.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/prometheus/client_model v0.2.0
 	github.com/prometheus/common v0.28.0
@@ -67,7 +67,7 @@ require (
 )
 
 replace (
-	github.com/kubernetes-csi/external-snapshotter/client/v5 => ./client
+	github.com/kubernetes-csi/external-snapshotter/client/v6 => ./client
 	k8s.io/api => k8s.io/api v0.23.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.23.0
 	k8s.io/apimachinery => k8s.io/apimachinery v0.23.0
