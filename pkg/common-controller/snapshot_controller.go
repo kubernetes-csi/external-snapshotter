@@ -684,6 +684,20 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 		}
 	}
 
+	if ctrl.preventVolumeModeConversion {
+		volumeMode := volume.Spec.VolumeMode
+		if volumeMode != nil {
+			snapshotContent.Spec.SourceVolumeMode = new(crdv1.SourceVolumeMode)
+			switch *volumeMode {
+			case v1.PersistentVolumeBlock:
+				*snapshotContent.Spec.SourceVolumeMode = crdv1.SourceVolumeModeBlock
+			case v1.PersistentVolumeFilesystem:
+				*snapshotContent.Spec.SourceVolumeMode = crdv1.SourceVolumeModeFilesystem
+			}
+		}
+		klog.V(5).Infof("snapcontent %s has volume mode %s", snapshotContent.Name, *snapshotContent.Spec.SourceVolumeMode)
+	}
+
 	// Set AnnDeletionSecretRefName and AnnDeletionSecretRefNamespace
 	if snapshotterSecretRef != nil {
 		klog.V(5).Infof("createSnapshotContent: set annotation [%s] on content [%s].", utils.AnnDeletionSecretRefName, snapshotContent.Name)
