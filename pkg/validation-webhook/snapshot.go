@@ -377,5 +377,9 @@ func checkSnapshotContentImmutableFieldsV1(snapcontent, oldSnapcontent *volumesn
 	if !reflect.DeepEqual(source.SnapshotHandle, oldSource.SnapshotHandle) {
 		return fmt.Errorf("Spec.Source.SnapshotHandle is immutable but was changed from %s to %s", strPtrDereference(oldSource.SnapshotHandle), strPtrDereference(source.SnapshotHandle))
 	}
+	if !reflect.DeepEqual(snapcontent.Spec.SourceVolumeMode, oldSnapcontent.Spec.SourceVolumeMode) {
+		return fmt.Errorf("Spec.SourceVolumeMode is immutable but was changed from %v to %v", *oldSnapcontent.Spec.SourceVolumeMode, *snapcontent.Spec.SourceVolumeMode)
+	}
+
 	return nil
 }
