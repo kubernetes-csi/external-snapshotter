@@ -904,6 +904,52 @@ func TestAdmitVolumeSnapshotClassV1(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name: "update snapshot class to new driver with existing default classes",
+			volumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						utils.IsDefaultSnapshotClassAnnotation: "true",
+					},
+				},
+				Driver: "driver.test.csi.io",
+			},
+			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{
+				TypeMeta: metav1.TypeMeta{},
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						utils.IsDefaultSnapshotClassAnnotation: "true",
+					},
+				},
+				Driver: "test.csi.io",
+			},
+			shouldAdmit: false,
+			msg:         "default snapshot class: driver-test-default already exits for driver: driver.test.csi.io",
+			operation:   v1.Update,
+			lister: &fakeSnapshotLister{values: []*volumesnapshotv1.VolumeSnapshotClass{
+				{
+					TypeMeta: metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "driver-is-default",
+						Annotations: map[string]string{
+							utils.IsDefaultSnapshotClassAnnotation: "true",
+						},
+					},
+					Driver: "test.csi.io",
+				},
+				{
+					TypeMeta: metav1.TypeMeta{},
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "driver-test-default",
+						Annotations: map[string]string{
+							utils.IsDefaultSnapshotClassAnnotation: "true",
+						},
+					},
+					Driver: "driver.test.csi.io",
+				},
+			}},
+		},
 	}
 
 	for _, tc := range testCases {

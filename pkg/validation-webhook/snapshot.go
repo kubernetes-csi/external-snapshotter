@@ -265,8 +265,8 @@ func decideSnapshotClassV1(snapClass, oldSnapClass *volumesnapshotv1.VolumeSnaps
 		return reviewResponse
 	}
 
-	// If Old snapshot class has this, then we can assume that it was validated
-	if oldSnapClass.Annotations[utils.IsDefaultSnapshotClassAnnotation] == "true" {
+	// If Old snapshot class has this, then we can assume that it was validated if driver is the same.
+	if oldSnapClass.Annotations[utils.IsDefaultSnapshotClassAnnotation] == "true" && oldSnapClass.Driver == snapClass.Driver {
 		return reviewResponse
 	}
 
