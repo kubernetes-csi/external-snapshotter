@@ -22,6 +22,7 @@ limitations under the License.
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -226,7 +227,7 @@ func (in *VolumeSnapshotContentSpec) DeepCopyInto(out *VolumeSnapshotContentSpec
 	in.Source.DeepCopyInto(&out.Source)
 	if in.SourceVolumeMode != nil {
 		in, out := &in.SourceVolumeMode, &out.SourceVolumeMode
-		*out = new(SourceVolumeMode)
+		*out = new(corev1.PersistentVolumeMode)
 		**out = **in
 	}
 	return
