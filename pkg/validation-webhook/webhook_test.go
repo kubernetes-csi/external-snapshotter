@@ -45,7 +45,7 @@ func TestWebhookCertReload(t *testing.T) {
 		GetCertificate: cw.GetCertificate,
 	}
 	go func() {
-		if err := startServer(ctx, tlsConfig, cw); err != nil {
+		if err := startServer(ctx, tlsConfig, cw, &fakeSnapshotLister{}); err != nil {
 			panic(err)
 		}
 	}()
