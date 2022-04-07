@@ -128,7 +128,7 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 ##### Volume Snapshot Classes
 
-* There can only be a single default volume snapshot class for a particular driver. 
+* There can only be a single default volume snapshot class for a particular driver.
 
 ### Distributed Snapshotting
 
