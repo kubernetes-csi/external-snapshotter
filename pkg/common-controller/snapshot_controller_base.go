@@ -68,6 +68,7 @@ type csiSnapshotCommonController struct {
 	resyncPeriod time.Duration
 
 	enableDistributedSnapshotting bool
+	preventVolumeModeConversion   bool
 }
 
 // NewCSISnapshotController returns a new *csiSnapshotCommonController
@@ -84,6 +85,7 @@ func NewCSISnapshotCommonController(
 	snapshotRateLimiter workqueue.RateLimiter,
 	contentRateLimiter workqueue.RateLimiter,
 	enableDistributedSnapshotting bool,
+	preventVolumeModeConversion bool,
 ) *csiSnapshotCommonController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -137,6 +139,8 @@ func NewCSISnapshotCommonController(
 		ctrl.nodeLister = nodeInformer.Lister()
 		ctrl.nodeListerSynced = nodeInformer.Informer().HasSynced
 	}
+
+	ctrl.preventVolumeModeConversion = preventVolumeModeConversion
 
 	return ctrl
 }

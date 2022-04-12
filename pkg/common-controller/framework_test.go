@@ -844,6 +844,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 		false,
+		false,
 	)
 
 	ctrl.eventRecorder = record.NewFakeRecorder(1000)
