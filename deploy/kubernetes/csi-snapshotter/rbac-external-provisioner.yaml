@@ -68,7 +68,7 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
 
 ---
-# Provisioner must be able to work with endpoints and leases in current namespace
+# Provisioner must be able to work with leases in current namespace
 # if (and only if) leadership election is enabled
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
@@ -77,9 +77,6 @@ metadata:
   namespace: default
   name: external-provisioner-cfg
 rules:
-- apiGroups: [""]
-  resources: ["endpoints"]
-  verbs: ["get", "watch", "list", "delete", "update", "create"]
 - apiGroups: ["coordination.k8s.io"]
   resources: ["leases"]
   verbs: ["get", "watch", "list", "delete", "update", "create"]
