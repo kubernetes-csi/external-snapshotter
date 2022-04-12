@@ -26,7 +26,6 @@ import (
 // Test single call to ensurePVCFinalizer, checkandRemovePVCFinalizer, addSnapshotFinalizer, removeSnapshotFinalizer
 // expecting finalizers to be added or removed
 func TestSnapshotFinalizer(t *testing.T) {
-
 	tests := []controllerTest{
 		{
 			name:             "1-1 - successful add PVC finalizer",

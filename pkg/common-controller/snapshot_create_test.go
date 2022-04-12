@@ -26,18 +26,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var timeNow = time.Now()
-var timeNowStamp = timeNow.UnixNano()
-var False = false
-var True = true
+var (
+	timeNow      = time.Now()
+	timeNowStamp = timeNow.UnixNano()
+	False        = false
+	True         = true
+)
 
 var metaTimeNowUnix = &metav1.Time{
 	Time: timeNow,
 }
 
-var defaultSize int64 = 1000
-var deletePolicy = crdv1.VolumeSnapshotContentDelete
-var retainPolicy = crdv1.VolumeSnapshotContentRetain
+var (
+	defaultSize  int64 = 1000
+	deletePolicy       = crdv1.VolumeSnapshotContentDelete
+	retainPolicy       = crdv1.VolumeSnapshotContentRetain
+)
 
 // Test single call to SyncSnapshot, expecting create snapshot to happen.
 // 1. Fill in the controller with initial data

@@ -73,9 +73,7 @@ var (
 	preventVolumeModeConversion   = flag.Bool("prevent-volume-mode-conversion", false, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
 )
 
-var (
-	version = "unknown"
-)
+var version = "unknown"
 
 // Checks that the VolumeSnapshot v1 CRDs exist.
 func ensureCustomResourceDefinitionsExist(client *clientset.Clientset) error {

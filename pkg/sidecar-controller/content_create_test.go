@@ -27,7 +27,6 @@ import (
 )
 
 func TestSyncContent(t *testing.T) {
-
 	tests := []controllerTest{
 		{
 			name:            "1-1: Basic content update ready to use",

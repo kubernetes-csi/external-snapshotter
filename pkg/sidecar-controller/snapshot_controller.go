@@ -233,7 +233,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	var err error
 	var creationTime time.Time
 	var size int64
-	var readyToUse = false
+	readyToUse := false
 	var driverName string
 	var snapshotID string
 	var snapshotterListCredentials map[string]string
@@ -283,7 +283,6 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		return updatedContent, nil
 	}
 	return ctrl.createSnapshotWrapper(content)
-
 }
 
 // This is a wrapper function for the snapshot creation process.

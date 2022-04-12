@@ -40,8 +40,8 @@ var class3Parameters = map[string]string{
 }
 
 var class4Parameters = map[string]string{
-	//utils.SnapshotterSecretNameKey:      "emptysecret",
-	//utils.SnapshotterSecretNamespaceKey: "default",
+	// utils.SnapshotterSecretNameKey:      "emptysecret",
+	// utils.SnapshotterSecretNamespaceKey: "default",
 }
 
 var class5Parameters = map[string]string{
@@ -51,8 +51,10 @@ var class5Parameters = map[string]string{
 
 var timeNowMetav1 = metav1.Now()
 
-var content31 = "content3-1"
-var claim31 = "claim3-1"
+var (
+	content31 = "content3-1"
+	claim31   = "claim3-1"
+)
 
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 	{

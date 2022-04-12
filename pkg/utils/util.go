@@ -35,9 +35,7 @@ import (
 	klog "k8s.io/klog/v2"
 )
 
-var (
-	keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
-)
+var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
 type secretParamsMap struct {
 	name               string
@@ -267,7 +265,6 @@ func verifyAndGetSecretNameAndNamespaceTemplate(secret secretParamsMap, snapshot
 	}
 	// THIS IS NOT A VALID CASE
 	return "", "", fmt.Errorf("unknown error with getting secret name and namespace templates")
-
 }
 
 // getSecretReference returns a reference to the secret specified in the given nameTemplate
