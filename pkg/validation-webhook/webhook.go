@@ -246,9 +246,9 @@ func main(cmd *cobra.Command, args []string) {
 	factory := informers.NewSharedInformerFactory(snapClient, 0)
 	lister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
 
-	//Start the informers
+	// Start the informers
 	factory.Start(ctx.Done())
-	//wait for the caches to sync
+	// wait for the caches to sync
 	factory.WaitForCacheSync(ctx.Done())
 
 	if err := startServer(ctx, tlsConfig, cw, lister); err != nil {

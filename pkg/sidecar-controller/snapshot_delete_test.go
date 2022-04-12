@@ -17,11 +17,10 @@ limitations under the License.
 package sidecar_controller
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
-
-	"errors"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
@@ -29,14 +28,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var defaultSize int64 = 1000
-var emptySize int64
-var deletePolicy = crdv1.VolumeSnapshotContentDelete
-var retainPolicy = crdv1.VolumeSnapshotContentRetain
-var timeNow = time.Now()
-var timeNowMetav1 = metav1.Now()
-var False = false
-var True = true
+var (
+	defaultSize   int64 = 1000
+	emptySize     int64
+	deletePolicy  = crdv1.VolumeSnapshotContentDelete
+	retainPolicy  = crdv1.VolumeSnapshotContentRetain
+	timeNow       = time.Now()
+	timeNowMetav1 = metav1.Now()
+	False         = false
+	True          = true
+)
 
 var class1Parameters = map[string]string{
 	"param1": "value1",
@@ -149,7 +150,6 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 // 2. Call the syncContent *once*.
 // 3. Compare resulting contents with expected contents.
 func TestDeleteSync(t *testing.T) {
-
 	tests := []controllerTest{
 		{
 			name:             "1-1 - content non-nil DeletionTimestamp with delete policy will delete snapshot",

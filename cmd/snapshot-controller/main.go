@@ -72,9 +72,7 @@ var (
 	enableDistributedSnapshotting = flag.Bool("enable-distributed-snapshotting", false, "Enables each node to handle snapshotting for the local volumes created on that node")
 )
 
-var (
-	version = "unknown"
-)
+var version = "unknown"
 
 // Checks that the VolumeSnapshot v1 CRDs exist.
 func ensureCustomResourceDefinitionsExist(client *clientset.Clientset) error {

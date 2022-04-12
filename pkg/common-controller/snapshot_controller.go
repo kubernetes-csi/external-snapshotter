@@ -77,8 +77,10 @@ import (
 // bi-directional binding is complete and readyToUse becomes true. Error field
 // in the snapshot status will be updated accordingly when failure occurs.
 
-const snapshotKind = "VolumeSnapshot"
-const snapshotAPIGroup = crdv1.GroupName
+const (
+	snapshotKind     = "VolumeSnapshot"
+	snapshotAPIGroup = crdv1.GroupName
+)
 
 const controllerUpdateFailMsg = "snapshot controller failed to update"
 
@@ -822,7 +824,6 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 
 // addContentFinalizer adds a Finalizer for VolumeSnapshotContent.
 func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
-
 	var patches []utils.PatchOp
 	if len(content.Finalizers) > 0 {
 		// Add to the end of the finalizers if we have any other finalizers
@@ -831,7 +832,6 @@ func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.Volu
 			Path:  "/metadata/finalizers/-",
 			Value: utils.VolumeSnapshotContentFinalizer,
 		})
-
 	} else {
 		// Replace finalizers with new array if there are no other finalizers
 		patches = append(patches, utils.PatchOp{

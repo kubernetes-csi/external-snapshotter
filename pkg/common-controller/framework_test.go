@@ -112,14 +112,18 @@ type controllerTest struct {
 
 type testCall func(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error
 
-const testNamespace = "default"
-const mockDriverName = "csi-mock-plugin"
+const (
+	testNamespace  = "default"
+	mockDriverName = "csi-mock-plugin"
+)
 
-var errVersionConflict = errors.New("VersionError")
-var nocontents []*crdv1.VolumeSnapshotContent
-var nosnapshots []*crdv1.VolumeSnapshot
-var noevents = []string{}
-var noerrors = []reactorError{}
+var (
+	errVersionConflict = errors.New("VersionError")
+	nocontents         []*crdv1.VolumeSnapshotContent
+	nosnapshots        []*crdv1.VolumeSnapshot
+	noevents           = []string{}
+	noerrors           = []reactorError{}
+)
 
 // snapshotReactor is a core.Reactor that simulates etcd and API server. It
 // stores:
@@ -920,6 +924,7 @@ func withSnapshotContentInvalidLabel(contents []*crdv1.VolumeSnapshotContent) []
 	}
 	return contents
 }
+
 func withContentAnnotations(contents []*crdv1.VolumeSnapshotContent, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
 	for i := range contents {
 		if contents[i].ObjectMeta.Annotations == nil {
@@ -1199,7 +1204,6 @@ func testSyncSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReacto
 
 func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	err := ctrl.syncSnapshot(test.initialSnapshots[0])
-
 	if err != nil {
 		return nil
 	}
@@ -1302,7 +1306,6 @@ var (
 //   controller waits for the operation lock. Controller is then resumed and we
 //   check how it behaves.
 func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(ctrl *csiSnapshotCommonController, reactor *snapshotReactor)) testCall {
-
 	return func(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 		// Inject a hook before async operation starts
 		klog.V(4).Infof("reactor:injecting call")
