@@ -109,6 +109,27 @@ Read more about how to install the example webhook [here](deploy/kubernetes/webh
 
 * `--port`: Secure port that the webhook listens on (default 443)
 
+* `--kubeconfig <path>`: Path to Kubernetes client configuration that the webhook uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
+
+#### Validating Webhook Validations
+
+##### Volume Snapshot
+
+* Spec.VolumeSnapshotClassName must not be an empty string or nil on creation
+* Spec.Source.PersistentVolumeClaimName must not be changed on update requests
+* Spec.Source.VolumeSnapshotContentName must not be changed on update requests
+
+##### Volume Snapshot Content
+
+* Spec.VolumeSnapshotRef.Name must not be an empty string on creation
+* Spec.VolumeSnapshotRef.Namespace must not be an empty stringon creation
+* Spec.Source.VolumeHandle must not be changed on update requests
+* Spec.Source.SnapshotHandle must not be changed on update requests
+
+##### Volume Snapshot Classes
+
+* There can only be a single default volume snapshot class for a particular driver. 
+
 ### Distributed Snapshotting
 
 The distributed snapshotting feature is provided to handle snapshot operations for local volumes. To use this functionality, the snapshotter sidecar should be deployed along with the csi driver on each node so that every node manages the snapshot operations only for the volumes local to that node. This feature can be enabled by setting the following command line options to true:
