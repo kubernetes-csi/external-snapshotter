@@ -341,8 +341,6 @@ type VolumeSnapshotContentSpec struct {
 // VolumeSnapshotContentSource represents the CSI source of a snapshot.
 // Exactly one of its members must be set.
 // Members in VolumeSnapshotContentSource are immutable.
-// TODO(xiangqian): Add a webhook to ensure that VolumeSnapshotContentSource members
-// will be immutable once specified.
 type VolumeSnapshotContentSource struct {
 	// volumeHandle specifies the CSI "volume_id" of the volume from which a snapshot
 	// should be dynamically taken from.
