@@ -22,7 +22,7 @@ func TestWebhookCertReload(t *testing.T) {
 	certFile = tmpDir + "/tls.crt"
 	keyFile = tmpDir + "/tls.key"
 	port = 30443
-	err := os.Mkdir(tmpDir, 0777)
+	err := os.Mkdir(tmpDir, 0o777)
 	if err != nil && err != os.ErrExist {
 		t.Errorf("unexpected error occurred while creating tmp dir: %v", err)
 	}
@@ -149,7 +149,7 @@ func generateTestCertKeyPair(t *testing.T, certPath, keyPath string) error {
 	}
 	fmt.Printf("wrote new cert: %s\n", certPath)
 
-	keyOut, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	keyOut, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
 	if err != nil {
 		return fmt.Errorf("Failed to open tls.key for writing: %v", err)
 	}

@@ -111,7 +111,6 @@ func TestControllerCacheParsingError(t *testing.T) {
 }
 
 func TestGetManagedByNode(t *testing.T) {
-
 	// Test that a matching node is found
 
 	node1 := &v1.Node{
