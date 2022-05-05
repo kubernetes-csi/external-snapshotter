@@ -61,8 +61,7 @@ type leaderElection struct {
 	// the namespace to store the lock resource
 	namespace string
 	// resourceLock defines the type of leaderelection that should be used
-	// valid options are resourcelock.LeasesResourceLock, resourcelock.EndpointsResourceLock,
-	// and resourcelock.ConfigMapsResourceLock
+	// Only resourcelock.LeasesResourceLock is valid at the moment.
 	resourceLock string
 	// healthCheck reports unhealthy if leader election fails to renew leadership
 	// within a timeout period.
@@ -88,32 +87,6 @@ func NewLeaderElectionWithLeases(clientset kubernetes.Interface, lockName string
 		runFunc:       runFunc,
 		lockName:      lockName,
 		resourceLock:  resourcelock.LeasesResourceLock,
-		leaseDuration: defaultLeaseDuration,
-		renewDeadline: defaultRenewDeadline,
-		retryPeriod:   defaultRetryPeriod,
-		clientset:     clientset,
-	}
-}
-
-// NewLeaderElectionWithEndpoints returns an implementation of leader election using Endpoints
-func NewLeaderElectionWithEndpoints(clientset kubernetes.Interface, lockName string, runFunc func(ctx context.Context)) *leaderElection {
-	return &leaderElection{
-		runFunc:       runFunc,
-		lockName:      lockName,
-		resourceLock:  resourcelock.EndpointsResourceLock,
-		leaseDuration: defaultLeaseDuration,
-		renewDeadline: defaultRenewDeadline,
-		retryPeriod:   defaultRetryPeriod,
-		clientset:     clientset,
-	}
-}
-
-// NewLeaderElectionWithConfigMaps returns an implementation of leader election using ConfigMaps
-func NewLeaderElectionWithConfigMaps(clientset kubernetes.Interface, lockName string, runFunc func(ctx context.Context)) *leaderElection {
-	return &leaderElection{
-		runFunc:       runFunc,
-		lockName:      lockName,
-		resourceLock:  resourcelock.ConfigMapsResourceLock,
 		leaseDuration: defaultLeaseDuration,
 		renewDeadline: defaultRenewDeadline,
 		retryPeriod:   defaultRetryPeriod,
