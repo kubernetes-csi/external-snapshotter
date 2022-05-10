@@ -23,7 +23,6 @@ import (
 	"net/http"
 
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1"
-	snapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1beta1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
 	flowcontrol "k8s.io/client-go/util/flowcontrol"
@@ -31,7 +30,6 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
-	SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface
 	SnapshotV1() snapshotv1.SnapshotV1Interface
 }
 
@@ -39,13 +37,7 @@ type Interface interface {
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	snapshotV1beta1 *snapshotv1beta1.SnapshotV1beta1Client
-	snapshotV1      *snapshotv1.SnapshotV1Client
-}
-
-// SnapshotV1beta1 retrieves the SnapshotV1beta1Client
-func (c *Clientset) SnapshotV1beta1() snapshotv1beta1.SnapshotV1beta1Interface {
-	return c.snapshotV1beta1
+	snapshotV1 *snapshotv1.SnapshotV1Client
 }
 
 // SnapshotV1 retrieves the SnapshotV1Client
@@ -93,10 +85,6 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
-	cs.snapshotV1beta1, err = snapshotv1beta1.NewForConfigAndClient(&configShallowCopy, httpClient)
-	if err != nil {
-		return nil, err
-	}
 	cs.snapshotV1, err = snapshotv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -122,7 +110,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
-	cs.snapshotV1beta1 = snapshotv1beta1.New(c)
 	cs.snapshotV1 = snapshotv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
