@@ -15,6 +15,7 @@ spec:
       labels:
         app: snapshot-validation
     spec:
+      serviceAccountName: snapshot-webhook
       containers:
       - name: snapshot-validation
         image: k8s.gcr.io/sig-storage/snapshot-validation-webhook:v5.0.1 # change the image if you wish to use your own custom validation server image
