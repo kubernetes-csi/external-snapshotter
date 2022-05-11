@@ -76,7 +76,7 @@ spec:
         - driver
         type: object
     served: true
-    storage: false
+    storage: true
     subresources: {}
 status:
   acceptedNames:
