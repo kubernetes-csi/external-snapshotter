@@ -100,8 +100,8 @@ spec:
                     type: string
                 type: object
                 oneOf:
-                - required: [ "persistentVolumeClaimName" ]
-                - required: [ "volumeSnapshotContentName" ]
+                - required: ["persistentVolumeClaimName"]
+                - required: ["volumeSnapshotContentName"]
               volumeSnapshotClassName:
                 description: 'VolumeSnapshotClassName is the name of the VolumeSnapshotClass
                   requested by the VolumeSnapshot. VolumeSnapshotClassName may be
