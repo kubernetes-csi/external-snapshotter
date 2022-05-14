@@ -92,11 +92,6 @@ github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversi
 github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot
 github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1
-# github.com/mailru/easyjson v0.7.6
-## explicit; go 1.12
-github.com/mailru/easyjson/buffer
-github.com/mailru/easyjson/jlexer
-github.com/mailru/easyjson/jwriter
 # github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369
 ## explicit; go 1.9
 github.com/matttproud/golang_protobuf_extensions/pbutil
