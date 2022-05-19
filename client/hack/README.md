@@ -54,8 +54,6 @@ Once you run the script, you will get an output as follows:
 
 ## update-crd.sh
 
-NOTE: `v1beta1` APIs are deprecated and will be removed in a future release.
-
 This is the script to update CRD yaml files under /client/config/crd/ based on types.go file.
 
 Make sure to run this script after making changes to /client/apis/volumesnapshot/v1/types.go.
@@ -151,71 +149,5 @@ Update the restoreSize property to use type string only:
                 - required: ["volumeHandle"]
               volumeSnapshotClassName:
 ```
-
-* Because we need to serve both v1 and v1beta1 snapshot APIs, we need to make sure that both v1 and v1beta1 APIs are in the manifest yaml file. Because `update-crd.sh` only generates v1 manifest, make sure to copy the v1beta1 manifest below the v1 manifest after running `update-crd.sh` in the manifest yaml files. See `snapshot.storage.k8s.io_volumesnapshots.yaml` as an example. `served` is true for both v1beta1 and v1. `storage` is true for v1beta and false for v1.
-
-```
-spec:
-  group: snapshot.storage.k8s.io
-  names:
-    kind: VolumeSnapshot
-    listKind: VolumeSnapshotList
-    plural: volumesnapshots
-    singular: volumesnapshot
-  scope: Namespaced
-  versions:
-  - additionalPrinterColumns:
-    - description: Indicates if a snapshot is ready to be used to restore a volume.
-      jsonPath: .status.readyToUse
-      name: ReadyToUse
-      type: boolean
-......
-    - description: Timestamp when the point-in-time snapshot is taken by the underlying storage system.
-      jsonPath: .status.creationTime
-      name: CreationTime
-      type: date
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1
-    schema:
-      openAPIV3Schema:
-        description: VolumeSnapshot is a user's request for either creating a point-in-time snapshot of a persistent volume, or binding to a pre-existing snapshot.
-        properties:
-......
-    served: true
-    storage: false
-    subresources:
-      status: {}
-  - additionalPrinterColumns:
-    - description: Indicates if a snapshot is ready to be used to restore a volume.
-      jsonPath: .status.readyToUse
-      name: ReadyToUse
-      type: boolean
-......
-    - description: Timestamp when the point-in-time snapshot is taken by the underlying storage system.
-      jsonPath: .status.creationTime
-      name: CreationTime
-      type: date
-    - jsonPath: .metadata.creationTimestamp
-      name: Age
-      type: date
-    name: v1beta1
-    schema:
-      openAPIV3Schema:
-        description: VolumeSnapshot is a user's request for either creating a point-in-time snapshot of a persistent volume, or binding to a pre-existing snapshot.
-        properties:
-......
-    served: true
-    storage: true
-    subresources:
-      status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []
-``````
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
