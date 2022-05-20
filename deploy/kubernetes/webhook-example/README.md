@@ -56,7 +56,7 @@ These commands should be run from the top level directory.
 
 3. Change the namespace in the generated `admission-configuration.yaml` file. Change the namespace in the service and deployment in the `webhook.yaml` file.
 
-4. Create the deployment, service and admission configuration objects on the cluster.
+4. Create the deployment, service, RBAC, and admission configuration objects on the cluster.
 
     ```bash
     kubectl apply -f ./deploy/kubernetes/webhook-example
