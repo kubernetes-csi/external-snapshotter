@@ -2,16 +2,6 @@
 
 The snapshot validating webhook is an HTTP callback which responds to [admission requests](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/). It is part of a larger [plan](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook#proposal) to tighten validation for volume snapshot objects. This webhook introduces the [ratcheting validation](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook#backwards-compatibility) mechanism targeting the tighter validation. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs.
 
-> :warning: **WARNING**: Cluster admins choosing not to install the webhook server and participate in the phased release process can cause future problems when upgrading from `v1beta1` to `v1` volumesnapshot API, if there are currently persisted objects which fail the new stricter validation. Potential impacts include being unable to delete invalid snapshot objects.
-
-## Prerequisites
-
-The following are prerequisites to use this validating webhook:
-
-- K8s version 1.17+ (v1.9+ to use `admissionregistration.k8s.io/v1beta1`, v1.16+ to use `admissionregistration.k8s.io/v1`, v1.17+ to use  `snapshot.storage.k8s.io/v1beta1`)
-- ValidatingAdmissionWebhook is [enabled](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/#prerequisites). (in v1.18+ it will be enabled by default)
-- API `admissionregistration.k8s.io/v1beta1` or `admissionregistration.k8s.io/v1` is enabled.
-
 ## How to build the webhook
 
 Build the binary
