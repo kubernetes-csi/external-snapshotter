@@ -9,6 +9,7 @@
 ### API Removal
 
 - Cherry-pick 704: Remove VolumeSnapshot v1beta1 APIs and generated functions. Please update to VolumeSnapshot v1 APIs as soon as possible. ([#709](https://github.com/kubernetes-csi/external-snapshotter/pull/709), [@RaunakShah](https://github.com/RaunakShah))
+- Cherry-pick ([#718](https://github.com/kubernetes-csi/external-snapshotter/pull/718), [@RaunakShah](https://github.com/RaunakShah)): Add VolumeSnapshot v1beta1 manifests back. VolumeSnapshot v1beta1 APIs are no longer served. Please update to VolumeSnapshot v1 APIs as soon as possible. ([#719](https://github.com/kubernetes-csi/external-snapshotter/pull/719), [@xing-yang](https://github.com/xing-yang))
 
 ## Changes by Kind
 
