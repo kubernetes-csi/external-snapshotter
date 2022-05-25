@@ -54,6 +54,8 @@ Once you run the script, you will get an output as follows:
 
 ## update-crd.sh
 
+NOTE: We need to keep both v1beta1 and v1 snapshot APIs but set served and storage version of v1beta1 to false. Please copy back the v1beta1 manifest back to the files as this script will remove it.
+
 This is the script to update CRD yaml files under /client/config/crd/ based on types.go file.
 
 Make sure to run this script after making changes to /client/apis/volumesnapshot/v1/types.go.
