@@ -17,7 +17,7 @@ metadata:
   name: snapshot-webhook-runner
 rules:
   - apiGroups: ["snapshot.storage.k8s.io"]
-    resources: ["volumesnapshotclasses"]
+    resources: ["volumesnapshotclasses", "volumesnapshots", "volumesnapshotcontents"]
     verbs: ["get", "list", "watch"]
 ---
 kind: ClusterRoleBinding
