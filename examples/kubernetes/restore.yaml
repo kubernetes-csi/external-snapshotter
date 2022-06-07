@@ -5,7 +5,7 @@ metadata:
 spec:
   storageClassName: csi-hostpath-sc
   dataSource:
-    name: new-snapshot-demo 
+    name: new-snapshot-demo-v1
     kind: VolumeSnapshot
     apiGroup: snapshot.storage.k8s.io
   accessModes:
