@@ -6,7 +6,7 @@ webhooks:
 - name: "validation-webhook.snapshot.storage.k8s.io"
   rules:
   - apiGroups:   ["snapshot.storage.k8s.io"]
-    apiVersions: ["v1", "v1beta1"]
+    apiVersions: ["v1"]
     operations:  ["CREATE", "UPDATE"]
     resources:   ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
     scope:       "*"
@@ -16,7 +16,7 @@ webhooks:
       name: "snapshot-validation-service"
       path: "/volumesnapshot"
     caBundle: ${CA_BUNDLE}
-  admissionReviewVersions: ["v1", "v1beta1"]
+  admissionReviewVersions: ["v1"]
   sideEffects: None
   failurePolicy: Ignore # We recommend switching to Fail only after successful installation of the webhook server and webhook.
   timeoutSeconds: 2 # This will affect the latency and performance. Finetune this value based on your application's tolerance.
