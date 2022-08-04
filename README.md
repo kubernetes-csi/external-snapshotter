@@ -53,7 +53,7 @@ Volume Snapshot feature contains the following components:
 * [Snapshot validation webhook](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/validation-webhook)
 * CSI Driver along with [CSI Snapshotter sidecar](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/sidecar-controller)
 
-The Volume Snapshot feature depends on a volume snapshot controller and the volume snapshot CRDs. Both the volume snapshot controller and the CRDs are independent of any CSI driver. The CSI Snapshotter sidecar must run once per CSI driver. The single snapshot controller deployment works for all CSI drivers in a cluster. The CSI sidecars and snapshot controller use leader election to elect one leader per deployment. If deployed with two or morecontainers and leader election is enabled, the non-leader containers will attempt to get the lease. If the leader container dies, the non-leader(s) will take over.
+The Volume Snapshot feature depends on a volume snapshot controller and the volume snapshot CRDs. Both the volume snapshot controller and the CRDs are independent of any CSI driver. The CSI Snapshotter sidecar must run once per CSI driver. The single snapshot controller deployment works for all CSI drivers in a cluster. With leader election configured, the CSI sidecars and snapshot controller elect one leader per deployment. If deployed with two or more pods and leader election is enabled, the non-leader containers will attempt to get the lease. If the leader container dies, a non-leader will take over.
 
 Therefore, it is strongly recommended that Kubernetes distributors bundle and deploy the controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver).
 
