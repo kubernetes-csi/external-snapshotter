@@ -190,7 +190,7 @@ func decideSnapshotClassV1(snapClass, oldSnapClass *volumesnapshotv1.VolumeSnaps
 		}
 		if snapshotClass.Driver == snapClass.Driver {
 			reviewResponse.Allowed = false
-			reviewResponse.Result.Message = fmt.Sprintf("default snapshot class: %v already exits for driver: %v", snapshotClass.Name, snapClass.Driver)
+			reviewResponse.Result.Message = fmt.Sprintf("default snapshot class: %v already exists for driver: %v", snapshotClass.Name, snapClass.Driver)
 			return reviewResponse
 		}
 	}
