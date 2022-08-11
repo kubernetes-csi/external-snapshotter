@@ -444,7 +444,7 @@ func TestAdmitVolumeSnapshotClassV1(t *testing.T) {
 			},
 			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            false,
-			msg:                    "default snapshot class: driver-a already exits for driver: test.csi.io",
+			msg:                    "default snapshot class: driver-a already exists for driver: test.csi.io",
 			operation:              v1.Create,
 			lister: &fakeSnapshotLister{values: []*volumesnapshotv1.VolumeSnapshotClass{
 				{
@@ -530,7 +530,7 @@ func TestAdmitVolumeSnapshotClassV1(t *testing.T) {
 			},
 			oldVolumeSnapshotClass: &volumesnapshotv1.VolumeSnapshotClass{},
 			shouldAdmit:            false,
-			msg:                    "default snapshot class: driver-is-default already exits for driver: test.csi.io",
+			msg:                    "default snapshot class: driver-is-default already exists for driver: test.csi.io",
 			operation:              v1.Create,
 			lister: &fakeSnapshotLister{values: []*volumesnapshotv1.VolumeSnapshotClass{
 				{
@@ -575,7 +575,7 @@ func TestAdmitVolumeSnapshotClassV1(t *testing.T) {
 				Driver: "test.csi.io",
 			},
 			shouldAdmit: false,
-			msg:         "default snapshot class: driver-test-default already exits for driver: driver.test.csi.io",
+			msg:         "default snapshot class: driver-test-default already exists for driver: driver.test.csi.io",
 			operation:   v1.Update,
 			lister: &fakeSnapshotLister{values: []*volumesnapshotv1.VolumeSnapshotClass{
 				{
