@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
@@ -102,7 +103,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 	// Keep this check in the controller since the validation webhook may not have been deployed.
 	if (content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil) ||
 		(content.Spec.Source.VolumeHandle != nil && content.Spec.Source.SnapshotHandle != nil) {
-		err := fmt.Errorf("Exactly one of VolumeHandle and SnapshotHandle should be specified")
+		err := fmt.Errorf("exactly one of VolumeHandle and SnapshotHandle should be specified")
 		klog.Errorf("syncContent[%s]: validation error, %s", content.Name, err.Error())
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "ContentValidationError", err.Error())
 		return err
@@ -212,7 +213,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	klog.V(5).Infof("syncSnapshot[%s]: validate snapshot to make sure source has been correctly specified", utils.SnapshotKey(snapshot))
 	if (snapshot.Spec.Source.PersistentVolumeClaimName == nil && snapshot.Spec.Source.VolumeSnapshotContentName == nil) ||
 		(snapshot.Spec.Source.PersistentVolumeClaimName != nil && snapshot.Spec.Source.VolumeSnapshotContentName != nil) {
-		err := fmt.Errorf("Exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified")
+		err := fmt.Errorf("exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified")
 		klog.Errorf("syncSnapshot[%s]: validation error, %s", utils.SnapshotKey(snapshot), err.Error())
 		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotValidationError", err.Error())
 		return err
@@ -782,11 +783,12 @@ func (ctrl *csiSnapshotCommonController) storeContentUpdate(content interface{})
 // given event on the snapshot. It saves the status and emits the event only when
 // the status has actually changed from the version saved in API server.
 // Parameters:
-//   snapshot - snapshot to update
-//   setReadyToFalse bool - indicates whether to set the snapshot's ReadyToUse status to false.
-//                          if true, ReadyToUse will be set to false;
-//                          otherwise, ReadyToUse will not be changed.
-//   eventtype, reason, message - event to send, see EventRecorder.Event()
+//
+//	snapshot - snapshot to update
+//	setReadyToFalse bool - indicates whether to set the snapshot's ReadyToUse status to false.
+//	                       if true, ReadyToUse will be set to false;
+//	                       otherwise, ReadyToUse will not be changed.
+//	eventtype, reason, message - event to send, see EventRecorder.Event()
 func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snapshot *crdv1.VolumeSnapshot, setReadyToFalse bool, eventtype, reason, message string) error {
 	klog.V(5).Infof("updateSnapshotErrorStatusWithEvent[%s]", utils.SnapshotKey(snapshot))
 
@@ -910,7 +912,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
 		pvcClone := pvc.DeepCopy()
 		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
-		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"metadata":{"finalizers":%s}}`, pvcClone.ObjectMeta.Finalizers)), metav1.PatchOptions{})
 		if err != nil {
 			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
 			return newControllerUpdateError(pvcClone.Name, err.Error())
@@ -929,7 +931,7 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 	pvcClone := pvc.DeepCopy()
 	pvcClone.ObjectMeta.Finalizers = utils.RemoveString(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
 
-	_, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+	_, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"metadata":{"finalizers":%s}}`, pvcClone.ObjectMeta.Finalizers)), metav1.PatchOptions{})
 	if err != nil {
 		return newControllerUpdateError(pvcClone.Name, err.Error())
 	}
@@ -1012,9 +1014,9 @@ func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *cr
 // in content.Spec.VolumeSnapshotRef.
 func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	if content.Spec.VolumeSnapshotRef.Name != snapshot.Name {
-		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
+		return nil, fmt.Errorf("could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotRef.UID != snapshot.UID {
-		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
+		return nil, fmt.Errorf("could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
 		return content, nil
 	}
@@ -1244,7 +1246,7 @@ func (ctrl *csiSnapshotCommonController) getVolumeFromVolumeSnapshot(snapshot *c
 
 	// Verify binding between PV/PVC is still valid
 	bound := ctrl.isVolumeBoundToClaim(pv, pvc)
-	if bound == false {
+	if !bound {
 		klog.Warningf("binding between PV %s and PVC %s is broken", pvName, pvc.Name)
 		return nil, fmt.Errorf("claim in dataSource not bound or invalid")
 	}
@@ -1380,7 +1382,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 	klog.V(5).Infof("setDefaultSnapshotClass [%s]: default VolumeSnapshotClassName [%s]", snapshot.Name, defaultClasses[0].Name)
 	snapshotClone := snapshot.DeepCopy()
 	snapshotClone.Spec.VolumeSnapshotClassName = &(defaultClasses[0].Name)
-	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Patch(context.TODO(), snapshotClone.Name, types.MergePatchType, []byte(`{"metadata":{"annotations":{"snapshot.storage.kubernetes.io/default-class":"true"}}}`), metav1.PatchOptions{})
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshot[%s] default class failed %v", utils.SnapshotKey(snapshot), err)
 	}
@@ -1451,7 +1453,7 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 		if addBoundFinalizer {
 			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
 		}
-		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Patch(context.TODO(), snapshotClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"metadata":{"finalizers":%s}}`, snapshotClone.ObjectMeta.Finalizers)), metav1.PatchOptions{})
 		if err != nil {
 			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 		}
@@ -1520,7 +1522,7 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	if removeBoundFinalizer {
 		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
 	}
-	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Patch(context.TODO(), snapshotClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"metadata":{"finalizers":%s}}`, snapshotClone.ObjectMeta.Finalizers)), metav1.PatchOptions{})
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
@@ -1615,7 +1617,7 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content 
 		}
 		contentClone.ObjectMeta.Labels[utils.VolumeSnapshotContentInvalidLabel] = ""
 	}
-	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Patch(context.TODO(), contentClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"metadata":{"labels":%s}}`, contentClone.ObjectMeta.Labels)), metav1.PatchOptions{})
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}
@@ -1657,7 +1659,7 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapsho
 		snapshotClone.ObjectMeta.Labels[utils.VolumeSnapshotInvalidLabel] = ""
 	}
 
-	updatedSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	updatedSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Patch(context.TODO(), snapshotClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"metadata":{"labels":%s}}`, snapshotClone.ObjectMeta.Labels)), metav1.PatchOptions{})
 	if err != nil {
 		return snapshot, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
