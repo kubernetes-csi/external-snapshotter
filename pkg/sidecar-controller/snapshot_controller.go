@@ -137,8 +137,9 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *c
 // given event on the content. It saves the status and emits the event only when
 // the status has actually changed from the version saved in API server.
 // Parameters:
-//   content - content to update
-//   eventtype, reason, message - event to send, see EventRecorder.Event()
+//
+// * content - content to update
+// * eventtype, reason, message - event to send, see EventRecorder.Event()
 func (ctrl *csiSnapshotSideCarController) updateContentErrorStatusWithEvent(content *crdv1.VolumeSnapshotContent, eventtype, reason, message string) error {
 	klog.V(5).Infof("updateContentStatusWithEvent[%s]", content.Name)
 
