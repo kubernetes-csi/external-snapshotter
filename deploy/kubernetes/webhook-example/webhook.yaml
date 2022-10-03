@@ -18,7 +18,7 @@ spec:
       serviceAccountName: snapshot-webhook
       containers:
       - name: snapshot-validation
-        image: k8s.gcr.io/sig-storage/snapshot-validation-webhook:v5.0.1 # change the image if you wish to use your own custom validation server image
+        image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.0.1 # change the image if you wish to use your own custom validation server image
         imagePullPolicy: IfNotPresent
         args: ['--tls-cert-file=/etc/snapshot-validation-webhook/certs/cert.pem', '--tls-private-key-file=/etc/snapshot-validation-webhook/certs/key.pem']
         ports:
