@@ -25,7 +25,7 @@ spec:
       type: string
     - description: Determines whether a VolumeSnapshotContent created through the
         VolumeSnapshotClass should be deleted when its bound VolumeSnapshot is deleted.
-      jsonPath: .deletionPolicy
+    - jsonPath: .deletionPolicy
       name: DeletionPolicy
       type: string
     - jsonPath: .metadata.creationTimestamp
