@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -71,6 +72,8 @@ var (
 	retryIntervalMax              = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
 	enableDistributedSnapshotting = flag.Bool("enable-distributed-snapshotting", false, "Enables each node to handle snapshotting for the local volumes created on that node")
 	preventVolumeModeConversion   = flag.Bool("prevent-volume-mode-conversion", false, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
+
+	retryCRDIntervalMax = flag.Duration("retry-crd-interval-max", 5*time.Second, "Maximum retry interval to wait for CRDs to appear. The default is 5 seconds.")
 )
 
 var version = "unknown"
@@ -100,11 +103,22 @@ func ensureCustomResourceDefinitionsExist(client *clientset.Clientset) error {
 		return true, nil
 	}
 
-	// with a Factor of 1.5 we wait up to 7.5 seconds (the 10th attempt)
+	// The maximum retry duration = initial duration * retry factor ^ # steps. Rearranging, this gives
+	// # steps = log(maximum retry / initial duration) / log(retry factor).
+	const retryFactor = 1.5
+	const initialDurationMs = 100
+	maxMs := retryCRDIntervalMax.Milliseconds()
+	if maxMs < initialDurationMs {
+		maxMs = initialDurationMs
+	}
+	steps := int(math.Ceil(math.Log(float64(maxMs)/initialDurationMs) / math.Log(retryFactor)))
+	if steps < 1 {
+		steps = 1
+	}
 	backoff := wait.Backoff{
-		Duration: 100 * time.Millisecond,
-		Factor:   1.5,
-		Steps:    10,
+		Duration: initialDurationMs * time.Millisecond,
+		Factor:   retryFactor,
+		Steps:    steps,
 	}
 	if err := wait.ExponentialBackoff(backoff, condition); err != nil {
 		return err
