@@ -174,6 +174,8 @@ Other than this, the NODE_NAME environment variable must be set where the CSI sn
 
 * `--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
 
+* `--retry-crd-interval-max`: Maximum retry interval for detecting the snapshot CRDs on controller startup. Default is 5 seconds.
+
 * `--enable-distributed-snapshotting` : Enables each node to handle snapshots for the volumes local to that node. Off by default. It should be set to true only if `--node-deployment` parameter for the csi external snapshotter sidecar is set to true. See https://github.com/kubernetes-csi/external-snapshotter/blob/master/README.md#distributed-snapshotting for details.
 
 * `--prevent-volume-mode-conversion`: Boolean that prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot. Only present as an alpha feature in `v6.0.0` and above.
