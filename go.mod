@@ -3,7 +3,7 @@ module github.com/kubernetes-csi/external-snapshotter/v6
 go 1.18
 
 require (
-	github.com/container-storage-interface/spec v1.6.0
+	github.com/container-storage-interface/spec v1.7.0
 	github.com/evanphx/json-patch v4.12.0+incompatible
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/mock v1.6.0
@@ -17,13 +17,13 @@ require (
 	github.com/prometheus/common v0.37.0
 	github.com/spf13/cobra v1.6.1
 	google.golang.org/grpc v1.50.1
-	k8s.io/api v0.25.3
-	k8s.io/apimachinery v0.25.3
-	k8s.io/client-go v1.5.2
-	k8s.io/component-base v0.25.3
-	k8s.io/component-helpers v0.25.3
+	k8s.io/api v0.25.4
+	k8s.io/apimachinery v0.25.4
+	k8s.io/client-go v0.25.4
+	k8s.io/component-base v0.25.4
+	k8s.io/component-helpers v0.25.4
 	k8s.io/klog/v2 v2.80.1
-	k8s.io/kubernetes v1.25.3
+	k8s.io/kubernetes v1.25.4
 )
 
 require (
