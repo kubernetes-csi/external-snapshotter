@@ -22,10 +22,10 @@ import (
 )
 
 // Test single call to checkAndUpdateSnapshotClass.
-// 1. Fill in the controller with initial data
-// 2. Call the tested function checkAndUpdateSnapshotClass via
-//    controllerTest.testCall *once*.
-// 3. Compare resulting snapshotclass.
+//  1. Fill in the controller with initial data
+//  2. Call the tested function checkAndUpdateSnapshotClass via
+//     controllerTest.testCall *once*.
+//  3. Compare resulting snapshotclass.
 func TestUpdateSnapshotClass(t *testing.T) {
 	tests := []controllerTest{
 		{
