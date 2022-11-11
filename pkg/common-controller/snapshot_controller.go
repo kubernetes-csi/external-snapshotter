@@ -773,11 +773,12 @@ func (ctrl *csiSnapshotCommonController) storeContentUpdate(content interface{})
 // given event on the snapshot. It saves the status and emits the event only when
 // the status has actually changed from the version saved in API server.
 // Parameters:
-//   snapshot - snapshot to update
-//   setReadyToFalse bool - indicates whether to set the snapshot's ReadyToUse status to false.
-//                          if true, ReadyToUse will be set to false;
-//                          otherwise, ReadyToUse will not be changed.
-//   eventtype, reason, message - event to send, see EventRecorder.Event()
+//
+//	snapshot - snapshot to update
+//	setReadyToFalse bool - indicates whether to set the snapshot's ReadyToUse status to false.
+//	                       if true, ReadyToUse will be set to false;
+//	                       otherwise, ReadyToUse will not be changed.
+//	eventtype, reason, message - event to send, see EventRecorder.Event()
 func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snapshot *crdv1.VolumeSnapshot, setReadyToFalse bool, eventtype, reason, message string) error {
 	klog.V(5).Infof("updateSnapshotErrorStatusWithEvent[%s]", utils.SnapshotKey(snapshot))
 

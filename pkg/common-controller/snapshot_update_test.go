@@ -34,10 +34,10 @@ var metaTimeNow = &metav1.Time{
 var emptyString = ""
 
 // Test single call to syncSnapshot and syncContent methods.
-// 1. Fill in the controller with initial data
-// 2. Call the tested function (syncSnapshot/syncContent) via
-//    controllerTest.testCall *once*.
-// 3. Compare resulting contents and snapshots with expected contents and snapshots.
+//  1. Fill in the controller with initial data
+//  2. Call the tested function (syncSnapshot/syncContent) via
+//     controllerTest.testCall *once*.
+//  3. Compare resulting contents and snapshots with expected contents and snapshots.
 func TestSync(t *testing.T) {
 	size := int64(1)
 	snapshotErr := newVolumeError("Mock content error")
