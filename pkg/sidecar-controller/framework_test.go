@@ -71,6 +71,7 @@ import (
 // function to call as the actual test. Available functions are:
 //   - testSyncContent - calls syncContent on the first content in initialContents.
 //   - any custom function for specialized tests.
+//
 // The test then contains list of contents that are expected at the end
 // of the test and list of generated events.
 type controllerTest struct {
@@ -114,20 +115,20 @@ var (
 
 // snapshotReactor is a core.Reactor that simulates etcd and API server. It
 // stores:
-// - Latest version of snapshots contents saved by the controller.
-// - Queue of all saves (to simulate "content updated" events). This queue
-//   contains all intermediate state of an object. This queue will then contain both
-//   updates as separate entries.
-// - Number of changes since the last call to snapshotReactor.syncAll().
-// - Optionally, content watcher which should be the same ones
-//   used by the controller. Any time an event function like deleteContentEvent
-//   is called to simulate an event, the reactor's stores are updated and the
-//   controller is sent the event via the fake watcher.
-// - Optionally, list of error that should be returned by reactor, simulating
-//   etcd / API server failures. These errors are evaluated in order and every
-//   error is returned only once. I.e. when the reactor finds matching
-//   reactorError, it return appropriate error and removes the reactorError from
-//   the list.
+//   - Latest version of snapshots contents saved by the controller.
+//   - Queue of all saves (to simulate "content updated" events). This queue
+//     contains all intermediate state of an object. This queue will then contain both
+//     updates as separate entries.
+//   - Number of changes since the last call to snapshotReactor.syncAll().
+//   - Optionally, content watcher which should be the same ones
+//     used by the controller. Any time an event function like deleteContentEvent
+//     is called to simulate an event, the reactor's stores are updated and the
+//     controller is sent the event via the fake watcher.
+//   - Optionally, list of error that should be returned by reactor, simulating
+//     etcd / API server failures. These errors are evaluated in order and every
+//     error is returned only once. I.e. when the reactor finds matching
+//     reactorError, it return appropriate error and removes the reactorError from
+//     the list.
 type snapshotReactor struct {
 	secrets              map[string]*v1.Secret
 	snapshotClasses      map[string]*crdv1.VolumeSnapshotClass
@@ -711,11 +712,11 @@ var (
 )
 
 // wrapTestWithInjectedOperation returns a testCall that:
-// - starts the controller and lets it run original testCall until
-//   scheduleOperation() call. It blocks the controller there and calls the
-//   injected function to simulate that something is happening when the
-//   controller waits for the operation lock. Controller is then resumed and we
-//   check how it behaves.
+//   - starts the controller and lets it run original testCall until
+//     scheduleOperation() call. It blocks the controller there and calls the
+//     injected function to simulate that something is happening when the
+//     controller waits for the operation lock. Controller is then resumed and we
+//     check how it behaves.
 func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor)) testCall {
 	return func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) error {
 		// Inject a hook before async operation starts
@@ -757,10 +758,10 @@ func evaluateTestResults(ctrl *csiSnapshotSideCarController, reactor *snapshotRe
 
 // Test single call to syncContent methods.
 // For all tests:
-// 1. Fill in the controller with initial data
-// 2. Call the tested function (syncContent) via
-//    controllerTest.testCall *once*.
-// 3. Compare resulting contents and snapshots with expected contents and snapshots.
+//  1. Fill in the controller with initial data
+//  2. Call the tested function (syncContent) via
+//     controllerTest.testCall *once*.
+//  3. Compare resulting contents and snapshots with expected contents and snapshots.
 func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
