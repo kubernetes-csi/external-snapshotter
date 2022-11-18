@@ -37,4 +37,5 @@ spec:
           args:
             - "--v=5"
             - "--leader-election=true"
+            - "--prevent-volume-mode-conversion=false"
           imagePullPolicy: IfNotPresent
