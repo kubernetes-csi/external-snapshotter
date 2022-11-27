@@ -20,7 +20,7 @@ spec:
       - name: snapshot-validation
         image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.1.0 # change the image if you wish to use your own custom validation server image
         imagePullPolicy: IfNotPresent
-        args: ['--tls-cert-file=/etc/snapshot-validation-webhook/certs/cert.pem', '--tls-private-key-file=/etc/snapshot-validation-webhook/certs/key.pem']
+        args: ['--tls-cert-file=/etc/snapshot-validation-webhook/certs/tls.crt', '--tls-private-key-file=/etc/snapshot-validation-webhook/certs/tls.key']
         ports:
         - containerPort: 443 # change the port as needed
         volumeMounts:
