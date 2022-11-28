@@ -12,16 +12,16 @@ require (
 	github.com/kubernetes-csi/csi-lib-utils v0.11.0
 	github.com/kubernetes-csi/csi-test/v4 v4.0.2
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.1.0
-	github.com/prometheus/client_golang v1.13.1
+	github.com/prometheus/client_golang v1.14.0
 	github.com/prometheus/client_model v0.3.0
 	github.com/prometheus/common v0.37.0
 	github.com/spf13/cobra v1.6.1
 	google.golang.org/grpc v1.50.1
-	k8s.io/api v0.25.4
-	k8s.io/apimachinery v0.25.4
-	k8s.io/client-go v0.25.4
-	k8s.io/component-base v0.25.4
-	k8s.io/component-helpers v0.25.4
+	k8s.io/api v0.26.0-rc.0
+	k8s.io/apimachinery v0.26.0-rc.0
+	k8s.io/client-go v0.26.0-rc.0
+	k8s.io/component-base v0.26.0-rc.0
+	k8s.io/component-helpers v0.26.0-rc.0
 	k8s.io/klog/v2 v2.80.1
 	k8s.io/kubernetes v1.25.4
 )
@@ -52,7 +52,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/net v0.1.0 // indirect
+	golang.org/x/net v0.1.1-0.20221027164007-c63010009c80 // indirect
 	golang.org/x/oauth2 v0.1.0 // indirect
 	golang.org/x/sys v0.1.0 // indirect
 	golang.org/x/term v0.1.0 // indirect
@@ -66,7 +66,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
-	k8s.io/utils v0.0.0-20221101230645-61b03e2f6476 // indirect
+	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d // indirect
 	sigs.k8s.io/json v0.0.0-20220713155537-f223a00ba0e2 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0 // indirect
