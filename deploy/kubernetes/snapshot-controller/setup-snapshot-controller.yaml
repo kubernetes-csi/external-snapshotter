@@ -37,5 +37,5 @@ spec:
           args:
             - "--v=5"
             - "--leader-election=true"
-            - "--prevent-volume-mode-conversion=false"
+            # end snapshot controller args
           imagePullPolicy: IfNotPresent
