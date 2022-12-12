@@ -18,12 +18,12 @@ require (
 	github.com/spf13/cobra v1.6.1
 	google.golang.org/grpc v1.50.1
 	k8s.io/api v0.26.0
-	k8s.io/apimachinery v0.26.0
+	k8s.io/apimachinery v0.26.1-rc.0
 	k8s.io/client-go v0.26.0
-	k8s.io/component-base v0.26.0-rc.0
-	k8s.io/component-helpers v0.26.0-rc.0
+	k8s.io/component-base v0.26.0
+	k8s.io/component-helpers v0.26.0
 	k8s.io/klog/v2 v2.80.1
-	k8s.io/kubernetes v1.25.4
+	k8s.io/kubernetes v1.26.0
 )
 
 require (

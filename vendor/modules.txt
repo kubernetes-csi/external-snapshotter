@@ -99,7 +99,7 @@ github.com/kubernetes-csi/csi-lib-utils/rpc
 github.com/kubernetes-csi/csi-test/v4/driver
 github.com/kubernetes-csi/csi-test/v4/utils
 # github.com/kubernetes-csi/external-snapshotter/client/v6 v6.1.0 => ./client
-## explicit; go 1.18
+## explicit; go 1.19
 github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned
 github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake
@@ -350,7 +350,7 @@ k8s.io/api/scheduling/v1beta1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apimachinery v0.26.0
+# k8s.io/apimachinery v0.26.1-rc.0
 ## explicit; go 1.19
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
 k8s.io/apimachinery/pkg/api/errors
@@ -691,12 +691,12 @@ k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.26.0-rc.0
+# k8s.io/component-base v0.26.0
 ## explicit; go 1.19
 k8s.io/component-base/metrics
 k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/version
-# k8s.io/component-helpers v0.26.0-rc.0
+# k8s.io/component-helpers v0.26.0
 ## explicit; go 1.19
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
@@ -725,7 +725,7 @@ k8s.io/kube-openapi/pkg/schemamutation
 k8s.io/kube-openapi/pkg/spec3
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/validation/spec
-# k8s.io/kubernetes v1.25.4
+# k8s.io/kubernetes v1.26.0
 ## explicit; go 1.19
 k8s.io/kubernetes/pkg/apis/admission/fuzzer
 # k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
