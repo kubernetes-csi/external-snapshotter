@@ -18,7 +18,7 @@ require (
 	github.com/spf13/cobra v1.6.1
 	google.golang.org/grpc v1.50.1
 	k8s.io/api v0.26.0
-	k8s.io/apimachinery v0.26.1-rc.0
+	k8s.io/apimachinery v0.26.0
 	k8s.io/client-go v0.26.0
 	k8s.io/component-base v0.26.0
 	k8s.io/component-helpers v0.26.0
@@ -73,3 +73,5 @@ require (
 )
 
 replace github.com/kubernetes-csi/external-snapshotter/client/v6 => ./client
+
+replace golang.org/x/net => golang.org/x/net v0.4.0
