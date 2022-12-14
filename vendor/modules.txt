@@ -99,7 +99,7 @@ github.com/kubernetes-csi/csi-lib-utils/rpc
 github.com/kubernetes-csi/csi-test/v4/driver
 github.com/kubernetes-csi/csi-test/v4/utils
 # github.com/kubernetes-csi/external-snapshotter/client/v6 v6.1.0 => ./client
-## explicit; go 1.18
+## explicit; go 1.19
 github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned
 github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake
@@ -155,7 +155,7 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 ## explicit; go 1.12
 github.com/spf13/pflag
-# golang.org/x/net v0.1.1-0.20221027164007-c63010009c80
+# golang.org/x/net v0.3.1-0.20221206200815-1e63c2f08a10 => golang.org/x/net v0.4.0
 ## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
@@ -169,16 +169,16 @@ golang.org/x/net/trace
 ## explicit; go 1.17
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.1.0
+# golang.org/x/sys v0.3.0
 ## explicit; go 1.17
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.1.0
+# golang.org/x/term v0.3.0
 ## explicit; go 1.17
 golang.org/x/term
-# golang.org/x/text v0.4.0
+# golang.org/x/text v0.5.0
 ## explicit; go 1.17
 golang.org/x/text/secure/bidirule
 golang.org/x/text/transform
@@ -295,7 +295,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.26.0-rc.0
+# k8s.io/api v0.26.0
 ## explicit; go 1.19
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -350,7 +350,7 @@ k8s.io/api/scheduling/v1beta1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apimachinery v0.26.0-rc.0
+# k8s.io/apimachinery v0.26.0
 ## explicit; go 1.19
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
 k8s.io/apimachinery/pkg/api/errors
@@ -395,7 +395,7 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/client-go v0.26.0-rc.0
+# k8s.io/client-go v0.26.0
 ## explicit; go 1.19
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
 k8s.io/client-go/applyconfigurations/admissionregistration/v1alpha1
@@ -691,12 +691,12 @@ k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/util/homedir
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/workqueue
-# k8s.io/component-base v0.26.0-rc.0
+# k8s.io/component-base v0.26.0
 ## explicit; go 1.19
 k8s.io/component-base/metrics
 k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/version
-# k8s.io/component-helpers v0.26.0-rc.0
+# k8s.io/component-helpers v0.26.0
 ## explicit; go 1.19
 k8s.io/component-helpers/scheduling/corev1
 k8s.io/component-helpers/scheduling/corev1/nodeaffinity
@@ -725,7 +725,7 @@ k8s.io/kube-openapi/pkg/schemamutation
 k8s.io/kube-openapi/pkg/spec3
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/validation/spec
-# k8s.io/kubernetes v1.25.4
+# k8s.io/kubernetes v1.26.0
 ## explicit; go 1.19
 k8s.io/kubernetes/pkg/apis/admission/fuzzer
 # k8s.io/utils v0.0.0-20221107191617-1a15be271d1d
@@ -752,3 +752,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 # github.com/kubernetes-csi/external-snapshotter/client/v6 => ./client
+# golang.org/x/net => golang.org/x/net v0.4.0

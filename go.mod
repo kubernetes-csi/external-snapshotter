@@ -1,6 +1,6 @@
 module github.com/kubernetes-csi/external-snapshotter/v6
 
-go 1.18
+go 1.19
 
 require (
 	github.com/container-storage-interface/spec v1.7.0
@@ -17,13 +17,13 @@ require (
 	github.com/prometheus/common v0.37.0
 	github.com/spf13/cobra v1.6.1
 	google.golang.org/grpc v1.50.1
-	k8s.io/api v0.26.0-rc.0
-	k8s.io/apimachinery v0.26.0-rc.0
-	k8s.io/client-go v0.26.0-rc.0
-	k8s.io/component-base v0.26.0-rc.0
-	k8s.io/component-helpers v0.26.0-rc.0
+	k8s.io/api v0.26.0
+	k8s.io/apimachinery v0.26.0
+	k8s.io/client-go v0.26.0
+	k8s.io/component-base v0.26.0
+	k8s.io/component-helpers v0.26.0
 	k8s.io/klog/v2 v2.80.1
-	k8s.io/kubernetes v1.25.4
+	k8s.io/kubernetes v1.26.0
 )
 
 require (
@@ -52,11 +52,11 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	golang.org/x/net v0.1.1-0.20221027164007-c63010009c80 // indirect
+	golang.org/x/net v0.3.1-0.20221206200815-1e63c2f08a10 // indirect
 	golang.org/x/oauth2 v0.1.0 // indirect
-	golang.org/x/sys v0.1.0 // indirect
-	golang.org/x/term v0.1.0 // indirect
-	golang.org/x/text v0.4.0 // indirect
+	golang.org/x/sys v0.3.0 // indirect
+	golang.org/x/term v0.3.0 // indirect
+	golang.org/x/text v0.5.0 // indirect
 	golang.org/x/time v0.1.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20221027153422-115e99e71e1c // indirect
@@ -73,3 +73,5 @@ require (
 )
 
 replace github.com/kubernetes-csi/external-snapshotter/client/v6 => ./client
+
+replace golang.org/x/net => golang.org/x/net v0.4.0
