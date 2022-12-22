@@ -87,8 +87,8 @@ github.com/josharian/intern
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
-# github.com/kubernetes-csi/csi-lib-utils v0.11.0
-## explicit; go 1.16
+# github.com/kubernetes-csi/csi-lib-utils v0.12.0
+## explicit; go 1.18
 github.com/kubernetes-csi/csi-lib-utils/connection
 github.com/kubernetes-csi/csi-lib-utils/leaderelection
 github.com/kubernetes-csi/csi-lib-utils/metrics
@@ -155,7 +155,7 @@ github.com/spf13/cobra
 # github.com/spf13/pflag v1.0.5
 ## explicit; go 1.12
 github.com/spf13/pflag
-# golang.org/x/net v0.3.1-0.20221206200815-1e63c2f08a10 => golang.org/x/net v0.4.0
+# golang.org/x/net v0.4.0 => golang.org/x/net v0.4.0
 ## explicit; go 1.17
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
