@@ -64,7 +64,7 @@ If your cluster does not come pre-installed with the correct components, you may
 
 Install Snapshot Beta CRDs:
 * kubectl create -f config/crd
-* https://github.com/kubernetes-csi/external-snapshotter/tree/master/config/crd
+* https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
 * Do this once per cluster
 
 Install Common Snapshot Controller:
