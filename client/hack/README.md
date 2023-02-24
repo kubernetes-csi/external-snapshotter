@@ -26,7 +26,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
     ```
 * Checkout latest release version
     ```bash
-    git checkout v0.25.2
+    git checkout v0.26.0
     ```
 
 * Ensure the file `generate-groups.sh` exists
@@ -50,6 +50,40 @@ Once you run the script, you will get an output as follows:
     Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/listers
     Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/informers
     
+```
+
+The following changes need to be made manually after running the above script:
+
+* The `SharedInformerFactory` interface in `./informers/factory.go` will have two functions named `Snapshot()`. Modify one to `GroupSnapshot()` and fix all references to that function in `informers/generic.go`.
+
+```bash
+	Snapshot() volumegroupsnapshot.Interface
+	Snapshot() volumesnapshot.Interface
+}
+
+func (f *sharedInformerFactory) Snapshot() volumegroupsnapshot.Interface {
+	return volumegroupsnapshot.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Snapshot() volumesnapshot.Interface {
+	return volumesnapshot.New(f, f.namespace, f.tweakListOptions)
+}
+```
+
+will become
+
+```bash
+	GroupSnapshot() volumegroupsnapshot.Interface
+	Snapshot() volumesnapshot.Interface
+}
+
+func (f *sharedInformerFactory) GroupSnapshot() volumegroupsnapshot.Interface {
+	return volumegroupsnapshot.New(f, f.namespace, f.tweakListOptions)
+}
+
+func (f *sharedInformerFactory) Snapshot() volumesnapshot.Interface {
+	return volumesnapshot.New(f, f.namespace, f.tweakListOptions)
+}
 ```
 
 ## update-crd.sh
@@ -116,7 +150,7 @@ Update the restoreSize property to use type string only:
 
 * In `client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml`, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeClaimName` and `volumeSnapshotContentName` is specified in the `source` field of the `spec` of `VolumeSnapshot`.
 
-```
+```bash
               source:
                 description: source specifies where a snapshot will be created from. This field is immutable after creation. Required.
                 properties:
@@ -135,7 +169,7 @@ Update the restoreSize property to use type string only:
 
 * In `client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `snapshotHandle` and `volumeHandle` is specified in the `source` field of the `spec` of `VolumeSnapshotContent`.
 
-```
+```bash
               source:
                 description: source specifies from where a snapshot will be created. This field is immutable after creation. Required.
                 properties:
@@ -149,7 +183,7 @@ Update the restoreSize property to use type string only:
                 oneOf:
                 - required: ["snapshotHandle"]
                 - required: ["volumeHandle"]
-              volumeSnapshotClassName:
+              sourceVolumeMode:
 ```
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
