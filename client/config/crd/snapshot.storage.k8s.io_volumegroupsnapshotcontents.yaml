@@ -78,6 +78,9 @@ spec:
                       be) created. This field is immutable.
                     type: string
                 type: object
+                oneOf:
+                - required: ["persistentVolumeNames"]
+                - required: ["volumeGroupSnapshotHandle"]
               volumeGroupSnapshotClassName:
                 description: VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
                   from which this group snapshot was (or will be) created. Note that

@@ -187,3 +187,31 @@ Update the restoreSize property to use type string only:
 ```
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
+
+* In `client/config/crd/snapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeNames` and `volumeGroupSnapshotHandle` is specified in the `source` field of the `spec` of `VolumeGroupSnapshotContent`.
+
+```bash
+              source:
+                description: Source specifies whether the snapshot is (or should be)
+                  dynamically provisioned or already exists, and just requires a Kubernetes
+                  object representation. This field is immutable after creation. Required.
+                properties:
+                  persistentVolumeNames:
+                    description: PersistentVolumeNames is a list of names of PersistentVolumes
+                      to be snapshotted together. Signifies dynamic provisioning of
+                      the VolumeGroupSnapshot. This field is immutable.
+                    items:
+                      type: string
+                    type: array
+                  volumeGroupSnapshotHandle:
+                    description: VolumeGroupSnapshotHandle specifies the CSI "snapshot_id"
+                      of a pre-existing snapshot on the underlying storage system
+                      for which a Kubernetes object representation was (or should
+                      be) created. This field is immutable.
+                    type: string
+                type: object
+                oneOf:
+                - required: ["persistentVolumeNames"]
+                - required: ["volumeGroupSnapshotHandle"]
+              volumeGroupSnapshotClassName:
+```
