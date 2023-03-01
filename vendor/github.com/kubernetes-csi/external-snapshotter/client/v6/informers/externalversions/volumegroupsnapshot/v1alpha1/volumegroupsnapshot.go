@@ -62,13 +62,13 @@ func NewFilteredVolumeGroupSnapshotInformer(client versioned.Interface, namespac
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1alpha1().VolumeGroupSnapshots(namespace).List(context.TODO(), options)
+				return client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(namespace).List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1alpha1().VolumeGroupSnapshots(namespace).Watch(context.TODO(), options)
+				return client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(namespace).Watch(context.TODO(), options)
 			},
 		},
 		&volumegroupsnapshotv1alpha1.VolumeGroupSnapshot{},

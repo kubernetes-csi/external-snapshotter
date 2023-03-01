@@ -53,21 +53,21 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=snapshot.storage.k8s.io, Version=v1
+	// Group=groupsnapshot.storage.k8s.io, Version=v1alpha1
+	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1alpha1().VolumeGroupSnapshots().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses().Informer()}, nil
+	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotcontents"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents().Informer()}, nil
+
+		// Group=snapshot.storage.k8s.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("volumesnapshots"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Snapshot().V1().VolumeSnapshots().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("volumesnapshotclasses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Snapshot().V1().VolumeSnapshotClasses().Informer()}, nil
 	case v1.SchemeGroupVersion.WithResource("volumesnapshotcontents"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Snapshot().V1().VolumeSnapshotContents().Informer()}, nil
-
-		// Group=snapshot.storage.k8s.io, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshots"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.GroupSnapshot().V1alpha1().VolumeGroupSnapshots().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.GroupSnapshot().V1alpha1().VolumeGroupSnapshotClasses().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotcontents"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.GroupSnapshot().V1alpha1().VolumeGroupSnapshotContents().Informer()}, nil
 
 	}
 

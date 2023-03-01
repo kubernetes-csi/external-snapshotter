@@ -61,13 +61,13 @@ func NewFilteredVolumeGroupSnapshotContentInformer(client versioned.Interface, r
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1alpha1().VolumeGroupSnapshotContents().List(context.TODO(), options)
+				return client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().List(context.TODO(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1alpha1().VolumeGroupSnapshotContents().Watch(context.TODO(), options)
+				return client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Watch(context.TODO(), options)
 			},
 		},
 		&volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContent{},

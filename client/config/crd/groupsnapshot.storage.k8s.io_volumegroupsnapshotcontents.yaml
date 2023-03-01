@@ -4,6 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.3
+    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/814"
   creationTimestamp: null
   name: volumegroupsnapshotcontents.groupsnapshot.storage.k8s.io
 spec:

@@ -19,6 +19,8 @@ package v1alpha1
 import (
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/kubernetes-csi/external-snapshotter/client/v6/apis"
 )
 
 // VolumeGroupSnapshotSpec defines the desired state of VolumeGroupSnapshot
@@ -74,7 +76,7 @@ type VolumeGroupSnapshotStatus struct {
 	// The snapshot controller will keep retrying when an error occurs during the
 	// group snapshot creation. Upon success, this error field will be cleared.
 	// +optional
-	Error *VolumeGroupSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeGroupSnapshotError"`
+	Error *apis.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
 	// VolumeSnapshotRefList is the list of volume snapshot references for this
 	// group snapshot.
@@ -269,7 +271,7 @@ type VolumeGroupSnapshotContentStatus struct {
 	// Error is the last observed error during group snapshot creation, if any.
 	// Upon success after retry, this error field will be cleared.
 	// +optional
-	Error *VolumeGroupSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeGroupSnapshotError"`
+	Error *apis.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
 	// VolumeSnapshotContentRefList is the list of volume snapshot content references
 	// for this group snapshot.
@@ -294,18 +296,4 @@ type VolumeGroupSnapshotContentSource struct {
 	// This field is immutable.
 	// +optional
 	VolumeGroupSnapshotHandle *string `json:"volumeGroupSnapshotHandle,omitempty" protobuf:"bytes,2,opt,name=volumeGroupSnapshotHandle"`
-}
-
-// VolumeGroupSnapshotError describes an error encountered during group snapshot creation.
-type VolumeGroupSnapshotError struct {
-	// Time is the timestamp when the error was encountered.
-	// +optional
-	Time *metav1.Time `json:"time,omitempty" protobuf:"bytes,1,opt,name=time"`
-
-	// Message is a string detailing the encountered error during snapshot
-	// creation if specified.
-	// NOTE: message may be logged, and it should not contain sensitive
-	// information.
-	// +optional
-	Message *string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
 }

@@ -32,12 +32,12 @@ import (
 
 // FakeVolumeGroupSnapshotContents implements VolumeGroupSnapshotContentInterface
 type FakeVolumeGroupSnapshotContents struct {
-	Fake *FakeSnapshotV1alpha1
+	Fake *FakeGroupsnapshotV1alpha1
 }
 
-var volumegroupsnapshotcontentsResource = schema.GroupVersionResource{Group: "snapshot.storage.k8s.io", Version: "v1alpha1", Resource: "volumegroupsnapshotcontents"}
+var volumegroupsnapshotcontentsResource = schema.GroupVersionResource{Group: "groupsnapshot.storage.k8s.io", Version: "v1alpha1", Resource: "volumegroupsnapshotcontents"}
 
-var volumegroupsnapshotcontentsKind = schema.GroupVersionKind{Group: "snapshot.storage.k8s.io", Version: "v1alpha1", Kind: "VolumeGroupSnapshotContent"}
+var volumegroupsnapshotcontentsKind = schema.GroupVersionKind{Group: "groupsnapshot.storage.k8s.io", Version: "v1alpha1", Kind: "VolumeGroupSnapshotContent"}
 
 // Get takes name of the volumeGroupSnapshotContent, and returns the corresponding volumeGroupSnapshotContent object, and an error if there is any.
 func (c *FakeVolumeGroupSnapshotContents) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.VolumeGroupSnapshotContent, err error) {
