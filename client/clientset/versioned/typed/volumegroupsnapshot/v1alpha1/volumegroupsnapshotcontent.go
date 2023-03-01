@@ -56,7 +56,7 @@ type volumeGroupSnapshotContents struct {
 }
 
 // newVolumeGroupSnapshotContents returns a VolumeGroupSnapshotContents
-func newVolumeGroupSnapshotContents(c *SnapshotV1alpha1Client) *volumeGroupSnapshotContents {
+func newVolumeGroupSnapshotContents(c *GroupsnapshotV1alpha1Client) *volumeGroupSnapshotContents {
 	return &volumeGroupSnapshotContents{
 		client: c.RESTClient(),
 	}

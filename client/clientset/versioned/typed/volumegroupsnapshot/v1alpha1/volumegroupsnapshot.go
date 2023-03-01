@@ -57,7 +57,7 @@ type volumeGroupSnapshots struct {
 }
 
 // newVolumeGroupSnapshots returns a VolumeGroupSnapshots
-func newVolumeGroupSnapshots(c *SnapshotV1alpha1Client, namespace string) *volumeGroupSnapshots {
+func newVolumeGroupSnapshots(c *GroupsnapshotV1alpha1Client, namespace string) *volumeGroupSnapshots {
 	return &volumeGroupSnapshots{
 		client: c.RESTClient(),
 		ns:     namespace,

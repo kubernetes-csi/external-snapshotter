@@ -24,25 +24,25 @@ import (
 	testing "k8s.io/client-go/testing"
 )
 
-type FakeSnapshotV1alpha1 struct {
+type FakeGroupsnapshotV1alpha1 struct {
 	*testing.Fake
 }
 
-func (c *FakeSnapshotV1alpha1) VolumeGroupSnapshots(namespace string) v1alpha1.VolumeGroupSnapshotInterface {
+func (c *FakeGroupsnapshotV1alpha1) VolumeGroupSnapshots(namespace string) v1alpha1.VolumeGroupSnapshotInterface {
 	return &FakeVolumeGroupSnapshots{c, namespace}
 }
 
-func (c *FakeSnapshotV1alpha1) VolumeGroupSnapshotClasses() v1alpha1.VolumeGroupSnapshotClassInterface {
+func (c *FakeGroupsnapshotV1alpha1) VolumeGroupSnapshotClasses() v1alpha1.VolumeGroupSnapshotClassInterface {
 	return &FakeVolumeGroupSnapshotClasses{c}
 }
 
-func (c *FakeSnapshotV1alpha1) VolumeGroupSnapshotContents() v1alpha1.VolumeGroupSnapshotContentInterface {
+func (c *FakeGroupsnapshotV1alpha1) VolumeGroupSnapshotContents() v1alpha1.VolumeGroupSnapshotContentInterface {
 	return &FakeVolumeGroupSnapshotContents{c}
 }
 
 // RESTClient returns a RESTClient that is used to communicate
 // with API server by this client implementation.
-func (c *FakeSnapshotV1alpha1) RESTClient() rest.Interface {
+func (c *FakeGroupsnapshotV1alpha1) RESTClient() rest.Interface {
 	var ret *rest.RESTClient
 	return ret
 }

@@ -52,40 +52,6 @@ Once you run the script, you will get an output as follows:
     
 ```
 
-The following changes need to be made manually after running the above script:
-
-* The `SharedInformerFactory` interface in `./informers/factory.go` will have two functions named `Snapshot()`. Modify one to `GroupSnapshot()` and fix all references to that function in `informers/generic.go`.
-
-```bash
-	Snapshot() volumegroupsnapshot.Interface
-	Snapshot() volumesnapshot.Interface
-}
-
-func (f *sharedInformerFactory) Snapshot() volumegroupsnapshot.Interface {
-	return volumegroupsnapshot.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Snapshot() volumesnapshot.Interface {
-	return volumesnapshot.New(f, f.namespace, f.tweakListOptions)
-}
-```
-
-will become
-
-```bash
-	GroupSnapshot() volumegroupsnapshot.Interface
-	Snapshot() volumesnapshot.Interface
-}
-
-func (f *sharedInformerFactory) GroupSnapshot() volumegroupsnapshot.Interface {
-	return volumegroupsnapshot.New(f, f.namespace, f.tweakListOptions)
-}
-
-func (f *sharedInformerFactory) Snapshot() volumesnapshot.Interface {
-	return volumesnapshot.New(f, f.namespace, f.tweakListOptions)
-}
-```
-
 ## update-crd.sh
 
 NOTE: We need to keep both v1beta1 and v1 snapshot APIs but set served and storage version of v1beta1 to false. Please copy back the v1beta1 manifest back to the files as this script will remove it.
@@ -188,7 +154,7 @@ Update the restoreSize property to use type string only:
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
 
-* In `client/config/crd/snapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeNames` and `volumeGroupSnapshotHandle` is specified in the `source` field of the `spec` of `VolumeGroupSnapshotContent`.
+* In `client/config/crd/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeNames` and `volumeGroupSnapshotHandle` is specified in the `source` field of the `spec` of `VolumeGroupSnapshotContent`.
 
 ```bash
               source:

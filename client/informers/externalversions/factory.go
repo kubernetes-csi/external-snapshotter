@@ -244,11 +244,11 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
-	GroupSnapshot() volumegroupsnapshot.Interface
+	Groupsnapshot() volumegroupsnapshot.Interface
 	Snapshot() volumesnapshot.Interface
 }
 
-func (f *sharedInformerFactory) GroupSnapshot() volumegroupsnapshot.Interface {
+func (f *sharedInformerFactory) Groupsnapshot() volumegroupsnapshot.Interface {
 	return volumegroupsnapshot.New(f, f.namespace, f.tweakListOptions)
 }
 
