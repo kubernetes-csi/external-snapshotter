@@ -20,7 +20,7 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kubernetes-csi/external-snapshotter/client/v6/apis"
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 )
 
 // VolumeGroupSnapshotSpec defines the desired state of VolumeGroupSnapshot
@@ -76,7 +76,7 @@ type VolumeGroupSnapshotStatus struct {
 	// The snapshot controller will keep retrying when an error occurs during the
 	// group snapshot creation. Upon success, this error field will be cleared.
 	// +optional
-	Error *apis.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
+	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
 	// VolumeSnapshotRefList is the list of volume snapshot references for this
 	// group snapshot.
@@ -139,7 +139,7 @@ type VolumeGroupSnapshotClass struct {
 	// VolumeGroupSnapshot is deleted.
 	// Supported values are "Retain" and "Delete".
 	// Required.
-	DeletionPolicy *VolumeGroupSnapshotDeletionPolicy `json:"deletionPolicy" protobuf:"bytes,4,opt,name=deletionPolicy"`
+	DeletionPolicy *snapshotv1.DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,4,opt,name=deletionPolicy"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -153,21 +153,6 @@ type VolumeGroupSnapshotClassList struct {
 	// Items is the list of VolumeGroupSnapshotClass
 	Items []VolumeGroupSnapshotClass `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
-
-// VolumeGroupSnapshotDeletionPolicy describes a policy for end-of-life maintenance
-// of VolumeGroupSnapshotContents.
-// +kubebuilder:validation:Enum=Delete;Retain
-type VolumeGroupSnapshotDeletionPolicy string
-
-const (
-	// VolumeGroupSnapshotContentDelete means the group snapshot will be deleted from the
-	// underlying storage system on release from its volume group snapshot.
-	VolumeGroupSnapshotContentDelete VolumeGroupSnapshotDeletionPolicy = "Delete"
-
-	// VolumeGroupSnapshotContentRetain means the group snapshot will be left in its current
-	// state on release from its volume group snapshot.
-	VolumeGroupSnapshotContentRetain VolumeGroupSnapshotDeletionPolicy = "Retain"
-)
 
 // +genclient
 // +genclient:nonNamespaced
@@ -221,7 +206,7 @@ type VolumeGroupSnapshotContentSpec struct {
 	// For pre-existing snapshots, users MUST specify this field when creating the
 	// VolumeGroupSnapshotContent object.
 	// Required.
-	DeletionPolicy VolumeGroupSnapshotDeletionPolicy `json:"deletionPolicy" protobuf:"bytes,2,opt,name=deletionPolicy"`
+	DeletionPolicy snapshotv1.DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,2,opt,name=deletionPolicy"`
 
 	// Driver is the name of the CSI driver used to create the physical group snapshot on
 	// the underlying storage system.
@@ -271,7 +256,7 @@ type VolumeGroupSnapshotContentStatus struct {
 	// Error is the last observed error during group snapshot creation, if any.
 	// Upon success after retry, this error field will be cleared.
 	// +optional
-	Error *apis.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
+	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
 	// VolumeSnapshotContentRefList is the list of volume snapshot content references
 	// for this group snapshot.

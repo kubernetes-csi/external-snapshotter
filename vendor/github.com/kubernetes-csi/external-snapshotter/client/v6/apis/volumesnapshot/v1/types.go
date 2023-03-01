@@ -21,8 +21,6 @@ import (
 	core_v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
-	"github.com/kubernetes-csi/external-snapshotter/client/v6/apis"
 )
 
 // +genclient
@@ -184,7 +182,7 @@ type VolumeSnapshotStatus struct {
 	// The snapshot controller will keep retrying when an error occurs during the
 	// snapshot creation. Upon success, this error field will be cleared.
 	// +optional
-	Error *apis.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,5,opt,name=error,casttype=VolumeSnapshotError"`
+	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,5,opt,name=error,casttype=VolumeSnapshotError"`
 
 	// VolumeGroupSnapshotName is the name of the VolumeGroupSnapshot of which this
 	// VolumeSnapshot is a part of.
@@ -421,7 +419,7 @@ type VolumeSnapshotContentStatus struct {
 	// error is the last observed error during snapshot creation, if any.
 	// Upon success after retry, this error field will be cleared.
 	// +optional
-	Error *apis.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,5,opt,name=error,casttype=VolumeSnapshotError"`
+	Error *VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,5,opt,name=error,casttype=VolumeSnapshotError"`
 
 	// VolumeGroupSnapshotContentName is the name of the VolumeGroupSnapshotContent of
 	// which this VolumeSnapshotContent is a part of.
@@ -442,3 +440,17 @@ const (
 	// state on release from its volume snapshot.
 	VolumeSnapshotContentRetain DeletionPolicy = "Retain"
 )
+
+// VolumeSnapshotError describes an error encountered during snapshot creation.
+type VolumeSnapshotError struct {
+	// time is the timestamp when the error was encountered.
+	// +optional
+	Time *metav1.Time `json:"time,omitempty" protobuf:"bytes,1,opt,name=time"`
+
+	// message is a string detailing the encountered error during snapshot
+	// creation if specified.
+	// NOTE: message may be logged, and it should not contain sensitive
+	// information.
+	// +optional
+	Message *string `json:"message,omitempty" protobuf:"bytes,2,opt,name=message"`
+}

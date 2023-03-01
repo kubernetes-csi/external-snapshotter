@@ -22,8 +22,8 @@ limitations under the License.
 package v1alpha1
 
 import (
-	apis "github.com/kubernetes-csi/external-snapshotter/client/v6/apis"
-	v1 "k8s.io/api/core/v1"
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
@@ -70,7 +70,7 @@ func (in *VolumeGroupSnapshotClass) DeepCopyInto(out *VolumeGroupSnapshotClass) 
 	}
 	if in.DeletionPolicy != nil {
 		in, out := &in.DeletionPolicy, &out.DeletionPolicy
-		*out = new(VolumeGroupSnapshotDeletionPolicy)
+		*out = new(v1.DeletionPolicy)
 		**out = **in
 	}
 	return
@@ -257,12 +257,12 @@ func (in *VolumeGroupSnapshotContentStatus) DeepCopyInto(out *VolumeGroupSnapsho
 	}
 	if in.Error != nil {
 		in, out := &in.Error, &out.Error
-		*out = new(apis.VolumeSnapshotError)
+		*out = new(v1.VolumeSnapshotError)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.VolumeSnapshotContentRefList != nil {
 		in, out := &in.VolumeSnapshotContentRefList, &out.VolumeSnapshotContentRefList
-		*out = make([]v1.ObjectReference, len(*in))
+		*out = make([]corev1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 	return
@@ -356,12 +356,12 @@ func (in *VolumeGroupSnapshotStatus) DeepCopyInto(out *VolumeGroupSnapshotStatus
 	}
 	if in.Error != nil {
 		in, out := &in.Error, &out.Error
-		*out = new(apis.VolumeSnapshotError)
+		*out = new(v1.VolumeSnapshotError)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.VolumeSnapshotRefList != nil {
 		in, out := &in.VolumeSnapshotRefList, &out.VolumeSnapshotRefList
-		*out = make([]v1.ObjectReference, len(*in))
+		*out = make([]corev1.ObjectReference, len(*in))
 		copy(*out, *in)
 	}
 	return
