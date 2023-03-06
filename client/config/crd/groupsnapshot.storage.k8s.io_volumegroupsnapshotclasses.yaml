@@ -14,16 +14,18 @@ spec:
     listKind: VolumeGroupSnapshotClassList
     plural: volumegroupsnapshotclasses
     shortNames:
-    - vsgclass
-    - vsgclasses
+    - vgsclass
+    - vgsclasses
     singular: volumegroupsnapshotclass
   scope: Cluster
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: VolumeGroupSnapshotClass is the Schema for the volumegroupsnapshotclass
-          API
+        description: VolumeGroupSnapshotClass specifies parameters that a underlying
+          storage system uses when creating a volume group snapshot. A specific VolumeGroupSnapshotClass
+          is used by specifying its name in a VolumeGroupSnapshot object. VolumeGroupSnapshotClasses
+          are non-namespaced.
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,7 +36,10 @@ spec:
             description: DeletionPolicy determines whether a VolumeGroupSnapshotContent
               created through the VolumeGroupSnapshotClass should be deleted when
               its bound VolumeGroupSnapshot is deleted. Supported values are "Retain"
-              and "Delete". Required.
+              and "Delete". "Retain" means that the VolumeGroupSnapshotContent and
+              its physical group snapshot on underlying storage system are kept. "Delete"
+              means that the VolumeGroupSnapshotContent and its physical group snapshot
+              on underlying storage system are deleted. Required.
             enum:
             - Delete
             - Retain
@@ -53,7 +58,7 @@ spec:
               type: string
             description: Parameters is a key-value map with storage driver specific
               parameters for creating group snapshots. These values are opaque to
-              the system and are passed directly to the driver.
+              Kubernetes and are passed directly to the driver.
             type: object
         required:
         - deletionPolicy
@@ -61,5 +66,3 @@ spec:
         type: object
     served: true
     storage: true
-    subresources:
-      status: {}

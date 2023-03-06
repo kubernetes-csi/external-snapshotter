@@ -35,7 +35,8 @@ spec:
               submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           spec:
-            description: VolumeGroupSnapshotSpec defines the desired state of VolumeGroupSnapshot
+            description: Spec defines the desired characteristics of a group snapshot
+              requested by a user. Required.
             properties:
               selector:
                 description: Selector is a label query over PersistentVolumeClaims
@@ -44,7 +45,7 @@ spec:
                   added or removed to a volume after a group snapshot is created,
                   the existing group snapshots won't be modified. Once a VolumeGroupSnapshotContent
                   is created and the sidecar starts to process it, the volume list
-                  will not change with retries.
+                  will not change with retries. Required.
                 properties:
                   matchExpressions:
                     description: matchExpressions is a list of label selector requirements.
@@ -98,7 +99,10 @@ spec:
             - selector
             type: object
           status:
-            description: VolumeGroupSnapshotStatus defines the observed state of VolumeGroupSnapshot
+            description: Status represents the current information of a group snapshot.
+              Consumers must verify binding between VolumeGroupSnapshot and VolumeGroupSnapshotContent
+              objects is successful (by validating that both VolumeGroupSnapshot and
+              VolumeGroupSnapshotContent point to each other) before using this object.
             properties:
               boundVolumeGroupSnapshotContentName:
                 description: 'BoundVolumeGroupSnapshotContentName is the name of the
@@ -128,19 +132,23 @@ spec:
                   this error field will be cleared.
                 properties:
                   message:
-                    description: 'Message is a string detailing the encountered error
+                    description: 'message is a string detailing the encountered error
                       during snapshot creation if specified. NOTE: message may be
                       logged, and it should not contain sensitive information.'
                     type: string
                   time:
-                    description: Time is the timestamp when the error was encountered.
+                    description: time is the timestamp when the error was encountered.
                     format: date-time
                     type: string
                 type: object
               readyToUse:
                 description: ReadyToUse indicates if all the individual snapshots
-                  in the group are ready to be used to restore a volume. If not specified,
-                  it means the readiness of a group snapshot is unknown.
+                  in the group are ready to be used to restore a volume. ReadyToUse
+                  becomes true when ReadyToUse of all individual snapshots become
+                  true. If not specified, it means the readiness of a group snapshot
+                  is unknown. The format of this field is a Unix nanoseconds time
+                  encoded as an int64. On Unix, the command date +%s%N returns the
+                  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
                 type: boolean
               volumeSnapshotRefList:
                 description: VolumeSnapshotRefList is the list of volume snapshot

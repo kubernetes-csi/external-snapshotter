@@ -32,7 +32,8 @@ type VolumeGroupSnapshotSpec struct {
 	// is created, the existing group snapshots won't be modified.
 	// Once a VolumeGroupSnapshotContent is created and the sidecar starts to process
 	// it, the volume list will not change with retries.
-	Selector *metav1.LabelSelector `json:"selector" protobuf:"bytes,1,opt,name=selector"`
+	// Required.
+	Selector metav1.LabelSelector `json:"selector" protobuf:"bytes,1,opt,name=selector"`
 
 	// VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
 	// requested by the VolumeGroupSnapshot.
@@ -65,7 +66,11 @@ type VolumeGroupSnapshotStatus struct {
 
 	// ReadyToUse indicates if all the individual snapshots in the group are ready
 	// to be used to restore a volume.
+	// ReadyToUse becomes true when ReadyToUse of all individual snapshots become true.
 	// If not specified, it means the readiness of a group snapshot is unknown.
+	// The format of this field is a Unix nanoseconds time encoded as an int64.
+	// On Unix, the command date +%s%N returns the current time in nanoseconds
+	// since 1970-01-01 00:00:00 UTC.
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,3,opt,name=readyToUse"`
 
@@ -86,41 +91,57 @@ type VolumeGroupSnapshotStatus struct {
 }
 
 //+genclient
-//+k8s:deepcopy-gen=true
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-//+kubebuilder:resource:scope=Namespaced,shortName=vgs
-//+kubebuilder:subresource:status
 
 // VolumeGroupSnapshot is a user's request for creating either a point-in-time
 // group snapshot or binding to a pre-existing group snapshot.
 // +kubebuilder:object:root=true
+// +kubebuilder:resource:scope=Namespaced,shortName=vgs
 // +kubebuilder:subresource:status
 type VolumeGroupSnapshot struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	Spec   VolumeGroupSnapshotSpec   `json:"spec" protobuf:"bytes,2,opt,name=spec"`
-	Status VolumeGroupSnapshotStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
+	// Spec defines the desired characteristics of a group snapshot requested by a user.
+	// Required.
+	Spec VolumeGroupSnapshotSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`
+	// Status represents the current information of a group snapshot.
+	// Consumers must verify binding between VolumeGroupSnapshot and
+	// VolumeGroupSnapshotContent objects is successful (by validating that both
+	// VolumeGroupSnapshot and VolumeGroupSnapshotContent point to each other) before
+	// using this object.
+	// +optional
+	Status *VolumeGroupSnapshotStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// VolumeGroupSnapshotList contains a list of VolumeGroupSnapshot
+// VolumeGroupSnapshotList contains a list of VolumeGroupSnapshot objects.
 type VolumeGroupSnapshotList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []VolumeGroupSnapshot `json:"items"`
+	// +optional
+	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
+	// Items is the list of VolumeGroupSnapshots.
+	Items []VolumeGroupSnapshot `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
 //+genclient
 //+genclient:nonNamespaced
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// VolumeGroupSnapshotClass is the Schema for the volumegroupsnapshotclass API
+// VolumeGroupSnapshotClass specifies parameters that a underlying storage system
+// uses when creating a volume group snapshot. A specific VolumeGroupSnapshotClass
+// is used by specifying its name in a VolumeGroupSnapshot object.
+// VolumeGroupSnapshotClasses are non-namespaced.
 // +kubebuilder:object:root=true
-// +kubebuilder:subresource:status
-// +kubebuilder:resource:scope=Cluster,shortName=vsgclass;vsgclasses
+// +kubebuilder:resource:scope=Cluster,shortName=vgsclass;vgsclasses
 type VolumeGroupSnapshotClass struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// Standard object's metadata.
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
 	// Driver is the name of the storage driver expected to handle this VolumeGroupSnapshotClass.
@@ -129,8 +150,7 @@ type VolumeGroupSnapshotClass struct {
 
 	// Parameters is a key-value map with storage driver specific parameters for
 	// creating group snapshots.
-	// These values are opaque to the system and are passed directly
-	// to the driver.
+	// These values are opaque to Kubernetes and are passed directly to the driver.
 	// +optional
 	Parameters map[string]string `json:"parameters,omitempty" protobuf:"bytes,3,rep,name=parameters"`
 
@@ -138,8 +158,12 @@ type VolumeGroupSnapshotClass struct {
 	// through the VolumeGroupSnapshotClass should be deleted when its bound
 	// VolumeGroupSnapshot is deleted.
 	// Supported values are "Retain" and "Delete".
+	// "Retain" means that the VolumeGroupSnapshotContent and its physical group
+	// snapshot on underlying storage system are kept.
+	// "Delete" means that the VolumeGroupSnapshotContent and its physical group
+	// snapshot on underlying storage system are deleted.
 	// Required.
-	DeletionPolicy *snapshotv1.DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,4,opt,name=deletionPolicy"`
+	DeletionPolicy snapshotv1.DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,4,opt,name=deletionPolicy"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -148,9 +172,12 @@ type VolumeGroupSnapshotClass struct {
 // +kubebuilder:object:root=true
 type VolumeGroupSnapshotClassList struct {
 	metav1.TypeMeta `json:",inline"`
+	// Standard list metadata
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	// Items is the list of VolumeGroupSnapshotClass
+	// Items is the list of VolumeGroupSnapshotClasses.
 	Items []VolumeGroupSnapshotClass `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
@@ -161,14 +188,21 @@ type VolumeGroupSnapshotClassList struct {
 // VolumeGroupSnapshotContent represents the actual "on-disk" group snapshot object
 // in the underlying storage system
 // +kubebuilder:object:root=true
-// +kubebuilder:resource:scope=Cluster,shortName=vsc;vgscs
+// +kubebuilder:resource:scope=Cluster,shortName=vgsc;vgscs
 // +kubebuilder:subresource:status
 type VolumeGroupSnapshotContent struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	// Standard list metadata
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	Spec   VolumeGroupSnapshotContentSpec   `json:"spec" protobuf:"bytes,2,opt,name=spec"`
-	Status VolumeGroupSnapshotContentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
+	// Spec defines properties of a VolumeGroupSnapshotContent created by the underlying storage system.
+	// Required.
+	Spec VolumeGroupSnapshotContentSpec `json:"spec" protobuf:"bytes,2,opt,name=spec"`
+	// status represents the current information of a group snapshot.
+	// +optional
+	Status *VolumeGroupSnapshotContentStatus `json:"status,omitempty" protobuf:"bytes,3,opt,name=status"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -177,10 +211,12 @@ type VolumeGroupSnapshotContent struct {
 // +kubebuilder:object:root=true
 type VolumeGroupSnapshotContentList struct {
 	metav1.TypeMeta `json:",inline"`
+	// Standard list metadata
+	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	// +optional
 	metav1.ListMeta `json:"metadata,omitempty" protobuf:"bytes,1,opt,name=metadata"`
 
-	// items is the list of VolumeGroupSnapshotContent
+	// Items is the list of VolumeGroupSnapshotContents.
 	Items []VolumeGroupSnapshotContent `json:"items" protobuf:"bytes,2,rep,name=items"`
 }
 
@@ -197,9 +233,13 @@ type VolumeGroupSnapshotContentSpec struct {
 	VolumeGroupSnapshotRef core_v1.ObjectReference `json:"volumeGroupSnapshotRef" protobuf:"bytes,1,opt,name=volumeGroupSnapshotRef"`
 
 	// DeletionPolicy determines whether this VolumeGroupSnapshotContent and the
-	// physical snapshots on the underlying storage system should be deleted when
-	// the bound VolumeGroupSnapshot is deleted.
+	// physical group snapshot on the underlying storage system should be deleted
+	// when the bound VolumeGroupSnapshot is deleted.
 	// Supported values are "Retain" and "Delete".
+	// "Retain" means that the VolumeGroupSnapshotContent and its physical group
+	// snapshot on underlying storage system are kept.
+	// "Delete" means that the VolumeGroupSnapshotContent and its physical group
+	// snapshot on underlying storage system are deleted.
 	// For dynamically provisioned group snapshots, this field will automatically
 	// be filled in by the CSI snapshotter sidecar with the "DeletionPolicy" field
 	// defined in the corresponding VolumeGroupSnapshotClass.
@@ -249,7 +289,11 @@ type VolumeGroupSnapshotContentStatus struct {
 
 	// ReadyToUse indicates if all the individual snapshots in the group are ready to be
 	// used to restore a volume.
+	// ReadyToUse becomes true when ReadyToUse of all individual snapshots become true.
 	// If not specified, it means the readiness of a group snapshot is unknown.
+	// The format of this field is a Unix nanoseconds time encoded as an int64.
+	// On Unix, the command date +%s%N returns the current time in nanoseconds
+	// since 1970-01-01 00:00:00 UTC.
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,3,opt,name=readyToUse"`
 
@@ -270,13 +314,13 @@ type VolumeGroupSnapshotContentStatus struct {
 // Members in VolumeGroupSnapshotContentSource are immutable.
 type VolumeGroupSnapshotContentSource struct {
 	// PersistentVolumeNames is a list of names of PersistentVolumes to be snapshotted
-	// together. Signifies dynamic provisioning of the VolumeGroupSnapshot.
+	// together. It is specified for dynamic provisioning of the VolumeGroupSnapshot.
 	// This field is immutable.
 	// +optional
 	PersistentVolumeNames []string `json:"persistentVolumeNames,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeNames"`
 
-	// VolumeGroupSnapshotHandle specifies the CSI "snapshot_id" of a pre-existing
-	// snapshot on the underlying storage system for which a Kubernetes object
+	// VolumeGroupSnapshotHandle specifies the CSI "group_snapshot_id" of a pre-existing
+	// group snapshot on the underlying storage system for which a Kubernetes object
 	// representation was (or should be) created.
 	// This field is immutable.
 	// +optional
