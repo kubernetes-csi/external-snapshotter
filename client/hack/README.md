@@ -26,7 +26,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
     ```
 * Checkout latest release version
     ```bash
-    git checkout v0.26.0
+    git checkout v0.26.1
     ```
 
 * Ensure the file `generate-groups.sh` exists
@@ -164,14 +164,14 @@ Update the restoreSize property to use type string only:
                 properties:
                   persistentVolumeNames:
                     description: PersistentVolumeNames is a list of names of PersistentVolumes
-                      to be snapshotted together. Signifies dynamic provisioning of
-                      the VolumeGroupSnapshot. This field is immutable.
+                      to be snapshotted together. It is specified for dynamic provisioning
+                      of the VolumeGroupSnapshot. This field is immutable.
                     items:
                       type: string
                     type: array
                   volumeGroupSnapshotHandle:
-                    description: VolumeGroupSnapshotHandle specifies the CSI "snapshot_id"
-                      of a pre-existing snapshot on the underlying storage system
+                    description: VolumeGroupSnapshotHandle specifies the CSI "group_snapshot_id"
+                      of a pre-existing group snapshot on the underlying storage system
                       for which a Kubernetes object representation was (or should
                       be) created. This field is immutable.
                     type: string
