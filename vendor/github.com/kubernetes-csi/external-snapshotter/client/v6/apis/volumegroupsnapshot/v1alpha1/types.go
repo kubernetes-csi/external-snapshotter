@@ -23,7 +23,7 @@ import (
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 )
 
-// VolumeGroupSnapshotSpec defines the desired state of VolumeGroupSnapshot
+// VolumeGroupSnapshotSpec defines the desired state of a volume group snapshot.
 type VolumeGroupSnapshotSpec struct {
 	// Source specifies where a group snapshot will be created from.
 	// This field is immutable after creation.
@@ -45,8 +45,8 @@ type VolumeGroupSnapshotSpec struct {
 // Exactly one of its members must be set.
 // Members in VolumeGroupSnapshotSource are immutable.
 type VolumeGroupSnapshotSource struct {
-	// Selector is a label query over PersistentVolumeClaims that are to be grouped
-	// together for snapshotting.
+	// Selector is a label query over persistent volume claims that are to be
+	// grouped together for snapshotting.
 	// This labelSelector will be used to match the label added to a PVC.
 	// If the label is added or removed to a volume after a group snapshot
 	// is created, the existing group snapshots won't be modified.
@@ -64,7 +64,7 @@ type VolumeGroupSnapshotSource struct {
 	VolumeGroupSnapshotContentName *string `json:"volumeGroupSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeGroupSnapshotContentName"`
 }
 
-// VolumeGroupSnapshotStatus defines the observed state of VolumeGroupSnapshot
+// VolumeGroupSnapshotStatus defines the observed state of volume group snapshot.
 type VolumeGroupSnapshotStatus struct {
 	// BoundVolumeGroupSnapshotContentName is the name of the VolumeGroupSnapshotContent
 	// object to which this VolumeGroupSnapshot object intends to bind to.
