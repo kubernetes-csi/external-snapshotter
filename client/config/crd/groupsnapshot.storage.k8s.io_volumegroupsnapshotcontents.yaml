@@ -149,7 +149,11 @@ spec:
               creationTime:
                 description: CreationTime is the timestamp when the point-in-time
                   group snapshot is taken by the underlying storage system. If not
-                  specified, it indicates the creation time is unknown.
+                  specified, it indicates the creation time is unknown. If not specified,
+                  it means the readiness of a group snapshot is unknown. The format
+                  of this field is a Unix nanoseconds time encoded as an int64. On
+                  Unix, the command date +%s%N returns the current time in nanoseconds
+                  since 1970-01-01 00:00:00 UTC.
                 format: int64
                 type: integer
               error:
@@ -171,10 +175,7 @@ spec:
                 description: ReadyToUse indicates if all the individual snapshots
                   in the group are ready to be used to restore a volume. ReadyToUse
                   becomes true when ReadyToUse of all individual snapshots become
-                  true. If not specified, it means the readiness of a group snapshot
-                  is unknown. The format of this field is a Unix nanoseconds time
-                  encoded as an int64. On Unix, the command date +%s%N returns the
-                  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
+                  true.
                 type: boolean
               volumeGroupSnapshotHandle:
                 description: VolumeGroupSnapshotHandle is a unique id returned by

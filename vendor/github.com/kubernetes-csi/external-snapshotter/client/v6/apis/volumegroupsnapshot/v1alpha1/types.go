@@ -25,6 +25,26 @@ import (
 
 // VolumeGroupSnapshotSpec defines the desired state of VolumeGroupSnapshot
 type VolumeGroupSnapshotSpec struct {
+	// Source specifies where a group snapshot will be created from.
+	// This field is immutable after creation.
+	// Required.
+	Source VolumeGroupSnapshotSource `json:"source" protobuf:"bytes,1,opt,name=source"`
+
+	// VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
+	// requested by the VolumeGroupSnapshot.
+	// VolumeGroupSnapshotClassName may be left nil to indicate that the default
+	// class will be used.
+	// Empty string is not allowed for this field.
+	// +optional
+	VolumeGroupSnapshotClassName *string `json:"volumeGroupSnapshotClassName,omitempty" protobuf:"bytes,2,opt,name=volumeGroupSnapshotClassName"`
+}
+
+// VolumeGroupSnapshotSource specifies whether the underlying group snapshot should be
+// dynamically taken upon creation or if a pre-existing VolumeGroupSnapshotContent
+// object should be used.
+// Exactly one of its members must be set.
+// Members in VolumeGroupSnapshotSource are immutable.
+type VolumeGroupSnapshotSource struct {
 	// Selector is a label query over PersistentVolumeClaims that are to be grouped
 	// together for snapshotting.
 	// This labelSelector will be used to match the label added to a PVC.
@@ -35,13 +55,12 @@ type VolumeGroupSnapshotSpec struct {
 	// Required.
 	Selector metav1.LabelSelector `json:"selector" protobuf:"bytes,1,opt,name=selector"`
 
-	// VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
-	// requested by the VolumeGroupSnapshot.
-	// VolumeGroupSnapshotClassName may be left nil to indicate that the default
-	// class will be used.
-	// Empty string is not allowed for this field.
+	// volumeGroupSnapshotContentName specifies the name of a pre-existing VolumeGroupSnapshotContent
+	// object representing an existing volume group snapshot.
+	// This field should be set if the volume group snapshot already exists and only needs a representation in Kubernetes.
+	// This field is immutable.
 	// +optional
-	VolumeGroupSnapshotClassName *string `json:"volumeGroupSnapshotClassName,omitempty" protobuf:"bytes,2,opt,name=volumeGroupSnapshotClassName"`
+	VolumeGroupSnapshotContentName *string `json:"volumeGroupSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeGroupSnapshotContentName"`
 }
 
 // VolumeGroupSnapshotStatus defines the observed state of VolumeGroupSnapshot
@@ -61,6 +80,9 @@ type VolumeGroupSnapshotStatus struct {
 	// by the underlying storage system.
 	// If not specified, it may indicate that the creation time of the group snapshot
 	// is unknown.
+	// The format of this field is a Unix nanoseconds time encoded as an int64.
+	// On Unix, the command date +%s%N returns the current time in nanoseconds
+	// since 1970-01-01 00:00:00 UTC.
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
 
@@ -68,9 +90,6 @@ type VolumeGroupSnapshotStatus struct {
 	// to be used to restore a volume.
 	// ReadyToUse becomes true when ReadyToUse of all individual snapshots become true.
 	// If not specified, it means the readiness of a group snapshot is unknown.
-	// The format of this field is a Unix nanoseconds time encoded as an int64.
-	// On Unix, the command date +%s%N returns the current time in nanoseconds
-	// since 1970-01-01 00:00:00 UTC.
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,3,opt,name=readyToUse"`
 
@@ -284,16 +303,16 @@ type VolumeGroupSnapshotContentStatus struct {
 	// CreationTime is the timestamp when the point-in-time group snapshot is taken
 	// by the underlying storage system.
 	// If not specified, it indicates the creation time is unknown.
+	// If not specified, it means the readiness of a group snapshot is unknown.
+	// The format of this field is a Unix nanoseconds time encoded as an int64.
+	// On Unix, the command date +%s%N returns the current time in nanoseconds
+	// since 1970-01-01 00:00:00 UTC.
 	// +optional
 	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,2,opt,name=creationTime"`
 
 	// ReadyToUse indicates if all the individual snapshots in the group are ready to be
 	// used to restore a volume.
 	// ReadyToUse becomes true when ReadyToUse of all individual snapshots become true.
-	// If not specified, it means the readiness of a group snapshot is unknown.
-	// The format of this field is a Unix nanoseconds time encoded as an int64.
-	// On Unix, the command date +%s%N returns the current time in nanoseconds
-	// since 1970-01-01 00:00:00 UTC.
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,3,opt,name=readyToUse"`
 

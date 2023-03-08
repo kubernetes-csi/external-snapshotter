@@ -38,57 +38,71 @@ spec:
             description: Spec defines the desired characteristics of a group snapshot
               requested by a user. Required.
             properties:
-              selector:
-                description: Selector is a label query over PersistentVolumeClaims
-                  that are to be grouped together for snapshotting. This labelSelector
-                  will be used to match the label added to a PVC. If the label is
-                  added or removed to a volume after a group snapshot is created,
-                  the existing group snapshots won't be modified. Once a VolumeGroupSnapshotContent
-                  is created and the sidecar starts to process it, the volume list
-                  will not change with retries. Required.
+              source:
+                description: Source specifies where a group snapshot will be created
+                  from. This field is immutable after creation. Required.
                 properties:
-                  matchExpressions:
-                    description: matchExpressions is a list of label selector requirements.
-                      The requirements are ANDed.
-                    items:
-                      description: A label selector requirement is a selector that
-                        contains values, a key, and an operator that relates the key
-                        and values.
-                      properties:
-                        key:
-                          description: key is the label key that the selector applies
-                            to.
+                  selector:
+                    description: Selector is a label query over PersistentVolumeClaims
+                      that are to be grouped together for snapshotting. This labelSelector
+                      will be used to match the label added to a PVC. If the label
+                      is added or removed to a volume after a group snapshot is created,
+                      the existing group snapshots won't be modified. Once a VolumeGroupSnapshotContent
+                      is created and the sidecar starts to process it, the volume
+                      list will not change with retries. Required.
+                    properties:
+                      matchExpressions:
+                        description: matchExpressions is a list of label selector
+                          requirements. The requirements are ANDed.
+                        items:
+                          description: A label selector requirement is a selector
+                            that contains values, a key, and an operator that relates
+                            the key and values.
+                          properties:
+                            key:
+                              description: key is the label key that the selector
+                                applies to.
+                              type: string
+                            operator:
+                              description: operator represents a key's relationship
+                                to a set of values. Valid operators are In, NotIn,
+                                Exists and DoesNotExist.
+                              type: string
+                            values:
+                              description: values is an array of string values. If
+                                the operator is In or NotIn, the values array must
+                                be non-empty. If the operator is Exists or DoesNotExist,
+                                the values array must be empty. This array is replaced
+                                during a strategic merge patch.
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - key
+                          - operator
+                          type: object
+                        type: array
+                      matchLabels:
+                        additionalProperties:
                           type: string
-                        operator:
-                          description: operator represents a key's relationship to
-                            a set of values. Valid operators are In, NotIn, Exists
-                            and DoesNotExist.
-                          type: string
-                        values:
-                          description: values is an array of string values. If the
-                            operator is In or NotIn, the values array must be non-empty.
-                            If the operator is Exists or DoesNotExist, the values
-                            array must be empty. This array is replaced during a strategic
-                            merge patch.
-                          items:
-                            type: string
-                          type: array
-                      required:
-                      - key
-                      - operator
-                      type: object
-                    type: array
-                  matchLabels:
-                    additionalProperties:
-                      type: string
-                    description: matchLabels is a map of {key,value} pairs. A single
-                      {key,value} in the matchLabels map is equivalent to an element
-                      of matchExpressions, whose key field is "key", the operator
-                      is "In", and the values array contains only "value". The requirements
-                      are ANDed.
+                        description: matchLabels is a map of {key,value} pairs. A
+                          single {key,value} in the matchLabels map is equivalent
+                          to an element of matchExpressions, whose key field is "key",
+                          the operator is "In", and the values array contains only
+                          "value". The requirements are ANDed.
+                        type: object
                     type: object
+                    x-kubernetes-map-type: atomic
+                  volumeGroupSnapshotContentName:
+                    description: volumeGroupSnapshotContentName specifies the name
+                      of a pre-existing VolumeGroupSnapshotContent object representing
+                      an existing volume group snapshot. This field should be set
+                      if the volume group snapshot already exists and only needs a
+                      representation in Kubernetes. This field is immutable.
+                    type: string
+                required:
+                - selector
                 type: object
-                x-kubernetes-map-type: atomic
               volumeGroupSnapshotClassName:
                 description: VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
                   requested by the VolumeGroupSnapshot. VolumeGroupSnapshotClassName
@@ -96,7 +110,7 @@ spec:
                   Empty string is not allowed for this field.
                 type: string
             required:
-            - selector
+            - source
             type: object
           status:
             description: Status represents the current information of a group snapshot.
@@ -119,7 +133,9 @@ spec:
                 description: CreationTime is the timestamp when the point-in-time
                   group snapshot is taken by the underlying storage system. If not
                   specified, it may indicate that the creation time of the group snapshot
-                  is unknown.
+                  is unknown. The format of this field is a Unix nanoseconds time
+                  encoded as an int64. On Unix, the command date +%s%N returns the
+                  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
                 format: date-time
                 type: string
               error:
@@ -146,9 +162,7 @@ spec:
                   in the group are ready to be used to restore a volume. ReadyToUse
                   becomes true when ReadyToUse of all individual snapshots become
                   true. If not specified, it means the readiness of a group snapshot
-                  is unknown. The format of this field is a Unix nanoseconds time
-                  encoded as an int64. On Unix, the command date +%s%N returns the
-                  current time in nanoseconds since 1970-01-01 00:00:00 UTC.
+                  is unknown.
                 type: boolean
               volumeSnapshotRefList:
                 description: VolumeSnapshotRefList is the list of volume snapshot
