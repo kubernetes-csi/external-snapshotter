@@ -55,9 +55,10 @@ type VolumeGroupSnapshotSource struct {
 	// Required.
 	Selector metav1.LabelSelector `json:"selector" protobuf:"bytes,1,opt,name=selector"`
 
-	// volumeGroupSnapshotContentName specifies the name of a pre-existing VolumeGroupSnapshotContent
+	// VolumeGroupSnapshotContentName specifies the name of a pre-existing VolumeGroupSnapshotContent
 	// object representing an existing volume group snapshot.
-	// This field should be set if the volume group snapshot already exists and only needs a representation in Kubernetes.
+	// This field should be set if the volume group snapshot already exists and
+	// only needs a representation in Kubernetes.
 	// This field is immutable.
 	// +optional
 	VolumeGroupSnapshotContentName *string `json:"volumeGroupSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeGroupSnapshotContentName"`
