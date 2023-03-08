@@ -43,13 +43,14 @@ spec:
                   from. This field is immutable after creation. Required.
                 properties:
                   selector:
-                    description: Selector is a label query over PersistentVolumeClaims
-                      that are to be grouped together for snapshotting. This labelSelector
-                      will be used to match the label added to a PVC. If the label
-                      is added or removed to a volume after a group snapshot is created,
-                      the existing group snapshots won't be modified. Once a VolumeGroupSnapshotContent
-                      is created and the sidecar starts to process it, the volume
-                      list will not change with retries. Required.
+                    description: Selector is a label query over persistent volume
+                      claims that are to be grouped together for snapshotting. This
+                      labelSelector will be used to match the label added to a PVC.
+                      If the label is added or removed to a volume after a group snapshot
+                      is created, the existing group snapshots won't be modified.
+                      Once a VolumeGroupSnapshotContent is created and the sidecar
+                      starts to process it, the volume list will not change with retries.
+                      Required.
                     properties:
                       matchExpressions:
                         description: matchExpressions is a list of label selector
