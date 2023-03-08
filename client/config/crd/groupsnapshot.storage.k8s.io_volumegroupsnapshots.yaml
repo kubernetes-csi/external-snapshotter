@@ -94,7 +94,7 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                   volumeGroupSnapshotContentName:
-                    description: volumeGroupSnapshotContentName specifies the name
+                    description: VolumeGroupSnapshotContentName specifies the name
                       of a pre-existing VolumeGroupSnapshotContent object representing
                       an existing volume group snapshot. This field should be set
                       if the volume group snapshot already exists and only needs a
