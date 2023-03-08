@@ -26,7 +26,7 @@ SCRIPT_ROOT=$(unset CDPATH && cd $(dirname "${BASH_SOURCE[0]}")/.. && pwd)
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
 ${GOPATH}/src/k8s.io/code-generator/generate-groups.sh "deepcopy,client,informer,lister" \
   github.com/kubernetes-csi/external-snapshotter/client/v6 github.com/kubernetes-csi/external-snapshotter/client/v6/apis \
-  volumesnapshot:v1 \
+  "volumesnapshot:v1 volumegroupsnapshot:v1alpha1" \
   --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
 
 # To use your own boilerplate text use:

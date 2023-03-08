@@ -26,7 +26,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
     ```
 * Checkout latest release version
     ```bash
-    git checkout v0.25.2
+    git checkout v0.26.1
     ```
 
 * Ensure the file `generate-groups.sh` exists
@@ -116,7 +116,7 @@ Update the restoreSize property to use type string only:
 
 * In `client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml`, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeClaimName` and `volumeSnapshotContentName` is specified in the `source` field of the `spec` of `VolumeSnapshot`.
 
-```
+```bash
               source:
                 description: source specifies where a snapshot will be created from. This field is immutable after creation. Required.
                 properties:
@@ -135,7 +135,7 @@ Update the restoreSize property to use type string only:
 
 * In `client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `snapshotHandle` and `volumeHandle` is specified in the `source` field of the `spec` of `VolumeSnapshotContent`.
 
-```
+```bash
               source:
                 description: source specifies from where a snapshot will be created. This field is immutable after creation. Required.
                 properties:
@@ -149,7 +149,35 @@ Update the restoreSize property to use type string only:
                 oneOf:
                 - required: ["snapshotHandle"]
                 - required: ["volumeHandle"]
-              volumeSnapshotClassName:
+              sourceVolumeMode:
 ```
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
+
+* In `client/config/crd/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeNames` and `volumeGroupSnapshotHandle` is specified in the `source` field of the `spec` of `VolumeGroupSnapshotContent`.
+
+```bash
+              source:
+                description: Source specifies whether the snapshot is (or should be)
+                  dynamically provisioned or already exists, and just requires a Kubernetes
+                  object representation. This field is immutable after creation. Required.
+                properties:
+                  persistentVolumeNames:
+                    description: PersistentVolumeNames is a list of names of PersistentVolumes
+                      to be snapshotted together. It is specified for dynamic provisioning
+                      of the VolumeGroupSnapshot. This field is immutable.
+                    items:
+                      type: string
+                    type: array
+                  volumeGroupSnapshotHandle:
+                    description: VolumeGroupSnapshotHandle specifies the CSI "group_snapshot_id"
+                      of a pre-existing group snapshot on the underlying storage system
+                      for which a Kubernetes object representation was (or should
+                      be) created. This field is immutable.
+                    type: string
+                type: object
+                oneOf:
+                - required: ["persistentVolumeNames"]
+                - required: ["volumeGroupSnapshotHandle"]
+              volumeGroupSnapshotClassName:
+```

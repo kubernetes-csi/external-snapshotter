@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,6 +20,8 @@ package fake
 
 import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	groupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumegroupsnapshot/v1alpha1"
+	fakegroupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumegroupsnapshot/v1alpha1/fake"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1"
 	fakesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -78,6 +80,11 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
+
+// GroupsnapshotV1alpha1 retrieves the GroupsnapshotV1alpha1Client
+func (c *Clientset) GroupsnapshotV1alpha1() groupsnapshotv1alpha1.GroupsnapshotV1alpha1Interface {
+	return &fakegroupsnapshotv1alpha1.FakeGroupsnapshotV1alpha1{Fake: &c.Fake}
+}
 
 // SnapshotV1 retrieves the SnapshotV1Client
 func (c *Clientset) SnapshotV1() snapshotv1.SnapshotV1Interface {

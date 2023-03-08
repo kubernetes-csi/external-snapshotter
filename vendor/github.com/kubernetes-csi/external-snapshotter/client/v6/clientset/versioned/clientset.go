@@ -1,5 +1,5 @@
 /*
-Copyright 2022 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/http"
 
+	groupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumegroupsnapshot/v1alpha1"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -30,14 +31,20 @@ import (
 
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
+	GroupsnapshotV1alpha1() groupsnapshotv1alpha1.GroupsnapshotV1alpha1Interface
 	SnapshotV1() snapshotv1.SnapshotV1Interface
 }
 
-// Clientset contains the clients for groups. Each group has exactly one
-// version included in a Clientset.
+// Clientset contains the clients for groups.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	snapshotV1 *snapshotv1.SnapshotV1Client
+	groupsnapshotV1alpha1 *groupsnapshotv1alpha1.GroupsnapshotV1alpha1Client
+	snapshotV1            *snapshotv1.SnapshotV1Client
+}
+
+// GroupsnapshotV1alpha1 retrieves the GroupsnapshotV1alpha1Client
+func (c *Clientset) GroupsnapshotV1alpha1() groupsnapshotv1alpha1.GroupsnapshotV1alpha1Interface {
+	return c.groupsnapshotV1alpha1
 }
 
 // SnapshotV1 retrieves the SnapshotV1Client
@@ -89,6 +96,10 @@ func NewForConfigAndClient(c *rest.Config, httpClient *http.Client) (*Clientset,
 
 	var cs Clientset
 	var err error
+	cs.groupsnapshotV1alpha1, err = groupsnapshotv1alpha1.NewForConfigAndClient(&configShallowCopy, httpClient)
+	if err != nil {
+		return nil, err
+	}
 	cs.snapshotV1, err = snapshotv1.NewForConfigAndClient(&configShallowCopy, httpClient)
 	if err != nil {
 		return nil, err
@@ -114,6 +125,7 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 // New creates a new Clientset for the given RESTClient.
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
+	cs.groupsnapshotV1alpha1 = groupsnapshotv1alpha1.New(c)
 	cs.snapshotV1 = snapshotv1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
