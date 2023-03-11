@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +32,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog/v2"
+
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 )
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -474,4 +476,35 @@ func IsSnapshotReady(snapshot *crdv1.VolumeSnapshot) bool {
 // IsSnapshotCreated indicates that the snapshot has been cut on a storage system
 func IsSnapshotCreated(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.Status != nil && snapshot.Status.CreationTime != nil
+}
+
+func GroupSnapshotKey(vgs *crdv1alpha1.VolumeGroupSnapshot) string {
+	return fmt.Sprintf("%s/%s", vgs.Namespace, vgs.Name)
+}
+
+func GroupSnapshotRefKey(vgsref *v1.ObjectReference) string {
+	return fmt.Sprintf("%s/%s", vgsref.Namespace, vgsref.Name)
+}
+
+func IsGroupSnapshotReady(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || groupSnapshot.Status.ReadyToUse == nil || *groupSnapshot.Status.ReadyToUse == false {
+		return false
+	}
+	return true
+}
+
+func IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == nil || *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == "" {
+		return false
+	}
+	return true
+}
+
+func IsVolumeGroupSnapshotRefSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, content *crdv1alpha1.VolumeGroupSnapshotContent) bool {
+	if content.Spec.VolumeGroupSnapshotRef.Name == groupSnapshot.Name &&
+		content.Spec.VolumeGroupSnapshotRef.Namespace == groupSnapshot.Namespace &&
+		content.Spec.VolumeGroupSnapshotRef.UID == groupSnapshot.UID {
+		return true
+	}
+	return false
 }
