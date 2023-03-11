@@ -72,6 +72,7 @@ var (
 	retryIntervalMax              = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
 	enableDistributedSnapshotting = flag.Bool("enable-distributed-snapshotting", false, "Enables each node to handle snapshotting for the local volumes created on that node")
 	preventVolumeModeConversion   = flag.Bool("prevent-volume-mode-conversion", false, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
+	enableVolumeGroupSnapshots    = flag.Bool("enable-volume-group-snapshots", false, "Enables the volume group snapshot feature, allowing the user to create snapshots of groups of volumes.")
 
 	retryCRDIntervalMax = flag.Duration("retry-crd-interval-max", 5*time.Second, "Maximum retry interval to wait for CRDs to appear. The default is 5 seconds.")
 )
@@ -193,14 +194,20 @@ func main() {
 		factory.Snapshot().V1().VolumeSnapshots(),
 		factory.Snapshot().V1().VolumeSnapshotContents(),
 		factory.Snapshot().V1().VolumeSnapshotClasses(),
+		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshots(),
+		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents(),
+		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		nodeInformer,
 		metricsManager,
 		*resyncPeriod,
 		workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax),
 		workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax),
+		workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax),
+		workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax),
 		*enableDistributedSnapshotting,
 		*preventVolumeModeConversion,
+		*enableVolumeGroupSnapshots,
 	)
 
 	if err := ensureCustomResourceDefinitionsExist(snapClient); err != nil {
