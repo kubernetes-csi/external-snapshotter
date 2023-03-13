@@ -508,3 +508,14 @@ func IsVolumeGroupSnapshotRefSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot,
 	}
 	return false
 }
+
+// IsGroupSnapshotCreated indicates that the group snapshot has been cut on a storage system
+func IsGroupSnapshotCreated(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	return groupSnapshot.Status != nil && groupSnapshot.Status.CreationTime != nil
+}
+
+// GetDynamicSnapshotContentNameFoGrouprSnapshot returns a unique content name for the
+// passed in VolumeGroupSnapshot to dynamically provision a group snapshot.
+func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) string {
+	return "groupsnapcontent-" + string(groupSnapshot.UID)
+}
