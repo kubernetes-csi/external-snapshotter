@@ -802,3 +802,113 @@ func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapsh
 
 	return class, volumes, contentName, nil
 }
+
+// syncGroupSnapshotContent deals with one key off the queue
+func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(content *crdv1alpha1.VolumeGroupSnapshotContent) error {
+	groupSnapshotName := utils.GroupSnapshotRefKey(&content.Spec.VolumeGroupSnapshotRef)
+	klog.V(4).Infof("synchronizing VolumeGroupSnapshotContent[%s]: content is bound to group snapshot %s", content.Name, groupSnapshotName)
+
+	klog.V(5).Infof("syncGroupSnapshotContent[%s]: check if we should add invalid label on content", content.Name)
+
+	// Keep this check in the controller since the validation webhook may not have been deployed.
+	if (content.Spec.Source.VolumeGroupSnapshotHandle == nil && len(content.Spec.Source.PersistentVolumeNames) == 0) ||
+		(content.Spec.Source.VolumeGroupSnapshotHandle != nil && len(content.Spec.Source.PersistentVolumeNames) > 0) {
+		err := fmt.Errorf("Exactly one of VolumeGroupSnapshotHandle and PersistentVolumeNames should be specified")
+		klog.Errorf("syncGroupSnapshotContent[%s]: validation error, %s", content.Name, err.Error())
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "GroupContentValidationError", err.Error())
+		return err
+	}
+
+	// The VolumeGroupSnapshotContent is reserved for a VolumeGroupSnapshot;
+	// that VolumeGroupSnapshot has not yet been bound to this VolumeGroupSnapshotContent;
+	// syncGroupSnapshot will handle it.
+	if content.Spec.VolumeGroupSnapshotRef.UID == "" {
+		klog.V(4).Infof("syncGroupSnapshotContent [%s]: VolumeGroupSnapshotContent is pre-bound to VolumeGroupSnapshot %s", content.Name, groupSnapshotName)
+		return nil
+	}
+
+	/*
+		TODO: Add finalizer to prevent deletion
+	*/
+
+	// Check if group snapshot exists in cache store
+	// If getGroupSnapshotFromStore returns (nil, nil), it means group snapshot not found
+	// and it may have already been deleted, and it will fall into the
+	// group snapshot == nil case below
+	var groupSnapshot *crdv1alpha1.VolumeGroupSnapshot
+	groupSnapshot, err := ctrl.getGroupSnapshotFromStore(groupSnapshotName)
+	if err != nil {
+		return err
+	}
+
+	if groupSnapshot != nil && groupSnapshot.UID != content.Spec.VolumeGroupSnapshotRef.UID {
+		// The group snapshot that the content was pointing to was deleted, and another
+		// with the same name created.
+		klog.V(4).Infof("syncGroupSnapshotContent [%s]: group snapshot %s has different UID, the old one must have been deleted", content.Name, groupSnapshotName)
+		// Treat the content as bound to a missing snapshot.
+		groupSnapshot = nil
+	} else {
+		// Check if snapshot.Status is different from content.Status and add snapshot to queue
+		// if there is a difference and it is worth triggering an snapshot status update.
+		if groupSnapshot != nil && ctrl.needsUpdateGroupSnapshotStatus(groupSnapshot, content) {
+			klog.V(4).Infof("synchronizing VolumeSnapshotContent for snapshot [%s]: update snapshot status to true if needed.", groupSnapshotName)
+			// Manually trigger a snapshot status update to happen
+			// right away so that it is in-sync with the content status
+			ctrl.groupSnapshotQueue.Add(groupSnapshotName)
+		}
+	}
+	return nil
+}
+
+// getGroupSnapshotFromStore finds snapshot from the cache store.
+// If getGroupSnapshotFromStore returns (nil, nil), it means group snapshot not
+// found and it may have already been deleted.
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotFromStore(snapshotName string) (*crdv1alpha1.VolumeGroupSnapshot, error) {
+	// Get the VolumeGroupSnapshot by _name_
+	var groupSnapshot *crdv1alpha1.VolumeGroupSnapshot
+	obj, found, err := ctrl.groupSnapshotStore.GetByKey(snapshotName)
+	if err != nil {
+		return nil, err
+	}
+	if !found {
+		klog.V(4).Infof("getGroupSnapshotFromStore: group snapshot %s not found", snapshotName)
+		// Fall through with group snapshot = nil
+		return nil, nil
+	}
+	var ok bool
+	groupSnapshot, ok = obj.(*crdv1alpha1.VolumeGroupSnapshot)
+	if !ok {
+		return nil, fmt.Errorf("cannot convert object from group snapshot cache to group snapshot %q!?: %#v", snapshotName, obj)
+	}
+	klog.V(4).Infof("getGroupSnapshotFromStore: group snapshot %s found", snapshotName)
+
+	return groupSnapshot, nil
+}
+
+// needsUpdateGroupSnapshotStatus compares group snapshot status with the content
+// status and decide if group snapshot status needs to be updated based on content
+// status
+func (ctrl *csiSnapshotCommonController) needsUpdateGroupSnapshotStatus(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, content *crdv1alpha1.VolumeGroupSnapshotContent) bool {
+	klog.V(5).Infof("needsUpdateGroupSnapshotStatus[%s]", utils.GroupSnapshotKey(groupSnapshot))
+
+	if groupSnapshot.Status == nil && content.Status != nil {
+		return true
+	}
+	if content.Status == nil {
+		return false
+	}
+	if groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == nil {
+		return true
+	}
+	if groupSnapshot.Status.CreationTime == nil && content.Status.CreationTime != nil {
+		return true
+	}
+	if groupSnapshot.Status.ReadyToUse == nil && content.Status.ReadyToUse != nil {
+		return true
+	}
+	if groupSnapshot.Status.ReadyToUse != nil && content.Status.ReadyToUse != nil && groupSnapshot.Status.ReadyToUse != content.Status.ReadyToUse {
+		return true
+	}
+
+	return false
+}
