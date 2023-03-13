@@ -661,7 +661,7 @@ func (ctrl *csiSnapshotCommonController) groupSnapshotContentWorker() {
 	}
 	defer ctrl.groupSnapshotContentQueue.Done(keyObj)
 
-	if err := ctrl.syncContentByKey(keyObj.(string)); err != nil {
+	if err := ctrl.syncGroupSnapshotContentByKey(keyObj.(string)); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
 		ctrl.groupSnapshotContentQueue.AddRateLimited(keyObj)
@@ -761,4 +761,89 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateGroupSnapshotClass(groupS
 		klog.V(5).Infof("VolumeGroupSnapshotClass [%s] Driver [%s]", class.Name, class.Driver)
 	}
 	return newGroupSnapshot, nil
+}
+
+// syncGroupSnapshotContentByKey processes a VolumeGroupSnapshotContent request.
+func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContentByKey(key string) error {
+	klog.V(5).Infof("syncGroupSnapshotContentByKey[%s]", key)
+
+	_, name, err := cache.SplitMetaNamespaceKey(key)
+	if err != nil {
+		klog.V(4).Infof("error getting name of groupSnapshotContent %q to get groupSnapshotContent from informer: %v", key, err)
+		return nil
+	}
+	content, err := ctrl.groupSnapshotContentLister.Get(name)
+	// The content still exists in informer cache, the event must have
+	// been add/update/sync
+	if err == nil {
+		// If error occurs we add this item back to the queue
+		return ctrl.updateGroupSnapshotContent(content)
+	}
+	if !errors.IsNotFound(err) {
+		klog.V(2).Infof("error getting group snapshot content %q from informer: %v", key, err)
+		return nil
+	}
+
+	// The group snapshot content is not in informer cache, the event must have been "delete"
+	contentObj, found, err := ctrl.groupSnapshotContentStore.GetByKey(key)
+	if err != nil {
+		klog.V(2).Infof("error getting group snapshot content %q from cache: %v", key, err)
+		return nil
+	}
+	if !found {
+		// The controller has already processed the delete event and
+		// deleted the group snapshot content from its cache
+		klog.V(2).Infof("deletion of group snapshot content %q was already processed", key)
+		return nil
+	}
+	content, ok := contentObj.(*crdv1alpha1.VolumeGroupSnapshotContent)
+	if !ok {
+		klog.Errorf("expected group snapshot content, got %+v", content)
+		return nil
+	}
+	ctrl.deleteGroupSnapshotContent(content)
+	return nil
+}
+
+// updateGroupSnapshotContent runs in worker thread and handles "groupsnapshotcontent added",
+// "groupsnapshotcontent updated" and "periodic sync" events.
+func (ctrl *csiSnapshotCommonController) updateGroupSnapshotContent(content *crdv1alpha1.VolumeGroupSnapshotContent) error {
+	// Store the new group snapshot content version in the cache and do not process
+	// it if this is an old version.
+	new, err := ctrl.storeGroupSnapshotContentUpdate(content)
+	if err != nil {
+		klog.Errorf("%v", err)
+	}
+	if !new {
+		return nil
+	}
+	err = ctrl.syncGroupSnapshotContent(content)
+	if err != nil {
+		if errors.IsConflict(err) {
+			// Version conflict error happens quite often and the controller
+			// recovers from it easily.
+			klog.V(3).Infof("could not sync group snapshot content %q: %+v", content.Name, err)
+		} else {
+			klog.Errorf("could not sync group snapshot content %q: %+v", content.Name, err)
+		}
+		return err
+	}
+	return nil
+}
+
+// deleteGroupSnapshotContent runs in worker thread and handles "groupsnapshotcontent deleted" event.
+func (ctrl *csiSnapshotCommonController) deleteGroupSnapshotContent(content *crdv1alpha1.VolumeGroupSnapshotContent) {
+	_ = ctrl.contentStore.Delete(content)
+	klog.V(4).Infof("group snapshot content %q deleted", content.Name)
+
+	groupSnapshotName := utils.GroupSnapshotRefKey(&content.Spec.VolumeGroupSnapshotRef)
+	if groupSnapshotName == "" {
+		klog.V(5).Infof("deleteGroupContent[%q]: group snapshot content not bound", content.Name)
+		return
+	}
+	// sync the group snapshot when its group snapshot content is deleted. Explicitly
+	// sync'ing the group snapshot here in response to group snapshot content deletion
+	// prevents the group snapshot from waiting until the next sync period for its release.
+	klog.V(5).Infof("deleteGroupContent[%q]: scheduling sync of group snapshot %s", content.Name, groupSnapshotName)
+	ctrl.groupSnapshotQueue.Add(groupSnapshotName)
 }
