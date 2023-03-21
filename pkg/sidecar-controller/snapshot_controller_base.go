@@ -20,13 +20,6 @@ import (
 	"fmt"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
-	storageinformers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot/v1"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/snapshotter"
-	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
-
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
@@ -38,6 +31,16 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	klog "k8s.io/klog/v2"
+
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
+	groupsnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumegroupsnapshot/v1alpha1"
+	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot/v1"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumegroupsnapshot/v1alpha1"
+	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/snapshotter"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 )
 
 type csiSnapshotSideCarController struct {
@@ -48,9 +51,9 @@ type csiSnapshotSideCarController struct {
 	contentQueue        workqueue.RateLimitingInterface
 	extraCreateMetadata bool
 
-	contentLister       storagelisters.VolumeSnapshotContentLister
+	contentLister       snapshotlisters.VolumeSnapshotContentLister
 	contentListerSynced cache.InformerSynced
-	classLister         storagelisters.VolumeSnapshotClassLister
+	classLister         snapshotlisters.VolumeSnapshotClassLister
 	classListerSynced   cache.InformerSynced
 
 	contentStore cache.Store
@@ -58,6 +61,14 @@ type csiSnapshotSideCarController struct {
 	handler Handler
 
 	resyncPeriod time.Duration
+
+	enableVolumeGroupSnapshots       bool
+	groupSnapshotContentQueue        workqueue.RateLimitingInterface
+	groupSnapshotContentLister       groupsnapshotlisters.VolumeGroupSnapshotContentLister
+	groupSnapshotContentListerSynced cache.InformerSynced
+	groupSnapshotClassLister         groupsnapshotlisters.VolumeGroupSnapshotClassLister
+	groupSnapshotClassListerSynced   cache.InformerSynced
+	groupSnapshotContentStore        cache.Store
 }
 
 // NewCSISnapshotSideCarController returns a new *csiSnapshotSideCarController
@@ -65,8 +76,8 @@ func NewCSISnapshotSideCarController(
 	clientset clientset.Interface,
 	client kubernetes.Interface,
 	driverName string,
-	volumeSnapshotContentInformer storageinformers.VolumeSnapshotContentInformer,
-	volumeSnapshotClassInformer storageinformers.VolumeSnapshotClassInformer,
+	volumeSnapshotContentInformer snapshotinformers.VolumeSnapshotContentInformer,
+	volumeSnapshotClassInformer snapshotinformers.VolumeSnapshotClassInformer,
 	snapshotter snapshotter.Snapshotter,
 	timeout time.Duration,
 	resyncPeriod time.Duration,
@@ -74,6 +85,10 @@ func NewCSISnapshotSideCarController(
 	snapshotNameUUIDLength int,
 	extraCreateMetadata bool,
 	contentRateLimiter workqueue.RateLimiter,
+	enableVolumeGroupSnapshots bool,
+	volumeGroupSnapshotContentInformer groupsnapshotinformers.VolumeGroupSnapshotContentInformer,
+	volumeGroupSnapshotClassInformer groupsnapshotinformers.VolumeGroupSnapshotClassInformer,
+	groupSnapshotContentRateLimiter workqueue.RateLimiter,
 ) *csiSnapshotSideCarController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -124,6 +139,33 @@ func NewCSISnapshotSideCarController(
 	ctrl.classLister = volumeSnapshotClassInformer.Lister()
 	ctrl.classListerSynced = volumeSnapshotClassInformer.Informer().HasSynced
 
+	ctrl.enableVolumeGroupSnapshots = enableVolumeGroupSnapshots
+	if enableVolumeGroupSnapshots {
+		ctrl.groupSnapshotContentStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+		ctrl.groupSnapshotContentQueue = workqueue.NewNamedRateLimitingQueue(groupSnapshotContentRateLimiter, "csi-snapshotter-groupsnapshotcontent")
+
+		volumeGroupSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
+			cache.ResourceEventHandlerFuncs{
+				AddFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
+				UpdateFunc: func(oldObj, newObj interface{}) {
+					/*
+						TODO: Determine if we need to skip requeueing in case of CSI driver failure.
+					*/
+					ctrl.enqueueGroupSnapshotContentWork(newObj)
+				},
+				DeleteFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
+			},
+			ctrl.resyncPeriod,
+		)
+
+		ctrl.groupSnapshotContentLister = volumeGroupSnapshotContentInformer.Lister()
+		ctrl.groupSnapshotContentListerSynced = volumeGroupSnapshotContentInformer.Informer().HasSynced
+
+		ctrl.groupSnapshotClassLister = volumeGroupSnapshotClassInformer.Lister()
+		ctrl.groupSnapshotClassListerSynced = volumeGroupSnapshotClassInformer.Informer().HasSynced
+
+	}
+
 	return ctrl
 }
 
@@ -133,15 +175,23 @@ func (ctrl *csiSnapshotSideCarController) Run(workers int, stopCh <-chan struct{
 	klog.Infof("Starting CSI snapshotter")
 	defer klog.Infof("Shutting CSI snapshotter")
 
-	if !cache.WaitForCacheSync(stopCh, ctrl.contentListerSynced, ctrl.classListerSynced) {
+	informersSynced := []cache.InformerSynced{ctrl.contentListerSynced, ctrl.classListerSynced}
+	if ctrl.enableVolumeGroupSnapshots {
+		informersSynced = append(informersSynced, []cache.InformerSynced{ctrl.groupSnapshotContentListerSynced, ctrl.groupSnapshotClassListerSynced}...)
+	}
+
+	if !cache.WaitForCacheSync(stopCh, informersSynced...) {
 		klog.Errorf("Cannot sync caches")
 		return
 	}
 
-	ctrl.initializeCaches(ctrl.contentLister)
+	ctrl.initializeCaches()
 
 	for i := 0; i < workers; i++ {
 		go wait.Until(ctrl.contentWorker, 0, stopCh)
+		if ctrl.enableVolumeGroupSnapshots {
+			go wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+		}
 	}
 
 	<-stopCh
@@ -240,25 +290,48 @@ func (ctrl *csiSnapshotSideCarController) syncContentByKey(key string) error {
 	return nil
 }
 
-// verify whether the driver specified in VolumeSnapshotContent matches the controller's driver name
-func (ctrl *csiSnapshotSideCarController) isDriverMatch(content *crdv1.VolumeSnapshotContent) bool {
-	if content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil {
-		// Skip this snapshot content if it does not have a valid source
-		return false
-	}
-	if content.Spec.Driver != ctrl.driverName {
-		// Skip this snapshot content if the driver does not match
-		return false
-	}
-	snapshotClassName := content.Spec.VolumeSnapshotClassName
-	if snapshotClassName != nil {
-		if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
-			if snapshotClass.Driver != ctrl.driverName {
-				return false
+// isDriverMatch verifies whether the driver specified in VolumeSnapshotContent
+// or VolumeGroupSnapshotContent matches the controller's driver name
+func (ctrl *csiSnapshotSideCarController) isDriverMatch(object interface{}) bool {
+	if content, ok := object.(*crdv1.VolumeSnapshotContent); ok {
+		if content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil {
+			// Skip this snapshot content if it does not have a valid source
+			return false
+		}
+		if content.Spec.Driver != ctrl.driverName {
+			// Skip this snapshot content if the driver does not match
+			return false
+		}
+		snapshotClassName := content.Spec.VolumeSnapshotClassName
+		if snapshotClassName != nil {
+			if snapshotClass, err := ctrl.classLister.Get(*snapshotClassName); err == nil {
+				if snapshotClass.Driver != ctrl.driverName {
+					return false
+				}
 			}
 		}
+		return true
 	}
-	return true
+	if content, ok := object.(*crdv1alpha1.VolumeGroupSnapshotContent); ok {
+		if content.Spec.Source.VolumeGroupSnapshotHandle == nil && len(content.Spec.Source.PersistentVolumeNames) == 0 {
+			// Skip this group snapshot content if it does not have a valid source
+			return false
+		}
+		if content.Spec.Driver != ctrl.driverName {
+			// Skip this group snapshot content if the driver does not match
+			return false
+		}
+		groupSnapshotClassName := content.Spec.VolumeGroupSnapshotClassName
+		if groupSnapshotClassName != nil {
+			if groupSnapshotClass, err := ctrl.groupSnapshotClassLister.Get(*groupSnapshotClassName); err == nil {
+				if groupSnapshotClass.Driver != ctrl.driverName {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	return false
 }
 
 // updateContentInInformerCache runs in worker thread and handles "content added",
@@ -296,8 +369,8 @@ func (ctrl *csiSnapshotSideCarController) deleteContentInCacheStore(content *crd
 // initializeCaches fills all controller caches with initial data from etcd in
 // order to have the caches already filled when first addSnapshot/addContent to
 // perform initial synchronization of the controller.
-func (ctrl *csiSnapshotSideCarController) initializeCaches(contentLister storagelisters.VolumeSnapshotContentLister) {
-	contentList, err := contentLister.List(labels.Everything())
+func (ctrl *csiSnapshotSideCarController) initializeCaches() {
+	contentList, err := ctrl.contentLister.List(labels.Everything())
 	if err != nil {
 		klog.Errorf("CSISnapshotController can't initialize caches: %v", err)
 		return
@@ -307,6 +380,20 @@ func (ctrl *csiSnapshotSideCarController) initializeCaches(contentLister storage
 			contentClone := content.DeepCopy()
 			if _, err = ctrl.storeContentUpdate(contentClone); err != nil {
 				klog.Errorf("error updating volume snapshot content cache: %v", err)
+			}
+		}
+	}
+
+	if ctrl.enableVolumeGroupSnapshots {
+		groupSnapshotContentList, err := ctrl.groupSnapshotContentLister.List(labels.Everything())
+		if err != nil {
+			klog.Errorf("CSISnapshotController can't initialize caches: %v", err)
+			return
+		}
+		for _, groupSnapshotContent := range groupSnapshotContentList {
+			groupSnapshotContentClone := groupSnapshotContent.DeepCopy()
+			if _, err = ctrl.storeGroupSnapshotContentUpdate(groupSnapshotContentClone); err != nil {
+				klog.Errorf("error updating volume group snapshot content cache: %v", err)
 			}
 		}
 	}
