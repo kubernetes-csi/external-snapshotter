@@ -26,7 +26,8 @@ import (
 	"os"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
-	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumegroupsnapshot/v1alpha1"
+	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
 	"github.com/spf13/cobra"
 
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions"
@@ -183,15 +184,29 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
 	}
 }
 
-type serveWebhook struct {
-	lister storagelisters.VolumeSnapshotClassLister
+type serveSnapshotWebhook struct {
+	lister snapshotlisters.VolumeSnapshotClassLister
 }
 
-func (s serveWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (s serveSnapshotWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	serve(w, r, newDelegateToV1AdmitHandler(NewSnapshotAdmitter(s.lister)))
 }
 
-func startServer(ctx context.Context, tlsConfig *tls.Config, cw *CertWatcher, lister storagelisters.VolumeSnapshotClassLister) error {
+type serveGroupSnapshotWebhook struct {
+	lister groupsnapshotlisters.VolumeGroupSnapshotClassLister
+}
+
+func (s serveGroupSnapshotWebhook) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	serve(w, r, newDelegateToV1AdmitHandler(NewGroupSnapshotAdmitter(s.lister)))
+}
+
+func startServer(
+	ctx context.Context,
+	tlsConfig *tls.Config,
+	cw *CertWatcher,
+	vscLister snapshotlisters.VolumeSnapshotClassLister,
+	vgscLister groupsnapshotlisters.VolumeGroupSnapshotClassLister,
+) error {
 	go func() {
 		klog.Info("Starting certificate watcher")
 		if err := cw.Start(ctx); err != nil {
@@ -199,13 +214,17 @@ func startServer(ctx context.Context, tlsConfig *tls.Config, cw *CertWatcher, li
 		}
 	}()
 	// Pipe through the informer at some point here.
-	s := &serveWebhook{
-		lister: lister,
+	snapshotWebhook := serveSnapshotWebhook{
+		lister: vscLister,
+	}
+	groupSnapshotWebhook := serveGroupSnapshotWebhook{
+		lister: vgscLister,
 	}
 
 	fmt.Println("Starting webhook server")
 	mux := http.NewServeMux()
-	mux.Handle("/volumesnapshot", s)
+	mux.Handle("/volumesnapshot", snapshotWebhook)
+	mux.Handle("/volumegroupsnapshot", groupSnapshotWebhook)
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, req *http.Request) { w.Write([]byte("ok")) })
 	srv := &http.Server{
 		Handler:   mux,
@@ -247,14 +266,15 @@ func main(cmd *cobra.Command, args []string) {
 	}
 
 	factory := informers.NewSharedInformerFactory(snapClient, 0)
-	lister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
+	snapshotLister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
+	groupSnapshotLister := factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses().Lister()
 
 	// Start the informers
 	factory.Start(ctx.Done())
 	// wait for the caches to sync
 	factory.WaitForCacheSync(ctx.Done())
 
-	if err := startServer(ctx, tlsConfig, cw, lister); err != nil {
+	if err := startServer(ctx, tlsConfig, cw, snapshotLister, groupSnapshotLister); err != nil {
 		klog.Fatalf("server stopped: %v", err)
 	}
 }

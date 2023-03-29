@@ -314,7 +314,7 @@ func TestAdmitVolumeSnapshotContentV1(t *testing.T) {
 			oldVolumeSnapshotContent: invalidContent,
 			shouldAdmit:              false,
 			operation:                v1.Update,
-			msg:                      fmt.Sprintf("both Spec.VolumeSnapshotRef.Name =  and Spec.VolumeSnapshotRef.Namespace = default-ns must be set"),
+			msg:                      "both Spec.VolumeSnapshotRef.Name =  and Spec.VolumeSnapshotRef.Namespace = default-ns must be set",
 		},
 	}
 
