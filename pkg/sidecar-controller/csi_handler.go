@@ -19,6 +19,9 @@ package sidecar_controller
 import (
 	"context"
 	"fmt"
+	"github.com/container-storage-interface/spec/lib/go/csi"
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/group_snapshotter"
 	"strings"
 	"time"
 
@@ -31,11 +34,14 @@ type Handler interface {
 	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error)
+	CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
+	GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error)
 }
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
 type csiHandler struct {
 	snapshotter            snapshotter.Snapshotter
+	groupSnapshotter       group_snapshotter.GroupSnapshotter
 	timeout                time.Duration
 	snapshotNamePrefix     string
 	snapshotNameUUIDLength int
@@ -44,12 +50,14 @@ type csiHandler struct {
 // NewCSIHandler returns a handler which includes the csi connection and Snapshot name details
 func NewCSIHandler(
 	snapshotter snapshotter.Snapshotter,
+	groupSnapshotter group_snapshotter.GroupSnapshotter,
 	timeout time.Duration,
 	snapshotNamePrefix string,
 	snapshotNameUUIDLength int,
 ) Handler {
 	return &csiHandler{
 		snapshotter:            snapshotter,
+		groupSnapshotter:       groupSnapshotter,
 		timeout:                timeout,
 		snapshotNamePrefix:     snapshotNamePrefix,
 		snapshotNameUUIDLength: snapshotNameUUIDLength,
@@ -130,4 +138,52 @@ func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (s
 		return fmt.Sprintf("%s-%s", prefix, snapshotUID), nil
 	}
 	return fmt.Sprintf("%s-%s", prefix, strings.Replace(snapshotUID, "-", "", -1)[0:snapshotNameUUIDLength]), nil
+}
+
+func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
+	defer cancel()
+
+	if content.Spec.VolumeGroupSnapshotRef.UID == "" {
+		return "", "", nil, time.Time{}, false, fmt.Errorf("cannot create group snapshot. Group snapshot content %s not bound to a group snapshot", content.Name)
+	}
+
+	if len(volumeIDs) == 0 {
+		return "", "", nil, time.Time{}, false, fmt.Errorf("cannot create group snapshot. PVCs to be snapshotted not found in group snapshot content %s", content.Name)
+	}
+
+	snapshotName, err := makeGroupSnapshotName(handler.snapshotNamePrefix, string(content.Spec.VolumeGroupSnapshotRef.UID))
+	if err != nil {
+		return "", "", nil, time.Time{}, false, err
+	}
+	return handler.groupSnapshotter.CreateGroupSnapshot(ctx, snapshotName, volumeIDs, parameters, snapshotterCredentials)
+}
+
+func (handler *csiHandler) GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
+	defer cancel()
+
+	var snapshotHandle string
+	var err error
+	if content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil {
+		snapshotHandle = *content.Status.VolumeGroupSnapshotHandle
+	} else if content.Spec.Source.VolumeGroupSnapshotHandle != nil {
+		snapshotHandle = *content.Spec.Source.VolumeGroupSnapshotHandle
+	} else {
+		return false, time.Time{}, fmt.Errorf("failed to list snapshot for content %s: snapshotHandle is missing", content.Name)
+	}
+
+	csiSnapshotStatus, timestamp, err := handler.groupSnapshotter.GetGroupSnapshotStatus(ctx, snapshotHandle, snapshotterListCredentials)
+	if err != nil {
+		return false, time.Time{}, fmt.Errorf("failed to list snapshot for content %s: %q", content.Name, err)
+	}
+
+	return csiSnapshotStatus, timestamp, nil
+}
+
+func makeGroupSnapshotName(prefix, groupSnapshotUID string) (string, error) {
+	if len(groupSnapshotUID) == 0 {
+		return "", fmt.Errorf("group snapshot object is missing UID")
+	}
+	return fmt.Sprintf("%s-%s", prefix, strings.Replace(groupSnapshotUID, "-", "", -1)), nil
 }

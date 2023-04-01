@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/group_snapshotter"
 	"net/http"
 	"os"
 	"os/signal"
@@ -223,6 +224,11 @@ func main() {
 	klog.V(2).Infof("Start NewCSISnapshotSideCarController with snapshotter [%s] kubeconfig [%s] csiTimeout [%+v] csiAddress [%s] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", driverName, *kubeconfig, *csiTimeout, *csiAddress, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
 
 	snapShotter := snapshotter.NewSnapshotter(csiConn)
+	var groupSnapshotter group_snapshotter.GroupSnapshotter
+	if *enableVolumeGroupSnapshots {
+		groupSnapshotter = group_snapshotter.NewGroupSnapshotter(csiConn)
+	}
+
 	ctrl := controller.NewCSISnapshotSideCarController(
 		snapClient,
 		kubeClient,
@@ -230,6 +236,7 @@ func main() {
 		snapshotContentfactory.Snapshot().V1().VolumeSnapshotContents(),
 		factory.Snapshot().V1().VolumeSnapshotClasses(),
 		snapShotter,
+		groupSnapshotter,
 		*csiTimeout,
 		*resyncPeriod,
 		*snapshotNamePrefix,

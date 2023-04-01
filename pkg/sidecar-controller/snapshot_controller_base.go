@@ -18,6 +18,7 @@ package sidecar_controller
 
 import (
 	"fmt"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/group_snapshotter"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -79,6 +80,7 @@ func NewCSISnapshotSideCarController(
 	volumeSnapshotContentInformer snapshotinformers.VolumeSnapshotContentInformer,
 	volumeSnapshotClassInformer snapshotinformers.VolumeSnapshotClassInformer,
 	snapshotter snapshotter.Snapshotter,
+	groupSnapshotter group_snapshotter.GroupSnapshotter,
 	timeout time.Duration,
 	resyncPeriod time.Duration,
 	snapshotNamePrefix string,
@@ -101,7 +103,7 @@ func NewCSISnapshotSideCarController(
 		client:              client,
 		driverName:          driverName,
 		eventRecorder:       eventRecorder,
-		handler:             NewCSIHandler(snapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
+		handler:             NewCSIHandler(snapshotter, groupSnapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength),
 		resyncPeriod:        resyncPeriod,
 		contentStore:        cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		contentQueue:        workqueue.NewNamedRateLimitingQueue(contentRateLimiter, "csi-snapshotter-content"),
@@ -159,7 +161,7 @@ func NewCSISnapshotSideCarController(
 		)
 
 		ctrl.groupSnapshotContentLister = volumeGroupSnapshotContentInformer.Lister()
-		ctrl.groupSnapshotClassListerSynced = volumeGroupSnapshotContentInformer.Informer().HasSynced
+		ctrl.groupSnapshotContentListerSynced = volumeGroupSnapshotContentInformer.Informer().HasSynced
 
 		ctrl.groupSnapshotClassLister = volumeGroupSnapshotClassInformer.Lister()
 		ctrl.groupSnapshotClassListerSynced = volumeGroupSnapshotClassInformer.Informer().HasSynced
