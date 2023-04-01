@@ -566,6 +566,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Snapshot().V1().VolumeSnapshotContents(),
 		informerFactory.Snapshot().V1().VolumeSnapshotClasses(),
 		fakeSnapshot,
+		nil, // TODO: Replace with fake group snapshotter
 		5*time.Millisecond,
 		60*time.Second,
 		"snapshot",

@@ -220,7 +220,7 @@ func (ctrl *csiSnapshotCommonController) getClaimsFromVolumeGroupSnapshot(groupS
 	labelSelector := groupSnapshot.Spec.Source.Selector
 
 	// Get PVC that has group snapshot label applied.
-	pvcList, err := ctrl.client.CoreV1().PersistentVolumeClaims(groupSnapshot.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labelSelector.String()})
+	pvcList, err := ctrl.client.CoreV1().PersistentVolumeClaims(groupSnapshot.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labels.Set(labelSelector.MatchLabels).String()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list PVCs with label selector %s: %q", labelSelector.String(), err)
 	}
@@ -647,7 +647,7 @@ func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedGroupContentFr
 		return nil, nil
 	}
 	// check whether the content represents a dynamically provisioned snapshot
-	if content.Spec.Source.VolumeGroupSnapshotHandle == nil {
+	if content.Spec.Source.VolumeGroupSnapshotHandle != nil {
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotContentMismatch", "VolumeGroupSnapshotContent "+contentName+" is pre-provisioned while expecting a dynamically provisioned one")
 		klog.V(4).Infof("sync group snapshot[%s]: group snapshot content %s is pre-provisioned while expecting a dynamically provisioned one", utils.GroupSnapshotKey(groupSnapshot), contentName)
 		return nil, fmt.Errorf("group snapshot %s expects a dynamically provisioned VolumeGroupSnapshotContent %s but gets a pre-provisioned one", utils.GroupSnapshotKey(groupSnapshot), contentName)

@@ -64,6 +64,10 @@ const (
 	PrefixedVolumeSnapshotNamespaceKey   = csiParameterPrefix + "volumesnapshot/namespace"   // Prefixed VolumeSnapshot namespace key
 	PrefixedVolumeSnapshotContentNameKey = csiParameterPrefix + "volumesnapshotcontent/name" // Prefixed VolumeSnapshotContent name key
 
+	PrefixedVolumeGroupSnapshotNameKey        = csiParameterPrefix + "volumegroupsnapshot/name"        // Prefixed VolumeGroupSnapshot name key
+	PrefixedVolumeGroupSnapshotNamespaceKey   = csiParameterPrefix + "volumegroupsnapshot/namespace"   // Prefixed VolumeGroupSnapshot namespace key
+	PrefixedVolumeGroupSnapshotContentNameKey = csiParameterPrefix + "volumegroupsnapshotcontent/name" // Prefixed VolumeGroupSnapshotContent name key
+
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
 	// Name of finalizer on VolumeSnapshot that is being used as a source to create a PVC
@@ -95,6 +99,19 @@ const (
 	// the create snapshot CSI method will not be called for pre-provisioned
 	// snapshots.
 	AnnVolumeSnapshotBeingCreated = "snapshot.storage.kubernetes.io/volumesnapshot-being-created"
+
+	// AnnVolumeGroupSnapshotBeingCreated annotation applies to VolumeGroupSnapshotContents.
+	// If it is set, it indicates that the csi-snapshotter
+	// sidecar has sent the create group snapshot request to the storage system and
+	// is waiting for a response of success or failure.
+	// This annotation will be removed once the driver's CreateGroupSnapshot
+	// CSI function returns success or a final error (determined by isFinalError()).
+	// If the create group snapshot request fails with a non-final error such as timeout,
+	// retry will happen and the annotation will remain.
+	// This only applies to dynamic provisioning of group snapshots because
+	// the create group snapshot CSI method will not be called for pre-provisioned
+	// group snapshots.
+	AnnVolumeGroupSnapshotBeingCreated = "snapshot.storage.kubernetes.io/volumegroupsnapshot-being-created"
 
 	// Annotation for secret name and namespace will be added to the content
 	// and used at snapshot content deletion time.
