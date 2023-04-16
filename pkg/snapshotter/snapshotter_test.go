@@ -25,7 +25,6 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"github.com/golang/mock/gomock"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/v4/driver"
@@ -33,6 +32,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -68,11 +68,8 @@ func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, 
 func TestCreateSnapshot(t *testing.T) {
 	defaultName := "snapshot-test"
 	defaultID := "testid"
-	createTimestamp := ptypes.TimestampNow()
-	createTime, err := ptypes.Timestamp(createTimestamp)
-	if err != nil {
-		t.Fatalf("Failed to convert timestamp to time: %v", err)
-	}
+	createTimestamp := timestamppb.Now()
+	createTime := createTimestamp.AsTime()
 
 	createSecrets := map[string]string{"foo": "bar"}
 	defaultParameter := map[string]string{
@@ -338,11 +335,8 @@ func TestDeleteSnapshot(t *testing.T) {
 func TestGetSnapshotStatus(t *testing.T) {
 	defaultID := "testid"
 	size := int64(1000)
-	createTimestamp := ptypes.TimestampNow()
-	createTime, err := ptypes.Timestamp(createTimestamp)
-	if err != nil {
-		t.Fatalf("Failed to convert timestamp to time: %v", err)
-	}
+	createTimestamp := timestamppb.Now()
+	createTime := createTimestamp.AsTime()
 
 	defaultRequest := &csi.ListSnapshotsRequest{
 		SnapshotId: defaultID,

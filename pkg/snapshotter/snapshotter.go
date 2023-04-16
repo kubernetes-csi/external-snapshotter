@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 
 	"google.golang.org/grpc"
@@ -74,10 +73,8 @@ func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volu
 	}
 
 	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%v] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
-	creationTime, err := ptypes.Timestamp(rsp.Snapshot.CreationTime)
-	if err != nil {
-		return "", "", time.Time{}, 0, false, err
-	}
+
+	creationTime := rsp.Snapshot.CreationTime.AsTime()
 	return driverName, rsp.Snapshot.SnapshotId, creationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, nil
 }
 
@@ -138,9 +135,6 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, sna
 		return false, time.Time{}, 0, fmt.Errorf("can not find snapshot for snapshotID %s", snapshotID)
 	}
 
-	creationTime, err := ptypes.Timestamp(rsp.Entries[0].Snapshot.CreationTime)
-	if err != nil {
-		return false, time.Time{}, 0, err
-	}
+	creationTime := rsp.Entries[0].Snapshot.CreationTime.AsTime()
 	return rsp.Entries[0].Snapshot.ReadyToUse, creationTime, rsp.Entries[0].Snapshot.SizeBytes, nil
 }
