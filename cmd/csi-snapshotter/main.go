@@ -87,6 +87,9 @@ var (
 	retryIntervalMax           = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
 	enableNodeDeployment       = flag.Bool("node-deployment", false, "Enables deploying the sidecar controller together with a CSI driver on nodes to manage snapshots for node-local volumes.")
 	enableVolumeGroupSnapshots = flag.Bool("enable-volume-group-snapshots", false, "Enables the volume group snapshot feature, allowing the user to create snapshots of groups of volumes.")
+
+	groupSnapshotNamePrefix     = flag.String("groupsnapshot-name-prefix", "groupsnapshot", "Prefix to apply to the name of a created group snapshot")
+	groupSnapshotNameUUIDLength = flag.Int("groupsnapshot-name-uuid-length", -1, "Length in characters for the generated uuid of a created group snapshot. Defaults behavior is to NOT truncate.")
 )
 
 var (
@@ -227,6 +230,10 @@ func main() {
 	var groupSnapshotter group_snapshotter.GroupSnapshotter
 	if *enableVolumeGroupSnapshots {
 		groupSnapshotter = group_snapshotter.NewGroupSnapshotter(csiConn)
+		if len(*groupSnapshotNamePrefix) == 0 {
+			klog.Error("group snapshot name prefix cannot be of length 0")
+			os.Exit(1)
+		}
 	}
 
 	ctrl := controller.NewCSISnapshotSideCarController(
@@ -241,6 +248,8 @@ func main() {
 		*resyncPeriod,
 		*snapshotNamePrefix,
 		*snapshotNameUUIDLength,
+		*groupSnapshotNamePrefix,
+		*groupSnapshotNameUUIDLength,
 		*extraCreateMetadata,
 		workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax),
 		*enableVolumeGroupSnapshots,
