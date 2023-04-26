@@ -111,7 +111,7 @@ const (
 	// This only applies to dynamic provisioning of group snapshots because
 	// the create group snapshot CSI method will not be called for pre-provisioned
 	// group snapshots.
-	AnnVolumeGroupSnapshotBeingCreated = "snapshot.storage.kubernetes.io/volumegroupsnapshot-being-created"
+	AnnVolumeGroupSnapshotBeingCreated = "groupsnapshot.storage.kubernetes.io/volumegroupsnapshot-being-created"
 
 	// Annotation for secret name and namespace will be added to the content
 	// and used at snapshot content deletion time.
