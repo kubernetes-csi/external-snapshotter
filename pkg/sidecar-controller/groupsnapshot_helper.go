@@ -258,6 +258,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 	}
 
 	// Create individual snapshots and snapshot contents
+	var snapshotContentNames []string
 	for _, snapshot := range snapshots {
 		volumeSnapshotContentName := GetSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContent)
 		volumeSnapshotName := GetSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotContent)
@@ -280,12 +281,17 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 				// TODO: Populate this field when volume mode conversion is enabled by default
 				SourceVolumeMode: nil,
 			},
+			Status: &crdv1.VolumeSnapshotContentStatus{
+				VolumeGroupSnapshotContentName: &groupSnapshotContent.Name,
+			},
 		}
-
+		label := make(map[string]string)
+		label["volumeGroupSnapshotName"] = groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name
 		volumeSnapshot := &crdv1.VolumeSnapshot{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      volumeSnapshotName,
 				Namespace: volumeSnapshotNamespace,
+				Labels:    label,
 			},
 			Spec: crdv1.VolumeSnapshotSpec{
 				Source: crdv1.VolumeSnapshotSource{
@@ -293,10 +299,11 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 				},
 			},
 		}
-		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(context.TODO(), volumeSnapshotContent, metav1.CreateOptions{})
+		vsc, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(context.TODO(), volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil {
 			return groupSnapshotContent, err
 		}
+		snapshotContentNames = append(snapshotContentNames, vsc.Name)
 
 		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(context.TODO(), volumeSnapshot, metav1.CreateOptions{})
 		if err != nil {
@@ -304,7 +311,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		}
 
 	}
-	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano())
+	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano(), snapshotContentNames)
 	if err != nil {
 		klog.Errorf("error updating status for volume group snapshot content %s: %v.", groupSnapshotContent.Name, err)
 		return groupSnapshotContent, fmt.Errorf("error updating status for volume group snapshot content %s: %v", groupSnapshotContent.Name, err)
@@ -444,7 +451,8 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 	groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent,
 	groupSnapshotHandle string,
 	readyToUse bool,
-	createdAt int64) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
+	createdAt int64,
+	snapshotContentNames []string) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
 	klog.V(5).Infof("updateSnapshotContentStatus: updating VolumeGroupSnapshotContent [%s], groupSnapshotHandle %s, readyToUse %v, createdAt %v", groupSnapshotContent.Name, groupSnapshotHandle, readyToUse, createdAt)
 
 	groupSnapshotContentObj, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Get(context.TODO(), groupSnapshotContent.Name, metav1.GetOptions{})
@@ -459,6 +467,12 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			VolumeGroupSnapshotHandle: &groupSnapshotHandle,
 			ReadyToUse:                &readyToUse,
 			CreationTime:              &createdAt,
+		}
+		for _, name := range snapshotContentNames {
+			newStatus.VolumeSnapshotContentRefList = append(newStatus.VolumeSnapshotContentRefList, v1.ObjectReference{
+				Kind: "VolumeSnapshotContent",
+				Name: name,
+			})
 		}
 		updated = true
 	} else {
@@ -476,6 +490,15 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 		}
 		if newStatus.CreationTime == nil {
 			newStatus.CreationTime = &createdAt
+			updated = true
+		}
+		if len(newStatus.VolumeSnapshotContentRefList) == 0 {
+			for _, name := range snapshotContentNames {
+				newStatus.VolumeSnapshotContentRefList = append(newStatus.VolumeSnapshotContentRefList, v1.ObjectReference{
+					Kind: "VolumeSnapshotContent",
+					Name: name,
+				})
+			}
 			updated = true
 		}
 	}
@@ -597,7 +620,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 	var snapshotterListCredentials map[string]string
 
 	if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil {
-		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: call GetGroupSnapshotStatus for group snapshot which is pre-bound to groupSnapshotContent [%s]", groupSnapshotContent.Name)
+		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: call GetGroupSnapshotStatus for group snapshot which is pre-bound to group snapshot content [%s]", groupSnapshotContent.Name)
 
 		if groupSnapshotContent.Spec.VolumeGroupSnapshotClassName != nil {
 			class, err := ctrl.getGroupSnapshotClass(*groupSnapshotContent.Spec.VolumeGroupSnapshotClassName)
@@ -634,7 +657,8 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 			creationTime = time.Now()
 		}
 
-		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano())
+		// TODO: Get a reference to snapshot contents for this volume group snapshot
+		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano(), []string{})
 		if err != nil {
 			return groupSnapshotContent, err
 		}

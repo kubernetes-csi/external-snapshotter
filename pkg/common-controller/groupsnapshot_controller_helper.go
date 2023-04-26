@@ -425,7 +425,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(groupSnapshot 
 		return nil
 	}
 
-	// If we reach here, it is a dynamically provisioned group snapshot, and the volumeGroupSnapshotContent object is not yet created.
+	// If we reach here, it is a dynamically provisioned group snapshot, and the VolumeGroupSnapshotContent object is not yet created.
 	var content *crdv1alpha1.VolumeGroupSnapshotContent
 	if content, err = ctrl.createGroupSnapshotContent(groupSnapshot); err != nil {
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotContentCreationFailed", fmt.Sprintf("failed to create group snapshot content with error %v", err))
@@ -569,6 +569,8 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 		if volumeSnapshotErr != nil {
 			newStatus.Error = volumeSnapshotErr
 		}
+		// TODO: Add ref details
+
 		updated = true
 	} else {
 		newStatus = groupSnapshotObj.Status.DeepCopy()

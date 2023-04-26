@@ -571,6 +571,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		60*time.Second,
 		"snapshot",
 		-1,
+		"groupsnapshot",
+		-1,
 		true,
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 		false,
