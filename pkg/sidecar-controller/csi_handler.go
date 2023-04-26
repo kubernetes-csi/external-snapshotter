@@ -40,11 +40,13 @@ type Handler interface {
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
 type csiHandler struct {
-	snapshotter            snapshotter.Snapshotter
-	groupSnapshotter       group_snapshotter.GroupSnapshotter
-	timeout                time.Duration
-	snapshotNamePrefix     string
-	snapshotNameUUIDLength int
+	snapshotter                 snapshotter.Snapshotter
+	groupSnapshotter            group_snapshotter.GroupSnapshotter
+	timeout                     time.Duration
+	snapshotNamePrefix          string
+	snapshotNameUUIDLength      int
+	groupSnapshotNamePrefix     string
+	groupSnapshotNameUUIDLength int
 }
 
 // NewCSIHandler returns a handler which includes the csi connection and Snapshot name details
@@ -54,13 +56,17 @@ func NewCSIHandler(
 	timeout time.Duration,
 	snapshotNamePrefix string,
 	snapshotNameUUIDLength int,
+	groupSnapshotNamePrefix string,
+	groupSnapshotNameUUIDLength int,
 ) Handler {
 	return &csiHandler{
-		snapshotter:            snapshotter,
-		groupSnapshotter:       groupSnapshotter,
-		timeout:                timeout,
-		snapshotNamePrefix:     snapshotNamePrefix,
-		snapshotNameUUIDLength: snapshotNameUUIDLength,
+		snapshotter:                 snapshotter,
+		groupSnapshotter:            groupSnapshotter,
+		timeout:                     timeout,
+		snapshotNamePrefix:          snapshotNamePrefix,
+		snapshotNameUUIDLength:      snapshotNameUUIDLength,
+		groupSnapshotNamePrefix:     groupSnapshotNamePrefix,
+		groupSnapshotNameUUIDLength: groupSnapshotNameUUIDLength,
 	}
 }
 
@@ -152,7 +158,7 @@ func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupS
 		return "", "", nil, time.Time{}, false, fmt.Errorf("cannot create group snapshot. PVCs to be snapshotted not found in group snapshot content %s", content.Name)
 	}
 
-	groupSnapshotName, err := makeGroupSnapshotName(handler.snapshotNamePrefix, string(content.Spec.VolumeGroupSnapshotRef.UID))
+	groupSnapshotName, err := handler.makeGroupSnapshotName(string(content.Spec.VolumeGroupSnapshotRef.UID))
 	if err != nil {
 		return "", "", nil, time.Time{}, false, err
 	}
@@ -181,9 +187,13 @@ func (handler *csiHandler) GetGroupSnapshotStatus(groupSnapshotContent *crdv1alp
 	return csiSnapshotStatus, timestamp, nil
 }
 
-func makeGroupSnapshotName(groupSnapshotUID string) (string, error) {
+func (handler *csiHandler) makeGroupSnapshotName(groupSnapshotUID string) (string, error) {
 	if len(groupSnapshotUID) == 0 {
 		return "", fmt.Errorf("group snapshot object is missing UID")
 	}
-	return fmt.Sprintf("groupsnapshot-%s", strings.Replace(groupSnapshotUID, "-", "", -1)), nil
+	if handler.groupSnapshotNameUUIDLength == -1 {
+		return fmt.Sprintf("%s-%s", handler.groupSnapshotNamePrefix, groupSnapshotUID), nil
+	}
+
+	return fmt.Sprintf("%s-%s", handler.groupSnapshotNamePrefix, strings.Replace(groupSnapshotUID, "-", "", -1)[0:handler.groupSnapshotNameUUIDLength]), nil
 }
