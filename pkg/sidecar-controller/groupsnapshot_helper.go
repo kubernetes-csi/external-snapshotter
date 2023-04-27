@@ -234,7 +234,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		parameters[utils.PrefixedVolumeGroupSnapshotContentNameKey] = groupSnapshotContent.Name
 	}
 
-	volumeIDs, err := ctrl.getGroupSnapshotVolumeIDs(groupSnapshotContent)
+	volumeIDs, uuidMap, err := ctrl.getGroupSnapshotVolumeIDs(groupSnapshotContent)
 	driverName, groupSnapshotID, snapshots, creationTime, readyToUse, err := ctrl.handler.CreateGroupSnapshot(groupSnapshotContent, volumeIDs, parameters, snapshotterCredentials)
 	if err != nil {
 		// NOTE(xyang): handle create timeout
@@ -260,8 +260,12 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 	// Create individual snapshots and snapshot contents
 	var snapshotContentNames []string
 	for _, snapshot := range snapshots {
-		volumeSnapshotContentName := GetSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContent)
-		volumeSnapshotName := GetSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotContent)
+		uuid, ok := uuidMap[snapshot.SourceVolumeId]
+		if !ok {
+			continue
+		}
+		volumeSnapshotContentName := GetSnapshotContentNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), uuid)
+		volumeSnapshotName := GetSnapshotNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), uuid)
 		volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
 		volumeSnapshotContent := &crdv1.VolumeSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{
@@ -409,19 +413,23 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeGroupSnapshotBeingCreated(
 	return groupSnapshotContent, nil
 }
 
-func (ctrl *csiSnapshotSideCarController) getGroupSnapshotVolumeIDs(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) ([]string, error) {
+func (ctrl *csiSnapshotSideCarController) getGroupSnapshotVolumeIDs(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) ([]string, map[string]string, error) {
 	// TODO: Get add PV lister
 	var volumeIDs []string
+	uuidMap := make(map[string]string)
 	for _, pvName := range groupSnapshotContent.Spec.Source.PersistentVolumeNames {
 		pv, err := ctrl.client.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
 			volumeIDs = append(volumeIDs, pv.Spec.CSI.VolumeHandle)
+			if pv.Spec.ClaimRef != nil {
+				uuidMap[pv.Spec.CSI.VolumeHandle] = string(pv.Spec.ClaimRef.UID)
+			}
 		}
 	}
-	return volumeIDs, nil
+	return volumeIDs, uuidMap, nil
 }
 
 // removeAnnVolumeGroupSnapshotBeingCreated removes the VolumeGroupSnapshotBeingCreated
@@ -584,14 +592,14 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentErrorStatusW
 }
 
 // GetSnapshotNameForVolumeGroupSnapshotContent returns a unique snapshot name for a VolumeGroupSnapshotContent.
-func GetSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) string {
-	return fmt.Sprintf("groupsnapshot-%x-%d", sha256.Sum256([]byte(groupSnapshotContent.UID)), time.Duration(time.Now().UnixNano())/time.Millisecond)
+func GetSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotContentUUID, pvUUID string) string {
+	return fmt.Sprintf("snapshot-%x-%d", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Duration(time.Now().UnixNano())/time.Millisecond)
 }
 
 // GetSnapshotContentNameForVolumeGroupSnapshotContent returns a unique content name for the
 // passed in VolumeGroupSnapshotContent.
-func GetSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) string {
-	return fmt.Sprintf("groupsnapcontent-%x-%d", sha256.Sum256([]byte(groupSnapshotContent.UID)), time.Duration(time.Now().UnixNano())/time.Millisecond)
+func GetSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContentUUID, pvUUID string) string {
+	return fmt.Sprintf("snapcontent-%x-%d", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Duration(time.Now().UnixNano())/time.Millisecond)
 }
 
 func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStatus(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
