@@ -593,13 +593,13 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentErrorStatusW
 
 // GetSnapshotNameForVolumeGroupSnapshotContent returns a unique snapshot name for a VolumeGroupSnapshotContent.
 func GetSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotContentUUID, pvUUID string) string {
-	return fmt.Sprintf("snapshot-%x-%d", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Duration(time.Now().UnixNano())/time.Millisecond)
+	return fmt.Sprintf("snapshot-%x-%s", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Now().Format("2006-01-02-3.4.5"))
 }
 
 // GetSnapshotContentNameForVolumeGroupSnapshotContent returns a unique content name for the
 // passed in VolumeGroupSnapshotContent.
 func GetSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContentUUID, pvUUID string) string {
-	return fmt.Sprintf("snapcontent-%x-%d", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Duration(time.Now().UnixNano())/time.Millisecond)
+	return fmt.Sprintf("snapcontent-%x-%s", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Now().Format("2006-01-02-3.4.5"))
 }
 
 func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStatus(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
