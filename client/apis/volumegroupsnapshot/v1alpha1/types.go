@@ -326,7 +326,7 @@ type VolumeGroupSnapshotContentStatus struct {
 	// for this group snapshot.
 	// The maximum number of allowed snapshots in the group is 100.
 	// +optional
-	VolumeSnapshotContentRefList []core_v1.ObjectReference `json:"volumeSnapshotRefList,omitempty" protobuf:"bytes,5,opt,name=volumeSnapshotRefList"`
+	VolumeSnapshotContentRefList []core_v1.ObjectReference `json:"volumeSnapshotContentRefList,omitempty" protobuf:"bytes,5,opt,name=volumeSnapshotContentRefList"`
 }
 
 // VolumeGroupSnapshotContentSource represents the CSI source of a group snapshot.
