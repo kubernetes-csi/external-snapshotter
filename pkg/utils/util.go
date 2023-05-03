@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,6 +32,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog/v2"
+
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 )
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -61,6 +63,10 @@ const (
 	PrefixedVolumeSnapshotNameKey        = csiParameterPrefix + "volumesnapshot/name"        // Prefixed VolumeSnapshot name key
 	PrefixedVolumeSnapshotNamespaceKey   = csiParameterPrefix + "volumesnapshot/namespace"   // Prefixed VolumeSnapshot namespace key
 	PrefixedVolumeSnapshotContentNameKey = csiParameterPrefix + "volumesnapshotcontent/name" // Prefixed VolumeSnapshotContent name key
+
+	PrefixedVolumeGroupSnapshotNameKey        = csiParameterPrefix + "volumegroupsnapshot/name"        // Prefixed VolumeGroupSnapshot name key
+	PrefixedVolumeGroupSnapshotNamespaceKey   = csiParameterPrefix + "volumegroupsnapshot/namespace"   // Prefixed VolumeGroupSnapshot namespace key
+	PrefixedVolumeGroupSnapshotContentNameKey = csiParameterPrefix + "volumegroupsnapshotcontent/name" // Prefixed VolumeGroupSnapshotContent name key
 
 	// Name of finalizer on VolumeSnapshotContents that are bound by VolumeSnapshots
 	VolumeSnapshotContentFinalizer = "snapshot.storage.kubernetes.io/volumesnapshotcontent-bound-protection"
@@ -93,6 +99,19 @@ const (
 	// the create snapshot CSI method will not be called for pre-provisioned
 	// snapshots.
 	AnnVolumeSnapshotBeingCreated = "snapshot.storage.kubernetes.io/volumesnapshot-being-created"
+
+	// AnnVolumeGroupSnapshotBeingCreated annotation applies to VolumeGroupSnapshotContents.
+	// If it is set, it indicates that the csi-snapshotter
+	// sidecar has sent the create group snapshot request to the storage system and
+	// is waiting for a response of success or failure.
+	// This annotation will be removed once the driver's CreateGroupSnapshot
+	// CSI function returns success or a final error (determined by isFinalError()).
+	// If the create group snapshot request fails with a non-final error such as timeout,
+	// retry will happen and the annotation will remain.
+	// This only applies to dynamic provisioning of group snapshots because
+	// the create group snapshot CSI method will not be called for pre-provisioned
+	// group snapshots.
+	AnnVolumeGroupSnapshotBeingCreated = "groupsnapshot.storage.kubernetes.io/volumegroupsnapshot-being-created"
 
 	// Annotation for secret name and namespace will be added to the content
 	// and used at snapshot content deletion time.
@@ -474,4 +493,53 @@ func IsSnapshotReady(snapshot *crdv1.VolumeSnapshot) bool {
 // IsSnapshotCreated indicates that the snapshot has been cut on a storage system
 func IsSnapshotCreated(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.Status != nil && snapshot.Status.CreationTime != nil
+}
+
+func GroupSnapshotKey(vgs *crdv1alpha1.VolumeGroupSnapshot) string {
+	return fmt.Sprintf("%s/%s", vgs.Namespace, vgs.Name)
+}
+
+func GroupSnapshotRefKey(vgsref *v1.ObjectReference) string {
+	return fmt.Sprintf("%s/%s", vgsref.Namespace, vgsref.Name)
+}
+
+func IsGroupSnapshotReady(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || groupSnapshot.Status.ReadyToUse == nil || *groupSnapshot.Status.ReadyToUse == false {
+		return false
+	}
+	return true
+}
+
+func IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == nil || *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == "" {
+		return false
+	}
+	return true
+}
+
+func IsVolumeSnapshotRefListSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || len(groupSnapshot.Status.VolumeSnapshotRefList) == 0 {
+		return false
+	}
+	return true
+}
+
+func IsVolumeGroupSnapshotRefSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, content *crdv1alpha1.VolumeGroupSnapshotContent) bool {
+	if content.Spec.VolumeGroupSnapshotRef.Name == groupSnapshot.Name &&
+		content.Spec.VolumeGroupSnapshotRef.Namespace == groupSnapshot.Namespace &&
+		content.Spec.VolumeGroupSnapshotRef.UID == groupSnapshot.UID {
+		return true
+	}
+	return false
+}
+
+// IsGroupSnapshotCreated indicates that the group snapshot has been cut on a storage system
+func IsGroupSnapshotCreated(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	return groupSnapshot.Status != nil && groupSnapshot.Status.CreationTime != nil
+}
+
+// GetDynamicSnapshotContentNameFoGrouprSnapshot returns a unique content name for the
+// passed in VolumeGroupSnapshot to dynamically provision a group snapshot.
+func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) string {
+	return "groupsnapcontent-" + string(groupSnapshot.UID)
 }

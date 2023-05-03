@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"encoding/json"
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
@@ -55,4 +56,24 @@ func PatchVolumeSnapshot(
 	}
 
 	return newSnapshot, nil
+}
+
+// PatchVolumeGroupSnapshotContent patches a volume group snapshot content object
+func PatchVolumeGroupSnapshotContent(
+	existingGroupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent,
+	patch []PatchOp,
+	client clientset.Interface,
+	subresources ...string,
+) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
+	data, err := json.Marshal(patch)
+	if nil != err {
+		return existingGroupSnapshotContent, err
+	}
+
+	newGroupSnapshotContent, err := client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Patch(context.TODO(), existingGroupSnapshotContent.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
+	if err != nil {
+		return existingGroupSnapshotContent, err
+	}
+
+	return newGroupSnapshotContent, nil
 }

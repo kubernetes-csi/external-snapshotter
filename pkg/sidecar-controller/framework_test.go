@@ -566,11 +566,18 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Snapshot().V1().VolumeSnapshotContents(),
 		informerFactory.Snapshot().V1().VolumeSnapshotClasses(),
 		fakeSnapshot,
+		nil, // TODO: Replace with fake group snapshotter
 		5*time.Millisecond,
 		60*time.Second,
 		"snapshot",
 		-1,
+		"groupsnapshot",
+		-1,
 		true,
+		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
+		false,
+		informerFactory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents(),
+		informerFactory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses(),
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 	)
 
