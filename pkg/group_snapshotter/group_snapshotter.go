@@ -19,7 +19,6 @@ package group_snapshotter
 import (
 	"context"
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/protobuf/ptypes"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
 	"google.golang.org/grpc"
 	klog "k8s.io/klog/v2"
@@ -70,10 +69,7 @@ func (gs *groupSnapshot) CreateGroupSnapshot(ctx context.Context, groupSnapshotN
 	}
 
 	klog.V(5).Infof("CSI CreateGroupSnapshot: %s driver name [%s] group snapshot ID [%s] time stamp [%v] snapshots [%v] readyToUse [%v]", groupSnapshotName, driverName, rsp.GroupSnapshot.GroupSnapshotId, rsp.GroupSnapshot.CreationTime, rsp.GroupSnapshot.Snapshots, rsp.GroupSnapshot.ReadyToUse)
-	creationTime, err := ptypes.Timestamp(rsp.GroupSnapshot.CreationTime)
-	if err != nil {
-		return "", "", nil, time.Time{}, false, err
-	}
+	creationTime := rsp.GroupSnapshot.CreationTime.AsTime()
 	return driverName, rsp.GroupSnapshot.GroupSnapshotId, rsp.GroupSnapshot.Snapshots, creationTime, rsp.GroupSnapshot.ReadyToUse, nil
 
 }
