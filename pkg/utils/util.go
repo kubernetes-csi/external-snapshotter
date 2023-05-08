@@ -77,7 +77,8 @@ const (
 	// Name of finalizer on PVCs that is being used as a source to create VolumeSnapshots
 	PVCFinalizer = "snapshot.storage.kubernetes.io/pvc-as-source-protection"
 
-	IsDefaultSnapshotClassAnnotation = "snapshot.storage.kubernetes.io/is-default-class"
+	IsDefaultSnapshotClassAnnotation      = "snapshot.storage.kubernetes.io/is-default-class"
+	IsDefaultGroupSnapshotClassAnnotation = "groupsnapshot.storage.kubernetes.io/is-default-class"
 
 	// AnnVolumeSnapshotBeingDeleted annotation applies to VolumeSnapshotContents.
 	// It indicates that the common snapshot controller has verified that volume

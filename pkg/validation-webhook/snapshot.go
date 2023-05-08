@@ -109,7 +109,8 @@ func (a admitter) Admit(ar v1.AdmissionReview) *v1.AdmissionResponse {
 		}
 		return decideSnapshotClassV1(snapClass, oldSnapClass, a.lister)
 	default:
-		err := fmt.Errorf("expect resource to be %s, %s or %s", SnapshotV1GVR, SnapshotContentV1GVR, SnapshotClassV1GVR)
+		err := fmt.Errorf("expect resource to be %s, %s, or %s, but found %v",
+			SnapshotV1GVR, SnapshotContentV1GVR, SnapshotClassV1GVR, ar.Request.Resource)
 		klog.Error(err)
 		return toV1AdmissionResponse(err)
 	}

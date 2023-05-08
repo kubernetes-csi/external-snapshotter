@@ -32,7 +32,10 @@ func TestWebhookCertReload(t *testing.T) {
 			t.Errorf("unexpected error occurred while deleting certs: %v", err)
 		}
 	}()
-	generateTestCertKeyPair(t, certFile, keyFile)
+	err = generateTestCertKeyPair(t, certFile, keyFile)
+	if err != nil {
+		t.Errorf("unexpected error occurred while generating test certs: %v", err)
+	}
 
 	// Start test server
 	ctx, cancel := context.WithCancel(context.Background())
@@ -45,7 +48,12 @@ func TestWebhookCertReload(t *testing.T) {
 		GetCertificate: cw.GetCertificate,
 	}
 	go func() {
-		if err := startServer(ctx, tlsConfig, cw, &fakeSnapshotLister{}); err != nil {
+		err := startServer(ctx,
+			tlsConfig,
+			cw,
+			&fakeSnapshotLister{},
+			&fakeGroupSnapshotLister{})
+		if err != nil {
 			panic(err)
 		}
 	}()
@@ -74,7 +82,10 @@ func TestWebhookCertReload(t *testing.T) {
 	// TC: Certificate should consistently change with a file change
 	for i := 0; i < 5; i++ {
 		// Generate new key/cert
-		generateTestCertKeyPair(t, certFile, keyFile)
+		err = generateTestCertKeyPair(t, certFile, keyFile)
+		if err != nil {
+			t.Errorf("unexpected error occurred while generating test certs: %v", err)
+		}
 
 		// Wait for certwatcher to update
 		time.Sleep(250 * time.Millisecond)

@@ -19,6 +19,7 @@ package webhook
 import (
 	"fmt"
 
+	groupsnapshotcrdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 )
 
@@ -51,5 +52,37 @@ func ValidateV1SnapshotContent(snapcontent *crdv1.VolumeSnapshotContent) error {
 		return fmt.Errorf("both Spec.VolumeSnapshotRef.Name = %s and Spec.VolumeSnapshotRef.Namespace = %s must be set", vsref.Name, vsref.Namespace)
 	}
 
+	return nil
+}
+
+// ValidateV1Alpha1GroupSnapshotContent performs additional strict validation.
+// Do NOT rely on this function to fully validate group snapshot content objects.
+// This function will only check the additional rules provided by the webhook.
+func ValidateV1Alpha1GroupSnapshotContent(groupSnapcontent *groupsnapshotcrdv1alpha1.VolumeGroupSnapshotContent) error {
+	if groupSnapcontent == nil {
+		return fmt.Errorf("VolumeGroupSnapshotContent is nil")
+	}
+
+	vgsref := groupSnapcontent.Spec.VolumeGroupSnapshotRef
+
+	if vgsref.Name == "" || vgsref.Namespace == "" {
+		return fmt.Errorf("both Spec.VolumeGroupSnapshotRef.Name = %s and Spec.VolumeGroupSnapshotRef.Namespace = %s must be set", vgsref.Name, vgsref.Namespace)
+	}
+
+	return nil
+}
+
+// ValidateV1Alpha1GroupSnapshot performs additional strict validation.
+// Do NOT rely on this function to fully validate group snapshot objects.
+// This function will only check the additional rules provided by the webhook.
+func ValidateV1Alpha1GroupSnapshot(snapshot *groupsnapshotcrdv1alpha1.VolumeGroupSnapshot) error {
+	if snapshot == nil {
+		return fmt.Errorf("VolumeGroupSnapshot is nil")
+	}
+
+	vgscname := snapshot.Spec.VolumeGroupSnapshotClassName
+	if vgscname != nil && *vgscname == "" {
+		return fmt.Errorf("Spec.VolumeGroupSnapshotClassName must not be the empty string")
+	}
 	return nil
 }
