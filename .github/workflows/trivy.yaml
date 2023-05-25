@@ -1,3 +1,4 @@
+---
 name: Trivy vulnerability scanner
 on:
   push:
