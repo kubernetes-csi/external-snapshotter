@@ -36,7 +36,7 @@ type Handler interface {
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
 	CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
-	GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error)
+	GetGroupSnapshotStatus(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterListCredentials map[string]string) (bool, time.Time, error)
 	DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, SnapshotID []string, snapshotterCredentials map[string]string) error
 }
 
@@ -188,23 +188,27 @@ func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupS
 	return handler.groupSnapshotter.DeleteGroupSnapshot(ctx, groupSnapshotHandle, snapshotIDs, snapshotterCredentials)
 }
 
-func (handler *csiHandler) GetGroupSnapshotStatus(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error) {
+func (handler *csiHandler) GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterListCredentials map[string]string) (bool, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
+	// NOTE: snapshotIDs are required for GetGroupSnapshotStatus
+	if len(snapshotIDs) == 0 {
+		return false, time.Time{}, fmt.Errorf("cannot list group snapshot %s. No snapshots found in the group snapshot content", content.Name)
+	}
 	var groupSnapshotHandle string
 	var err error
-	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.VolumeGroupSnapshotHandle != nil {
-		groupSnapshotHandle = *groupSnapshotContent.Status.VolumeGroupSnapshotHandle
-	} else if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
-		groupSnapshotHandle = groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeGroupSnapshotHandle
+	if content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil {
+		groupSnapshotHandle = *content.Status.VolumeGroupSnapshotHandle
+	} else if content.Spec.Source.GroupSnapshotHandles != nil {
+		groupSnapshotHandle = content.Spec.Source.GroupSnapshotHandles.VolumeGroupSnapshotHandle
 	} else {
-		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: groupSnapshotHandle is missing", groupSnapshotContent.Name)
+		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: groupSnapshotHandle is missing", content.Name)
 	}
 
-	csiSnapshotStatus, timestamp, err := handler.groupSnapshotter.GetGroupSnapshotStatus(ctx, groupSnapshotHandle, snapshotterListCredentials)
+	csiSnapshotStatus, timestamp, err := handler.groupSnapshotter.GetGroupSnapshotStatus(ctx, groupSnapshotHandle, snapshotIDs, snapshotterListCredentials)
 	if err != nil {
-		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: %q", groupSnapshotContent.Name, err)
+		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: %q", content.Name, err)
 	}
 
 	return csiSnapshotStatus, timestamp, nil
