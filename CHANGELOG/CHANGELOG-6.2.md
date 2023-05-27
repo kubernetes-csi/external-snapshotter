@@ -1,3 +1,41 @@
+# Release notes for v6.2.2
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v6.2.1
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Cherry-pick ([#824](https://github.com/kubernetes-csi/external-snapshotter/pull/824), [@andyzhangx](https://github.com/andyzhangx)). Fixes CVE-2022-41723. ([#840](https://github.com/kubernetes-csi/external-snapshotter/pull/840), [@xing-yang](https://github.com/xing-yang)).
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/yuin/goldmark: [v1.4.13 → v1.3.5](https://github.com/yuin/goldmark/compare/v1.4.13...v1.3.5)
+- golang.org/x/mod: v0.6.0 → v0.8.0
+- golang.org/x/net: v0.4.0 → v0.8.0
+- golang.org/x/sys: v0.3.0 → v0.6.0
+- golang.org/x/term: v0.3.0 → v0.6.0
+- golang.org/x/text: v0.5.0 → v0.8.0
+- golang.org/x/tools: v0.2.0 → v0.6.0
+
+### Removed
+_Nothing has changed._
+
+# Release notes for v6.2.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v6.2.0
+
+registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.2.0 was not built successfully due to timeout.
+v6.2.1 was cut so that we can have registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.2.1.
+
 # Release notes for v6.2.0
 
 [Documentation](https://kubernetes-csi.github.io)
