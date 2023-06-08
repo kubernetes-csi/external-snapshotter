@@ -5,16 +5,16 @@ metadata:
   name: snapshot-validation-deployment
   namespace: default # NOTE: change the namespace
   labels:
-    app: snapshot-validation
+    app.kubernetes.io/name: snapshot-validation
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: snapshot-validation
+      app.kubernetes.io/name: snapshot-validation
   template:
     metadata:
       labels:
-        app: snapshot-validation
+        app.kubernetes.io/name: snapshot-validation
     spec:
       serviceAccountName: snapshot-webhook
       containers:
@@ -40,7 +40,7 @@ metadata:
   namespace: default # NOTE: change the namespace
 spec:
   selector:
-    app: snapshot-validation
+    app.kubernetes.io/name: snapshot-validation
   ports:
     - protocol: TCP
       port: 443 # Change if needed
