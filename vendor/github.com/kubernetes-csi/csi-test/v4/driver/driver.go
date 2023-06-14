@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Luis Pabón luis@portworx.com
+Copyright 2021 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
@@ -65,6 +65,7 @@ type CSICreds struct {
 	CreateSnapshotSecret                       string
 	DeleteSnapshotSecret                       string
 	ControllerValidateVolumeCapabilitiesSecret string
+	ListSnapshotsSecret                        string
 }
 
 type CSIDriver struct {
@@ -184,6 +185,7 @@ func setDefaultCreds(creds *CSICreds) {
 		CreateSnapshotSecret:                       "secretval7",
 		DeleteSnapshotSecret:                       "secretval8",
 		ControllerValidateVolumeCapabilitiesSecret: "secretval9",
+		ListSnapshotsSecret:                        "secretval10",
 	}
 }
 
@@ -235,7 +237,10 @@ func logGRPC(method string, request, reply interface{}, err error) {
 		logMessage.Error = err.Error()
 	}
 
-	msg, _ := json.Marshal(logMessage)
+	msg, err := json.Marshal(logMessage)
+	if err != nil {
+		logMessage.Error = err.Error()
+	}
 	klog.V(3).Infof("gRPCCall: %s\n", msg)
 }
 
@@ -259,6 +264,8 @@ func isAuthenticated(req interface{}, creds *CSICreds) (bool, error) {
 		return authenticateDeleteSnapshot(r, creds)
 	case *csi.ValidateVolumeCapabilitiesRequest:
 		return authenticateControllerValidateVolumeCapabilities(r, creds)
+	case *csi.ListSnapshotsRequest:
+		return authenticateListSnapshots(r, creds)
 	default:
 		return true, nil
 	}
@@ -298,6 +305,10 @@ func authenticateDeleteSnapshot(req *csi.DeleteSnapshotRequest, creds *CSICreds)
 
 func authenticateControllerValidateVolumeCapabilities(req *csi.ValidateVolumeCapabilitiesRequest, creds *CSICreds) (bool, error) {
 	return credsCheck(req.GetSecrets(), creds.ControllerValidateVolumeCapabilitiesSecret)
+}
+
+func authenticateListSnapshots(req *csi.ListSnapshotsRequest, creds *CSICreds) (bool, error) {
+	return credsCheck(req.GetSecrets(), creds.ListSnapshotsSecret)
 }
 
 func credsCheck(secrets map[string]string, secretVal string) (bool, error) {
