@@ -20,19 +20,17 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/group_snapshotter"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
 
-	utils "github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
-
 	"google.golang.org/grpc"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -51,7 +49,8 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions"
-	coreinformers "k8s.io/client-go/informers"
+	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/group_snapshotter"
+	utils "github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 )
 
 const (
@@ -229,6 +228,12 @@ func main() {
 	snapShotter := snapshotter.NewSnapshotter(csiConn)
 	var groupSnapshotter group_snapshotter.GroupSnapshotter
 	if *enableVolumeGroupSnapshots {
+		supportsCreateVolumeGroupSnapshot, err := supportsGroupControllerCreateVolumeGroupSnapshot(ctx, csiConn)
+		if err != nil {
+			klog.Errorf("error determining if driver supports create/delete group snapshot operations: %v", err)
+		} else if !supportsCreateVolumeGroupSnapshot {
+			klog.Warningf("CSI driver %s does not support GroupControllerCreateVolumeGroupSnapshot when the --enable-volume-group-snapshots flag is true", driverName)
+		}
 		groupSnapshotter = group_snapshotter.NewGroupSnapshotter(csiConn)
 		if len(*groupSnapshotNamePrefix) == 0 {
 			klog.Error("group snapshot name prefix cannot be of length 0")
@@ -316,4 +321,13 @@ func supportsControllerCreateSnapshot(ctx context.Context, conn *grpc.ClientConn
 	}
 
 	return capabilities[csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT], nil
+}
+
+func supportsGroupControllerCreateVolumeGroupSnapshot(ctx context.Context, conn *grpc.ClientConn) (bool, error) {
+	capabilities, err := csirpc.GetGroupControllerCapabilities(ctx, conn)
+	if err != nil {
+		return false, err
+	}
+
+	return capabilities[csi.GroupControllerServiceCapability_RPC_CREATE_DELETE_GET_VOLUME_GROUP_SNAPSHOT], nil
 }
