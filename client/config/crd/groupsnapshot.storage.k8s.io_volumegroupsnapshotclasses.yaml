@@ -19,7 +19,20 @@ spec:
     singular: volumegroupsnapshotclass
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - jsonPath: .driver
+      name: Driver
+      type: string
+    - description: Determines whether a VolumeGroupSnapshotContent created through
+        the VolumeGroupSnapshotClass should be deleted when its bound VolumeGroupSnapshot
+        is deleted.
+      jsonPath: .deletionPolicy
+      name: DeletionPolicy
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: VolumeGroupSnapshotClass specifies parameters that a underlying
@@ -66,3 +79,4 @@ spec:
         type: object
     served: true
     storage: true
+    subresources: {}

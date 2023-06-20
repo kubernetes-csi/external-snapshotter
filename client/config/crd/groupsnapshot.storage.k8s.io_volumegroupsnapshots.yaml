@@ -18,7 +18,33 @@ spec:
     singular: volumegroupsnapshot
   scope: Namespaced
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Indicates if all the individual snapshots in the group are ready
+        to be used to restore a group of volumes.
+      jsonPath: .status.readyToUse
+      name: ReadyToUse
+      type: boolean
+    - description: The name of the VolumeGroupSnapshotClass requested by the VolumeGroupSnapshot.
+      jsonPath: .spec.volumeGroupSnapshotClassName
+      name: VolumeGroupSnapshotClass
+      type: string
+    - description: Name of the VolumeGroupSnapshotContent object to which the VolumeGroupSnapshot
+        object intends to bind to. Please note that verification of binding actually
+        requires checking both VolumeGroupSnapshot and VolumeGroupSnapshotContent
+        to ensure both are pointing at each other. Binding MUST be verified prior
+        to usage of this object.
+      jsonPath: .status.boundVolumeGroupSnapshotContentName
+      name: VolumeGroupSnapshotContent
+      type: string
+    - description: Timestamp when the point-in-time group snapshot was taken by the
+        underlying storage system.
+      jsonPath: .status.creationTime
+      name: CreationTime
+      type: date
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: VolumeGroupSnapshot is a user's request for creating either a
@@ -160,10 +186,10 @@ spec:
                 type: object
               readyToUse:
                 description: ReadyToUse indicates if all the individual snapshots
-                  in the group are ready to be used to restore a volume. ReadyToUse
-                  becomes true when ReadyToUse of all individual snapshots become
-                  true. If not specified, it means the readiness of a group snapshot
-                  is unknown.
+                  in the group are ready to be used to restore a group of volumes.
+                  ReadyToUse becomes true when ReadyToUse of all individual snapshots
+                  become true. If not specified, it means the readiness of a group
+                  snapshot is unknown.
                 type: boolean
               volumeSnapshotRefList:
                 description: VolumeSnapshotRefList is the list of volume snapshot

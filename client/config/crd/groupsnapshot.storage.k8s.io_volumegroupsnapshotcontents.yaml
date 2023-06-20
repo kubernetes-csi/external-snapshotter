@@ -19,7 +19,42 @@ spec:
     singular: volumegroupsnapshotcontent
   scope: Cluster
   versions:
-  - name: v1alpha1
+  - additionalPrinterColumns:
+    - description: Indicates if all the individual snapshots in the group are ready
+        to be used to restore a group of volumes.
+      jsonPath: .status.readyToUse
+      name: ReadyToUse
+      type: boolean
+    - description: Determines whether this VolumeGroupSnapshotContent and its physical
+        group snapshot on the underlying storage system should be deleted when its
+        bound VolumeGroupSnapshot is deleted.
+      jsonPath: .spec.deletionPolicy
+      name: DeletionPolicy
+      type: string
+    - description: Name of the CSI driver used to create the physical group snapshot
+        on the underlying storage system.
+      jsonPath: .spec.driver
+      name: Driver
+      type: string
+    - description: Name of the VolumeGroupSnapshotClass from which this group snapshot
+        was (or will be) created.
+      jsonPath: .spec.volumeGroupSnapshotClassName
+      name: VolumeGroupSnapshotClass
+      type: string
+    - description: Namespace of the VolumeGroupSnapshot object to which this VolumeGroupSnapshotContent
+        object is bound.
+      jsonPath: .spec.volumeGroupSnapshotRef.namespace
+      name: VolumeGroupSnapshotNamespace
+      type: string
+    - description: Name of the VolumeGroupSnapshot object to which this VolumeGroupSnapshotContent
+        object is bound.
+      jsonPath: .spec.volumeGroupSnapshotRef.name
+      name: VolumeGroupSnapshot
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: VolumeGroupSnapshotContent represents the actual "on-disk" group
@@ -173,9 +208,9 @@ spec:
                 type: object
               readyToUse:
                 description: ReadyToUse indicates if all the individual snapshots
-                  in the group are ready to be used to restore a volume. ReadyToUse
-                  becomes true when ReadyToUse of all individual snapshots become
-                  true.
+                  in the group are ready to be used to restore a group of volumes.
+                  ReadyToUse becomes true when ReadyToUse of all individual snapshots
+                  become true.
                 type: boolean
               volumeGroupSnapshotHandle:
                 description: VolumeGroupSnapshotHandle is a unique id returned by
@@ -183,7 +218,7 @@ spec:
                   system. If a storage system does not provide such an id, the CSI
                   driver can choose to return the VolumeGroupSnapshot name.
                 type: string
-              volumeSnapshotRefList:
+              volumeSnapshotContentRefList:
                 description: VolumeSnapshotContentRefList is the list of volume snapshot
                   content references for this group snapshot. The maximum number of
                   allowed snapshots in the group is 100.
