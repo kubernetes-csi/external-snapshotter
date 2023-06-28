@@ -41,7 +41,6 @@ import (
 	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumegroupsnapshot/v1alpha1"
 	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/snapshotter"
-	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/utils"
 )
 
 type csiSnapshotSideCarController struct {
