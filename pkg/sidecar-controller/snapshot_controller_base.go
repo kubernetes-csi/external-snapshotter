@@ -123,7 +123,7 @@ func NewCSISnapshotSideCarController(
 				// So we are skipping the re-queue here to avoid CreateSnapshot being called without exponential backoff.
 				newSnapContent := newObj.(*crdv1.VolumeSnapshotContent)
 				if newSnapContent.Status != nil && newSnapContent.Status.Error != nil {
-						return
+					return
 				}
 				ctrl.enqueueContentWork(newObj)
 			},
