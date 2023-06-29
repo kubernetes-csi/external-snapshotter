@@ -120,6 +120,8 @@ func NewCSISnapshotSideCarController(
 				// VolumeSnapshotContent.
 				// This will trigger a VolumeSnapshotContent update and it will cause the obj to be re-queued immediately
 				// and CSI CreateSnapshot will be called again without exponential backoff.
+				// Considering the object is modified more than once during the workflow we are not relying on the annoations of oldobj and newobj.
+				// We will just check if newobj status has error and avoid re-queue.
 				// So we are skipping the re-queue here to avoid CreateSnapshot being called without exponential backoff.
 				newSnapContent := newObj.(*crdv1.VolumeSnapshotContent)
 				if newSnapContent.Status != nil && newSnapContent.Status.Error != nil {
