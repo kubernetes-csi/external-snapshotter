@@ -114,6 +114,14 @@ const (
 	// group snapshots.
 	AnnVolumeGroupSnapshotBeingCreated = "groupsnapshot.storage.kubernetes.io/volumegroupsnapshot-being-created"
 
+	// AnnVolumeGroupSnapshotBeingDeleted annotation applies to VolumeGroupSnapshotContents.
+	// It indicates that the common snapshot controller has verified that volume
+	// group snapshot has a deletion timestamp and is being deleted.
+	// Sidecar controller needs to check the deletion policy on the
+	// VolumeGroupSnapshotContent and decide whether to delete the volume group snapshot
+	// backing the group snapshot content.
+	AnnVolumeGroupSnapshotBeingDeleted = "groupsnapshot.storage.kubernetes.io/volumegroupsnapshot-being-deleted"
+
 	// Annotation for secret name and namespace will be added to the content
 	// and used at snapshot content deletion time.
 	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"

@@ -19,11 +19,12 @@ package sidecar_controller
 import (
 	"context"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/group_snapshotter"
-	"strings"
-	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v6/pkg/snapshotter"
@@ -36,6 +37,7 @@ type Handler interface {
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error)
 	CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
 	GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error)
+	DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, SanpshotID []string, snapshotterCredentials map[string]string) error
 }
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
@@ -163,6 +165,30 @@ func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupS
 		return "", "", nil, time.Time{}, false, err
 	}
 	return handler.groupSnapshotter.CreateGroupSnapshot(ctx, groupSnapshotName, volumeIDs, parameters, snapshotterCredentials)
+}
+
+func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
+	defer cancel()
+
+	if content.Spec.VolumeGroupSnapshotRef.UID == "" {
+		return fmt.Errorf("cannot delete group snapshot. Group snapshot content %s not bound to a group snapshot", content.Name)
+	}
+
+	if len(snapshotIDs) == 0 {
+		return fmt.Errorf("cannot delete group snapshot. Snapshots found in the group snapshot%s", content.Name)
+	}
+	var groupSnapshotHandle string
+
+	if content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil {
+		groupSnapshotHandle = *content.Status.VolumeGroupSnapshotHandle
+	} else if content.Spec.Source.VolumeGroupSnapshotHandle != nil {
+		groupSnapshotHandle = *content.Spec.Source.VolumeGroupSnapshotHandle
+	} else {
+		return fmt.Errorf("failed to delete group snapshot content %s: groupsnapshotHandle is missing", content.Name)
+	}
+
+	return handler.groupSnapshotter.DeleteGroupSnapshot(ctx, groupSnapshotHandle, snapshotIDs, snapshotterCredentials)
 }
 
 func (handler *csiHandler) GetGroupSnapshotStatus(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error) {

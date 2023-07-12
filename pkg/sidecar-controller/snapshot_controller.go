@@ -58,7 +58,7 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 	if ctrl.shouldDelete(content) {
 		klog.V(4).Infof("VolumeSnapshotContent[%s]: the policy is %s", content.Name, content.Spec.DeletionPolicy)
 		if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete &&
-			content.Status != nil && content.Status.SnapshotHandle != nil {
+			content.Status != nil && content.Status.SnapshotHandle != nil && content.Status.VolumeGroupSnapshotContentName == nil {
 			// issue a CSI deletion call if the snapshot has not been deleted yet from
 			// underlying storage system. Note that the deletion snapshot operation will
 			// update content SnapshotHandle to nil upon a successful deletion. At this
