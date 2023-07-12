@@ -81,7 +81,7 @@ var (
 var version = "unknown"
 
 // Checks that the VolumeSnapshot v1 CRDs exist.
-func ensureCustomResourceDefinitionsExist(client *clientset.Clientset) error {
+func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVolumeGroupSnapshots bool) error {
 	condition := func() (bool, error) {
 		var err error
 
@@ -102,6 +102,25 @@ func ensureCustomResourceDefinitionsExist(client *clientset.Clientset) error {
 			klog.Errorf("Failed to list v1 volumesnapshotcontents with error=%+v", err)
 			return false, nil
 		}
+		if enableVolumeGroupSnapshots {
+			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshots("").List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshots with error=%+v", err)
+				return false, nil
+			}
+
+			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshotclasses with error=%+v", err)
+				return false, nil
+			}
+			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().List(context.TODO(), metav1.ListOptions{})
+			if err != nil {
+				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshotcontents with error=%+v", err)
+				return false, nil
+			}
+		}
+
 		return true, nil
 	}
 
@@ -214,7 +233,7 @@ func main() {
 		*enableVolumeGroupSnapshots,
 	)
 
-	if err := ensureCustomResourceDefinitionsExist(snapClient); err != nil {
+	if err := ensureCustomResourceDefinitionsExist(snapClient, *enableVolumeGroupSnapshots); err != nil {
 		klog.Errorf("Exiting due to failure to ensure CRDs exist during startup: %+v", err)
 		os.Exit(1)
 	}

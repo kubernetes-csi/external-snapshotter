@@ -58,6 +58,26 @@ func PatchVolumeSnapshot(
 	return newSnapshot, nil
 }
 
+// PatchVolumeGroupSnapshot patches a volume group snapshot object
+func PatchVolumeGroupSnapshot(
+	existingGroupSnapshot *crdv1alpha1.VolumeGroupSnapshot,
+	patch []PatchOp,
+	client clientset.Interface,
+	subresources ...string,
+) (*crdv1alpha1.VolumeGroupSnapshot, error) {
+	data, err := json.Marshal(patch)
+	if nil != err {
+		return existingGroupSnapshot, err
+	}
+
+	newGroupSnapshot, err := client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(existingGroupSnapshot.Namespace).Patch(context.TODO(), existingGroupSnapshot.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
+	if err != nil {
+		return existingGroupSnapshot, err
+	}
+
+	return newGroupSnapshot, nil
+}
+
 // PatchVolumeGroupSnapshotContent patches a volume group snapshot content object
 func PatchVolumeGroupSnapshotContent(
 	existingGroupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent,

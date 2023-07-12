@@ -1165,7 +1165,6 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		updated = true
 	} else {
 		newStatus = snapshotObj.Status.DeepCopy()
-		klog.Infof("Raunak 1 %s", newStatus.VolumeGroupSnapshotName)
 		if newStatus.BoundVolumeSnapshotContentName == nil {
 			newStatus.BoundVolumeSnapshotContentName = &boundContentName
 			updated = true

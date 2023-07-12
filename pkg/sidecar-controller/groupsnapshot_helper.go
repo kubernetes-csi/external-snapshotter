@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -163,9 +164,23 @@ func (ctrl *csiSnapshotSideCarController) deleteGroupSnapshotContentInCacheStore
 func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
 	klog.V(5).Infof("synchronizing VolumeGroupSnapshotContent[%s]", groupSnapshotContent.Name)
 
-	/*
-		TODO: Check if the group snapshot content should be deleted
-	*/
+	if ctrl.shouldDeleteGroupSnapshotContent(groupSnapshotContent) {
+		klog.V(4).Infof("VolumeGroupSnapshotContent[%s]: the policy is %s", groupSnapshotContent.Name, groupSnapshotContent.Spec.DeletionPolicy)
+		if groupSnapshotContent.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete &&
+			groupSnapshotContent.Status != nil && groupSnapshotContent.Status.VolumeGroupSnapshotHandle != nil {
+			// issue a CSI deletion call if the group snapshot has not been deleted
+			// yet from underlying storage system. Note that the delete group snapshot
+			// operation will update groups snapshot content's GroupSnapshotHandle
+			// to nil upon a successful deletion. At this point, the finalizer on
+			// group snapshot content should NOT be removed to avoid leaking.
+			return ctrl.deleteCSIGroupSnapshotOperation(groupSnapshotContent)
+		}
+		// otherwise, either the snapshot has been deleted from the underlying
+		// storage system, or the deletion policy is Retain, remove the finalizer
+		// if there is one so that API server could delete the object if there is
+		// no other finalizer.
+		return ctrl.removeGroupSnapshotContentFinalizer(groupSnapshotContent)
+	}
 
 	if len(groupSnapshotContent.Spec.Source.PersistentVolumeNames) != 0 && groupSnapshotContent.Status == nil {
 		klog.V(5).Infof("syncGroupSnapshotContent: Call CreateGroupSnapshot for group snapshot content %s", groupSnapshotContent.Name)
@@ -182,6 +197,158 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshot
 		return err
 	}
 	return ctrl.checkandUpdateGroupSnapshotContentStatus(groupSnapshotContent)
+}
+
+// removeGroupSnapshotContentFinalizer removes the VolumeGroupSnapshotContentFinalizer from a
+// group snapshot content if there exists one.
+func (ctrl csiSnapshotSideCarController) removeGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
+	if !utils.ContainsString(groupSnapshotContent.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer) {
+		// the finalizer does not exit, return directly
+		return nil
+	}
+	var patches []utils.PatchOp
+	groupSnapshotContentClone := groupSnapshotContent.DeepCopy()
+	patches = append(patches,
+		utils.PatchOp{
+			Op:    "replace",
+			Path:  "/metadata/finalizers",
+			Value: utils.RemoveString(groupSnapshotContentClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer),
+		})
+
+	updatedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContentClone, patches, ctrl.clientset)
+	if err != nil {
+		return newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+	}
+
+	klog.V(5).Infof("Removed protection finalizer from volume group snapshot content %s", updatedGroupSnapshotContent.Name)
+	_, err = ctrl.storeGroupSnapshotContentUpdate(updatedGroupSnapshotContent)
+	if err != nil {
+		klog.Errorf("failed to update group snapshot content store %v", err)
+	}
+	return nil
+}
+
+// Delete a groupsnapshot: Ask the backend to remove the groupsnapshot device
+func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
+	klog.V(5).Infof("deleteCSISnapshotOperation [%s] started", groupSnapshotContent.Name)
+
+	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotationForGroupSnapshot(groupSnapshotContent)
+	if err != nil {
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot credentials")
+		return fmt.Errorf("failed to get input parameters to delete group snapshot for group snapshot content %s: %q", groupSnapshotContent.Name, err)
+	}
+
+	var snapshotIDs []string
+	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.VolumeSnapshotContentRefList) != 0 {
+		for _, contentRef := range groupSnapshotContent.Status.VolumeSnapshotContentRefList {
+			snapshotContent, err := ctrl.contentLister.Get(contentRef.Name)
+			if err != nil {
+				return fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.Name, err)
+			}
+			snapshotIDs = append(snapshotIDs, *snapshotContent.Status.SnapshotHandle)
+		}
+	}
+
+	err = ctrl.handler.DeleteGroupSnapshot(groupSnapshotContent, snapshotIDs, snapshotterCredentials)
+	if err != nil {
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to delete group snapshot")
+		return fmt.Errorf("failed to delete group snapshot %#v, err: %v", groupSnapshotContent.Name, err)
+	}
+	// the group snapshot has been deleted from the underlying storage system, update
+	// group snapshot content status to remove the group snapshot handle etc.
+	newContent, err := ctrl.clearGroupSnapshotContentStatus(groupSnapshotContent.Name)
+	if err != nil {
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to clear content status")
+		return err
+	}
+	// trigger syncGroupSnapshotContent
+	ctrl.updateGroupSnapshotContentInInformerCache(newContent)
+	return nil
+}
+
+// clearGroupSnapshotContentStatus resets all fields to nil related to a group snapshot
+// in groupSnapshotContent.Status. On success, the latest version of the group snapshot
+// content object will be returned.
+func (ctrl *csiSnapshotSideCarController) clearGroupSnapshotContentStatus(
+	groupSnapshotContentName string) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
+	klog.V(5).Infof("clearGroupSnapshotContentStatus content [%s]", groupSnapshotContentName)
+	// get the latest version from API server
+	groupSnapshotContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Get(context.TODO(), groupSnapshotContentName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("error get group snapshot content %s from api server: %v", groupSnapshotContentName, err)
+	}
+	if groupSnapshotContent.Status != nil {
+		groupSnapshotContent.Status.VolumeGroupSnapshotHandle = nil
+		groupSnapshotContent.Status.ReadyToUse = nil
+		groupSnapshotContent.Status.CreationTime = nil
+		groupSnapshotContent.Status.Error = nil
+		groupSnapshotContent.Status.VolumeSnapshotContentRefList = nil
+	}
+	newContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContent, metav1.UpdateOptions{})
+	if err != nil {
+		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContentName, err.Error())
+	}
+	return newContent, nil
+}
+
+func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotationForGroupSnapshot(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) (map[string]string, error) {
+	// get secrets if VolumeGroupSnapshotClass specifies it
+	var snapshotterCredentials map[string]string
+	var err error
+
+	// Check if annotation exists
+	if metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName) && metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace) {
+		annDeletionSecretName := groupSnapshotContent.Annotations[utils.AnnDeletionSecretRefName]
+		annDeletionSecretNamespace := groupSnapshotContent.Annotations[utils.AnnDeletionSecretRefNamespace]
+
+		snapshotterSecretRef := &v1.SecretReference{}
+
+		if annDeletionSecretName == "" || annDeletionSecretNamespace == "" {
+			return nil, fmt.Errorf("cannot retrieve secrets for group snapshot content %#v, err: secret name or namespace not specified", groupSnapshotContent.Name)
+		}
+
+		snapshotterSecretRef.Name = annDeletionSecretName
+		snapshotterSecretRef.Namespace = annDeletionSecretNamespace
+
+		snapshotterCredentials, err = utils.GetCredentials(ctrl.client, snapshotterSecretRef)
+		if err != nil {
+			// Continue with deletion, as the secret may have already been deleted.
+			klog.Errorf("Failed to get credentials for group snapshot content %s: %s", groupSnapshotContent.Name, err.Error())
+			return nil, fmt.Errorf("cannot get credentials for group snapshot content %#v", groupSnapshotContent.Name)
+		}
+	}
+
+	return snapshotterCredentials, nil
+}
+
+// shouldDeleteGroupSnapshotContent checks if groupSnapshotContent object should be deleted
+// if DeletionTimestamp is set on the groupSnapshotContent
+func (ctrl *csiSnapshotSideCarController) shouldDeleteGroupSnapshotContent(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) bool {
+	klog.V(5).Infof("Check if VolumeGroupSnapshotContent[%s] should be deleted.", groupSnapshotContent.Name)
+
+	if groupSnapshotContent.ObjectMeta.DeletionTimestamp == nil {
+		return false
+	}
+	// 1) shouldDeleteGroupSnapshot returns true if a content is not bound
+	// (VolumeGroupSnapshotRef == "") for pre-provisioned snapshot
+	if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil && groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID == "" {
+		return true
+	}
+
+	// NOTE(xyang): Handle create snapshot timeout
+	// 2) shouldDeleteGroupSnapshotContent returns false if AnnVolumeGroupSnapshotBeingCreated
+	// annotation is set. This indicates a CreateGroupSnapshot CSI RPC has
+	// not responded with success or failure.
+	// We need to keep waiting for a response from the CSI driver.
+	if metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingCreated) {
+		return false
+	}
+
+	// 3) shouldDeleteGroupSnapshotContent returns true if AnnVolumeSnapshotBeingDeleted annotation is set
+	if metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingDeleted) {
+		return true
+	}
+	return false
 }
 
 // createGroupSnapshot starts new asynchronous operation to create group snapshot
@@ -289,9 +456,9 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 				VolumeGroupSnapshotContentName: &groupSnapshotContent.Name,
 			},
 		}
+
 		label := make(map[string]string)
 		label["volumeGroupSnapshotName"] = groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name
-		name := "f"
 		volumeSnapshot := &crdv1.VolumeSnapshot{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      volumeSnapshotName,
@@ -304,29 +471,19 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 				},
 			},
 		}
+
 		vsc, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(context.TODO(), volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil {
 			return groupSnapshotContent, err
 		}
 		snapshotContentNames = append(snapshotContentNames, vsc.Name)
 
-		klog.Infof("making snapshot %v %s %s", volumeSnapshot.Status, *volumeSnapshot.Status.VolumeGroupSnapshotName, name)
 		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(context.TODO(), volumeSnapshot, metav1.CreateOptions{})
 		if err != nil {
 			return groupSnapshotContent, err
 		}
-		//		klog.Infof("raunak made snapshot 1 %v", spew.Sdump(sn))
-		//		sn.Status = &crdv1.VolumeSnapshotStatus{
-		//			VolumeGroupSnapshotName: &name,
-		//		}
-		//		sn, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).UpdateStatus(context.TODO(), sn, metav1.UpdateOptions{})
-		//		if err != nil {
-		//			klog.Infof("failed 2")
-		//			return groupSnapshotContent, err
-		//		}
-		//		klog.Infof("made snapshot 2 %v", spew.Sdump(sn))
 	}
-	klog.Infof("raunak 2")
+
 	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano(), snapshotContentNames)
 	if err != nil {
 		klog.Errorf("error updating status for volume group snapshot content %s: %v.", groupSnapshotContent.Name, err)
@@ -452,19 +609,25 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeGroupSnapshotBeingCreate
 		return groupSnapshotContent, nil
 	}
 	groupSnapshotContentClone := groupSnapshotContent.DeepCopy()
-	delete(groupSnapshotContentClone.ObjectMeta.Annotations, utils.AnnVolumeGroupSnapshotBeingCreated)
+	annotationPatchPath := strings.ReplaceAll(utils.AnnVolumeGroupSnapshotBeingCreated, "/", "~1")
 
-	updatedContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Update(context.TODO(), groupSnapshotContentClone, metav1.UpdateOptions{})
+	var patches []utils.PatchOp
+	patches = append(patches, utils.PatchOp{
+		Op:   "remove",
+		Path: "/metadata/annotations/" + annotationPatchPath,
+	})
+
+	updatedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContentClone, patches, ctrl.clientset)
 	if err != nil {
 		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
 	}
 
 	klog.V(5).Infof("Removed VolumeGroupSnapshotBeingCreated annotation from volume group snapshot content %s", groupSnapshotContent.Name)
-	_, err = ctrl.storeContentUpdate(updatedContent)
+	_, err = ctrl.storeGroupSnapshotContentUpdate(updatedGroupSnapshotContent)
 	if err != nil {
 		klog.Errorf("failed to update groupSnapshotContent store %v", err)
 	}
-	return updatedContent, nil
+	return updatedGroupSnapshotContent, nil
 }
 
 func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
@@ -671,7 +834,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		driverName = groupSnapshotContent.Spec.Driver
 		groupSnapshotID = *groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle
 
-		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: driver %s, groupSnapshotId %s, creationTime %v, size %d, readyToUse %t", driverName, groupSnapshotID, creationTime, readyToUse)
+		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: driver %s, groupSnapshotId %s, creationTime %v, readyToUse %t", driverName, groupSnapshotID, creationTime, readyToUse)
 
 		if creationTime.IsZero() {
 			creationTime = time.Now()

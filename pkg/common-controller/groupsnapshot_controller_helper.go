@@ -289,13 +289,26 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(groupSnapshot *crdv1a
 
 	klog.V(5).Infof("syncGroupSnapshot [%s]: check if we should remove finalizer on group snapshot PVC source and remove it if we can", utils.GroupSnapshotKey(groupSnapshot))
 
-	/*
-		TODO:
-		- Check and remove finalizer if needed.
-		- Check and set invalid group snapshot label, if needed.
-		- Process if deletion timestamp is set.
-		- Check and add group snapshot finalizers.
-	*/
+	// Proceed with group snapshot deletion and remove finalizers when needed
+	if groupSnapshot.ObjectMeta.DeletionTimestamp != nil {
+		return ctrl.processGroupSnapshotWithDeletionTimestamp(groupSnapshot)
+	}
+	// Keep this check in the controller since the validation webhook may not have been deployed.
+	klog.V(5).Infof("syncGroupSnapshot[%s]: validate group snapshot to make sure source has been correctly specified", utils.GroupSnapshotKey(groupSnapshot))
+	if (&groupSnapshot.Spec.Source.Selector == nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil) ||
+		(&groupSnapshot.Spec.Source.Selector != nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil) {
+		err := fmt.Errorf("Exactly one of Selector and VolumeGroupSnapshotContentName should be specified")
+		klog.Errorf("syncGroupSnapshot[%s]: validation error, %s", utils.GroupSnapshotKey(groupSnapshot), err.Error())
+		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotValidationError", err.Error())
+		return err
+	}
+
+	klog.V(5).Infof("syncGroupSnapshot: check if we should add finalizers on group snapshot [%s]", utils.GroupSnapshotKey(groupSnapshot))
+	if err := ctrl.checkandAddGroupSnapshotFinalizers(groupSnapshot); err != nil {
+		klog.Errorf("error checkandAddGroupSnapshotFinalizers for group snapshot [%s]: %v", utils.GroupSnapshotKey(groupSnapshot), err)
+		ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "GroupSnapshotFinalizerError", fmt.Sprintf("Failed to check and update group snapshot: %s", err.Error()))
+		return err
+	}
 
 	// Need to build or update groupSnapshot.Status in following cases:
 	// 1) groupSnapshot.Status is nil
@@ -724,10 +737,10 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeGroupSnapshot(groupS
 
 // createGroupSnapshotContent will only be called for dynamic provisioning
 func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
-	klog.Infof("createSnapshotContent: Creating group snapshot content for groupn snapshot %s through the plugin ...", utils.GroupSnapshotKey(groupSnapshot))
+	klog.Infof("createSnapshotContent: Creating group snapshot content for group snapshot %s through the plugin ...", utils.GroupSnapshotKey(groupSnapshot))
 
 	/*
-		TODO: Add finalizer to group snapshot
+		TODO: Add PVC finalizer
 	*/
 
 	groupSnapshotClass, volumes, contentName, err := ctrl.getCreateGroupSnapshotInput(groupSnapshot)
@@ -763,16 +776,16 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		TODO: Add secret reference details
 	*/
 
-	var updateGroupSnapshoyContent *crdv1alpha1.VolumeGroupSnapshotContent
+	var updateGroupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent
 	klog.V(5).Infof("volume group snapshot content %#v", groupSnapshotContent)
 	// Try to create the VolumeGroupSnapshotContent object
 	klog.V(5).Infof("createGroupSnapshotContent [%s]: trying to save volume group snapshot content %s", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
-	if updateGroupSnapshoyContent, err = ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Create(context.TODO(), groupSnapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
+	if updateGroupSnapshotContent, err = ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Create(context.TODO(), groupSnapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
 		// Save succeeded.
 		if err != nil {
 			klog.V(3).Infof("volume group snapshot content %q for group snapshot %q already exists, reusing", groupSnapshotContent.Name, utils.GroupSnapshotKey(groupSnapshot))
 			err = nil
-			updateGroupSnapshoyContent = groupSnapshotContent
+			updateGroupSnapshotContent = groupSnapshotContent
 		} else {
 			klog.V(3).Infof("volume group snapshot content %q for group snapshot %q saved, %v", groupSnapshotContent.Name, utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent)
 		}
@@ -789,12 +802,12 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeNormal, "CreatingGroupSnapshot", msg)
 
 	// Update group snapshot content in the cache store
-	_, err = ctrl.storeGroupSnapshotContentUpdate(updateGroupSnapshoyContent)
+	_, err = ctrl.storeGroupSnapshotContentUpdate(updateGroupSnapshotContent)
 	if err != nil {
 		klog.Errorf("failed to update group snapshot content store %v", err)
 	}
 
-	return updateGroupSnapshoyContent, nil
+	return updateGroupSnapshotContent, nil
 }
 
 func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*crdv1alpha1.VolumeGroupSnapshotClass, []*v1.PersistentVolume, string, error) {
@@ -849,9 +862,11 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotC
 		return nil
 	}
 
-	/*
-		TODO: Add finalizer to prevent deletion
-	*/
+	if utils.NeedToAddGroupSnapshotContentFinalizer(groupSnapshotContent) {
+		// Group Snapshot Content is not being deleted -> it should have the finalizer.
+		klog.V(5).Infof("syncGroupSnapshotContent [%s]: Add Finalizer for VolumeGroupSnapshotContent", groupSnapshotContent.Name)
+		return ctrl.addGroupSnapshotContentFinalizer(groupSnapshotContent)
+	}
 
 	// Check if group snapshot exists in cache store
 	// If getGroupSnapshotFromStore returns (nil, nil), it means group snapshot not found
@@ -934,4 +949,284 @@ func (ctrl *csiSnapshotCommonController) needsUpdateGroupSnapshotStatus(groupSna
 	}
 
 	return false
+}
+
+// addGroupSnapshotContentFinalizer adds a Finalizer for VolumeGroupSnapshotContent.
+func (ctrl *csiSnapshotCommonController) addGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
+	var patches []utils.PatchOp
+	if len(groupSnapshotContent.Finalizers) > 0 {
+		// Add to the end of the finalizers if we have any other finalizers
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers/-",
+			Value: utils.VolumeGroupSnapshotContentFinalizer,
+		})
+	} else {
+		// Replace finalizers with new array if there are no other finalizers
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers",
+			Value: []string{utils.VolumeGroupSnapshotContentFinalizer},
+		})
+	}
+	newGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset)
+	if err != nil {
+		return newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+	}
+
+	_, err = ctrl.storeGroupSnapshotContentUpdate(newGroupSnapshotContent)
+	if err != nil {
+		klog.Errorf("failed to update group snapshot content store %v", err)
+	}
+
+	klog.V(5).Infof("Added protection finalizer to volume group snapshot content %s", newGroupSnapshotContent.Name)
+	return nil
+}
+
+// checkandAddGroupSnapshotFinalizers checks and adds group snapshot finailzers when needed
+func (ctrl *csiSnapshotCommonController) checkandAddGroupSnapshotFinalizers(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
+	// get the group snapshot content for this group snapshot
+	var (
+		groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent
+		err                  error
+	)
+	if groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil {
+		groupSnapshotContent, err = ctrl.getPreprovisionedGroupSnapshotContentFromStore(groupSnapshot)
+	} else {
+		groupSnapshotContent, err = ctrl.getDynamicallyProvisionedGroupContentFromStore(groupSnapshot)
+	}
+	if err != nil {
+		return err
+	}
+
+	// A bound finalizer is needed ONLY when all following conditions are satisfied:
+	// 1. the VolumeGroupSnapshot is bound to a VolumeGroupSnapshotContent
+	// 2. the VolumeGroupSnapshot does not have deletion timestamp set
+	// 3. the matching VolumeGroupSnapshotContent has a deletion policy to be Delete
+	// Note that if a matching VolumeGroupSnapshotContent is found, it must point back to the VolumeGroupSnapshot
+	if groupSnapshotContent != nil && utils.NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot) && (groupSnapshotContent.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete) {
+		// Snapshot is not being deleted -> it should have the finalizer.
+		klog.V(5).Infof("checkandAddGroupSnapshotFinalizers: Add Finalizer for VolumeGroupSnapshot[%s]", utils.GroupSnapshotKey(groupSnapshot))
+		return ctrl.addGroupSnapshotFinalizer(groupSnapshot, true)
+
+	}
+	return nil
+}
+
+// addGroupSnapshotFinalizer adds a Finalizer to a VolumeGroupSnapshot.
+func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, addBoundFinalizer bool) error {
+	var updatedGroupSnapshot *crdv1alpha1.VolumeGroupSnapshot
+	var err error
+
+	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
+	// Unable to find a patch that correctly updated the finalizers if none currently exist.
+	if len(groupSnapshot.ObjectMeta.Finalizers) == 0 {
+		groupSnapshotClone := groupSnapshot.DeepCopy()
+		if addBoundFinalizer {
+			groupSnapshotClone.ObjectMeta.Finalizers = append(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
+		}
+		updatedGroupSnapshot, err = ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+		if err != nil {
+			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
+		}
+	} else {
+		// Otherwise, perform a patch
+		var patches []utils.PatchOp
+
+		if addBoundFinalizer {
+			patches = append(patches, utils.PatchOp{
+				Op:    "add",
+				Path:  "/metadata/finalizers/-",
+				Value: utils.VolumeGroupSnapshotBoundFinalizer,
+			})
+		}
+
+		updatedGroupSnapshot, err = utils.PatchVolumeGroupSnapshot(groupSnapshot, patches, ctrl.clientset)
+		if err != nil {
+			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
+		}
+	}
+
+	_, err = ctrl.storeGroupSnapshotUpdate(updatedGroupSnapshot)
+	if err != nil {
+		klog.Errorf("failed to update group snapshot store %v", err)
+	}
+
+	klog.V(5).Infof("Added protection finalizer to volume group snapshot %s", utils.GroupSnapshotKey(updatedGroupSnapshot))
+	return nil
+}
+
+// processGroupSnapshotWithDeletionTimestamp processes finalizers and deletes the
+// group snapshot content when appropriate. It has the following steps:
+// 1. Get the VolumeGroupSnapshotContent which the to-be-deleted VolumeGroupSnapshot
+// points to and verifies bi-directional binding.
+// 2. Call checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent()
+// with information obtained from step 1. This function name is very long but the
+// name suggests what it does. It determines whether to remove finalizers on group
+// snapshot and whether to delete group snapshot content.
+func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimestamp(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
+	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp VolumeGroupSnapshot[%s]: %s", utils.GroupSnapshotKey(groupSnapshot), utils.GetGroupSnapshotStatusForLogging(groupSnapshot))
+
+	var groupSnapshotContentName string
+	if groupSnapshot.Status != nil && groupSnapshot.Status.BoundVolumeGroupSnapshotContentName != nil {
+		groupSnapshotContentName = *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName
+	}
+	// for a dynamically created group snapshot, it's possible that a group snapshot
+	// content has been created however the Status of the group snapshot has not
+	// been updated yet, i.e., failed right after group snapshot content creation.
+	// In this case, use the fixed naming scheme to get the group snapshot content
+	// name and search
+	if groupSnapshotContentName == "" && &groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil {
+		groupSnapshotContentName = utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
+	}
+	// find a group snapshot content from cache store, note that it's completely legit
+	// that no group snapshot content has been found from group snapshot content
+	// cache store
+	groupSnapshotContent, err := ctrl.getGroupSnapshotContentFromStore(groupSnapshotContentName)
+	if err != nil {
+		return err
+	}
+	// check whether the group snapshot content points back to the passed in group
+	// snapshot, note that binding should always be bi-directional to trigger the
+	// deletion on group snapshot content or adding any annotation to the group
+	// snapshot content
+	var deleteGroupSnapshotContent bool
+	if groupSnapshotContent != nil && utils.IsVolumeGroupSnapshotRefSet(groupSnapshot, groupSnapshotContent) {
+		// group snapshot content points back to group snapshot, whether or not
+		// to delete a group snapshot content now depends on the deletion policy
+		// of it.
+		deleteGroupSnapshotContent = (groupSnapshotContent.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete)
+	} else {
+		// the group snapshot content is nil or points to a different group snapshot, reset group snapshot content to nil
+		// such that there is no operation done on the found group snapshot content in
+		// checkandRemoveSnapshotFinalizersAndCheckandDeleteContent
+		groupSnapshotContent = nil
+	}
+
+	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: delete group snapshot content and remove finalizer from group snapshot if needed", utils.GroupSnapshotKey(groupSnapshot))
+
+	return ctrl.checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent(groupSnapshot, groupSnapshotContent, deleteGroupSnapshotContent)
+}
+
+// checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent deletes
+// the group snapshot content and removes group snapshot finalizers if needed
+func (ctrl *csiSnapshotCommonController) checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent, deleteGroupSnapshotContent bool) error {
+	klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent VolumeGroupSnapshot[%s]: %s", utils.GroupSnapshotKey(groupSnapshot), utils.GetGroupSnapshotStatusForLogging(groupSnapshot))
+
+	if !utils.IsGroupSnapshotDeletionCandidate(groupSnapshot) {
+		return nil
+	}
+
+	// check if an individual snapshot belonging to the group snapshot is being
+	// used for restore a PVC
+	// If yes, do nothing and wait until PVC restoration finishes
+	for _, snapshotRef := range groupSnapshot.Status.VolumeSnapshotRefList {
+		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(snapshotRef.Namespace).Get(snapshotRef.Name)
+		if err != nil {
+			return err
+		}
+		if ctrl.isVolumeBeingCreatedFromSnapshot(snapshot) {
+			msg := fmt.Sprintf("Snapshot %s belonging to VolumeGroupSnapshot %s is being used to restore a PVC", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
+			klog.V(4).Info(msg)
+			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeletePending", msg)
+			// TODO(@xiangqian): should requeue this?
+			return nil
+		}
+
+	}
+
+	// regardless of the deletion policy, set the VolumeSnapshotBeingDeleted on
+	// content object, this is to allow snapshotter sidecar controller to conduct
+	// a delete operation whenever the content has deletion timestamp set.
+	if groupSnapshotContent != nil {
+		klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent[%s]: Set VolumeGroupSnapshotBeingDeleted annotation on the group snapshot content [%s]", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
+		updatedGroupSnapshotContent, err := ctrl.setAnnVolumeGroupSnapshotBeingDeleted(groupSnapshotContent)
+		if err != nil {
+			klog.V(4).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent[%s]: failed to set VolumeGroupSnapshotBeingDeleted annotation on the group snapshot content [%s]", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
+			return err
+		}
+		groupSnapshotContent = updatedGroupSnapshotContent
+	}
+
+	// VolumeGroupSnapshot should be deleted. Check and remove finalizers
+	// If group snapshot content exists and has a deletion policy of Delete, set
+	// DeletionTimeStamp on the content;
+	// VolumeGroupSnapshotContent won't be deleted immediately due to the VolumeGroupSnapshotContentFinalizer
+	if groupSnapshotContent != nil && deleteGroupSnapshotContent {
+		klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent: set DeletionTimeStamp on group snapshot content [%s].", groupSnapshotContent.Name)
+		err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Delete(context.TODO(), groupSnapshotContent.Name, metav1.DeleteOptions{})
+		if err != nil {
+			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "GroupSnapshotContentObjectDeleteError", "Failed to delete group snapshot content API object")
+			return fmt.Errorf("failed to delete VolumeGroupSnapshotContent %s from API server: %q", groupSnapshotContent.Name, err)
+		}
+	}
+
+	klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent: Remove Finalizer for VolumeGroupSnapshot[%s]", utils.GroupSnapshotKey(groupSnapshot))
+	// remove VolumeSnapshotBoundFinalizer on the VolumeGroupSnapshot object:
+	//    a. If there is no group snapshot content found, remove the finalizer.
+	//    b. If the group snapshot content is being deleted, i.e., with deleteGroupSnapshotContent == true,
+	//       keep this finalizer until the group snapshot content object is removed
+	//       from API server by group snapshot sidecar controller.
+	//    c. If deletion will not cascade to the group snapshot content, remove
+	//       the finalizer on the group snapshot such that it can be removed from
+	//       the API server.
+	removeBoundFinalizer := !(groupSnapshotContent != nil && deleteGroupSnapshotContent)
+	return ctrl.removeGroupSnapshotFinalizer(groupSnapshot, removeBoundFinalizer)
+}
+
+func (ctrl *csiSnapshotCommonController) setAnnVolumeGroupSnapshotBeingDeleted(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
+	if groupSnapshotContent == nil {
+		return groupSnapshotContent, nil
+	}
+	// Set AnnVolumeGroupSnapshotBeingDeleted if it is not set yet
+	if !metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingDeleted) {
+		klog.V(5).Infof("setAnnVolumeGroupSnapshotBeingDeleted: set annotation [%s] on group snapshot content [%s].", utils.AnnVolumeGroupSnapshotBeingDeleted, groupSnapshotContent.Name)
+		var patches []utils.PatchOp
+		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingDeleted, "yes")
+		patches = append(patches, utils.PatchOp{
+			Op:    "replace",
+			Path:  "/metadata/annotations",
+			Value: groupSnapshotContent.ObjectMeta.GetAnnotations(),
+		})
+
+		patchedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset)
+		if err != nil {
+			return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+		}
+
+		// update group snapshot content if update is successful
+		groupSnapshotContent = patchedGroupSnapshotContent
+
+		_, err = ctrl.storeGroupSnapshotContentUpdate(groupSnapshotContent)
+		if err != nil {
+			klog.V(4).Infof("setAnnVolumeGroupSnapshotBeingDeleted for group snapshot content [%s]: cannot update internal cache %v", groupSnapshotContent.Name, err)
+			return groupSnapshotContent, err
+		}
+		klog.V(5).Infof("setAnnVolumeGroupSnapshotBeingDeleted: volume group snapshot content %+v", groupSnapshotContent)
+	}
+	return groupSnapshotContent, nil
+}
+
+// removeGroupSnapshotFinalizer removes a Finalizer for VolumeGroupSnapshot.
+func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, removeBoundFinalizer bool) error {
+	if !removeBoundFinalizer {
+		return nil
+	}
+
+	// TODO: Remove PVC Finalizer
+
+	groupSnapshotClone := groupSnapshot.DeepCopy()
+	groupSnapshotClone.ObjectMeta.Finalizers = utils.RemoveString(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
+	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+	if err != nil {
+		return newControllerUpdateError(groupSnapshot.Name, err.Error())
+	}
+
+	_, err = ctrl.storeGroupSnapshotUpdate(newGroupSnapshot)
+	if err != nil {
+		klog.Errorf("failed to update group snapshot store %v", err)
+	}
+
+	klog.V(5).Infof("Removed protection finalizer from volume group snapshot %s", utils.GroupSnapshotKey(groupSnapshot))
+	return nil
 }
