@@ -1381,8 +1381,15 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 	}
 	klog.V(5).Infof("setDefaultSnapshotClass [%s]: default VolumeSnapshotClassName [%s]", snapshot.Name, defaultClasses[0].Name)
 	snapshotClone := snapshot.DeepCopy()
-	snapshotClone.Spec.VolumeSnapshotClassName = &(defaultClasses[0].Name)
-	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	patches := []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/spec/volumeSnapshotClassName",
+			Value: &(defaultClasses[0].Name),
+		},
+	}
+
+	newSnapshot, err := utils.PatchVolumeSnapshot(snapshotClone, patches, ctrl.clientset)
 	if err != nil {
 		klog.V(4).Infof("updating VolumeSnapshot[%s] default class failed %v", utils.SnapshotKey(snapshot), err)
 	}
@@ -1606,18 +1613,24 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content 
 		return content, nil
 	}
 
+	var patches []utils.PatchOp
 	contentClone := content.DeepCopy()
 	if hasLabel {
 		// Need to remove the label
-		delete(contentClone.Labels, utils.VolumeSnapshotContentInvalidLabel)
+		patches = append(patches, utils.PatchOp{
+			Op:   "remove",
+			Path: "/metadata/labels/" + utils.VolumeSnapshotContentInvalidLabel,
+		})
+
 	} else {
 		// Snapshot content is invalid and does not have the label. Need to add the label
-		if contentClone.ObjectMeta.Labels == nil {
-			contentClone.ObjectMeta.Labels = make(map[string]string)
-		}
-		contentClone.ObjectMeta.Labels[utils.VolumeSnapshotContentInvalidLabel] = ""
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/labels/" + utils.VolumeSnapshotContentInvalidLabel,
+			Value: "",
+		})
 	}
-	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	updatedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}
@@ -1647,19 +1660,24 @@ func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapsho
 		return snapshot, nil
 	}
 
+	var patches []utils.PatchOp
 	snapshotClone := snapshot.DeepCopy()
 	if hasLabel {
 		// Need to remove the label
-		delete(snapshotClone.Labels, utils.VolumeSnapshotInvalidLabel)
+		patches = append(patches, utils.PatchOp{
+			Op:   "remove",
+			Path: "/metadata/labels/" + utils.VolumeSnapshotInvalidLabel,
+		})
 	} else {
 		// Snapshot is invalid and does not have the label. Need to add the label
-		if snapshotClone.ObjectMeta.Labels == nil {
-			snapshotClone.ObjectMeta.Labels = make(map[string]string)
-		}
-		snapshotClone.ObjectMeta.Labels[utils.VolumeSnapshotInvalidLabel] = ""
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/labels/" + utils.VolumeSnapshotInvalidLabel,
+			Value: "",
+		})
 	}
 
-	updatedSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	updatedSnapshot, err := utils.PatchVolumeSnapshot(snapshotClone, patches, ctrl.clientset)
 	if err != nil {
 		return snapshot, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}

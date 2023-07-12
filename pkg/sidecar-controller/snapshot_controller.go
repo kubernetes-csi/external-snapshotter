@@ -542,10 +542,16 @@ func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.V
 		// the finalizer does not exit, return directly
 		return nil
 	}
+	var patches []utils.PatchOp
 	contentClone := content.DeepCopy()
-	contentClone.ObjectMeta.Finalizers = utils.RemoveString(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
+	patches = append(patches,
+		utils.PatchOp{
+			Op:    "replace",
+			Path:  "/metadata/finalizers",
+			Value: utils.RemoveString(contentClone.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer),
+		})
 
-	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	updatedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
 	if err != nil {
 		return newControllerUpdateError(content.Name, err.Error())
 	}
@@ -638,9 +644,15 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(con
 		return content, nil
 	}
 	contentClone := content.DeepCopy()
-	delete(contentClone.ObjectMeta.Annotations, utils.AnnVolumeSnapshotBeingCreated)
+	annotationPatchPath := strings.ReplaceAll(utils.AnnVolumeSnapshotBeingCreated, "/", "~1")
 
-	updatedContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Update(context.TODO(), contentClone, metav1.UpdateOptions{})
+	var patches []utils.PatchOp
+	patches = append(patches, utils.PatchOp{
+		Op:   "remove",
+		Path: "/metadata/annotations/" + annotationPatchPath,
+	})
+
+	updatedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
 	if err != nil {
 		return content, newControllerUpdateError(content.Name, err.Error())
 	}

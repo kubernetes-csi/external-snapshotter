@@ -29,14 +29,15 @@ import (
 )
 
 var (
-	defaultSize   int64 = 1000
-	emptySize     int64
-	deletePolicy  = crdv1.VolumeSnapshotContentDelete
-	retainPolicy  = crdv1.VolumeSnapshotContentRetain
-	timeNow       = time.Now()
-	timeNowMetav1 = metav1.Now()
-	False         = false
-	True          = true
+	defaultSize       int64 = 1000
+	emptySize         int64
+	deletePolicy      = crdv1.VolumeSnapshotContentDelete
+	retainPolicy      = crdv1.VolumeSnapshotContentRetain
+	timeNow           = time.Now()
+	timeNowMetav1     = metav1.Now()
+	nonFractionalTime = metav1.NewTime(time.Now().Truncate(time.Second))
+	False             = false
+	True              = true
 )
 
 var class1Parameters = map[string]string{
@@ -153,8 +154,8 @@ func TestDeleteSync(t *testing.T) {
 	tests := []controllerTest{
 		{
 			name:             "1-1 - content non-nil DeletionTimestamp with delete policy will delete snapshot",
-			initialContents:  newContentArrayWithDeletionTimestamp("content1-1", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "snap1-1-volumehandle", deletionPolicy, nil, nil, true, &timeNowMetav1),
-			expectedContents: newContentArrayWithDeletionTimestamp("content1-1", "snapuid1-1", "snap1-1", "", classGold, "", "snap1-1-volumehandle", deletionPolicy, nil, nil, false, &timeNowMetav1),
+			initialContents:  newContentArrayWithDeletionTimestamp("content1-1", "snapuid1-1", "snap1-1", "sid1-1", classGold, "", "snap1-1-volumehandle", deletionPolicy, nil, nil, true, &nonFractionalTime),
+			expectedContents: newContentArrayWithDeletionTimestamp("content1-1", "snapuid1-1", "snap1-1", "", classGold, "", "snap1-1-volumehandle", deletionPolicy, nil, nil, false, &nonFractionalTime),
 			expectedEvents:   noevents,
 			errors:           noerrors,
 			initialSecrets:   []*v1.Secret{secret()},
@@ -177,8 +178,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:             "1-2 - content non-nil DeletionTimestamp with retain policy will not delete snapshot",
-			initialContents:  newContentArrayWithDeletionTimestamp("content1-2", "snapuid1-2", "snap1-2", "sid1-2", classGold, "", "snap1-2-volumehandle", retainPolicy, nil, nil, true, &timeNowMetav1),
-			expectedContents: newContentArrayWithDeletionTimestamp("content1-2", "snapuid1-2", "snap1-2", "sid1-2", classGold, "", "snap1-2-volumehandle", retainPolicy, nil, nil, false, &timeNowMetav1),
+			initialContents:  newContentArrayWithDeletionTimestamp("content1-2", "snapuid1-2", "snap1-2", "sid1-2", classGold, "", "snap1-2-volumehandle", retainPolicy, nil, nil, true, &nonFractionalTime),
+			expectedContents: newContentArrayWithDeletionTimestamp("content1-2", "snapuid1-2", "snap1-2", "sid1-2", classGold, "", "snap1-2-volumehandle", retainPolicy, nil, nil, false, &nonFractionalTime),
 			expectedEvents:   noevents,
 			errors:           noerrors,
 			expectedCreateCalls: []createCall{
@@ -280,8 +281,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-9 - continue deletion with snapshot class that has nonexistent secret, bound finalizer removed",
-			initialContents:     newContentArrayWithDeletionTimestamp("content1-9", "sid1-9", "snap1-9", "sid1-9", emptySecretClass, "", "snap1-9-volumehandle", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:    newContentArrayWithDeletionTimestamp("content1-9", "sid1-9", "snap1-9", "", emptySecretClass, "", "snap1-9-volumehandle", deletePolicy, nil, &defaultSize, false, &timeNowMetav1),
+			initialContents:     newContentArrayWithDeletionTimestamp("content1-9", "sid1-9", "snap1-9", "sid1-9", emptySecretClass, "", "snap1-9-volumehandle", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-9", "sid1-9", "snap1-9", "", emptySecretClass, "", "snap1-9-volumehandle", deletePolicy, nil, &defaultSize, false, &nonFractionalTime),
 			expectedEvents:      noevents,
 			expectedListCalls:   []listCall{{"sid1-9", map[string]string{}, true, time.Now(), 0, nil}},
 			errors:              noerrors,
@@ -291,8 +292,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-10 - (dynamic)deletion of content with retain policy should not trigger CSI call, not update status, but remove bound finalizer",
-			initialContents:   newContentArrayWithDeletionTimestamp("content1-10", "sid1-10", "snap1-10", "sid1-10", emptySecretClass, "", "snap1-10-volumehandle", retainPolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:  newContentArrayWithDeletionTimestamp("content1-10", "sid1-10", "snap1-10", "sid1-10", emptySecretClass, "", "snap1-10-volumehandle", retainPolicy, nil, &defaultSize, false, &timeNowMetav1),
+			initialContents:   newContentArrayWithDeletionTimestamp("content1-10", "sid1-10", "snap1-10", "sid1-10", emptySecretClass, "", "snap1-10-volumehandle", retainPolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:  newContentArrayWithDeletionTimestamp("content1-10", "sid1-10", "snap1-10", "sid1-10", emptySecretClass, "", "snap1-10-volumehandle", retainPolicy, nil, &defaultSize, false, &nonFractionalTime),
 			expectedEvents:    noevents,
 			expectedListCalls: []listCall{{"sid1-10", map[string]string{}, true, time.Now(), 0, nil}},
 			errors:            noerrors,
@@ -301,8 +302,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-11 - (dynamic)deletion of content with deletion policy should trigger CSI call, update status, and remove bound finalizer removed.",
-			initialContents:     newContentArrayWithDeletionTimestamp("content1-11", "sid1-11", "snap1-11", "sid1-11", emptySecretClass, "", "snap1-11-volumehandle", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:    newContentArrayWithDeletionTimestamp("content1-11", "sid1-11", "snap1-11", "", emptySecretClass, "", "snap1-11-volumehandle", deletePolicy, nil, nil, false, &timeNowMetav1),
+			initialContents:     newContentArrayWithDeletionTimestamp("content1-11", "sid1-11", "snap1-11", "sid1-11", emptySecretClass, "", "snap1-11-volumehandle", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-11", "sid1-11", "snap1-11", "", emptySecretClass, "", "snap1-11-volumehandle", deletePolicy, nil, nil, false, &nonFractionalTime),
 			expectedEvents:      noevents,
 			errors:              noerrors,
 			expectedDeleteCalls: []deleteCall{{"sid1-11", nil, nil}},
@@ -310,8 +311,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:              "1-12 - (pre-provision)deletion of content with retain policy should not trigger CSI call, not update status, but remove bound finalizer",
-			initialContents:   newContentArrayWithDeletionTimestamp("content1-12", "sid1-12", "snap1-12", "sid1-12", emptySecretClass, "sid1-12", "", retainPolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:  newContentArrayWithDeletionTimestamp("content1-12", "sid1-12", "snap1-12", "sid1-12", emptySecretClass, "sid1-12", "", retainPolicy, nil, &defaultSize, false, &timeNowMetav1),
+			initialContents:   newContentArrayWithDeletionTimestamp("content1-12", "sid1-12", "snap1-12", "sid1-12", emptySecretClass, "sid1-12", "", retainPolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:  newContentArrayWithDeletionTimestamp("content1-12", "sid1-12", "snap1-12", "sid1-12", emptySecretClass, "sid1-12", "", retainPolicy, nil, &defaultSize, false, &nonFractionalTime),
 			expectedEvents:    noevents,
 			expectedListCalls: []listCall{{"sid1-12", map[string]string{}, true, time.Now(), 0, nil}},
 			errors:            noerrors,
@@ -320,8 +321,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-13 - (pre-provision)deletion of content with deletion policy should trigger CSI call, update status, and remove bound finalizer removed.",
-			initialContents:     newContentArrayWithDeletionTimestamp("content1-13", "sid1-13", "snap1-13", "sid1-13", emptySecretClass, "sid1-13", "", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:    newContentArrayWithDeletionTimestamp("content1-13", "sid1-13", "snap1-13", "", emptySecretClass, "sid1-13", "", deletePolicy, nil, nil, false, &timeNowMetav1),
+			initialContents:     newContentArrayWithDeletionTimestamp("content1-13", "sid1-13", "snap1-13", "sid1-13", emptySecretClass, "sid1-13", "", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-13", "sid1-13", "snap1-13", "", emptySecretClass, "sid1-13", "", deletePolicy, nil, nil, false, &nonFractionalTime),
 			expectedEvents:      noevents,
 			errors:              noerrors,
 			expectedDeleteCalls: []deleteCall{{"sid1-13", nil, nil}},
@@ -329,8 +330,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-14 - (pre-provision)deletion of content with deletion policy and no snapshotclass should trigger CSI call, update status, and remove bound finalizer removed.",
-			initialContents:     newContentArrayWithDeletionTimestamp("content1-14", "sid1-14", "snap1-14", "sid1-14", "", "sid1-14", "", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:    newContentArrayWithDeletionTimestamp("content1-14", "sid1-14", "snap1-14", "", "", "sid1-14", "", deletePolicy, nil, nil, false, &timeNowMetav1),
+			initialContents:     newContentArrayWithDeletionTimestamp("content1-14", "sid1-14", "snap1-14", "sid1-14", "", "sid1-14", "", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-14", "sid1-14", "snap1-14", "", "", "sid1-14", "", deletePolicy, nil, nil, false, &nonFractionalTime),
 			expectedEvents:      noevents,
 			errors:              noerrors,
 			expectedDeleteCalls: []deleteCall{{"sid1-14", nil, nil}},
@@ -338,8 +339,8 @@ func TestDeleteSync(t *testing.T) {
 		},
 		{
 			name:                "1-15 - (dynamic)deletion of content with no snapshotclass should succeed",
-			initialContents:     newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "sid1-15", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, true, &timeNowMetav1),
-			expectedContents:    newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, false, &timeNowMetav1),
+			initialContents:     newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "sid1-15", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-15", "sid1-15", "snap1-15", "", "", "", "snap1-15-volumehandle", deletePolicy, nil, &defaultSize, false, &nonFractionalTime),
 			errors:              noerrors,
 			expectedDeleteCalls: []deleteCall{{"sid1-15", nil, nil}},
 			test:                testSyncContent,
