@@ -88,7 +88,7 @@ type VolumeGroupSnapshotStatus struct {
 	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
 
 	// ReadyToUse indicates if all the individual snapshots in the group are ready
-	// to be used to restore a volume.
+	// to be used to restore a group of volumes.
 	// ReadyToUse becomes true when ReadyToUse of all individual snapshots become true.
 	// If not specified, it means the readiness of a group snapshot is unknown.
 	// +optional
@@ -118,6 +118,11 @@ type VolumeGroupSnapshotStatus struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced,shortName=vgs
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ReadyToUse",type=boolean,JSONPath=`.status.readyToUse`,description="Indicates if all the individual snapshots in the group are ready to be used to restore a group of volumes."
+// +kubebuilder:printcolumn:name="VolumeGroupSnapshotClass",type=string,JSONPath=`.spec.volumeGroupSnapshotClassName`,description="The name of the VolumeGroupSnapshotClass requested by the VolumeGroupSnapshot."
+// +kubebuilder:printcolumn:name="VolumeGroupSnapshotContent",type=string,JSONPath=`.status.boundVolumeGroupSnapshotContentName`,description="Name of the VolumeGroupSnapshotContent object to which the VolumeGroupSnapshot object intends to bind to. Please note that verification of binding actually requires checking both VolumeGroupSnapshot and VolumeGroupSnapshotContent to ensure both are pointing at each other. Binding MUST be verified prior to usage of this object."
+// +kubebuilder:printcolumn:name="CreationTime",type=date,JSONPath=`.status.creationTime`,description="Timestamp when the point-in-time group snapshot was taken by the underlying storage system."
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type VolumeGroupSnapshot struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -157,6 +162,9 @@ type VolumeGroupSnapshotList struct {
 // VolumeGroupSnapshotClasses are non-namespaced.
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=vgsclass;vgsclasses
+// +kubebuilder:printcolumn:name="Driver",type=string,JSONPath=`.driver`
+// +kubebuilder:printcolumn:name="DeletionPolicy",type=string,JSONPath=`.deletionPolicy`,description="Determines whether a VolumeGroupSnapshotContent created through the VolumeGroupSnapshotClass should be deleted when its bound VolumeGroupSnapshot is deleted."
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type VolumeGroupSnapshotClass struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
@@ -210,6 +218,13 @@ type VolumeGroupSnapshotClassList struct {
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Cluster,shortName=vgsc;vgscs
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="ReadyToUse",type=boolean,JSONPath=`.status.readyToUse`,description="Indicates if all the individual snapshots in the group are ready to be used to restore a group of volumes."
+// +kubebuilder:printcolumn:name="DeletionPolicy",type=string,JSONPath=`.spec.deletionPolicy`,description="Determines whether this VolumeGroupSnapshotContent and its physical group snapshot on the underlying storage system should be deleted when its bound VolumeGroupSnapshot is deleted."
+// +kubebuilder:printcolumn:name="Driver",type=string,JSONPath=`.spec.driver`,description="Name of the CSI driver used to create the physical group snapshot on the underlying storage system."
+// +kubebuilder:printcolumn:name="VolumeGroupSnapshotClass",type=string,JSONPath=`.spec.volumeGroupSnapshotClassName`,description="Name of the VolumeGroupSnapshotClass from which this group snapshot was (or will be) created."
+// +kubebuilder:printcolumn:name="VolumeGroupSnapshotNamespace",type=string,JSONPath=`.spec.volumeGroupSnapshotRef.namespace`,description="Namespace of the VolumeGroupSnapshot object to which this VolumeGroupSnapshotContent object is bound."
+// +kubebuilder:printcolumn:name="VolumeGroupSnapshot",type=string,JSONPath=`.spec.volumeGroupSnapshotRef.name`,description="Name of the VolumeGroupSnapshot object to which this VolumeGroupSnapshotContent object is bound."
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type VolumeGroupSnapshotContent struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard list metadata
@@ -312,7 +327,7 @@ type VolumeGroupSnapshotContentStatus struct {
 	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,2,opt,name=creationTime"`
 
 	// ReadyToUse indicates if all the individual snapshots in the group are ready to be
-	// used to restore a volume.
+	// used to restore a group of volumes.
 	// ReadyToUse becomes true when ReadyToUse of all individual snapshots become true.
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,3,opt,name=readyToUse"`
