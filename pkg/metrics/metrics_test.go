@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -119,7 +118,7 @@ func TestRecordMetricsForNonExistingOperation(t *testing.T) {
 	if err != nil || rsp.StatusCode != http.StatusOK {
 		t.Errorf("failed to get response from server %v, %v", err, rsp)
 	}
-	r, err := ioutil.ReadAll(rsp.Body)
+	r, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Errorf("failed to read response body %v", err)
 	}
@@ -144,7 +143,7 @@ func TestDropOperation(t *testing.T) {
 	if err != nil || rsp.StatusCode != http.StatusOK {
 		t.Errorf("failed to get response from server %v, %v", err, rsp)
 	}
-	r, err := ioutil.ReadAll(rsp.Body)
+	r, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		t.Errorf("failed to read response body %v", err)
 	}
@@ -554,7 +553,7 @@ func verifyInFlightMetric(expected string, srvAddr string) error {
 	if rsp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to get response from serve: %s", http.StatusText(rsp.StatusCode))
 	}
-	r, err := ioutil.ReadAll(rsp.Body)
+	r, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return err
 	}
@@ -574,7 +573,7 @@ func verifyMetric(expected, srvAddr string) error {
 	if rsp.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed to get response from serve: %s", http.StatusText(rsp.StatusCode))
 	}
-	r, err := ioutil.ReadAll(rsp.Body)
+	r, err := io.ReadAll(rsp.Body)
 	if err != nil {
 		return err
 	}

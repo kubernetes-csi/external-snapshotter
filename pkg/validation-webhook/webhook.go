@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 
@@ -108,7 +108,7 @@ func serve(w http.ResponseWriter, r *http.Request, admit admitHandler) {
 		http.Error(w, msg, http.StatusBadRequest)
 	}
 
-	data, err := ioutil.ReadAll(r.Body)
+	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		msg := fmt.Sprintf("Request could not be decoded: %v", err)
 		klog.Error(msg)
