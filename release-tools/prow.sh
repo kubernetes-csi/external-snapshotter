@@ -78,7 +78,7 @@ version_to_git () {
 # the list of windows versions was matched from:
 # - https://hub.docker.com/_/microsoft-windows-nanoserver
 # - https://hub.docker.com/_/microsoft-windows-servercore
-configvar CSI_PROW_BUILD_PLATFORMS "linux amd64 amd64; linux ppc64le ppc64le -ppc64le; linux s390x s390x -s390x; linux arm arm -arm; linux arm64 arm64 -arm64; linux arm arm/v7 -armv7; windows amd64 amd64 .exe nanoserver:1809 servercore:ltsc2019; windows amd64 amd64 .exe nanoserver:20H2 servercore:20H2; windows amd64 amd64 .exe nanoserver:ltsc2022 servercore:ltsc2022" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
+configvar CSI_PROW_BUILD_PLATFORMS "linux amd64 amd64; linux ppc64le ppc64le -ppc64le; linux s390x s390x -s390x; linux arm arm -arm; linux arm64 arm64 -arm64; linux arm arm/v7 -armv7; windows amd64 amd64 .exe nanoserver:1809 servercore:ltsc2019; windows amd64 amd64 .exe nanoserver:ltsc2022 servercore:ltsc2022" "Go target platforms (= GOOS + GOARCH) and file suffix of the resulting binaries"
 
 # If we have a vendor directory, then use it. We must be careful to only
 # use this for "make" invocations inside the project's repo itself because
@@ -101,7 +101,10 @@ configvar CSI_PROW_GINKGO_VERSION v1.7.0 "Ginkgo"
 
 # Ginkgo runs the E2E test in parallel. The default is based on the number
 # of CPUs, but typically this can be set to something higher in the job.
-configvar CSI_PROW_GINKO_PARALLEL "-p" "Ginko parallelism parameter(s)"
+configvar CSI_PROW_GINKGO_PARALLEL "-p" "Ginkgo parallelism parameter(s)"
+
+# Timeout value for the overall ginkgo test suite.
+configvar CSI_PROW_GINKGO_TIMEOUT "1h" "Ginkgo timeout"
 
 # Enables building the code in the repository. On by default, can be
 # disabled in jobs which only use pre-built components.
@@ -872,10 +875,17 @@ install_snapshot_controller() {
   cnt=0
   expected_running_pods=$(kubectl apply --dry-run=client -o "jsonpath={.spec.replicas}" -f "$SNAPSHOT_CONTROLLER_YAML")
   expected_namespace=$(kubectl apply --dry-run=client -o "jsonpath={.metadata.namespace}" -f "$SNAPSHOT_CONTROLLER_YAML")
-  while [ "$(kubectl get pods -n "$expected_namespace" -l app=snapshot-controller | grep 'Running' -c)" -lt "$expected_running_pods" ]; do
+  expect_key='app\.kubernetes\.io/name'
+  expected_label=$(kubectl apply --dry-run=client -o "jsonpath={.spec.template.metadata.labels['$expect_key']}" -f "$SNAPSHOT_CONTROLLER_YAML")
+  if [ -z "${expected_label}" ]; then
+    expect_key='app'
+    expected_label=$(kubectl apply --dry-run=client -o "jsonpath={.spec.template.metadata.labels['$expect_key']}" -f "$SNAPSHOT_CONTROLLER_YAML")
+  fi
+  expect_key=${expect_key//\\/}
+  while [ "$(kubectl get pods -n "$expected_namespace" -l "$expect_key"="$expected_label" | grep 'Running' -c)" -lt "$expected_running_pods" ]; do
     if [ $cnt -gt 30 ]; then
         echo "snapshot-controller pod status:"
-        kubectl describe pods -n "$expected_namespace" -l app=snapshot-controller
+        kubectl describe pods -n "$expected_namespace" -l "$expect_key"="$expected_label"
         echo >&2 "ERROR: snapshot controller not ready after over 5 min"
         exit 1
     fi
@@ -1018,10 +1028,10 @@ run_e2e () (
 
     if [ "${name}" == "local" ]; then
         cd "${GOPATH}/src/${CSI_PROW_SIDECAR_E2E_IMPORT_PATH}" &&
-        run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo -v "$@" "${CSI_PROW_WORK}/e2e-local.test" -- -report-dir "${ARTIFACTS}" -report-prefix local
+        run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e-local.test" -- -report-dir "${ARTIFACTS}" -report-prefix local
     else
         cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
-        run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
+        run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
     fi
 )
 
@@ -1310,7 +1320,7 @@ main () {
                 if tests_enabled "parallel"; then
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
-                    if ! run_e2e parallel ${CSI_PROW_GINKO_PARALLEL} \
+                    if ! run_e2e parallel ${CSI_PROW_GINKGO_PARALLEL} \
                          -focus="$focus" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}" "${CSI_PROW_E2E_ALPHA}" "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E parallel failed"
@@ -1320,7 +1330,7 @@ main () {
                     # Run tests that are feature tagged, but non-alpha
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
-                    if ! run_e2e parallel-features ${CSI_PROW_GINKO_PARALLEL} \
+                    if ! run_e2e parallel-features ${CSI_PROW_GINKGO_PARALLEL} \
                          -focus="$focus.*($(regex_join "${CSI_PROW_E2E_FOCUS}"))" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}")"; then
                         warn "E2E parallel features failed"
@@ -1368,7 +1378,7 @@ main () {
                 if tests_enabled "parallel-alpha"; then
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
-                    if ! run_e2e parallel-alpha ${CSI_PROW_GINKO_PARALLEL} \
+                    if ! run_e2e parallel-alpha ${CSI_PROW_GINKGO_PARALLEL} \
                          -focus="$focus.*($(regex_join "${CSI_PROW_E2E_ALPHA}"))" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}" "${CSI_PROW_E2E_SKIP}")"; then
                         warn "E2E parallel alpha failed"
