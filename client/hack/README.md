@@ -26,7 +26,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
     ```
 * Checkout latest release version
     ```bash
-    git checkout v0.26.1
+    git checkout v0.28.1
     ```
 
 * Ensure the file `generate-groups.sh` exists
