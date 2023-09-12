@@ -24,7 +24,6 @@ import (
 	v1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -35,9 +34,9 @@ type FakeVolumeGroupSnapshotClasses struct {
 	Fake *FakeGroupsnapshotV1alpha1
 }
 
-var volumegroupsnapshotclassesResource = schema.GroupVersionResource{Group: "groupsnapshot.storage.k8s.io", Version: "v1alpha1", Resource: "volumegroupsnapshotclasses"}
+var volumegroupsnapshotclassesResource = v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses")
 
-var volumegroupsnapshotclassesKind = schema.GroupVersionKind{Group: "groupsnapshot.storage.k8s.io", Version: "v1alpha1", Kind: "VolumeGroupSnapshotClass"}
+var volumegroupsnapshotclassesKind = v1alpha1.SchemeGroupVersion.WithKind("VolumeGroupSnapshotClass")
 
 // Get takes name of the volumeGroupSnapshotClass, and returns the corresponding volumeGroupSnapshotClass object, and an error if there is any.
 func (c *FakeVolumeGroupSnapshotClasses) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1alpha1.VolumeGroupSnapshotClass, err error) {
