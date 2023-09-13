@@ -14,7 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package fuzzer
+// NOTE: This file is copied from
+// https://github.com/kubernetes/kubernetes/blob/v1.29.0-alpha.0/pkg/apis/admission/fuzzer/fuzzer.go
+// so that external-snapshotter no longer needs to depend on k8s.io/kubernetes
+
+package webhook
 
 import (
 	fuzz "github.com/google/gofuzz"
@@ -25,7 +29,7 @@ import (
 )
 
 // Funcs returns the fuzzer functions for the admission api group.
-var Funcs = func(codecs runtimeserializer.CodecFactory) []interface{} {
+var AdmissionfuzzerFuncs = func(codecs runtimeserializer.CodecFactory) []interface{} {
 	return []interface{}{
 		func(s *runtime.RawExtension, c fuzz.Continue) {
 			u := &unstructured.Unstructured{Object: map[string]interface{}{
