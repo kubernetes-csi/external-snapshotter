@@ -6,17 +6,9 @@
 
 ## Changes by Kind
 
-### API Change
-
-- Add VolumeGroupSnapshot API definitions (Note: the controller side changes are partially implemented and therefore it is not ready for use) ([#814](https://github.com/kubernetes-csi/external-snapshotter/pull/814), [@RaunakShah](https://github.com/RaunakShah))
-
 ### Feature
 
 - Add a marker to the snapshot-controller manifests to enable feature gates in CSI prow jobs. ([#790](https://github.com/kubernetes-csi/external-snapshotter/pull/790), [@RaunakShah](https://github.com/RaunakShah))
-- Create Volume functionality for volume group snapshots (Note: this feature is partially implemented and therefore it is not ready for use) ([#826](https://github.com/kubernetes-csi/external-snapshotter/pull/826), [@RaunakShah](https://github.com/RaunakShah))
-- Disable the enable-volume-group-snapshots feature flag. ([#901](https://github.com/kubernetes-csi/external-snapshotter/pull/901), [@xing-yang](https://github.com/xing-yang))
-- More detail printed columns output when get vgs/vgsc/vgsclass with kubectl ([#865](https://github.com/kubernetes-csi/external-snapshotter/pull/865), [@winrouter](https://github.com/winrouter))
-- Webhooks for VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass. ([#825](https://github.com/kubernetes-csi/external-snapshotter/pull/825), [@Rakshith-R](https://github.com/Rakshith-R))
 
 ### Bug or Regression
 
@@ -25,11 +17,10 @@
 
 ### Other (Cleanup or Flake)
 
-- Update Kubernetes deps to 0.28.0 and update generated code ([#902](https://github.com/kubernetes-csi/external-snapshotter/pull/902), [@xing-yang](https://github.com/xing-yang))
+- Update Kubernetes deps to 0.28.0 and update generated code in the client ([#902](https://github.com/kubernetes-csi/external-snapshotter/pull/902), [@xing-yang](https://github.com/xing-yang))
 
 ### Uncategorized
 
-- Print a warning message at the startup phase if the csi-driver doesn't support GroupControllerCreateVolumeGroupSnapshot when the --enable-volume-group-snapshots flag is true. ([#864](https://github.com/kubernetes-csi/external-snapshotter/pull/864), [@carlory](https://github.com/carlory))
 - Update kubernetes dependencies to v1.28.0 ([#899](https://github.com/kubernetes-csi/external-snapshotter/pull/899), [@Sneha-at](https://github.com/Sneha-at))
 
 ## Dependencies
