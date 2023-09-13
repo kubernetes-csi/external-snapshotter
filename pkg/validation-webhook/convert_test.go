@@ -30,11 +30,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/diff"
-	admissionfuzzer "k8s.io/kubernetes/pkg/apis/admission/fuzzer"
 )
 
 func TestConvertAdmissionRequestToV1(t *testing.T) {
-	f := fuzzer.FuzzerFor(admissionfuzzer.Funcs, rand.NewSource(rand.Int63()), serializer.NewCodecFactory(runtime.NewScheme()))
+	f := fuzzer.FuzzerFor(AdmissionfuzzerFuncs, rand.NewSource(rand.Int63()), serializer.NewCodecFactory(runtime.NewScheme()))
 	for i := 0; i < 100; i++ {
 		t.Run(fmt.Sprintf("Run %d/100", i), func(t *testing.T) {
 			orig := &v1beta1.AdmissionRequest{}
