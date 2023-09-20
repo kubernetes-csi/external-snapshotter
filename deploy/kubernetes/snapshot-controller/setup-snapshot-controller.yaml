@@ -15,7 +15,7 @@ spec:
   replicas: 2
   selector:
     matchLabels:
-      app: snapshot-controller
+      app.kubernetes.io/name: snapshot-controller
   # the snapshot controller won't be marked as ready if the v1 CRDs are unavailable
   # in #504 the snapshot-controller will exit after around 7.5 seconds if it
   # can't find the v1 CRDs so this value should be greater than that
@@ -28,7 +28,7 @@ spec:
   template:
     metadata:
       labels:
-        app: snapshot-controller
+        app.kubernetes.io/name: snapshot-controller
     spec:
       serviceAccountName: snapshot-controller
       containers:
