@@ -12,7 +12,7 @@ require (
 	github.com/kubernetes-csi/csi-test/v5 v5.1.0
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.3.0
 	github.com/prometheus/client_golang v1.16.0
-	github.com/prometheus/client_model v0.4.0
+	github.com/prometheus/client_model v0.5.0
 	github.com/prometheus/common v0.44.0
 	github.com/spf13/cobra v1.7.0
 	google.golang.org/grpc v1.58.2
