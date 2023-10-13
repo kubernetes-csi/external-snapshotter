@@ -21,7 +21,11 @@ spec:
       - name: snapshot-validation
         image: registry.k8s.io/sig-storage/snapshot-validation-webhook:v6.2.1 # change the image if you wish to use your own custom validation server image
         imagePullPolicy: IfNotPresent
-        args: ['--tls-cert-file=/etc/snapshot-validation-webhook/certs/tls.crt', '--tls-private-key-file=/etc/snapshot-validation-webhook/certs/tls.key']
+        args:
+        - '--tls-cert-file=/etc/snapshot-validation-webhook/certs/tls.crt'
+        - '--tls-private-key-file=/etc/snapshot-validation-webhook/certs/tls.key'
+        # uncomment the following line to enable webhook for VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass.
+        # - '--enable-volume-group-snapshot-webhook'
         ports:
         - containerPort: 443 # change the port as needed
         volumeMounts:
