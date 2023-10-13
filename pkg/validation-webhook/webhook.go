@@ -40,11 +40,12 @@ import (
 )
 
 var (
-	certFile                    string
-	keyFile                     string
-	kubeconfigFile              string
-	port                        int
-	preventVolumeModeConversion bool
+	certFile                         string
+	keyFile                          string
+	kubeconfigFile                   string
+	port                             int
+	preventVolumeModeConversion      bool
+	enableVolumeGroupSnapshotWebhook bool
 )
 
 // CmdWebhook is used by Cobra.
@@ -71,6 +72,8 @@ func init() {
 	CmdWebhook.Flags().StringVar(&kubeconfigFile, "kubeconfig", "", "kubeconfig file to use for volumesnapshotclasses")
 	CmdWebhook.Flags().BoolVar(&preventVolumeModeConversion, "prevent-volume-mode-conversion",
 		false, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
+	CmdWebhook.Flags().BoolVar(&enableVolumeGroupSnapshotWebhook, "enable-volume-group-snapshot-webhook",
+		false, "Enables webhook for VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass.")
 }
 
 // admitv1beta1Func handles a v1beta1 admission
@@ -217,14 +220,18 @@ func startServer(
 	snapshotWebhook := serveSnapshotWebhook{
 		lister: vscLister,
 	}
-	groupSnapshotWebhook := serveGroupSnapshotWebhook{
-		lister: vgscLister,
-	}
 
 	fmt.Println("Starting webhook server")
 	mux := http.NewServeMux()
 	mux.Handle("/volumesnapshot", snapshotWebhook)
-	mux.Handle("/volumegroupsnapshot", groupSnapshotWebhook)
+
+	if enableVolumeGroupSnapshotWebhook {
+		groupSnapshotWebhook := serveGroupSnapshotWebhook{
+			lister: vgscLister,
+		}
+		mux.Handle("/volumegroupsnapshot", groupSnapshotWebhook)
+	}
+
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, req *http.Request) { w.Write([]byte("ok")) })
 	srv := &http.Server{
 		Handler:   mux,
@@ -267,7 +274,10 @@ func main(cmd *cobra.Command, args []string) {
 
 	factory := informers.NewSharedInformerFactory(snapClient, 0)
 	snapshotLister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
-	groupSnapshotLister := factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses().Lister()
+	var groupSnapshotLister groupsnapshotlisters.VolumeGroupSnapshotClassLister
+	if enableVolumeGroupSnapshotWebhook {
+		groupSnapshotLister = factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses().Lister()
+	}
 
 	// Start the informers
 	factory.Start(ctx.Done())
