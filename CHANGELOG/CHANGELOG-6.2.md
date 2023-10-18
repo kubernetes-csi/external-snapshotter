@@ -1,6 +1,29 @@
-# Release notes for v6.2.2
+# Release notes for v6.2.3
 
 [Documentation](https://kubernetes-csi.github.io)
+
+## Changes by Kind
+
+### Uncategorized
+
+- CVE fixes: CVE-2023-44487,  CVE-2023-3978 ([#928](https://github.com/kubernetes-csi/external-resizer/pull/928), [@dannawang0221](https://github.com/dannawang0221)
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- golang.org/x/crypto: v0.1.0 → v0.14.0
+- golang.org/x/net: v0.8.0 → v0.17.0
+- golang.org/x/sys: v0.6.0 → v0.13.0
+- golang.org/x/term: v0.6.0 → v0.13.0
+- golang.org/x/text: v0.8.0 → v0.13.0
+
+### Removed
+_Nothing has changed._
+
+# Release notes for v6.2.2
 
 # Changelog since v6.2.1
 
