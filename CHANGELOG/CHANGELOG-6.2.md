@@ -6,7 +6,7 @@
 
 ### Uncategorized
 
-- CVE fixes: CVE-2023-44487,  CVE-2023-3978 (#928, @dannawang0221)
+- CVE fixes: CVE-2023-44487,  CVE-2023-3978 ([#928](https://github.com/kubernetes-csi/external-resizer/pull/928), [@dannawang0221](https://github.com/dannawang0221)
 
 ## Dependencies
 
