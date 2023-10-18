@@ -1,6 +1,31 @@
-# Release notes for v6.0.0 
+# Release notes for v6.0.1
+
+## Changes by Kind
 
 [Documentation](https://kubernetes-csi.github.io)
+
+### Uncategorized
+
+- CVE fixes: CVE-2023-44487,  CVE-2023-3978 (#930, @dannawang0221)
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- golang.org/x/crypto: 8634188 → v0.14.0
+- golang.org/x/mod: 9b9b3d8 → v0.8.0
+- golang.org/x/net: cd36cc0 → v0.17.0
+- golang.org/x/sys: 3681064 → v0.13.0
+- golang.org/x/term: 03fcf44 → v0.13.0
+- golang.org/x/text: v0.3.7 → v0.13.0
+- golang.org/x/tools: 897bd77 → v0.6.0
+
+### Removed
+_Nothing has changed._
+
+# Release notes for v6.0.0 
 
 # Changelog since v5.0.1
 
