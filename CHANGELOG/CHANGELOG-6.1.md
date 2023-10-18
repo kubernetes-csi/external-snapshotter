@@ -6,11 +6,11 @@
 
 ### Other (Cleanup or Flake)
 
-- Update deployment tags to v6.1.0 (#766, @RaunakShah)
+- Update deployment tags to v6.1.0 ([#766](https://github.com/kubernetes-csi/external-resizer/pull/766), [@RaunakShah](https://github.com/RaunakShah)
 
 ### Uncategorized
 
-- CVE fixes: CVE-2023-44487,  CVE-2023-3978 (#929, @dannawang0221)
+- CVE fixes: CVE-2023-44487,  CVE-2023-3978 ([#929](https://github.com/kubernetes-csi/external-resizer/pull/929), [@dannawang0221](https://github.com/dannawang0221)
 
 ## Dependencies
 
