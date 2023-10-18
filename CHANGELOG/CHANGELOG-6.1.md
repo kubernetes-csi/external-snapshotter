@@ -1,6 +1,35 @@
-# Release notes for v6.1.0
+# Release notes for v6.1.1
 
 [Documentation](https://kubernetes-csi.github.io)
+
+## Changes by Kind
+
+### Other (Cleanup or Flake)
+
+- Update deployment tags to v6.1.0 (#766, @RaunakShah)
+
+### Uncategorized
+
+- CVE fixes: CVE-2023-44487,  CVE-2023-3978 (#929, @dannawang0221)
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- golang.org/x/crypto: 3147a52 → v0.14.0
+- golang.org/x/mod: 86c51ed → v0.8.0
+- golang.org/x/net: bea034e → v0.17.0
+- golang.org/x/sys: fb04ddd → v0.13.0
+- golang.org/x/term: 03fcf44 → v0.13.0
+- golang.org/x/text: v0.3.7 → v0.13.0
+- golang.org/x/tools: v0.1.12 → v0.6.0
+
+### Removed
+_Nothing has changed._
+
+# Release notes for v6.1.0
 
 # Changelog since v6.0.0
 
