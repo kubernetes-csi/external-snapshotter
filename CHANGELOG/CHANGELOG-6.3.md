@@ -1,6 +1,32 @@
-# Release notes for v6.3.0
+# Release notes for v6.3.1
 
 [Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v6.3.0
+
+## Changes by Kind
+
+### Uncategorized
+
+- CVE fixes: CVE-2023-44487,  CVE-2023-3978 ([#938](https://github.com/kubernetes-csi/external-snapshotter/pull/938), [@dannawang0221](https://github.com/dannawang0221))
+- Webhooks for group snapshot CRs will be disabled by default. Command line argument `enable-volume-group-snapshot-webhook` needs to be added to enable these webhooks. ([#940](https://github.com/kubernetes-csi/external-snapshotter/pull/940), [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- golang.org/x/crypto: v0.11.0 → v0.14.0
+- golang.org/x/net: v0.13.0 → v0.17.0
+- golang.org/x/sys: v0.10.0 → v0.13.0
+- golang.org/x/term: v0.10.0 → v0.13.0
+- golang.org/x/text: v0.11.0 → v0.13.0
+
+### Removed
+_Nothing has changed._
+
+# Release notes for v6.3.0
 
 # Changelog since v6.2.0
 
