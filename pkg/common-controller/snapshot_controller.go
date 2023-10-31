@@ -911,7 +911,8 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
 		pvcClone := pvc.DeepCopy()
 		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
-		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+
+		_, err = utils.PatchPersistentVolumeClaim(ctrl.client, pvc, pvcClone, true)
 		if err != nil {
 			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
 			return newControllerUpdateError(pvcClone.Name, err.Error())
@@ -930,7 +931,7 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 	pvcClone := pvc.DeepCopy()
 	pvcClone.ObjectMeta.Finalizers = utils.RemoveString(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
 
-	_, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+	_, err := utils.PatchPersistentVolumeClaim(ctrl.client, pvc, pvcClone, true)
 	if err != nil {
 		return newControllerUpdateError(pvcClone.Name, err.Error())
 	}
