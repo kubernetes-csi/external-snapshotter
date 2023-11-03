@@ -836,7 +836,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotContent(content *crd
 
 // deleteGroupSnapshotContent runs in worker thread and handles "groupsnapshotcontent deleted" event.
 func (ctrl *csiSnapshotCommonController) deleteGroupSnapshotContent(content *crdv1alpha1.VolumeGroupSnapshotContent) {
-	_ = ctrl.contentStore.Delete(content)
+	_ = ctrl.groupSnapshotContentStore.Delete(content)
 	klog.V(4).Infof("group snapshot content %q deleted", content.Name)
 
 	groupSnapshotName := utils.GroupSnapshotRefKey(&content.Spec.VolumeGroupSnapshotRef)
