@@ -468,7 +468,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 		}
 
 		s := NewSnapshotter(csiConn)
-		ready, createTime, size, err := s.GetSnapshotStatus(context.Background(), test.snapshotID, test.snapshotterListCredentials)
+		ready, createTime, size, _, err := s.GetSnapshotStatus(context.Background(), test.snapshotID, test.snapshotterListCredentials)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}

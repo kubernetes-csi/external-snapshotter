@@ -38,7 +38,7 @@ type Snapshotter interface {
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
 
 	// GetSnapshotStatus returns if a snapshot is ready to use, creation time, and restore size.
-	GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error)
+	GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
 }
 
 type snapshot struct {
@@ -109,7 +109,7 @@ func (s *snapshot) isListSnapshotsSupported(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error) {
+func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error) {
 	klog.V(5).Infof("GetSnapshotStatus: %s", snapshotID)
 
 	client := csi.NewControllerClient(s.conn)
@@ -117,10 +117,10 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, sna
 	// If the driver does not support ListSnapshots, assume the snapshot ID is valid.
 	listSnapshotsSupported, err := s.isListSnapshotsSupported(ctx)
 	if err != nil {
-		return false, time.Time{}, 0, fmt.Errorf("failed to check if ListSnapshots is supported: %s", err.Error())
+		return false, time.Time{}, 0, "", fmt.Errorf("failed to check if ListSnapshots is supported: %s", err.Error())
 	}
 	if !listSnapshotsSupported {
-		return true, time.Time{}, 0, nil
+		return true, time.Time{}, 0, "", nil
 	}
 	req := csi.ListSnapshotsRequest{
 		SnapshotId: snapshotID,
@@ -128,13 +128,13 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, sna
 	}
 	rsp, err := client.ListSnapshots(ctx, &req)
 	if err != nil {
-		return false, time.Time{}, 0, err
+		return false, time.Time{}, 0, "", err
 	}
 
 	if rsp.Entries == nil || len(rsp.Entries) == 0 {
-		return false, time.Time{}, 0, fmt.Errorf("can not find snapshot for snapshotID %s", snapshotID)
+		return false, time.Time{}, 0, "", fmt.Errorf("can not find snapshot for snapshotID %s", snapshotID)
 	}
 
 	creationTime := rsp.Entries[0].Snapshot.CreationTime.AsTime()
-	return rsp.Entries[0].Snapshot.ReadyToUse, creationTime, rsp.Entries[0].Snapshot.SizeBytes, nil
+	return rsp.Entries[0].Snapshot.ReadyToUse, creationTime, rsp.Entries[0].Snapshot.SizeBytes, rsp.Entries[0].Snapshot.GroupSnapshotId, nil
 }

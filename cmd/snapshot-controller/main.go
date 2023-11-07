@@ -72,8 +72,7 @@ var (
 	retryIntervalMax              = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
 	enableDistributedSnapshotting = flag.Bool("enable-distributed-snapshotting", false, "Enables each node to handle snapshotting for the local volumes created on that node")
 	preventVolumeModeConversion   = flag.Bool("prevent-volume-mode-conversion", false, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
-	// TODO(xing-yang): Enable enableVolumeGroupSnapshots when the feature is fully implemented
-	// enableVolumeGroupSnapshots    = flag.Bool("enable-volume-group-snapshots", false, "Enables the volume group snapshot feature, allowing the user to create snapshots of groups of volumes.")
+	enableVolumeGroupSnapshots    = flag.Bool("enable-volume-group-snapshots", false, "Enables the volume group snapshot feature, allowing the user to create a snapshot of a group of volumes.")
 
 	retryCRDIntervalMax = flag.Duration("retry-crd-interval-max", 5*time.Second, "Maximum retry interval to wait for CRDs to appear. The default is 5 seconds.")
 )
@@ -208,9 +207,6 @@ func main() {
 
 	klog.V(2).Infof("Start NewCSISnapshotController with kubeconfig [%s] resyncPeriod [%+v]", *kubeconfig, *resyncPeriod)
 
-	// TODO(xing-yang): Remove the following lines when the enableVolumeGroupSnapshots feature is enabled
-	bEnable := false
-	enableVolumeGroupSnapshots := &bEnable
 	ctrl := controller.NewCSISnapshotCommonController(
 		snapClient,
 		kubeClient,
