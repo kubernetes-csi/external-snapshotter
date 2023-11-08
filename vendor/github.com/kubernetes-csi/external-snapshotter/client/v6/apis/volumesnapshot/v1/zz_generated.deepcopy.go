@@ -271,8 +271,8 @@ func (in *VolumeSnapshotContentStatus) DeepCopyInto(out *VolumeSnapshotContentSt
 		*out = new(VolumeSnapshotError)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.VolumeGroupSnapshotContentName != nil {
-		in, out := &in.VolumeGroupSnapshotContentName, &out.VolumeGroupSnapshotContentName
+	if in.VolumeGroupSnapshotHandle != nil {
+		in, out := &in.VolumeGroupSnapshotHandle, &out.VolumeGroupSnapshotHandle
 		*out = new(string)
 		**out = **in
 	}

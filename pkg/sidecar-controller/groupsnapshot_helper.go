@@ -453,7 +453,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 				SourceVolumeMode: nil,
 			},
 			Status: &crdv1.VolumeSnapshotContentStatus{
-				VolumeGroupSnapshotContentName: &groupSnapshotContent.Name,
+				VolumeGroupSnapshotHandle: &groupSnapshotContent.Name,
 			},
 		}
 
