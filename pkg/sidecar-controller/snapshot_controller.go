@@ -51,8 +51,9 @@ import (
 
 const controllerUpdateFailMsg = "snapshot controller failed to update"
 
-// syncContent deals with one key off the queue.  It returns false when it's time to quit.
-func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnapshotContent) error {
+// syncContent deals with one key off the queue. It returns flag indicating if the
+// content should be requeued. On error, the content is always requeued.
+func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
 
 	if ctrl.shouldDelete(content) {
@@ -63,13 +64,22 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			// underlying storage system. Note that the deletion snapshot operation will
 			// update content SnapshotHandle to nil upon a successful deletion. At this
 			// point, the finalizer on content should NOT be removed to avoid leaking.
-			return ctrl.deleteCSISnapshot(content)
+			err := ctrl.deleteCSISnapshot(content)
+			if err != nil {
+				return true, err
+			}
+			return false, nil
 		}
 		// otherwise, either the snapshot has been deleted from the underlying
 		// storage system, or the deletion policy is Retain, remove the finalizer
 		// if there is one so that API server could delete the object if there is
 		// no other finalizer.
-		return ctrl.removeContentFinalizer(content)
+		err := ctrl.removeContentFinalizer(content)
+		if err != nil {
+			return true, err
+		}
+		return false, nil
+
 	}
 	if content.Spec.Source.VolumeHandle != nil && content.Status == nil {
 		klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
@@ -79,11 +89,13 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 	// already true. We don't want to keep calling CreateSnapshot
 	// or ListSnapshots CSI methods over and over again for
 	// performance reasons.
-	var err error
-	if content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse == true {
+	if contentIsReady(content) {
 		// Try to remove AnnVolumeSnapshotBeingCreated if it is not removed yet for some reason
 		_, err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
-		return err
+		if err != nil {
+			return true, err
+		}
+		return false, nil
 	}
 	return ctrl.checkandUpdateContentStatus(content)
 }
@@ -98,14 +110,15 @@ func (ctrl *csiSnapshotSideCarController) storeContentUpdate(content interface{}
 	return utils.StoreObjectUpdate(ctrl.contentStore, content, "content")
 }
 
-// createSnapshot starts new asynchronous operation to create snapshot
-func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSnapshotContent) error {
+// createSnapshot starts new asynchronous operation to create snapshot. It returns flag indicating if the
+// content should be requeued. On error, the content is always requeued.
+func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("createSnapshot for content [%s]: started", content.Name)
 	contentObj, err := ctrl.createSnapshotWrapper(content)
 	if err != nil {
 		ctrl.updateContentErrorStatusWithEvent(contentObj, v1.EventTypeWarning, "SnapshotCreationFailed", fmt.Sprintf("Failed to create snapshot: %v", err))
 		klog.Errorf("createSnapshot for content [%s]: error occurred in createSnapshotWrapper: %v", content.Name, err)
-		return err
+		return true, err
 	}
 
 	_, updateErr := ctrl.storeContentUpdate(contentObj)
@@ -113,24 +126,26 @@ func (ctrl *csiSnapshotSideCarController) createSnapshot(content *crdv1.VolumeSn
 		// We will get an "snapshot update" event soon, this is not a big error
 		klog.V(4).Infof("createSnapshot for content [%s]: cannot update internal content cache: %v", content.Name, updateErr)
 	}
-	return nil
+	return !contentIsReady(contentObj), nil
 }
 
-func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *crdv1.VolumeSnapshotContent) error {
+// checkandUpdateContentStatus checks status of the volume snapshot in CSI driver and updates content.status
+// accordingly. It returns flag indicating if the content should be requeued. On error, the content is
+// always requeued.
+func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatus(content *crdv1.VolumeSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("checkandUpdateContentStatus[%s] started", content.Name)
 	contentObj, err := ctrl.checkandUpdateContentStatusOperation(content)
 	if err != nil {
 		ctrl.updateContentErrorStatusWithEvent(contentObj, v1.EventTypeWarning, "SnapshotContentCheckandUpdateFailed", fmt.Sprintf("Failed to check and update snapshot content: %v", err))
 		klog.Errorf("checkandUpdateContentStatus [%s]: error occurred %v", content.Name, err)
-		return err
+		return true, err
 	}
 	_, updateErr := ctrl.storeContentUpdate(contentObj)
 	if updateErr != nil {
 		// We will get an "snapshot update" event soon, this is not a big error
 		klog.V(4).Infof("checkandUpdateContentStatus [%s]: cannot update internal cache: %v", content.Name, updateErr)
 	}
-
-	return nil
+	return !contentIsReady(contentObj), nil
 }
 
 // updateContentStatusWithEvent saves new content.Status to API server and emits
@@ -380,6 +395,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *cr
 		return err
 	}
 	// trigger syncContent
+	// TODO: just enqueue the content object instead of calling syncContent directly
 	ctrl.updateContentInInformerCache(newContent)
 	return nil
 }
@@ -688,4 +704,8 @@ func isCSIFinalError(err error) bool {
 	// All other errors mean that creating snapshot either did not
 	// even start or failed. It is for sure not in progress.
 	return true
+}
+
+func contentIsReady(content *crdv1.VolumeSnapshotContent) bool {
+	return content.Status != nil && content.Status.ReadyToUse != nil && *content.Status.ReadyToUse
 }
