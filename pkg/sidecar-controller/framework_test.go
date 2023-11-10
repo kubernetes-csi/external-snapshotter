@@ -808,6 +808,9 @@ func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses [
 		if test.expectSuccess && err != nil {
 			t.Errorf("Test %q failed: %v", test.name, err)
 		}
+		if !test.expectSuccess && err == nil {
+			t.Errorf("Test %q failed: expected error, got nil", test.name)
+		}
 
 		// Wait for the target state
 		err = reactor.waitTest(test)
