@@ -167,10 +167,12 @@ func (o unitOpt) applyInt64ObservableGauge(c Int64ObservableGaugeConfig) Int64Ob
 }
 
 // WithUnit sets the instrument unit.
+//
+// The unit u should be defined using the appropriate [UCUM](https://ucum.org) case-sensitive code.
 func WithUnit(u string) InstrumentOption { return unitOpt(u) }
 
 // AddOption applies options to an addition measurement. See
-// [MeasurementOption] for other options that can be used as a AddOption.
+// [MeasurementOption] for other options that can be used as an AddOption.
 type AddOption interface {
 	applyAdd(AddConfig) AddConfig
 }
