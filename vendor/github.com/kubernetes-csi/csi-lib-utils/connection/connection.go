@@ -20,8 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -56,6 +56,7 @@ func SetMaxGRPCLogLength(characterCount int) {
 // https://github.com/grpc/grpc/blob/master/doc/naming.md.
 //
 // The function tries to connect for 30 seconds, and returns an error if no connection has been established at that point.
+// The connection has zero idle timeout, i.e. it is never closed because of inactivity.
 // The function automatically disables TLS and adds interceptor for logging of all gRPC messages at level 5.
 // If the metricsManager is 'nil', no metrics will be recorded on the gRPC calls.
 // The function behaviour can be tweaked with options.
@@ -107,7 +108,7 @@ func OnConnectionLoss(reconnect func() bool) Option {
 func ExitOnConnectionLoss() func() bool {
 	return func() bool {
 		terminationMsg := "Lost connection to CSI driver, exiting"
-		if err := ioutil.WriteFile(terminationLogPath, []byte(terminationMsg), 0644); err != nil {
+		if err := os.WriteFile(terminationLogPath, []byte(terminationMsg), 0644); err != nil {
 			klog.Errorf("%s: %s", terminationLogPath, err)
 		}
 		klog.Exit(terminationMsg)
@@ -154,9 +155,10 @@ func connect(
 	}
 
 	dialOptions := []grpc.DialOption{
-		grpc.WithInsecure(),                   // Don't use TLS, it's usually local Unix domain socket in a container.
-		grpc.WithBackoffMaxDelay(time.Second), // Retry every second after failure.
-		grpc.WithBlock(),                      // Block until connection succeeds.
+		grpc.WithInsecure(),                    // Don't use TLS, it's usually local Unix domain socket in a container.
+		grpc.WithBackoffMaxDelay(time.Second),  // Retry every second after failure.
+		grpc.WithBlock(),                       // Block until connection succeeds.
+		grpc.WithIdleTimeout(time.Duration(0)), // Never close connection because of inactivity.
 	}
 
 	if o.timeout > 0 {
