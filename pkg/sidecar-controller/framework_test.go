@@ -97,9 +97,10 @@ type controllerTest struct {
 	// Function to call as the test.
 	test          testCall
 	expectSuccess bool
+	expectRequeue bool
 }
 
-type testCall func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) error
+type testCall func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) (requeue bool, err error)
 
 const (
 	testNamespace  = "default"
@@ -690,16 +691,16 @@ func withContentAnnotations(content []*crdv1.VolumeSnapshotContent, annotations 
 	return content
 }
 
-func testSyncContent(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) error {
+func testSyncContent(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) (bool, error) {
 	return ctrl.syncContent(test.initialContents[0])
 }
 
-func testSyncContentError(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) error {
-	err := ctrl.syncContent(test.initialContents[0])
+func testSyncContentError(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) (bool, error) {
+	requeue, err := ctrl.syncContent(test.initialContents[0])
 	if err != nil {
-		return nil
+		return requeue, nil
 	}
-	return fmt.Errorf("syncSnapshotContent succeeded when failure was expected")
+	return requeue, fmt.Errorf("syncSnapshotContent succeeded when failure was expected")
 }
 
 var (
@@ -725,7 +726,7 @@ var (
 //     controller waits for the operation lock. Controller is then resumed and we
 //     check how it behaves.
 func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor)) testCall {
-	return func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) error {
+	return func(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) (bool, error) {
 		// Inject a hook before async operation starts
 		klog.V(4).Infof("reactor:injecting call")
 		injectBeforeOperation(ctrl, reactor)
@@ -733,10 +734,11 @@ func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(c
 		// Run the tested function (typically syncContent) in a
 		// separate goroutine.
 		var testError error
+		var requeue bool
 		var testFinished int32
 
 		go func() {
-			testError = toWrap(ctrl, reactor, test)
+			requeue, testError = toWrap(ctrl, reactor, test)
 			// Let the "main" test function know that syncContent has finished.
 			atomic.StoreInt32(&testFinished, 1)
 		}()
@@ -746,7 +748,7 @@ func wrapTestWithInjectedOperation(toWrap testCall, injectBeforeOperation func(c
 			time.Sleep(time.Millisecond * 10)
 		}
 
-		return testError
+		return requeue, testError
 	}
 }
 
@@ -804,9 +806,19 @@ func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses [
 		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
 
 		// Run the tested functions
-		err = test.test(ctrl, reactor, test)
+		requeue, err := test.test(ctrl, reactor, test)
 		if test.expectSuccess && err != nil {
 			t.Errorf("Test %q failed: %v", test.name, err)
+		}
+		if !test.expectSuccess && err == nil {
+			t.Errorf("Test %q failed: expected error, got nil", test.name)
+		}
+		if !test.expectSuccess && err == nil {
+			t.Errorf("Test %q failed: expected error, got nil", test.name)
+		}
+		// requeue has meaning only when err == nil. A snapshot content is automatically requeued on error
+		if err == nil && requeue != test.expectRequeue {
+			t.Errorf("Test %q expected requeue %t, got %t", test.name, test.expectRequeue, requeue)
 		}
 
 		// Wait for the target state
