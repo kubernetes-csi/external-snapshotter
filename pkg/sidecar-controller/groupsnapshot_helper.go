@@ -471,7 +471,6 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 				},
 			},
 		}
-
 		vsc, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(context.TODO(), volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil {
 			return groupSnapshotContent, err

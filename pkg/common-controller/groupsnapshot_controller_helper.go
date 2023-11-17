@@ -1103,16 +1103,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 		groupSnapshotContent = nil
 	}
 
-	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: delete group snapshot content and remove finalizer from group snapshot if needed", utils.GroupSnapshotKey(groupSnapshot))
-
-	return ctrl.checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent(groupSnapshot, groupSnapshotContent, deleteGroupSnapshotContent)
-}
-
-// checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent deletes
-// the group snapshot content and removes group snapshot finalizers if needed
-func (ctrl *csiSnapshotCommonController) checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot, groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent, deleteGroupSnapshotContent bool) error {
-	klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent VolumeGroupSnapshot[%s]: %s", utils.GroupSnapshotKey(groupSnapshot), utils.GetGroupSnapshotStatusForLogging(groupSnapshot))
-
+	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: check if group snapshot is a candidate for deletion", utils.GroupSnapshotKey(groupSnapshot))
 	if !utils.IsGroupSnapshotDeletionCandidate(groupSnapshot) {
 		return nil
 	}
@@ -1135,14 +1126,15 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveGroupSnapshotFinalizersAn
 
 	}
 
-	// regardless of the deletion policy, set the VolumeSnapshotBeingDeleted on
-	// content object, this is to allow snapshotter sidecar controller to conduct
-	// a delete operation whenever the content has deletion timestamp set.
+	// regardless of the deletion policy, set VolumeGroupSnapshotBeingDeleted on
+	// group snapshot content object, this is to allow snapshotter sidecar controller
+	// to conduct a delete operation whenever the group snapshot content has deletion
+	// timestamp set.
 	if groupSnapshotContent != nil {
-		klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent[%s]: Set VolumeGroupSnapshotBeingDeleted annotation on the group snapshot content [%s]", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
+		klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: Set VolumeGroupSnapshotBeingDeleted annotation on the group snapshot content [%s]", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
 		updatedGroupSnapshotContent, err := ctrl.setAnnVolumeGroupSnapshotBeingDeleted(groupSnapshotContent)
 		if err != nil {
-			klog.V(4).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent[%s]: failed to set VolumeGroupSnapshotBeingDeleted annotation on the group snapshot content [%s]", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
+			klog.V(4).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: failed to set VolumeGroupSnapshotBeingDeleted annotation on the group snapshot content [%s]: %v", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name, err)
 			return err
 		}
 		groupSnapshotContent = updatedGroupSnapshotContent
@@ -1150,10 +1142,10 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveGroupSnapshotFinalizersAn
 
 	// VolumeGroupSnapshot should be deleted. Check and remove finalizers
 	// If group snapshot content exists and has a deletion policy of Delete, set
-	// DeletionTimeStamp on the content;
+	// DeletionTimeStamp on the group snapshot content;
 	// VolumeGroupSnapshotContent won't be deleted immediately due to the VolumeGroupSnapshotContentFinalizer
 	if groupSnapshotContent != nil && deleteGroupSnapshotContent {
-		klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent: set DeletionTimeStamp on group snapshot content [%s].", groupSnapshotContent.Name)
+		klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: set DeletionTimeStamp on group snapshot content [%s].", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
 		err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Delete(context.TODO(), groupSnapshotContent.Name, metav1.DeleteOptions{})
 		if err != nil {
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "GroupSnapshotContentObjectDeleteError", "Failed to delete group snapshot content API object")
@@ -1161,7 +1153,20 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveGroupSnapshotFinalizersAn
 		}
 	}
 
-	klog.V(5).Infof("checkandRemoveGroupSnapshotFinalizersAndCheckandDeleteGroupSnapshotContent: Remove Finalizer for VolumeGroupSnapshot[%s]", utils.GroupSnapshotKey(groupSnapshot))
+	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: Delete individual snapshots that are part of the group snapshot", utils.GroupSnapshotKey(groupSnapshot))
+
+	// Delete the individual snapshots part of the group snapshot
+	for _, snapshot := range groupSnapshot.Status.VolumeSnapshotRefList {
+		err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Delete(context.TODO(), snapshot.Name, metav1.DeleteOptions{})
+		if err != nil {
+			msg := fmt.Sprintf("failed to delete snapshot API object %s/%s part of group snapshot %s: %v", snapshot.Namespace, snapshot.Name, utils.GroupSnapshotKey(groupSnapshot), err)
+			klog.Error(msg)
+			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
+			return fmt.Errorf(msg)
+		}
+	}
+
+	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s] : Remove Finalizer for VolumeGroupSnapshot", utils.GroupSnapshotKey(groupSnapshot))
 	// remove VolumeSnapshotBoundFinalizer on the VolumeGroupSnapshot object:
 	//    a. If there is no group snapshot content found, remove the finalizer.
 	//    b. If the group snapshot content is being deleted, i.e., with deleteGroupSnapshotContent == true,

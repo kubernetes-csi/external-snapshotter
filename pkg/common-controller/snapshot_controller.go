@@ -286,6 +286,21 @@ func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(sn
 		content = nil
 	}
 
+	// Block deletion if this snapshot belongs to a group snapshot.
+	if snapshot.Status != nil && snapshot.Status.VolumeGroupSnapshotName != nil {
+		groupSnapshot, err := ctrl.groupSnapshotLister.VolumeGroupSnapshots(snapshot.Namespace).Get(*snapshot.Status.VolumeGroupSnapshotName)
+		if err == nil {
+			msg := fmt.Sprintf("deletion of the individual volume snapshot %s is not allowed as it belongs to group snapshot %s. Deleting the group snapshot will trigger the deletion of all the individual volume snapshots that are part of the group.", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
+			klog.Error(msg)
+			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
+			return fmt.Errorf(msg)
+		}
+		if !apierrs.IsNotFound(err) {
+			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
+			return err
+		}
+	}
+
 	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
 
 	return ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, content, deleteContent)
@@ -1139,6 +1154,27 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		volumeSnapshotErr = content.Status.Error.DeepCopy()
 	}
 
+	var groupSnapshotName string
+	if content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil {
+		// If this snapshot belongs to a group snapshot, find the group snapshot
+		// name from the group snapshot content
+		groupSnapshotContentList, err := ctrl.groupSnapshotContentLister.List(labels.Everything())
+		if err != nil {
+			return nil, err
+		}
+		found := false
+		for _, groupSnapshotContent := range groupSnapshotContentList {
+			if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.VolumeGroupSnapshotHandle != nil && *groupSnapshotContent.Status.VolumeGroupSnapshotHandle == *content.Status.VolumeGroupSnapshotHandle {
+				groupSnapshotName = groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name
+				found = true
+				break
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("updateSnapshotStatus: cannot find the group snapshot for VolumeSnapshot [%s], will not update snapshot status", utils.SnapshotKey(snapshot))
+		}
+	}
+
 	klog.V(5).Infof("updateSnapshotStatus: updating VolumeSnapshot [%+v] based on VolumeSnapshotContentStatus [%+v]", snapshot, content.Status)
 
 	snapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
@@ -1161,6 +1197,9 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		}
 		if volumeSnapshotErr != nil {
 			newStatus.Error = volumeSnapshotErr
+		}
+		if groupSnapshotName != "" {
+			newStatus.VolumeGroupSnapshotName = &groupSnapshotName
 		}
 		updated = true
 	} else {
@@ -1186,6 +1225,10 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		}
 		if (newStatus.Error == nil && volumeSnapshotErr != nil) || (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) || (newStatus.Error != nil && volumeSnapshotErr == nil) {
 			newStatus.Error = volumeSnapshotErr
+			updated = true
+		}
+		if newStatus.VolumeGroupSnapshotName == nil && groupSnapshotName != "" {
+			newStatus.VolumeGroupSnapshotName = &groupSnapshotName
 			updated = true
 		}
 	}

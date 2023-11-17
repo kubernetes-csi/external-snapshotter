@@ -882,10 +882,11 @@ type listCall struct {
 	snapshotID string
 	secrets    map[string]string
 	// information to return
-	readyToUse bool
-	createTime time.Time
-	size       int64
-	err        error
+	readyToUse      bool
+	createTime      time.Time
+	size            int64
+	err             error
+	groupSnapshotID string
 }
 
 type deleteCall struct {
@@ -982,10 +983,10 @@ func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string,
 	return call.err
 }
 
-func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error) {
+func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID string, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error) {
 	if f.listCallCounter >= len(f.listCalls) {
 		f.t.Errorf("Unexpected CSI list Snapshot call: snapshotID=%s, index: %d, calls: %+v", snapshotID, f.createCallCounter, f.createCalls)
-		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
+		return false, time.Time{}, 0, "", fmt.Errorf("unexpected call")
 	}
 	call := f.listCalls[f.listCallCounter]
 	f.listCallCounter++
@@ -1002,10 +1003,10 @@ func (f *fakeSnapshotter) GetSnapshotStatus(ctx context.Context, snapshotID stri
 	}
 
 	if err != nil {
-		return false, time.Time{}, 0, fmt.Errorf("unexpected call")
+		return false, time.Time{}, 0, "", fmt.Errorf("unexpected call")
 	}
 
-	return call.readyToUse, call.createTime, call.size, call.err
+	return call.readyToUse, call.createTime, call.size, call.groupSnapshotID, call.err
 }
 
 func newSnapshotError(message string) *crdv1.VolumeSnapshotError {

@@ -34,7 +34,7 @@ import (
 type Handler interface {
 	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
-	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error)
+	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
 	CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
 	GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error)
 	DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, SnapshotID []string, snapshotterCredentials map[string]string) error
@@ -113,7 +113,7 @@ func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, 
 	return nil
 }
 
-func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, error) {
+func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
@@ -124,15 +124,15 @@ func (handler *csiHandler) GetSnapshotStatus(content *crdv1.VolumeSnapshotConten
 	} else if content.Spec.Source.SnapshotHandle != nil {
 		snapshotHandle = *content.Spec.Source.SnapshotHandle
 	} else {
-		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot for content %s: snapshotHandle is missing", content.Name)
+		return false, time.Time{}, 0, "", fmt.Errorf("failed to list snapshot for content %s: snapshotHandle is missing", content.Name)
 	}
 
-	csiSnapshotStatus, timestamp, size, err := handler.snapshotter.GetSnapshotStatus(ctx, snapshotHandle, snapshotterListCredentials)
+	csiSnapshotStatus, timestamp, size, groupSnapshotID, err := handler.snapshotter.GetSnapshotStatus(ctx, snapshotHandle, snapshotterListCredentials)
 	if err != nil {
-		return false, time.Time{}, 0, fmt.Errorf("failed to list snapshot for content %s: %q", content.Name, err)
+		return false, time.Time{}, 0, "", fmt.Errorf("failed to list snapshot for content %s: %q", content.Name, err)
 	}
 
-	return csiSnapshotStatus, timestamp, size, nil
+	return csiSnapshotStatus, timestamp, size, groupSnapshotID, nil
 }
 
 func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (string, error) {
