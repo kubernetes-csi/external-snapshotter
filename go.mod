@@ -22,7 +22,7 @@ require (
 	k8s.io/client-go v0.28.0
 	k8s.io/component-base v0.28.0
 	k8s.io/component-helpers v0.28.0
-	k8s.io/klog/v2 v2.100.1
+	k8s.io/klog/v2 v2.110.1
 )
 
 require (
