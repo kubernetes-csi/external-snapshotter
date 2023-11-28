@@ -3,13 +3,13 @@ module github.com/kubernetes-csi/external-snapshotter/v6
 go 1.20
 
 require (
-	github.com/container-storage-interface/spec v1.8.0
+	github.com/container-storage-interface/spec v1.9.0
 	github.com/evanphx/json-patch v5.7.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/mock v1.6.0
 	github.com/google/gofuzz v1.2.0
 	github.com/kubernetes-csi/csi-lib-utils v0.16.0
-	github.com/kubernetes-csi/csi-test/v5 v5.1.0
+	github.com/kubernetes-csi/csi-test/v5 v5.2.0
 	github.com/kubernetes-csi/external-snapshotter/client/v6 v6.3.0
 	github.com/prometheus/client_golang v1.17.0
 	github.com/prometheus/client_model v0.5.0
@@ -22,7 +22,7 @@ require (
 	k8s.io/client-go v0.28.0
 	k8s.io/component-base v0.28.0
 	k8s.io/component-helpers v0.28.0
-	k8s.io/klog/v2 v2.100.1
+	k8s.io/klog/v2 v2.110.1
 )
 
 require (
@@ -41,7 +41,7 @@ require (
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
-	github.com/google/uuid v1.3.1 // indirect
+	github.com/google/uuid v1.4.0 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
