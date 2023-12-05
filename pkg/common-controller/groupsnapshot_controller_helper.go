@@ -1161,7 +1161,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	// Delete the individual snapshots part of the group snapshot
 	for _, snapshot := range groupSnapshot.Status.VolumeSnapshotRefList {
 		err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Delete(context.TODO(), snapshot.Name, metav1.DeleteOptions{})
-		if err != nil {
+		if err != nil && !apierrs.IsNotFound(err) {
 			msg := fmt.Sprintf("failed to delete snapshot API object %s/%s part of group snapshot %s: %v", snapshot.Namespace, snapshot.Name, utils.GroupSnapshotKey(groupSnapshot), err)
 			klog.Error(msg)
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
