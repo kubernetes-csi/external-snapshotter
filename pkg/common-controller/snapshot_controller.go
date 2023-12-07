@@ -286,21 +286,6 @@ func (ctrl *csiSnapshotCommonController) processSnapshotWithDeletionTimestamp(sn
 		content = nil
 	}
 
-	// Block deletion if this snapshot belongs to a group snapshot.
-	if snapshot.Status != nil && snapshot.Status.VolumeGroupSnapshotName != nil {
-		groupSnapshot, err := ctrl.groupSnapshotLister.VolumeGroupSnapshots(snapshot.Namespace).Get(*snapshot.Status.VolumeGroupSnapshotName)
-		if err == nil {
-			msg := fmt.Sprintf("deletion of the individual volume snapshot %s is not allowed as it belongs to group snapshot %s. Deleting the group snapshot will trigger the deletion of all the individual volume snapshots that are part of the group.", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
-			klog.Error(msg)
-			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
-			return fmt.Errorf(msg)
-		}
-		if !apierrs.IsNotFound(err) {
-			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
-			return err
-		}
-	}
-
 	klog.V(5).Infof("processSnapshotWithDeletionTimestamp[%s]: delete snapshot content and remove finalizer from snapshot if needed", utils.SnapshotKey(snapshot))
 
 	return ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, content, deleteContent)
@@ -321,6 +306,26 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeletePending", "Snapshot is being used to restore a PVC")
 		// TODO(@xiangqian): should requeue this?
 		return nil
+	}
+
+	removeGroupFinalizer := false
+	// Block deletion if this snapshot belongs to a group snapshot.
+	if snapshot.Status != nil && snapshot.Status.VolumeGroupSnapshotName != nil {
+		groupSnapshot, err := ctrl.groupSnapshotLister.VolumeGroupSnapshots(snapshot.Namespace).Get(*snapshot.Status.VolumeGroupSnapshotName)
+		if err == nil {
+			msg := fmt.Sprintf("deletion of the individual volume snapshot %s is not allowed as it belongs to group snapshot %s. Deleting the group snapshot will trigger the deletion of all the individual volume snapshots that are part of the group.", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
+			klog.Error(msg)
+			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeletePending", msg)
+			return fmt.Errorf(msg)
+		}
+		if !apierrs.IsNotFound(err) {
+			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
+			return err
+		}
+		// group snapshot API object was deleted.
+		// The VolumeSnapshotInGroupFinalizer can be removed from this snapshot
+		// to trigger deletion.
+		removeGroupFinalizer = true
 	}
 
 	// regardless of the deletion policy, set the VolumeSnapshotBeingDeleted on
@@ -349,7 +354,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	}
 
 	klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
-	// remove finalizers on the VolumeSnapshot object, there are two finalizers:
+	// remove finalizers on the VolumeSnapshot object, there are three finalizers:
 	// 1. VolumeSnapshotAsSourceFinalizer, once reached here, the snapshot is not
 	//    in use to restore PVC, and the finalizer will be removed directly.
 	// 2. VolumeSnapshotBoundFinalizer:
@@ -359,8 +364,10 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	//       by snapshot sidecar controller.
 	//    c. If deletion will not cascade to the content, remove the finalizer on
 	//       the snapshot such that it can be removed from API server.
+	// 3. VolumeSnapshotInGroupFinalizer, if the snapshot was part of a group snapshot,
+	//    then the group snapshot has been deleted, so remove the finalizer.
 	removeBoundFinalizer := !(content != nil && deleteContent)
-	return ctrl.removeSnapshotFinalizer(snapshot, true, removeBoundFinalizer)
+	return ctrl.removeSnapshotFinalizer(snapshot, true, removeBoundFinalizer, removeGroupFinalizer)
 }
 
 // checkandAddSnapshotFinalizers checks and adds snapshot finailzers when needed
@@ -1542,8 +1549,8 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 }
 
 // removeSnapshotFinalizer removes a Finalizer for VolumeSnapshot.
-func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, removeSourceFinalizer bool, removeBoundFinalizer bool) error {
-	if !removeSourceFinalizer && !removeBoundFinalizer {
+func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, removeSourceFinalizer bool, removeBoundFinalizer bool, removeGroupFinalizer bool) error {
+	if !removeSourceFinalizer && !removeBoundFinalizer && !removeGroupFinalizer {
 		return nil
 	}
 
@@ -1570,6 +1577,9 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	}
 	if removeBoundFinalizer {
 		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+	}
+	if removeGroupFinalizer {
+		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotInGroupFinalizer)
 	}
 	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
