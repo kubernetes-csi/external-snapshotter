@@ -1271,7 +1271,7 @@ func testAddSingleSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *
 }
 
 func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true)
+	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true, false)
 }
 
 func testUpdateSnapshotClass(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {

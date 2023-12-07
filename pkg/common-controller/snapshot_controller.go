@@ -311,7 +311,6 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	removeGroupFinalizer := false
 	// Block deletion if this snapshot belongs to a group snapshot.
 	if snapshot.Status != nil && snapshot.Status.VolumeGroupSnapshotName != nil {
-		removeGroupFinalizer = true
 		groupSnapshot, err := ctrl.groupSnapshotLister.VolumeGroupSnapshots(snapshot.Namespace).Get(*snapshot.Status.VolumeGroupSnapshotName)
 		if err == nil {
 			msg := fmt.Sprintf("deletion of the individual volume snapshot %s is not allowed as it belongs to group snapshot %s. Deleting the group snapshot will trigger the deletion of all the individual volume snapshots that are part of the group.", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
@@ -323,6 +322,10 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
 			return err
 		}
+		// group snapshot API object was deleted.
+		// The VolumeSnapshotInGroupFinalizer can be removed from this snapshot
+		// to trigger deletion.
+		removeGroupFinalizer = true
 	}
 
 	// regardless of the deletion policy, set the VolumeSnapshotBeingDeleted on
@@ -351,7 +354,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	}
 
 	klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: Remove Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
-	// remove finalizers on the VolumeSnapshot object, there are two finalizers:
+	// remove finalizers on the VolumeSnapshot object, there are three finalizers:
 	// 1. VolumeSnapshotAsSourceFinalizer, once reached here, the snapshot is not
 	//    in use to restore PVC, and the finalizer will be removed directly.
 	// 2. VolumeSnapshotBoundFinalizer:
@@ -361,6 +364,8 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	//       by snapshot sidecar controller.
 	//    c. If deletion will not cascade to the content, remove the finalizer on
 	//       the snapshot such that it can be removed from API server.
+	// 3. VolumeSnapshotInGroupFinalizer, if the snapshot was part of a group snapshot,
+	//    then the group snapshot has been deleted, so remove the finalizer.
 	removeBoundFinalizer := !(content != nil && deleteContent)
 	return ctrl.removeSnapshotFinalizer(snapshot, true, removeBoundFinalizer, removeGroupFinalizer)
 }
