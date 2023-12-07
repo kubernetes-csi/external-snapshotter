@@ -461,9 +461,10 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		label["volumeGroupSnapshotName"] = groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name
 		volumeSnapshot := &crdv1.VolumeSnapshot{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      volumeSnapshotName,
-				Namespace: volumeSnapshotNamespace,
-				Labels:    label,
+				Name:       volumeSnapshotName,
+				Namespace:  volumeSnapshotNamespace,
+				Labels:     label,
+				Finalizers: []string{utils.VolumeSnapshotInGroupFinalizer},
 			},
 			Spec: crdv1.VolumeSnapshotSpec{
 				Source: crdv1.VolumeSnapshotSource{

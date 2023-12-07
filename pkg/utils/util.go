@@ -74,6 +74,8 @@ const (
 	VolumeSnapshotBoundFinalizer = "snapshot.storage.kubernetes.io/volumesnapshot-bound-protection"
 	// Name of finalizer on VolumeSnapshot that is used as a source to create a PVC
 	VolumeSnapshotAsSourceFinalizer = "snapshot.storage.kubernetes.io/volumesnapshot-as-source-protection"
+	// Name of finalizer on VolumeSnapshot that is a part of a VolumeGroupSnapshot
+	VolumeSnapshotInGroupFinalizer = "snapshot.storage.kubernetes.io/volumesnapshot-in-group-protection"
 	// Name of finalizer on PVCs that is being used as a source to create VolumeSnapshots
 	PVCFinalizer = "snapshot.storage.kubernetes.io/pvc-as-source-protection"
 	// Name of finalizer on VolumeGroupSnapshotContents that are bound by VolumeGroupSnapshots

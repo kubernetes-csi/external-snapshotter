@@ -1114,6 +1114,9 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	for _, snapshotRef := range groupSnapshot.Status.VolumeSnapshotRefList {
 		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(snapshotRef.Namespace).Get(snapshotRef.Name)
 		if err != nil {
+			if apierrs.IsNotFound(err) {
+				continue
+			}
 			return err
 		}
 		if ctrl.isVolumeBeingCreatedFromSnapshot(snapshot) {
