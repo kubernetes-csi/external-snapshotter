@@ -1,5 +1,5 @@
 /*
-Copyright 2019 The Kubernetes Authors.
+Copyright 2023 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,13 +57,55 @@ const (
 	ResponseHeaderMatchedFlowSchemaUID                 = "X-Kubernetes-PF-FlowSchema-UID"
 )
 
+const (
+	// AutoUpdateAnnotationKey is the name of an annotation that enables
+	// automatic update of the spec of the bootstrap configuration
+	// object(s), if set to 'true'.
+	//
+	// On a fresh install, all bootstrap configuration objects will have auto
+	// update enabled with the following annotation key:
+	//    apf.kubernetes.io/autoupdate-spec: 'true'
+	//
+	// The kube-apiserver periodically checks the bootstrap configuration
+	// objects on the cluster and applies updates if necessary.
+	//
+	// kube-apiserver enforces an 'always auto-update' policy for the
+	// mandatory configuration object(s). This implies:
+	// - the auto-update annotation key is added with a value of 'true'
+	//   if it is missing.
+	// - the auto-update annotation key is set to 'true' if its current value
+	//   is a boolean false or has an invalid boolean representation
+	//   (if the cluster operator sets it to 'false' it will be stomped)
+	// - any changes to the spec made by the cluster operator will be
+	//   stomped, except for changes to the `nominalConcurrencyShares`
+	//   and `lendablePercent` fields of the PriorityLevelConfiguration
+	//   named "exempt".
+	//
+	// The kube-apiserver will apply updates on the suggested configuration if:
+	// - the cluster operator has enabled auto-update by setting the annotation
+	//   (apf.kubernetes.io/autoupdate-spec: 'true') or
+	// - the annotation key is missing but the generation is 1
+	//
+	// If the suggested configuration object is missing the annotation key,
+	// kube-apiserver will update the annotation appropriately:
+	// - it is set to 'true' if generation of the object is '1' which usually
+	//   indicates that the spec of the object has not been changed.
+	// - it is set to 'false' if generation of the object is greater than 1.
+	//
+	// The goal is to enable the kube-apiserver to apply update on suggested
+	// configuration objects installed by previous releases but not overwrite
+	// changes made by the cluster operators.
+	// Note that this distinction is imperfectly detected: in the case where an
+	// operator deletes a suggested configuration object and later creates it
+	// but with a variant spec and then does no updates of the object
+	// (generation is 1), the technique outlined above will incorrectly
+	// determine that the object should be auto-updated.
+	AutoUpdateAnnotationKey = "apf.kubernetes.io/autoupdate-spec"
+)
+
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +k8s:prerelease-lifecycle-gen:introduced=1.18
-// +k8s:prerelease-lifecycle-gen:deprecated=1.20
-// +k8s:prerelease-lifecycle-gen:removed=1.21
-// +k8s:prerelease-lifecycle-gen:replacement=flowcontrol.apiserver.k8s.io,v1beta3,FlowSchema
 
 // FlowSchema defines the schema of a group of flows. Note that a flow is made up of a set of inbound API requests with
 // similar attributes and is identified by a pair of strings: the name of the FlowSchema and a "flow distinguisher".
@@ -84,10 +126,6 @@ type FlowSchema struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +k8s:prerelease-lifecycle-gen:introduced=1.18
-// +k8s:prerelease-lifecycle-gen:deprecated=1.20
-// +k8s:prerelease-lifecycle-gen:removed=1.21
-// +k8s:prerelease-lifecycle-gen:replacement=flowcontrol.apiserver.k8s.io,v1beta3,FlowSchemaList
 
 // FlowSchemaList is a list of FlowSchema objects.
 type FlowSchemaList struct {
@@ -314,8 +352,10 @@ type FlowSchemaStatus struct {
 	// `conditions` is a list of the current states of FlowSchema.
 	// +listType=map
 	// +listMapKey=type
+	// +patchMergeKey=type
+	// +patchStrategy=merge
 	// +optional
-	Conditions []FlowSchemaCondition `json:"conditions,omitempty" protobuf:"bytes,1,rep,name=conditions"`
+	Conditions []FlowSchemaCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 // FlowSchemaCondition describes conditions for a FlowSchema.
@@ -341,10 +381,6 @@ type FlowSchemaConditionType string
 // +genclient
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +k8s:prerelease-lifecycle-gen:introduced=1.18
-// +k8s:prerelease-lifecycle-gen:deprecated=1.20
-// +k8s:prerelease-lifecycle-gen:removed=1.21
-// +k8s:prerelease-lifecycle-gen:replacement=flowcontrol.apiserver.k8s.io,v1beta3,PriorityLevelConfiguration
 
 // PriorityLevelConfiguration represents the configuration of a priority level.
 type PriorityLevelConfiguration struct {
@@ -364,10 +400,6 @@ type PriorityLevelConfiguration struct {
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
-// +k8s:prerelease-lifecycle-gen:introduced=1.18
-// +k8s:prerelease-lifecycle-gen:deprecated=1.20
-// +k8s:prerelease-lifecycle-gen:removed=1.21
-// +k8s:prerelease-lifecycle-gen:replacement=flowcontrol.apiserver.k8s.io,v1beta3,PriorityLevelConfigurationList
 
 // PriorityLevelConfigurationList is a list of PriorityLevelConfiguration objects.
 type PriorityLevelConfigurationList struct {
@@ -426,23 +458,28 @@ const (
 //   - How are requests for this priority level limited?
 //   - What should be done with requests that exceed the limit?
 type LimitedPriorityLevelConfiguration struct {
-	// `assuredConcurrencyShares` (ACS) configures the execution
-	// limit, which is a limit on the number of requests of this
-	// priority level that may be exeucting at a given time.  ACS must
-	// be a positive number. The server's concurrency limit (SCL) is
-	// divided among the concurrency-controlled priority levels in
-	// proportion to their assured concurrency shares. This produces
-	// the assured concurrency value (ACV) --- the number of requests
-	// that may be executing at a time --- for each such priority
-	// level:
+	// `nominalConcurrencyShares` (NCS) contributes to the computation of the
+	// NominalConcurrencyLimit (NominalCL) of this level.
+	// This is the number of execution seats available at this priority level.
+	// This is used both for requests dispatched from this priority level
+	// as well as requests dispatched from other priority levels
+	// borrowing seats from this level.
+	// The server's concurrency limit (ServerCL) is divided among the
+	// Limited priority levels in proportion to their NCS values:
 	//
-	//             ACV(l) = ceil( SCL * ACS(l) / ( sum[priority levels k] ACS(k) ) )
+	// NominalCL(i)  = ceil( ServerCL * NCS(i) / sum_ncs )
+	// sum_ncs = sum[priority level k] NCS(k)
 	//
-	// bigger numbers of ACS mean more reserved concurrent requests (at the
-	// expense of every other PL).
-	// This field has a default value of 30.
+	// Bigger numbers mean a larger nominal concurrency limit,
+	// at the expense of every other priority level.
+	//
+	// If not specified, this field defaults to a value of 30.
+	//
+	// Setting this field to zero supports the construction of a
+	// "jail" for this priority level that is used to hold some request(s)
+	//
 	// +optional
-	AssuredConcurrencyShares int32 `json:"assuredConcurrencyShares" protobuf:"varint,1,opt,name=assuredConcurrencyShares"`
+	NominalConcurrencyShares *int32 `json:"nominalConcurrencyShares" protobuf:"varint,1,opt,name=nominalConcurrencyShares"`
 
 	// `limitResponse` indicates what to do with requests that can not be executed right now
 	LimitResponse LimitResponse `json:"limitResponse,omitempty" protobuf:"bytes,2,opt,name=limitResponse"`
@@ -586,8 +623,10 @@ type PriorityLevelConfigurationStatus struct {
 	// `conditions` is the current state of "request-priority".
 	// +listType=map
 	// +listMapKey=type
+	// +patchMergeKey=type
+	// +patchStrategy=merge
 	// +optional
-	Conditions []PriorityLevelConfigurationCondition `json:"conditions,omitempty" protobuf:"bytes,1,rep,name=conditions"`
+	Conditions []PriorityLevelConfigurationCondition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 // PriorityLevelConfigurationCondition defines the condition of priority level.
