@@ -17,11 +17,11 @@ require (
 	github.com/spf13/cobra v1.8.0
 	google.golang.org/grpc v1.59.0
 	google.golang.org/protobuf v1.31.0
-	k8s.io/api v0.29.0-rc.1
-	k8s.io/apimachinery v0.29.0-rc.1
-	k8s.io/client-go v0.29.0-rc.1
-	k8s.io/component-base v0.28.0
-	k8s.io/component-helpers v0.28.0
+	k8s.io/api v0.29.0
+	k8s.io/apimachinery v0.29.0
+	k8s.io/client-go v0.29.0
+	k8s.io/component-base v0.29.0
+	k8s.io/component-helpers v0.29.0
 	k8s.io/klog/v2 v2.110.1
 )
 
@@ -78,14 +78,14 @@ require (
 
 replace github.com/kubernetes-csi/external-snapshotter/client/v6 => ./client
 
-replace k8s.io/api => k8s.io/api v0.29.0-rc.1
+replace k8s.io/api => k8s.io/api v0.29.0
 
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.29.0-rc.1
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.29.0
 
-replace k8s.io/client-go => k8s.io/client-go v0.29.0-rc.1
+replace k8s.io/client-go => k8s.io/client-go v0.29.0
 
-replace k8s.io/code-generator => k8s.io/code-generator v0.29.0-rc.1
+replace k8s.io/code-generator => k8s.io/code-generator v0.29.0
 
-replace k8s.io/component-base => k8s.io/component-base v0.29.0-rc.1
+replace k8s.io/component-base => k8s.io/component-base v0.29.0
 
-replace k8s.io/component-helpers => k8s.io/component-helpers v0.29.0-rc.1
+replace k8s.io/component-helpers => k8s.io/component-helpers v0.29.0
