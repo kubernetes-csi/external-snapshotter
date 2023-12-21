@@ -115,14 +115,16 @@ func connect(
 	}
 
 	dialOptions = append(dialOptions,
-		grpc.WithInsecure(),                   // Don't use TLS, it's usually local Unix domain socket in a container.
-		grpc.WithBackoffMaxDelay(time.Second), // Retry every second after failure.
-		grpc.WithBlock(),                      // Block until connection succeeds.
+		grpc.WithInsecure(),                    // Don't use TLS, it's usually local Unix domain socket in a container.
+		grpc.WithBackoffMaxDelay(time.Second),  // Retry every second after failure.
+		grpc.WithBlock(),                       // Block until connection succeeds.
+		grpc.WithIdleTimeout(time.Duration(0)), // Never close connection because of inactivity.
 		grpc.WithChainUnaryInterceptor(
 			LogGRPC, // Log all messages.
 			ExtendedCSIMetricsManager{metricsManager}.RecordMetricsClientInterceptor, // Record metrics for each gRPC call.
 		),
 	)
+
 	unixPrefix := "unix://"
 	if strings.HasPrefix(address, "/") {
 		// It looks like filesystem path.
