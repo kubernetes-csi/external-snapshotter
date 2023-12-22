@@ -1,3 +1,24 @@
+# Release notes for v6.3.3
+
+[Documentation](https://kubernetes-csi.github.io)
+
+## Changes by Kind
+
+### Uncategorized
+
+- Cherry-pick from PR 876: Update VolumeSnapshot and VolumeSnapshotContent using JSON patch ([#974](https://github.com/kubernetes-csi/external-snapshotter/pull/974), [@phoenix-bjoern](https://github.com/phoenix-bjoern))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/kubernetes-csi/csi-lib-utils: [v0.14.0 → v0.14.1](https://github.com/kubernetes-csi/csi-lib-utils/compare/v0.14.0...v0.14.1)
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v6.3.2
 
 [Documentation](https://kubernetes-csi.github.io)
