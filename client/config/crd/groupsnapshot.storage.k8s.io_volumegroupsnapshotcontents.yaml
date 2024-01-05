@@ -104,8 +104,8 @@ spec:
                   dynamically provisioned or already exists, and just requires a Kubernetes
                   object representation. This field is immutable after creation. Required.
                 properties:
-                  groupSnapshotHandleSource:
-                    description: GroupSnapshotHandleSource specifies the CSI "group_snapshot_id"
+                  groupSnapshotHandles:
+                    description: GroupSnapshotHandles specifies the CSI "group_snapshot_id"
                       of a pre-existing group snapshot and a list of CSI "snapshot_id"
                       of pre-existing snapshots on the underlying storage system for
                       which a Kubernetes object representation was (or should be)
@@ -129,17 +129,17 @@ spec:
                     - volumeGroupSnapshotHandle
                     - volumeSnapshotHandles
                     type: object
-                  persistentVolumeNames:
-                    description: PersistentVolumeNames is a list of names of PersistentVolumes
-                      to be snapshotted together. It is specified for dynamic provisioning
-                      of the VolumeGroupSnapshot. This field is immutable.
+                  volumeHandles:
+                    description: VolumeHandles is a list of volume handles on the
+                      backend to be snapshotted together. It is specified for dynamic
+                      provisioning of the VolumeGroupSnapshot. This field is immutable.
                     items:
                       type: string
                     type: array
                 type: object
                 oneOf:
-                - required: ["persistentVolumeNames"]
-                - required: ["groupSnapshotHandleSource"]
+                - required: ["volumeHandles"]
+                - required: ["groupSnapshotHandles"]
               volumeGroupSnapshotClassName:
                 description: VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
                   from which this group snapshot was (or will be) created. Note that

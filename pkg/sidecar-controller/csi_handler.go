@@ -35,7 +35,7 @@ type Handler interface {
 	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
-	CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
+	CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
 	GetGroupSnapshotStatus(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, error)
 	DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, SnapshotID []string, snapshotterCredentials map[string]string) error
 }
@@ -148,7 +148,7 @@ func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (s
 	return fmt.Sprintf("%s-%s", prefix, strings.Replace(snapshotUID, "-", "", -1)[0:snapshotNameUUIDLength]), nil
 }
 
-func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
+func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
@@ -156,7 +156,7 @@ func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupS
 		return "", "", nil, time.Time{}, false, fmt.Errorf("cannot create group snapshot. Group snapshot content %s not bound to a group snapshot", content.Name)
 	}
 
-	if len(volumeIDs) == 0 {
+	if len(content.Spec.Source.VolumeHandles) == 0 {
 		return "", "", nil, time.Time{}, false, fmt.Errorf("cannot create group snapshot. PVCs to be snapshotted not found in group snapshot content %s", content.Name)
 	}
 
@@ -164,7 +164,7 @@ func (handler *csiHandler) CreateGroupSnapshot(content *crdv1alpha1.VolumeGroupS
 	if err != nil {
 		return "", "", nil, time.Time{}, false, err
 	}
-	return handler.groupSnapshotter.CreateGroupSnapshot(ctx, groupSnapshotName, volumeIDs, parameters, snapshotterCredentials)
+	return handler.groupSnapshotter.CreateGroupSnapshot(ctx, groupSnapshotName, content.Spec.Source.VolumeHandles, parameters, snapshotterCredentials)
 }
 
 func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) error {
@@ -179,8 +179,8 @@ func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1alpha1.VolumeGroupS
 
 	if content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil {
 		groupSnapshotHandle = *content.Status.VolumeGroupSnapshotHandle
-	} else if content.Spec.Source.VolumeGroupSnapshotHandle != nil {
-		groupSnapshotHandle = *content.Spec.Source.VolumeGroupSnapshotHandle
+	} else if content.Spec.Source.GroupSnapshotHandles != nil {
+		groupSnapshotHandle = content.Spec.Source.GroupSnapshotHandles.VolumeGroupSnapshotHandle
 	} else {
 		return fmt.Errorf("failed to delete group snapshot content %s: groupsnapshotHandle is missing", content.Name)
 	}
@@ -196,8 +196,8 @@ func (handler *csiHandler) GetGroupSnapshotStatus(groupSnapshotContent *crdv1alp
 	var err error
 	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.VolumeGroupSnapshotHandle != nil {
 		groupSnapshotHandle = *groupSnapshotContent.Status.VolumeGroupSnapshotHandle
-	} else if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil {
-		groupSnapshotHandle = *groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle
+	} else if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
+		groupSnapshotHandle = groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeGroupSnapshotHandle
 	} else {
 		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: groupSnapshotHandle is missing", groupSnapshotContent.Name)
 	}

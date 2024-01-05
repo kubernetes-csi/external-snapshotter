@@ -426,7 +426,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(groupSnapshot 
 
 	if contentObj != nil {
 		klog.V(5).Infof("Found VolumeGroupSnapshotContent object %s for group snapshot %s", contentObj.Name, uniqueGroupSnapshotName)
-		if contentObj.Spec.Source.VolumeGroupSnapshotHandle != nil {
+		if contentObj.Spec.Source.GroupSnapshotHandles != nil {
 			ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotHandleSet", fmt.Sprintf("GroupSnapshot handle should not be set in group snapshot content %s for dynamic provisioning", uniqueGroupSnapshotName))
 			return fmt.Errorf("VolumeGroupSnapshotHandle should not be set in the group snapshot content for dynamic provisioning for group snapshot %s", uniqueGroupSnapshotName)
 		}
@@ -483,7 +483,7 @@ func (ctrl *csiSnapshotCommonController) getPreprovisionedGroupSnapshotContentFr
 		return nil, nil
 	}
 	// check whether the content is a pre-provisioned VolumeGroupSnapshotContent
-	if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle == nil {
+	if groupSnapshotContent.Spec.Source.GroupSnapshotHandles == nil {
 		// found a group snapshot content which represents a dynamically provisioned group snapshot
 		// update the group snapshot and return an error
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotContentMismatch", "VolumeGroupSnapshotContent is dynamically provisioned while expecting a pre-provisioned one")
@@ -682,7 +682,7 @@ func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedGroupContentFr
 		return nil, nil
 	}
 	// check whether the group snapshot content represents a dynamically provisioned snapshot
-	if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil {
+	if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotContentMismatch", "VolumeGroupSnapshotContent "+contentName+" is pre-provisioned while expecting a dynamically provisioned one")
 		klog.V(4).Infof("sync group snapshot[%s]: group snapshot content %s is pre-provisioned while expecting a dynamically provisioned one", utils.GroupSnapshotKey(groupSnapshot), contentName)
 		return nil, fmt.Errorf("group snapshot %s expects a dynamically provisioned VolumeGroupSnapshotContent %s but gets a pre-provisioned one", utils.GroupSnapshotKey(groupSnapshot), contentName)
@@ -752,9 +752,9 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	if err != nil {
 		return nil, err
 	}
-	var pvNames []string
+	var volumeHandles []string
 	for _, pv := range volumes {
-		pvNames = append(pvNames, pv.Name)
+		volumeHandles = append(volumeHandles, pv.Spec.CSI.VolumeHandle)
 	}
 
 	groupSnapshotContent := &crdv1alpha1.VolumeGroupSnapshotContent{
@@ -764,7 +764,7 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		Spec: crdv1alpha1.VolumeGroupSnapshotContentSpec{
 			VolumeGroupSnapshotRef: *snapshotRef,
 			Source: crdv1alpha1.VolumeGroupSnapshotContentSource{
-				PersistentVolumeNames: pvNames,
+				VolumeHandles: volumeHandles,
 			},
 			VolumeGroupSnapshotClassName: &(groupSnapshotClass.Name),
 			DeletionPolicy:               groupSnapshotClass.DeletionPolicy,
@@ -846,9 +846,9 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotC
 	klog.V(5).Infof("syncGroupSnapshotContent[%s]: check if we should add invalid label on group snapshot content", groupSnapshotContent.Name)
 
 	// Keep this check in the controller since the validation webhook may not have been deployed.
-	if (groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle == nil && len(groupSnapshotContent.Spec.Source.PersistentVolumeNames) == 0) ||
-		(groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil && len(groupSnapshotContent.Spec.Source.PersistentVolumeNames) > 0) {
-		err := fmt.Errorf("Exactly one of VolumeGroupSnapshotHandle and PersistentVolumeNames should be specified")
+	if (groupSnapshotContent.Spec.Source.GroupSnapshotHandles == nil && len(groupSnapshotContent.Spec.Source.VolumeHandles) == 0) ||
+		(groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil && len(groupSnapshotContent.Spec.Source.VolumeHandles) > 0) {
+		err := fmt.Errorf("Exactly one of GroupSnapshotHandles and VolumeHandles should be specified")
 		klog.Errorf("syncGroupSnapshotContent[%s]: validation error, %s", groupSnapshotContent.Name, err.Error())
 		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupContentValidationError", err.Error())
 		return err

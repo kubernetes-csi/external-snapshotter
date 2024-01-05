@@ -144,7 +144,7 @@ Update the restoreSize property to use type string only:
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
 
-* In `client/config/crd/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `persistentVolumeNames` and `volumeGroupSnapshotHandle` is specified in the `source` field of the `spec` of `VolumeGroupSnapshotContent`.
+* In `client/config/crd/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml `, we need to add the `oneOf` constraint to make sure only one of `volumeHandles` and `groupSnapshotHandles` is specified in the `source` field of the `spec` of `VolumeGroupSnapshotContent`.
 
 ```bash
               source:
@@ -152,22 +152,41 @@ Update the restoreSize property to use type string only:
                   dynamically provisioned or already exists, and just requires a Kubernetes
                   object representation. This field is immutable after creation. Required.
                 properties:
-                  persistentVolumeNames:
-                    description: PersistentVolumeNames is a list of names of PersistentVolumes
-                      to be snapshotted together. It is specified for dynamic provisioning
-                      of the VolumeGroupSnapshot. This field is immutable.
+                  groupSnapshotHandles:
+                    description: GroupSnapshotHandles specifies the CSI "group_snapshot_id"
+                      of a pre-existing group snapshot and a list of CSI "snapshot_id"
+                      of pre-existing snapshots on the underlying storage system for
+                      which a Kubernetes object representation was (or should be)
+                      created. This field is immutable.
+                    properties:
+                      volumeGroupSnapshotHandle:
+                        description: VolumeGroupSnapshotHandle specifies the CSI "group_snapshot_id"
+                          of a pre-existing group snapshot on the underlying storage
+                          system for which a Kubernetes object representation was
+                          (or should be) created. This field is immutable. Required.
+                        type: string
+                      volumeSnapshotHandles:
+                        description: VolumeSnapshotHandles is a list of CSI "snapshot_id"
+                          of pre-existing snapshots on the underlying storage system
+                          for which Kubernetes objects representation were (or should
+                          be) created. This field is immutable. Required.
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - volumeGroupSnapshotHandle
+                    - volumeSnapshotHandles
+                    type: object
+                  volumeHandles:
+                    description: VolumeHandles is a list of volume handles on the
+                      backend to be snapshotted together. It is specified for dynamic
+                      provisioning of the VolumeGroupSnapshot. This field is immutable.
                     items:
                       type: string
                     type: array
-                  volumeGroupSnapshotHandle:
-                    description: VolumeGroupSnapshotHandle specifies the CSI "group_snapshot_id"
-                      of a pre-existing group snapshot on the underlying storage system
-                      for which a Kubernetes object representation was (or should
-                      be) created. This field is immutable.
-                    type: string
                 type: object
                 oneOf:
-                - required: ["persistentVolumeNames"]
-                - required: ["volumeGroupSnapshotHandle"]
+                - required: ["volumeHandles"]
+                - required: ["groupSnapshotHandles"]
               volumeGroupSnapshotClassName:
 ```
