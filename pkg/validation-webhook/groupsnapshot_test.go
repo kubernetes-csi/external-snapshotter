@@ -248,11 +248,16 @@ func TestAdmitVolumeGroupSnapshotV1Alpha1(t *testing.T) {
 
 func TestAdmitVolumeGroupSnapshotContentV1Alpha1(t *testing.T) {
 	volumeHandle := "volumeHandle1"
-	modifiedField := "modified-field"
+	modifiedRefName := "modified-ref-name"
 	groupSnapshotHandle := "groupsnapshotHandle1"
+	volumeSnapshotHandles := []string{"volumeSnapshotHandle1"}
 	groupSnapshotHandles := &volumegroupsnapshotv1alpha1.GroupSnapshotHandles{
-		VolumeGroupSnapshotHandle: "volumeGroupSnapshotHandle1",
-		VolumeSnapshotHandles:     []string{"volumeSnapshotHandle1", "volumeSnapshotHandle2"},
+		VolumeGroupSnapshotHandle: groupSnapshotHandle,
+		VolumeSnapshotHandles:     volumeSnapshotHandles,
+	}
+	modifiedGroupSnapshotHandles := &volumegroupsnapshotv1alpha1.GroupSnapshotHandles{
+		VolumeGroupSnapshotHandle: groupSnapshotHandle,
+		VolumeSnapshotHandles:     append(volumeSnapshotHandles, "volumeSnapshotHandle2"),
 	}
 	volumeGroupSnapshotClassName := "volume-snapshot-class-1"
 	validContent := &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContent{
@@ -321,7 +326,7 @@ func TestAdmitVolumeGroupSnapshotContentV1Alpha1(t *testing.T) {
 			groupSnapContent: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContent{
 				Spec: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContentSpec{
 					Source: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContentSource{
-						VolumeGroupSnapshotHandle: &modifiedField,
+						GroupSnapshotHandles: modifiedGroupSnapshotHandles,
 					},
 					VolumeGroupSnapshotRef: core_v1.ObjectReference{
 						Name:      "snapshot-ref",
@@ -332,17 +337,20 @@ func TestAdmitVolumeGroupSnapshotContentV1Alpha1(t *testing.T) {
 			oldGroupSnapContent: validContent,
 			shouldAdmit:         false,
 			operation:           v1.Update,
-			msg:                 fmt.Sprintf("Spec.Source.VolumeGroupSnapshotHandle is immutable but was changed from %s to %s", groupSnapshotHandle, modifiedField),
+			msg:                 fmt.Sprintf("Spec.Source.GroupSnapshotHandles is immutable but was changed from %s to %s", groupSnapshotHandles, modifiedGroupSnapshotHandles),
 		},
 		{
 			name: "Update: old is valid and new is valid but modifies immutable ref",
 			groupSnapContent: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContent{
 				Spec: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContentSpec{
 					Source: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotContentSource{
-						VolumeGroupSnapshotHandle: &groupSnapshotHandle,
+						GroupSnapshotHandles: &volumegroupsnapshotv1alpha1.GroupSnapshotHandles{
+							VolumeGroupSnapshotHandle: groupSnapshotHandle,
+							VolumeSnapshotHandles:     volumeSnapshotHandles,
+						},
 					},
 					VolumeGroupSnapshotRef: core_v1.ObjectReference{
-						Name:      modifiedField,
+						Name:      modifiedRefName,
 						Namespace: "default-ns",
 					},
 				},
@@ -351,7 +359,7 @@ func TestAdmitVolumeGroupSnapshotContentV1Alpha1(t *testing.T) {
 			shouldAdmit:         false,
 			operation:           v1.Update,
 			msg: fmt.Sprintf("Spec.VolumeGroupSnapshotRef.Name is immutable but was changed from %s to %s",
-				validContent.Spec.VolumeGroupSnapshotRef.Name, modifiedField),
+				validContent.Spec.VolumeGroupSnapshotRef.Name, modifiedRefName),
 		},
 		{
 			name:                "Update: old is invalid and new is valid",

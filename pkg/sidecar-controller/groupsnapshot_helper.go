@@ -426,12 +426,6 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 	// Create individual snapshots and snapshot contents
 	var snapshotContentNames []string
 	for _, snapshot := range snapshots {
-		/*
-			uuid, ok := uuidMap[snapshot.SourceVolumeId]
-			if !ok {
-				continue
-			}
-		*/
 		volumeSnapshotContentName := GetSnapshotContentNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), snapshot.SourceVolumeId)
 		volumeSnapshotName := GetSnapshotNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), snapshot.SourceVolumeId)
 		volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
