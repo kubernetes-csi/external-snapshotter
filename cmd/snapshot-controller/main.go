@@ -74,46 +74,49 @@ var (
 	preventVolumeModeConversion   = flag.Bool("prevent-volume-mode-conversion", true, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
 	enableVolumeGroupSnapshots    = flag.Bool("enable-volume-group-snapshots", false, "Enables the volume group snapshot feature, allowing the user to create a snapshot of a group of volumes.")
 
-	retryCRDIntervalMax = flag.Duration("retry-crd-interval-max", 5*time.Second, "Maximum retry interval to wait for CRDs to appear. The default is 5 seconds.")
+	retryCRDIntervalMax = flag.Duration("retry-crd-interval-max", 30*time.Second, "Maximum time to wait for CRDs to appear. The default is 30 seconds.")
 )
 
 var version = "unknown"
 
-// Checks that the VolumeSnapshot v1 CRDs exist.
+// Checks that the VolumeSnapshot v1 CRDs exist. It will wait at most the duration specified by retryCRDIntervalMax
 func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVolumeGroupSnapshots bool) error {
-	condition := func() (bool, error) {
+	condition := func(ctx context.Context) (bool, error) {
 		var err error
+		// List calls should return faster with a limit of 0.
+		// We do not care about what is returned and just want to make sure the CRDs exist.
+		listOptions := metav1.ListOptions{Limit: 0}
 
 		// scoping to an empty namespace makes `List` work across all namespaces
-		_, err = client.SnapshotV1().VolumeSnapshots("").List(context.TODO(), metav1.ListOptions{})
+		_, err = client.SnapshotV1().VolumeSnapshots("").List(ctx, listOptions)
 		if err != nil {
 			klog.Errorf("Failed to list v1 volumesnapshots with error=%+v", err)
 			return false, nil
 		}
 
-		_, err = client.SnapshotV1().VolumeSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
+		_, err = client.SnapshotV1().VolumeSnapshotClasses().List(ctx, listOptions)
 		if err != nil {
 			klog.Errorf("Failed to list v1 volumesnapshotclasses with error=%+v", err)
 			return false, nil
 		}
-		_, err = client.SnapshotV1().VolumeSnapshotContents().List(context.TODO(), metav1.ListOptions{})
+		_, err = client.SnapshotV1().VolumeSnapshotContents().List(ctx, listOptions)
 		if err != nil {
 			klog.Errorf("Failed to list v1 volumesnapshotcontents with error=%+v", err)
 			return false, nil
 		}
 		if enableVolumeGroupSnapshots {
-			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshots("").List(context.TODO(), metav1.ListOptions{})
+			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshots("").List(ctx, listOptions)
 			if err != nil {
 				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshots with error=%+v", err)
 				return false, nil
 			}
 
-			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotClasses().List(context.TODO(), metav1.ListOptions{})
+			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotClasses().List(ctx, listOptions)
 			if err != nil {
 				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshotclasses with error=%+v", err)
 				return false, nil
 			}
-			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().List(context.TODO(), metav1.ListOptions{})
+			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().List(ctx, listOptions)
 			if err != nil {
 				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshotcontents with error=%+v", err)
 				return false, nil
@@ -123,24 +126,19 @@ func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVol
 		return true, nil
 	}
 
-	// The maximum retry duration = initial duration * retry factor ^ # steps. Rearranging, this gives
-	// # steps = log(maximum retry / initial duration) / log(retry factor).
 	const retryFactor = 1.5
-	const initialDurationMs = 100
-	maxMs := retryCRDIntervalMax.Milliseconds()
-	if maxMs < initialDurationMs {
-		maxMs = initialDurationMs
-	}
-	steps := int(math.Ceil(math.Log(float64(maxMs)/initialDurationMs) / math.Log(retryFactor)))
-	if steps < 1 {
-		steps = 1
-	}
+	const initialDuration = 100 * time.Millisecond
 	backoff := wait.Backoff{
-		Duration: initialDurationMs * time.Millisecond,
+		Duration: initialDuration,
 		Factor:   retryFactor,
-		Steps:    steps,
+		Steps:    math.MaxInt32, // effectively no limit until the timeout is reached
 	}
-	if err := wait.ExponentialBackoff(backoff, condition); err != nil {
+
+	// Sanity check to make sure we have a minimum duration of 1 second to work with
+	maxBackoffDuration := max(*retryCRDIntervalMax, 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), maxBackoffDuration)
+	defer cancel()
+	if err := wait.ExponentialBackoffWithContext(ctx, backoff, condition); err != nil {
 		return err
 	}
 
