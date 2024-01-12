@@ -182,7 +182,7 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshot
 		return ctrl.removeGroupSnapshotContentFinalizer(groupSnapshotContent)
 	}
 
-	if len(groupSnapshotContent.Spec.Source.PersistentVolumeNames) != 0 && groupSnapshotContent.Status == nil {
+	if len(groupSnapshotContent.Spec.Source.VolumeHandles) != 0 && groupSnapshotContent.Status == nil {
 		klog.V(5).Infof("syncGroupSnapshotContent: Call CreateGroupSnapshot for group snapshot content %s", groupSnapshotContent.Name)
 		return ctrl.createGroupSnapshot(groupSnapshotContent)
 	}
@@ -331,7 +331,7 @@ func (ctrl *csiSnapshotSideCarController) shouldDeleteGroupSnapshotContent(group
 	}
 	// 1) shouldDeleteGroupSnapshot returns true if a content is not bound
 	// (VolumeGroupSnapshotRef == "") for pre-provisioned snapshot
-	if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil && groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID == "" {
+	if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil && groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID == "" {
 		return true
 	}
 
@@ -401,8 +401,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		parameters[utils.PrefixedVolumeGroupSnapshotContentNameKey] = groupSnapshotContent.Name
 	}
 
-	volumeIDs, uuidMap, err := ctrl.getGroupSnapshotVolumeIDs(groupSnapshotContent)
-	driverName, groupSnapshotID, snapshots, creationTime, readyToUse, err := ctrl.handler.CreateGroupSnapshot(groupSnapshotContent, volumeIDs, parameters, snapshotterCredentials)
+	driverName, groupSnapshotID, snapshots, creationTime, readyToUse, err := ctrl.handler.CreateGroupSnapshot(groupSnapshotContent, parameters, snapshotterCredentials)
 	if err != nil {
 		// NOTE(xyang): handle create timeout
 		// If it is a final error, remove annotation to indicate
@@ -415,7 +414,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 			}
 		}
 
-		return groupSnapshotContent, fmt.Errorf("failed to take group snapshot of the volumes %s: %q", groupSnapshotContent.Spec.Source.PersistentVolumeNames, err)
+		return groupSnapshotContent, fmt.Errorf("failed to take group snapshot of the volumes %s: %q", groupSnapshotContent.Spec.Source.VolumeHandles, err)
 	}
 
 	klog.V(5).Infof("Created group snapshot: driver %s, groupSnapshotId %s, creationTime %v, readyToUse %t", driverName, groupSnapshotID, creationTime, readyToUse)
@@ -427,12 +426,8 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 	// Create individual snapshots and snapshot contents
 	var snapshotContentNames []string
 	for _, snapshot := range snapshots {
-		uuid, ok := uuidMap[snapshot.SourceVolumeId]
-		if !ok {
-			continue
-		}
-		volumeSnapshotContentName := GetSnapshotContentNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), uuid)
-		volumeSnapshotName := GetSnapshotNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), uuid)
+		volumeSnapshotContentName := GetSnapshotContentNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), snapshot.SourceVolumeId)
+		volumeSnapshotName := GetSnapshotNameForVolumeGroupSnapshotContent(string(groupSnapshotContent.UID), snapshot.SourceVolumeId)
 		volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
 		volumeSnapshotContent := &crdv1.VolumeSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{
@@ -514,7 +509,7 @@ func (ctrl *csiSnapshotSideCarController) getCSIGroupSnapshotInput(groupSnapshot
 		}
 	} else {
 		// If dynamic provisioning, return failure if no group snapshot class
-		if len(groupSnapshotContent.Spec.Source.PersistentVolumeNames) != 0 {
+		if len(groupSnapshotContent.Spec.Source.VolumeHandles) != 0 {
 			klog.Errorf("failed to getCSISnapshotInput %s without a group snapshot class", groupSnapshotContent.Name)
 			return nil, nil, fmt.Errorf("failed to take group snapshot %s without a group snapshot class", groupSnapshotContent.Name)
 		}
@@ -580,25 +575,6 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeGroupSnapshotBeingCreated(
 	klog.V(5).Infof("setAnnVolumeGroupSnapshotBeingCreated: volume group snapshot content %+v", groupSnapshotContent)
 
 	return groupSnapshotContent, nil
-}
-
-func (ctrl *csiSnapshotSideCarController) getGroupSnapshotVolumeIDs(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) ([]string, map[string]string, error) {
-	// TODO: Get add PV lister
-	var volumeIDs []string
-	uuidMap := make(map[string]string)
-	for _, pvName := range groupSnapshotContent.Spec.Source.PersistentVolumeNames {
-		pv, err := ctrl.client.CoreV1().PersistentVolumes().Get(context.TODO(), pvName, metav1.GetOptions{})
-		if err != nil {
-			return nil, nil, err
-		}
-		if pv.Spec.CSI != nil && pv.Spec.CSI.VolumeHandle != "" {
-			volumeIDs = append(volumeIDs, pv.Spec.CSI.VolumeHandle)
-			if pv.Spec.ClaimRef != nil {
-				uuidMap[pv.Spec.CSI.VolumeHandle] = string(pv.Spec.ClaimRef.UID)
-			}
-		}
-	}
-	return volumeIDs, uuidMap, nil
 }
 
 // removeAnnVolumeGroupSnapshotBeingCreated removes the VolumeGroupSnapshotBeingCreated
@@ -802,7 +778,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 	var groupSnapshotID string
 	var snapshotterListCredentials map[string]string
 
-	if groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle != nil {
+	if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
 		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: call GetGroupSnapshotStatus for group snapshot which is pre-bound to group snapshot content [%s]", groupSnapshotContent.Name)
 
 		if groupSnapshotContent.Spec.VolumeGroupSnapshotClassName != nil {
@@ -832,7 +808,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 			return groupSnapshotContent, err
 		}
 		driverName = groupSnapshotContent.Spec.Driver
-		groupSnapshotID = *groupSnapshotContent.Spec.Source.VolumeGroupSnapshotHandle
+		groupSnapshotID = groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeGroupSnapshotHandle
 
 		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: driver %s, groupSnapshotId %s, creationTime %v, readyToUse %t", driverName, groupSnapshotID, creationTime, readyToUse)
 

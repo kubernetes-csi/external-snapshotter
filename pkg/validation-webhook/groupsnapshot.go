@@ -233,11 +233,11 @@ func checkGroupSnapshotContentImmutableFieldsV1Alpha1(groupSnapcontent, oldGroup
 	source := groupSnapcontent.Spec.Source
 	oldSource := oldGroupSnapcontent.Spec.Source
 
-	if !reflect.DeepEqual(source.VolumeGroupSnapshotHandle, oldSource.VolumeGroupSnapshotHandle) {
-		return fmt.Errorf("Spec.Source.VolumeGroupSnapshotHandle is immutable but was changed from %s to %s", strPtrDereference(oldSource.VolumeGroupSnapshotHandle), strPtrDereference(source.VolumeGroupSnapshotHandle))
+	if !reflect.DeepEqual(source.GroupSnapshotHandles, oldSource.GroupSnapshotHandles) {
+		return fmt.Errorf("Spec.Source.GroupSnapshotHandles is immutable but was changed from %s to %s", oldSource.GroupSnapshotHandles, source.GroupSnapshotHandles)
 	}
-	if !reflect.DeepEqual(source.PersistentVolumeNames, oldSource.PersistentVolumeNames) {
-		return fmt.Errorf("Spec.Source.PersistentVolumeNames is immutable but was changed from %v to %v", oldSource.PersistentVolumeNames, source.PersistentVolumeNames)
+	if !reflect.DeepEqual(source.VolumeHandles, oldSource.VolumeHandles) {
+		return fmt.Errorf("Spec.Source.VolumeHandles is immutable but was changed from %v to %v", oldSource.VolumeHandles, source.VolumeHandles)
 	}
 
 	ref := groupSnapcontent.Spec.VolumeGroupSnapshotRef

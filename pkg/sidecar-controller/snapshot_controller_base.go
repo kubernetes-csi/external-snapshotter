@@ -316,7 +316,7 @@ func (ctrl *csiSnapshotSideCarController) isDriverMatch(object interface{}) bool
 		return true
 	}
 	if content, ok := object.(*crdv1alpha1.VolumeGroupSnapshotContent); ok {
-		if content.Spec.Source.VolumeGroupSnapshotHandle == nil && len(content.Spec.Source.PersistentVolumeNames) == 0 {
+		if content.Spec.Source.GroupSnapshotHandles == nil && len(content.Spec.Source.VolumeHandles) == 0 {
 			// Skip this group snapshot content if it does not have a valid source
 			return false
 		}
