@@ -52,8 +52,8 @@ type VolumeGroupSnapshotSource struct {
 	// is created, the existing group snapshots won't be modified.
 	// Once a VolumeGroupSnapshotContent is created and the sidecar starts to process
 	// it, the volume list will not change with retries.
-	// Required.
-	Selector metav1.LabelSelector `json:"selector" protobuf:"bytes,1,opt,name=selector"`
+	// +optional
+	Selector *metav1.LabelSelector `json:"selector,omitempty" protobuf:"bytes,1,opt,name=selector"`
 
 	// VolumeGroupSnapshotContentName specifies the name of a pre-existing VolumeGroupSnapshotContent
 	// object representing an existing volume group snapshot.
