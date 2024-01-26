@@ -295,8 +295,8 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(groupSnapshot *crdv1a
 	}
 	// Keep this check in the controller since the validation webhook may not have been deployed.
 	klog.V(5).Infof("syncGroupSnapshot[%s]: validate group snapshot to make sure source has been correctly specified", utils.GroupSnapshotKey(groupSnapshot))
-	if (&groupSnapshot.Spec.Source.Selector == nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil) ||
-		(&groupSnapshot.Spec.Source.Selector != nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil) {
+	if (groupSnapshot.Spec.Source.Selector == nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil) ||
+		(groupSnapshot.Spec.Source.Selector != nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil) {
 		err := fmt.Errorf("Exactly one of Selector and VolumeGroupSnapshotContentName should be specified")
 		klog.Errorf("syncGroupSnapshot[%s]: validation error, %s", utils.GroupSnapshotKey(groupSnapshot), err.Error())
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotValidationError", err.Error())

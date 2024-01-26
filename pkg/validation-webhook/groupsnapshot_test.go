@@ -90,7 +90,7 @@ func TestAdmitVolumeGroupSnapshotV1Alpha1(t *testing.T) {
 			volumeGroupSnapshot: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshot{
 				Spec: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSpec{
 					Source: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSource{
-						Selector: selector,
+						Selector: &selector,
 					},
 				},
 			},
@@ -172,13 +172,13 @@ func TestAdmitVolumeGroupSnapshotV1Alpha1(t *testing.T) {
 				Spec: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSpec{
 					Source: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSource{
 						VolumeGroupSnapshotContentName: &contentname,
-						Selector:                       selector,
+						Selector:                       &selector,
 					},
 				},
 			},
 			shouldAdmit: false,
 			operation:   v1.Update,
-			msg:         fmt.Sprintf("Spec.Source.Selector is immutable but was changed from %v to %v", selector, metav1.LabelSelector{}),
+			msg:         fmt.Sprintf("Spec.Source.Selector is immutable but was changed from %v to %v", &selector, "nil"),
 		},
 		{
 			// will be handled by schema validation
@@ -187,7 +187,7 @@ func TestAdmitVolumeGroupSnapshotV1Alpha1(t *testing.T) {
 				Spec: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSpec{
 					Source: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSource{
 						VolumeGroupSnapshotContentName: &contentname,
-						Selector:                       selector,
+						Selector:                       &selector,
 					},
 				},
 			},
@@ -195,7 +195,7 @@ func TestAdmitVolumeGroupSnapshotV1Alpha1(t *testing.T) {
 				Spec: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSpec{
 					Source: volumegroupsnapshotv1alpha1.VolumeGroupSnapshotSource{
 						VolumeGroupSnapshotContentName: &contentname,
-						Selector:                       selector,
+						Selector:                       &selector,
 					},
 				},
 			},
