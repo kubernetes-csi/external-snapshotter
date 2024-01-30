@@ -802,7 +802,8 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 			}
 		}
 
-		readyToUse, creationTime, err = ctrl.handler.GetGroupSnapshotStatus(groupSnapshotContent, snapshotterListCredentials)
+		snapshotIDs := groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeSnapshotHandles
+		readyToUse, creationTime, err = ctrl.handler.GetGroupSnapshotStatus(groupSnapshotContent, snapshotIDs, snapshotterListCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateGroupSnapshotContentStatusOperation: failed to call get group snapshot status to check whether group snapshot is ready to use %q", err)
 			return groupSnapshotContent, err
