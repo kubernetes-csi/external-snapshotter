@@ -1,4 +1,4 @@
-module github.com/kubernetes-csi/external-snapshotter/client/v6
+module github.com/kubernetes-csi/external-snapshotter/client/v7
 
 go 1.21
 

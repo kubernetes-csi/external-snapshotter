@@ -19,7 +19,7 @@ package main
 import (
 	"flag"
 
-	webhook "github.com/kubernetes-csi/external-snapshotter/v6/pkg/validation-webhook"
+	webhook "github.com/kubernetes-csi/external-snapshotter/v7/pkg/validation-webhook"
 	"k8s.io/klog/v2"
 )
 
