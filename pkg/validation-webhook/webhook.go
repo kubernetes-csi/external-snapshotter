@@ -25,12 +25,12 @@ import (
 	"net/http"
 	"os"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumegroupsnapshot/v1alpha1"
-	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumegroupsnapshot/v1alpha1"
+	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumesnapshot/v1"
 	"github.com/spf13/cobra"
 
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions"
 	v1 "k8s.io/api/admission/v1"
 	"k8s.io/api/admission/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"

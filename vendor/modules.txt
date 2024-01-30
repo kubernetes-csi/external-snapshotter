@@ -106,25 +106,25 @@ github.com/kubernetes-csi/csi-lib-utils/rpc
 ## explicit; go 1.18
 github.com/kubernetes-csi/csi-test/v5/driver
 github.com/kubernetes-csi/csi-test/v5/utils
-# github.com/kubernetes-csi/external-snapshotter/client/v6 v6.3.0 => ./client
+# github.com/kubernetes-csi/external-snapshotter/client/v7 v7.0.0 => ./client
 ## explicit; go 1.21
-github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1
-github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumesnapshot/v1
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/fake
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/scheme
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumegroupsnapshot/v1alpha1
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumegroupsnapshot/v1alpha1/fake
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1
-github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/typed/volumesnapshot/v1/fake
-github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions
-github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/internalinterfaces
-github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumegroupsnapshot
-github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumegroupsnapshot/v1alpha1
-github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot
-github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot/v1
-github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumegroupsnapshot/v1alpha1
-github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumegroupsnapshot/v1alpha1
+github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/fake
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/scheme
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/typed/volumegroupsnapshot/v1alpha1
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/typed/volumegroupsnapshot/v1alpha1/fake
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/typed/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/typed/volumesnapshot/v1/fake
+github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions
+github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/internalinterfaces
+github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/volumegroupsnapshot
+github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/volumegroupsnapshot/v1alpha1
+github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/volumesnapshot
+github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumegroupsnapshot/v1alpha1
+github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumesnapshot/v1
 # github.com/mailru/easyjson v0.7.7
 ## explicit; go 1.12
 github.com/mailru/easyjson/buffer
@@ -797,7 +797,7 @@ sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.3.0
 ## explicit; go 1.12
 sigs.k8s.io/yaml
-# github.com/kubernetes-csi/external-snapshotter/client/v6 => ./client
+# github.com/kubernetes-csi/external-snapshotter/client/v7 => ./client
 # k8s.io/api => k8s.io/api v0.29.0
 # k8s.io/apimachinery => k8s.io/apimachinery v0.29.0
 # k8s.io/client-go => k8s.io/client-go v0.29.0

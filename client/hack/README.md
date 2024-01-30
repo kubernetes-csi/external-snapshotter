@@ -26,7 +26,7 @@ Make sure to run this script after making changes to /client/apis/volumesnapshot
     ```
 * Checkout latest release version
     ```bash
-    git checkout v0.28.1
+    git checkout v0.29.1
     ```
 
 * Ensure the file `generate-groups.sh` exists
@@ -46,9 +46,9 @@ Once you run the script, you will get an output as follows:
     
 ```bash
     Generating deepcopy funcs
-    Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/clientset
-    Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/listers
-    Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v6/informers
+    Generating clientset for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v7/clientset
+    Generating listers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v7/listers
+    Generating informers for volumesnapshot:v1 at github.com/kubernetes-csi/external-snapshotter/client/v7/informers
     
 ```
 

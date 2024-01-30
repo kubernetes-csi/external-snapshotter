@@ -17,7 +17,7 @@ limitations under the License.
 package webhook
 
 import (
-	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned/scheme"
+	snapshot "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/scheme"
 	admissionv1 "k8s.io/api/admission/v1"
 	admissionv1beta1 "k8s.io/api/admission/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
