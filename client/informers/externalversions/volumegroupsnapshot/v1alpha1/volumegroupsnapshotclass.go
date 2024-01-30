@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright 2024 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,10 +22,10 @@ import (
 	"context"
 	time "time"
 
-	volumegroupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/apis/volumegroupsnapshot/v1alpha1"
-	versioned "github.com/kubernetes-csi/external-snapshotter/client/v6/clientset/versioned"
-	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/internalinterfaces"
-	v1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v6/listers/volumegroupsnapshot/v1alpha1"
+	volumegroupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumegroupsnapshot/v1alpha1"
+	versioned "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned"
+	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/internalinterfaces"
+	v1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumegroupsnapshot/v1alpha1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"

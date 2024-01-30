@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright 2024 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ limitations under the License.
 package v1
 
 import (
-	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/internalinterfaces"
+	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/internalinterfaces"
 )
 
 // Interface provides access to all the informers in this group version.

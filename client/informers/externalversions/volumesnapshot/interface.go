@@ -1,5 +1,5 @@
 /*
-Copyright 2023 The Kubernetes Authors.
+Copyright 2024 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,8 +19,8 @@ limitations under the License.
 package volumesnapshot
 
 import (
-	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/internalinterfaces"
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v6/informers/externalversions/volumesnapshot/v1"
+	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/internalinterfaces"
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions/volumesnapshot/v1"
 )
 
 // Interface provides access to each of this group's versions.
