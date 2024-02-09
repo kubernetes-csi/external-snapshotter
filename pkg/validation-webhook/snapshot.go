@@ -246,8 +246,12 @@ func checkSnapshotContentImmutableFieldsV1(snapcontent, oldSnapcontent *volumesn
 	}
 
 	if preventVolumeModeConversion {
-		if !reflect.DeepEqual(snapcontent.Spec.SourceVolumeMode, oldSnapcontent.Spec.SourceVolumeMode) {
+		if oldSnapcontent.Spec.SourceVolumeMode != nil && snapcontent.Spec.SourceVolumeMode != nil && !reflect.DeepEqual(snapcontent.Spec.SourceVolumeMode, oldSnapcontent.Spec.SourceVolumeMode) {
 			return fmt.Errorf("Spec.SourceVolumeMode is immutable but was changed from %v to %v", *oldSnapcontent.Spec.SourceVolumeMode, *snapcontent.Spec.SourceVolumeMode)
+		} else if oldSnapcontent.Spec.SourceVolumeMode == nil && snapcontent.Spec.SourceVolumeMode != nil {
+			return fmt.Errorf("Spec.SourceVolumeMode is immutable but was changed from nil to %v", *snapcontent.Spec.SourceVolumeMode)
+		} else if oldSnapcontent.Spec.SourceVolumeMode != nil && snapcontent.Spec.SourceVolumeMode == nil {
+			return fmt.Errorf("Spec.SourceVolumeMode is immutable but was changed from %v to nil", *oldSnapcontent.Spec.SourceVolumeMode)
 		}
 	}
 
