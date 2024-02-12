@@ -1,3 +1,26 @@
+# Release notes for v7.0.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+# Changelog since v7.0.0
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Fixes a panic in the snapshot validation webhook. ([#1005](https://github.com/kubernetes-csi/external-snapshotter/pull/1005), [@xing-yang](https://github.com/xing-yang))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+_Nothing has changed._
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v7.0.0
 
 [Documentation](https://kubernetes-csi.github.io)
