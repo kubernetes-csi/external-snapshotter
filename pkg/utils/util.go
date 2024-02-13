@@ -25,6 +25,7 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -154,6 +155,14 @@ var SnapshotterListSecretParams = secretParamsMap{
 	name:               "SnapshotterList",
 	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
 	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
+}
+
+// Annotations on VolumeSnapshotContent objects entirely controlled by csi-snapshotter
+// Changes to these annotations will be ignored for determining whether to sync changes to content objects
+// AnnVolumeSnapshotBeingCreated is managed entirely by the csi-snapshotter sidecar
+// AnnVolumeSnapshotBeingDeleted is applied by the snapshot-controller and thus is not sidecar-owned
+var sidecarControlledContentAnnotations = map[string]struct{}{
+	AnnVolumeSnapshotBeingCreated: {},
 }
 
 // MapContainsKey checks if a given map of string to string contains the provided string.
@@ -592,4 +601,53 @@ func IsGroupSnapshotCreated(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool
 // passed in VolumeGroupSnapshot to dynamically provision a group snapshot.
 func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) string {
 	return "groupsnapcontent-" + string(groupSnapshot.UID)
+}
+
+// ShouldEnqueueContentChange indicated whether or not a change to a VolumeSnapshotContent object
+// is a change that should be enqueued for sync
+//
+// The following changes are sanitized (and thus, not considered for determining whether to sync)
+//   - Resource Version (always changed between objects)
+//   - Status (owned and updated only by the sidecar)
+//   - Managed Fields (updated by sidecar, and will not change the sync status)
+//   - Finalizers (updated by sidecar, and will not change the sync status)
+//   - Sidecar-Owned Annotations (annotations that are owned and updated only by the sidecar)
+//     (some annotations, such as AnnVolumeSnapshotBeingDeleted, are applied by the controller - so
+//     only annotatinons entirely controlled by the sidecar are ignored)
+//
+// If the VolumeSnapshotContent object still contains other changes after this sanitization, the changes
+// are potentially meaningful and the object is enqueued to be considered for syncing
+func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.VolumeSnapshotContent) bool {
+	sanitized := new.DeepCopy()
+	// ResourceVersion always changes between revisions
+	sanitized.ResourceVersion = old.ResourceVersion
+	// Fields that should not result in a sync
+	sanitized.Status = old.Status
+	sanitized.ManagedFields = old.ManagedFields
+	sanitized.Finalizers = old.Finalizers
+	// Annotations should cause a sync, except for annotations that csi-snapshotter controls
+	if old.Annotations != nil {
+		// This can happen if the new version has all annotations removed
+		if sanitized.Annotations == nil {
+			sanitized.Annotations = map[string]string{}
+		}
+		for annotation, _ := range sidecarControlledContentAnnotations {
+			if value, ok := old.Annotations[annotation]; ok {
+				sanitized.Annotations[annotation] = value
+			} else {
+				delete(sanitized.Annotations, annotation)
+			}
+		}
+	} else {
+		// Old content has no annotations, so delete any sidecar-controlled annotations present on the new content
+		for annotation, _ := range sidecarControlledContentAnnotations {
+			delete(sanitized.Annotations, annotation)
+		}
+	}
+
+	if equality.Semantic.DeepEqual(old, sanitized) {
+		// The only changes are in the fields we don't care about, so don't enqueue for sync
+		return false
+	}
+	return true
 }

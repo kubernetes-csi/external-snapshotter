@@ -302,3 +302,220 @@ func TestIsDefaultAnnotation(t *testing.T) {
 		}
 	}
 }
+
+func TestShouldEnqueueContentChange(t *testing.T) {
+	oldValue := "old"
+	newValue := "new"
+
+	testcases := []struct {
+		name           string
+		old            *crdv1.VolumeSnapshotContent
+		new            *crdv1.VolumeSnapshotContent
+		expectedResult bool
+	}{
+		{
+			name:           "basic no change",
+			old:            &crdv1.VolumeSnapshotContent{},
+			new:            &crdv1.VolumeSnapshotContent{},
+			expectedResult: false,
+		},
+		{
+			name: "basic change",
+			old: &crdv1.VolumeSnapshotContent{
+				Spec: crdv1.VolumeSnapshotContentSpec{
+					VolumeSnapshotClassName: &oldValue,
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				Spec: crdv1.VolumeSnapshotContentSpec{
+					VolumeSnapshotClassName: &newValue,
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "status change",
+			old: &crdv1.VolumeSnapshotContent{
+				Status: &crdv1.VolumeSnapshotContentStatus{
+					Error: &crdv1.VolumeSnapshotError{
+						Message: &oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				Status: &crdv1.VolumeSnapshotContentStatus{
+					Error: &crdv1.VolumeSnapshotError{
+						Message: &newValue,
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "finalizers change",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{
+						oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Finalizers: []string{
+						newValue,
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "managed fields change",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					ManagedFields: []metav1.ManagedFieldsEntry{
+						{
+							Manager: oldValue,
+						},
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					ManagedFields: []metav1.ManagedFieldsEntry{
+						{
+							Manager: newValue,
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "sidecar-managed annotation change",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnVolumeSnapshotBeingCreated: oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnVolumeSnapshotBeingCreated: newValue,
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "sidecar-unmanaged annotation change",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"test-annotation": oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"test-annotation": newValue,
+					},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "sidecar-managed annotation created",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnVolumeSnapshotBeingCreated: newValue,
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "sidecar-unmanaged annotation created",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"test-annotation": newValue,
+					},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "sidecar-managed annotation deleted",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnVolumeSnapshotBeingCreated: oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "sidecar-unmanaged annotation deleted",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"test-annotation": oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: nil,
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "sidecar-unmanaged annotation change (AnnVolumeSnapshotBeingDeleted)",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnVolumeSnapshotBeingDeleted: oldValue,
+					},
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						AnnVolumeSnapshotBeingDeleted: newValue,
+					},
+				},
+			},
+			expectedResult: true,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := ShouldEnqueueContentChange(tc.old, tc.new)
+			if result != tc.expectedResult {
+				t.Fatalf("Incorrect result: Expected %v received %v", tc.expectedResult, result)
+			}
+		})
+	}
+}

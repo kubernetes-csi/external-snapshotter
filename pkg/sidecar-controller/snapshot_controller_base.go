@@ -42,6 +42,7 @@ import (
 	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumegroupsnapshot/v1alpha1"
 	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v7/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/snapshotter"
+	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/utils"
 )
 
 type csiSnapshotSideCarController struct {
@@ -116,14 +117,11 @@ func NewCSISnapshotSideCarController(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
 			UpdateFunc: func(oldObj, newObj interface{}) {
-				// Considering the object is modified more than once during the workflow we are not relying on the
-				// "AnnVolumeSnapshotBeingCreated" annotation. Instead we will just check if newobj status has error
-				// and avoid the immediate re-queue. This allows the retry to happen with exponential backoff.
-				newSnapContent := newObj.(*crdv1.VolumeSnapshotContent)
-				if newSnapContent.Status != nil && newSnapContent.Status.Error != nil {
-					return
+				// Only enqueue updated VolumeSnapshotContent object if it contains a change that may need resync
+				// Ignore changes that cannot necessitate a sync and/or are caused by the sidecar itself
+				if utils.ShouldEnqueueContentChange(oldObj.(*crdv1.VolumeSnapshotContent), newObj.(*crdv1.VolumeSnapshotContent)) {
+					ctrl.enqueueContentWork(newObj)
 				}
-				ctrl.enqueueContentWork(newObj)
 			},
 			DeleteFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
 		},
