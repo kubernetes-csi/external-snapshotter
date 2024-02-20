@@ -230,7 +230,7 @@ func (ctrl csiSnapshotSideCarController) removeGroupSnapshotContentFinalizer(gro
 
 // Delete a groupsnapshot: Ask the backend to remove the groupsnapshot device
 func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
-	klog.V(5).Infof("deleteCSISnapshotOperation [%s] started", groupSnapshotContent.Name)
+	klog.V(5).Infof("deleteCSIGroupSnapshotOperation [%s] started", groupSnapshotContent.Name)
 
 	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotationForGroupSnapshot(groupSnapshotContent)
 	if err != nil {
@@ -617,7 +617,7 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 	readyToUse bool,
 	createdAt int64,
 	snapshotContentNames []string) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
-	klog.V(5).Infof("updateSnapshotContentStatus: updating VolumeGroupSnapshotContent [%s], groupSnapshotHandle %s, readyToUse %v, createdAt %v", groupSnapshotContent.Name, groupSnapshotHandle, readyToUse, createdAt)
+	klog.V(5).Infof("updateGroupSnapshotContentStatus: updating VolumeGroupSnapshotContent [%s], groupSnapshotHandle %s, readyToUse %v, createdAt %v", groupSnapshotContent.Name, groupSnapshotHandle, readyToUse, createdAt)
 
 	groupSnapshotContentObj, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Get(context.TODO(), groupSnapshotContent.Name, metav1.GetOptions{})
 	if err != nil {
@@ -688,10 +688,10 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 // * groupSnapshotContent - group snapshot content to update
 // * eventtype, reason, message - event to send, see EventRecorder.Event()
 func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentErrorStatusWithEvent(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent, eventtype, reason, message string) error {
-	klog.V(5).Infof("updateGroupSnapshotContentStatusWithEvent[%s]", groupSnapshotContent.Name)
+	klog.V(5).Infof("updateGroupSnapshotContentErrorStatusWithEvent[%s]", groupSnapshotContent.Name)
 
 	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.Error != nil && *groupSnapshotContent.Status.Error.Message == message {
-		klog.V(4).Infof("updateGroupSnapshotContentStatusWithEvent[%s]: the same error %v is already set", groupSnapshotContent.Name, groupSnapshotContent.Status.Error)
+		klog.V(4).Infof("updateGroupSnapshotContentErrorStatusWithEvent[%s]: the same error %v is already set", groupSnapshotContent.Name, groupSnapshotContent.Status.Error)
 		return nil
 	}
 
