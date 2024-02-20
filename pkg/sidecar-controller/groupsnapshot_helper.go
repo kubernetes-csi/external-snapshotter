@@ -234,7 +234,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 
 	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotationForGroupSnapshot(groupSnapshotContent)
 	if err != nil {
-		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot credentials")
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to get snapshot credentials")
 		return fmt.Errorf("failed to get input parameters to delete group snapshot for group snapshot content %s: %q", groupSnapshotContent.Name, err)
 	}
 
