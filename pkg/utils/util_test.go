@@ -207,3 +207,98 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 		}
 	}
 }
+
+func TestIsDefaultAnnotation(t *testing.T) {
+	testcases := []struct {
+		name       string
+		typeMeta   metav1.TypeMeta
+		objectMeta metav1.ObjectMeta
+		isDefault  bool
+	}{
+		{
+			name: "no default annotation in snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "VolumeSnapshotClass",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{},
+			},
+			isDefault: false,
+		},
+		{
+			name: "with default annotation in snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "VolumeSnapshotClass",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					IsDefaultSnapshotClassAnnotation: "true",
+				},
+			},
+			isDefault: true,
+		},
+		{
+			name: "with default=false annotation in snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "VolumeSnapshotClass",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					IsDefaultSnapshotClassAnnotation: "false",
+				},
+			},
+			isDefault: false,
+		},
+		{
+			name: "no default annotation in group snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "VolumeGroupSnapshotClass",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{},
+			},
+			isDefault: false,
+		},
+		{
+			name: "with default annotation in group snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "VolumeGroupSnapshotClass",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					IsDefaultGroupSnapshotClassAnnotation: "true",
+				},
+			},
+			isDefault: true,
+		},
+		{
+			name: "with default=false annotation in group snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "VolumeGroupSnapshotClass",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					IsDefaultGroupSnapshotClassAnnotation: "false",
+				},
+			},
+			isDefault: false,
+		},
+		{
+			name: "unknown kind, not a snapshot or group snapshot class",
+			typeMeta: metav1.TypeMeta{
+				Kind: "PersistentVolume",
+			},
+			objectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{},
+			},
+			isDefault: false,
+		},
+	}
+	for _, tc := range testcases {
+		t.Logf("test: %s", tc.name)
+		isDefault := IsDefaultAnnotation(tc.typeMeta, tc.objectMeta)
+		if tc.isDefault != isDefault {
+			t.Fatalf("default annotation on class incorrectly detected: %v != %v", isDefault, tc.isDefault)
+		}
+	}
+}

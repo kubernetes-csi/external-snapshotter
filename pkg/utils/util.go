@@ -262,9 +262,16 @@ func GetDynamicSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) st
 
 // IsDefaultAnnotation returns a boolean if
 // the annotation is set
-func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
-	if obj.Annotations[IsDefaultSnapshotClassAnnotation] == "true" {
-		return true
+func IsDefaultAnnotation(tm metav1.TypeMeta, obj metav1.ObjectMeta) bool {
+	switch tm.Kind {
+	case "VolumeSnapshotClass":
+		if obj.Annotations[IsDefaultSnapshotClassAnnotation] == "true" {
+			return true
+		}
+	case "VolumeGroupSnapshotClass":
+		if obj.Annotations[IsDefaultGroupSnapshotClassAnnotation] == "true" {
+			return true
+		}
 	}
 
 	return false
