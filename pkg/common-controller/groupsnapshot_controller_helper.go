@@ -23,9 +23,9 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
 	klog "k8s.io/klog/v2"
@@ -154,8 +154,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnaps
 	}
 	klog.V(5).Infof("setDefaultGroupSnapshotClass [%s]: default VolumeGroupSnapshotClassName [%s]", groupSnapshot.Name, defaultClasses[0].Name)
 	groupSnapshotClone := groupSnapshot.DeepCopy()
-	groupSnapshotClone.Spec.VolumeGroupSnapshotClassName = &(defaultClasses[0].Name)
-	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Patch(context.TODO(), groupSnapshotClone.Name, types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"volumeGroupSnapshotClassName":"%s"}}`, defaultClasses[0].Name)), metav1.PatchOptions{})
 	if err != nil {
 		klog.V(4).Infof("updating VolumeGroupSnapshot[%s] default group snapshot class failed %v", utils.GroupSnapshotKey(groupSnapshot), err)
 	}
@@ -780,7 +779,7 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	klog.V(5).Infof("volume group snapshot content %#v", groupSnapshotContent)
 	// Try to create the VolumeGroupSnapshotContent object
 	klog.V(5).Infof("createGroupSnapshotContent [%s]: trying to save volume group snapshot content %s", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
-	if updateGroupSnapshotContent, err = ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Create(context.TODO(), groupSnapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
+	if updateGroupSnapshotContent, err = ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Create(context.TODO(), groupSnapshotContent, metav1.CreateOptions{}); err == nil || errors.IsAlreadyExists(err) {
 		// Save succeeded.
 		if err != nil {
 			klog.V(3).Infof("volume group snapshot content %q for group snapshot %q already exists, reusing", groupSnapshotContent.Name, utils.GroupSnapshotKey(groupSnapshot))
@@ -1018,33 +1017,19 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 	var updatedGroupSnapshot *crdv1alpha1.VolumeGroupSnapshot
 	var err error
 
-	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
-	// Unable to find a patch that correctly updated the finalizers if none currently exist.
-	if len(groupSnapshot.ObjectMeta.Finalizers) == 0 {
-		groupSnapshotClone := groupSnapshot.DeepCopy()
-		if addBoundFinalizer {
-			groupSnapshotClone.ObjectMeta.Finalizers = append(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
-		}
-		updatedGroupSnapshot, err = ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
-		if err != nil {
-			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
-		}
-	} else {
-		// Otherwise, perform a patch
-		var patches []utils.PatchOp
+	var patches []utils.PatchOp
 
-		if addBoundFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeGroupSnapshotBoundFinalizer,
-			})
-		}
+	if addBoundFinalizer {
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers/-",
+			Value: utils.VolumeGroupSnapshotBoundFinalizer,
+		})
+	}
 
-		updatedGroupSnapshot, err = utils.PatchVolumeGroupSnapshot(groupSnapshot, patches, ctrl.clientset)
-		if err != nil {
-			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
-		}
+	updatedGroupSnapshot, err = utils.PatchVolumeGroupSnapshot(groupSnapshot, patches, ctrl.clientset)
+	if err != nil {
+		return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
 	}
 
 	_, err = ctrl.storeGroupSnapshotUpdate(updatedGroupSnapshot)
@@ -1114,7 +1099,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	for _, snapshotRef := range groupSnapshot.Status.VolumeSnapshotRefList {
 		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(snapshotRef.Namespace).Get(snapshotRef.Name)
 		if err != nil {
-			if apierrs.IsNotFound(err) {
+			if errors.IsNotFound(err) {
 				continue
 			}
 			return err
@@ -1161,7 +1146,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	// Delete the individual snapshots part of the group snapshot
 	for _, snapshot := range groupSnapshot.Status.VolumeSnapshotRefList {
 		err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Delete(context.TODO(), snapshot.Name, metav1.DeleteOptions{})
-		if err != nil && !apierrs.IsNotFound(err) {
+		if err != nil && !errors.IsNotFound(err) {
 			msg := fmt.Sprintf("failed to delete snapshot API object %s/%s part of group snapshot %s: %v", snapshot.Namespace, snapshot.Name, utils.GroupSnapshotKey(groupSnapshot), err)
 			klog.Error(msg)
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
@@ -1224,8 +1209,7 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 	// TODO: Remove PVC Finalizer
 
 	groupSnapshotClone := groupSnapshot.DeepCopy()
-	groupSnapshotClone.ObjectMeta.Finalizers = utils.RemoveString(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
-	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+	newGroupSnapshot, err := utils.PatchRemoveFinalizers(groupSnapshotClone, ctrl.clientset, utils.VolumeGroupSnapshotBoundFinalizer)
 	if err != nil {
 		return newControllerUpdateError(groupSnapshot.Name, err.Error())
 	}

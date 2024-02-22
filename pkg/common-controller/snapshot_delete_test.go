@@ -19,6 +19,7 @@ package common_controller
 import (
 	"errors"
 	"testing"
+	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/utils"
@@ -49,7 +50,12 @@ var class5Parameters = map[string]string{
 	utils.PrefixedSnapshotterSecretNamespaceKey: "default",
 }
 
-var timeNowMetav1 = metav1.Now()
+var timeNowMetav1 = func() metav1.Time {
+	// json.unmarshal does not restore millisecond precision
+	// so we need to round the time to seconds
+	timeNow := timeNow.Round(time.Second)
+	return metav1.NewTime(timeNow)
+}()
 
 var (
 	content31 = "content3-1"

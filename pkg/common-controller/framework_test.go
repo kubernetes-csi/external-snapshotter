@@ -271,6 +271,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		// Check and bump object version
 		storedSnapshotContent, found := r.contents[action.GetName()]
 		if found {
+			// don't modify existing object
+			storedSnapshotContent = storedSnapshotContent.DeepCopy()
 			// Apply patch
 			storedSnapshotBytes, err := json.Marshal(storedSnapshotContent)
 			if err != nil {
@@ -335,6 +337,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		// Check and bump object version
 		storedSnapshot, found := r.snapshots[action.GetName()]
 		if found {
+			// don't modify existing object
+			storedSnapshot = storedSnapshot.DeepCopy()
 			// Apply patch
 			storedSnapshotBytes, err := json.Marshal(storedSnapshot)
 			if err != nil {
@@ -349,7 +353,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			if err != nil {
 				return true, nil, err
 			}
-
+			// following unmarshal removes the time millisecond precision which was present in the original object
+			// make sure time used in tests are in seconds precision
 			err = json.Unmarshal(modified, storedSnapshot)
 			if err != nil {
 				return true, nil, err
@@ -1425,7 +1430,6 @@ func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
 		klog.V(4).Infof("starting test %q", test.name)
-
 		// Initialize the controller
 		kubeClient := &kubefake.Clientset{}
 		client := &fake.Clientset{}

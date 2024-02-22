@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
@@ -932,8 +933,11 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	} else {
 		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
 		pvcClone := pvc.DeepCopy()
-		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
-		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+		patchBytes, err := utils.PatchOpsBytesToAddFinalizers(pvcClone, utils.PVCFinalizer)
+		if err != nil {
+			return newControllerUpdateError(pvcClone.Name, err.Error())
+		}
+		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
 		if err != nil {
 			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
 			return newControllerUpdateError(pvcClone.Name, err.Error())
@@ -950,9 +954,11 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 	// TODO(xyang): We get PVC from informer but it may be outdated
 	// Should get it from API server directly before removing finalizer
 	pvcClone := pvc.DeepCopy()
-	pvcClone.ObjectMeta.Finalizers = utils.RemoveString(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
-
-	_, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+	patchBytes, err := utils.PatchOpsBytesToRemoveFinalizers(pvcClone, utils.PVCFinalizer)
+	if err != nil {
+		return newControllerUpdateError(pvcClone.Name, err.Error())
+	}
+	_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		return newControllerUpdateError(pvcClone.Name, err.Error())
 	}
@@ -1499,44 +1505,27 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	var updatedSnapshot *crdv1.VolumeSnapshot
 	var err error
 
-	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
-	// Unable to find a patch that correctly updated the finalizers if none currently exist.
-	if len(snapshot.ObjectMeta.Finalizers) == 0 {
-		snapshotClone := snapshot.DeepCopy()
-		if addSourceFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
-		}
-		if addBoundFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
-		}
-		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
-		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
-		}
-	} else {
-		// Otherwise, perform a patch
-		var patches []utils.PatchOp
+	var patches []utils.PatchOp
 
-		// If finalizers exist already, add new ones to the end of the array
-		if addSourceFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeSnapshotAsSourceFinalizer,
-			})
-		}
-		if addBoundFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeSnapshotBoundFinalizer,
-			})
-		}
+	// If finalizers exist already, add new ones to the end of the array
+	if addSourceFinalizer {
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers/-",
+			Value: utils.VolumeSnapshotAsSourceFinalizer,
+		})
+	}
+	if addBoundFinalizer {
+		patches = append(patches, utils.PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers/-",
+			Value: utils.VolumeSnapshotBoundFinalizer,
+		})
+	}
 
-		updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
-		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
-		}
+	updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
+	if err != nil {
+		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
 	_, err = ctrl.storeSnapshotUpdate(updatedSnapshot)
@@ -1570,22 +1559,29 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
-
 	snapshotClone := snapshot.DeepCopy()
+	stringsToRemove := []string{}
 	if removeSourceFinalizer {
-		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+		stringsToRemove = append(stringsToRemove, utils.VolumeSnapshotAsSourceFinalizer)
 	}
 	if removeBoundFinalizer {
-		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+		stringsToRemove = append(stringsToRemove, utils.VolumeSnapshotBoundFinalizer)
 	}
 	if removeGroupFinalizer {
-		snapshotClone.ObjectMeta.Finalizers = utils.RemoveString(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotInGroupFinalizer)
+		stringsToRemove = append(stringsToRemove, utils.VolumeSnapshotInGroupFinalizer)
 	}
-	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	patchBytes, err := utils.PatchOpsBytesToRemoveFinalizers(snapshot, stringsToRemove...)
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
-
+	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Patch(context.TODO(), snapshotClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+	if err != nil {
+		return newControllerUpdateError(snapshot.Name, err.Error())
+	}
+	if len(newSnapshot.Finalizers) == 0 {
+		// some tests require 0 length finalizers to be nil
+		newSnapshot.Finalizers = nil
+	}
 	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
 		klog.Errorf("failed to update snapshot store %v", err)
