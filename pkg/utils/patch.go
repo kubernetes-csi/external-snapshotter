@@ -181,7 +181,7 @@ func PatchOpsToAddFinalizers(object metav1.Object, finalizers ...string) []Patch
 	if len(finalizers) == 0 {
 		return patches
 	}
-	if object.GetFinalizers() == nil || len(object.GetFinalizers()) == 0{
+	if object.GetFinalizers() == nil || len(object.GetFinalizers()) == 0 {
 		patches = append(patches, PatchOp{
 			Op:    "add",
 			Path:  "/metadata/finalizers",

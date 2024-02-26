@@ -498,7 +498,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedObjects = append(r.changedObjects, claim)
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated claim %s", claim.Name)
-		return 
+		return
 
 	case action.Matches("get", "secrets"):
 		name := action.(core.GetAction).GetName()
