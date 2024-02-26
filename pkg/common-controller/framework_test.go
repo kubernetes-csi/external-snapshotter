@@ -1299,16 +1299,13 @@ func testSyncContentError(ctrl *csiSnapshotCommonController, reactor *snapshotRe
 }
 
 func testAddPVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	thisTestVolumeSnapshot = test.initialSnapshots[0]
 	return ctrl.ensurePVCFinalizer(test.initialSnapshots[0])
 }
 
 func testRemovePVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.checkandRemovePVCFinalizer(test.initialSnapshots[0], false)
 }
-var thisTestVolumeSnapshot *crdv1.VolumeSnapshot
 func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	thisTestVolumeSnapshot = test.initialSnapshots[0]
 	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
 

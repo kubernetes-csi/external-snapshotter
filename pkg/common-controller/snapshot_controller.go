@@ -1506,23 +1506,12 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	var updatedSnapshot *crdv1.VolumeSnapshot
 	var err error
 
-	// var patches []utils.PatchOp
 	finalizersToAdd := []string{}
 	// If finalizers exist already, add new ones to the end of the array
 	if addSourceFinalizer {
-		// patches = append(patches, utils.PatchOp{
-		// 	Op:    "add",
-		// 	Path:  "/metadata/finalizers/-",
-		// 	Value: utils.VolumeSnapshotAsSourceFinalizer,
-		// })
 		finalizersToAdd = append(finalizersToAdd, utils.VolumeSnapshotAsSourceFinalizer)
 	}
 	if addBoundFinalizer {
-		// patches = append(patches, utils.PatchOp{
-		// 	Op:    "add",
-		// 	Path:  "/metadata/finalizers/-",
-		// 	Value: utils.VolumeSnapshotBoundFinalizer,
-		// })
 		finalizersToAdd = append(finalizersToAdd, utils.VolumeSnapshotBoundFinalizer)
 	}
 	patches := utils.PatchOpsToAddFinalizers(snapshot, finalizersToAdd...)
