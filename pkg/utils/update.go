@@ -16,57 +16,59 @@ import (
 // Remove one or more finalizers from an object
 // if finalizers is not empty, only the specified finalizers will be removed
 // If update fails due to out of date, it will call get on the object and retry removing the finalizers
-func UpdateRemoveFinalizers(object metav1.Object, client clientset.Interface, finalizers ...string) (metav1.Object, error) {
+func UpdateRemoveFinalizers[O metav1.Object](
+	object O,
+	updateFunc func(context.Context, O, metav1.UpdateOptions) (O, error),
+	getFunc func(context.Context, string, metav1.GetOptions) (O, error),
+	finalizers ...string) (O, error) {
 	object.SetFinalizers(RemoveStrings(object.GetFinalizers(), finalizers...))
+	object, err := updateFunc(context.TODO(), object, metav1.UpdateOptions{})
+	if err != nil {
+		if apierrors.IsConflict(err) {
+			object, err = getFunc(context.TODO(), object.GetName(), metav1.GetOptions{})
+			if err != nil {
+				return object, err
+			}
+			return UpdateRemoveFinalizers(object, updateFunc, getFunc, finalizers...)
+		} else {
+			return object, err
+		}
+	}
+	if len(object.GetFinalizers()) == 0 {
+		// to satisfy some tests that requires nil rather than []string{}
+		object.SetFinalizers(nil)
+	}
+	return object, err
+}
+
+func UpdateRemoveFinalizersSnapshots(object metav1.Object, client clientset.Interface, finalizers ...string) (metav1.Object, error) {
 	switch object.(type) {
 	case *crdv1.VolumeSnapshot:
-		obj, err := client.SnapshotV1().VolumeSnapshots(object.GetNamespace()).Update(context.TODO(), object.(*crdv1.VolumeSnapshot), metav1.UpdateOptions{})
-		if err != nil && apierrors.IsConflict(err) {
-			obj, err = client.SnapshotV1().VolumeSnapshots(object.GetNamespace()).Get(context.TODO(), object.GetName(), metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			return UpdateRemoveFinalizers(obj, client, finalizers...)
-		}
-		if obj != nil && len(obj.GetFinalizers()) == 0 {
-			// to satisfy some tests that requires nil rather than []string{}
-			obj.SetFinalizers(nil)
-		}
-		return obj, err
+		return UpdateRemoveFinalizers[*crdv1.VolumeSnapshot](
+			object.(*crdv1.VolumeSnapshot),
+			client.SnapshotV1().VolumeSnapshots(object.GetNamespace()).Update,
+			client.SnapshotV1().VolumeSnapshots(object.GetNamespace()).Get,
+			finalizers...)
 	case *crdv1alpha1.VolumeGroupSnapshot:
-		obj, err := client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(object.GetNamespace()).Update(context.TODO(), object.(*crdv1alpha1.VolumeGroupSnapshot), metav1.UpdateOptions{})
-		if err != nil && apierrors.IsConflict(err) {
-			obj, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(object.GetNamespace()).Get(context.TODO(), object.GetName(), metav1.GetOptions{})
-			if err != nil {
-				return nil, err
-			}
-			return UpdateRemoveFinalizers(obj, client, finalizers...)
-		}
-		if obj != nil && len(obj.GetFinalizers()) == 0 {
-			// to satisfy some tests that requires nil rather than []string{}
-			obj.SetFinalizers(nil)
-		}
-		return obj, err
+		return UpdateRemoveFinalizers[*crdv1alpha1.VolumeGroupSnapshot](
+			object.(*crdv1alpha1.VolumeGroupSnapshot),
+			client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(object.GetNamespace()).Update,
+			client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(object.GetNamespace()).Get,
+			finalizers...)
 	default:
-		return nil, errors.New("UpdateRemoveFinalizers: unsupported object type")
+		return nil, errors.New("UpdateRemoveFinalizersSnapshots: unsupported object type")
 	}
 }
 
 func UpdateRemoveFinalizersCoreV1(object metav1.Object, client kubernetes.Interface, finalizers ...string) (metav1.Object, error) {
-	object.SetFinalizers(RemoveStrings(object.GetFinalizers(), finalizers...))
-	pvc := object.(*corev1.PersistentVolumeClaim)
-	pvc, err := client.CoreV1().PersistentVolumeClaims(object.GetNamespace()).Update(context.TODO(), pvc, metav1.UpdateOptions{})
-	// if out of date, get the object and retry
-	if err != nil && apierrors.IsConflict(err) {
-		pvc, err = client.CoreV1().PersistentVolumeClaims(object.GetNamespace()).Get(context.TODO(), pvc.GetName(), metav1.GetOptions{})
-		if err != nil {
-			return nil, err
-		}
-		return UpdateRemoveFinalizersCoreV1(pvc, client, finalizers...)
+	switch object.(type) {
+	case *corev1.PersistentVolumeClaim:
+		return UpdateRemoveFinalizers[*corev1.PersistentVolumeClaim](
+			object.(*corev1.PersistentVolumeClaim),
+			client.CoreV1().PersistentVolumeClaims(object.GetNamespace()).Update,
+			client.CoreV1().PersistentVolumeClaims(object.GetNamespace()).Get,
+			finalizers...)
+	default:
+		return nil, errors.New("UpdateRemoveFinalizersCoreV1: unsupported object type")
 	}
-	if pvc != nil && len(pvc.GetFinalizers()) == 0 {
-		// to satisfy some tests that requires nil rather than []string{}
-		pvc.SetFinalizers(nil)
-	}
-	return pvc, err
 }
