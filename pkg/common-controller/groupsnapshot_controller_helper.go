@@ -953,21 +953,7 @@ func (ctrl *csiSnapshotCommonController) needsUpdateGroupSnapshotStatus(groupSna
 // addGroupSnapshotContentFinalizer adds a Finalizer for VolumeGroupSnapshotContent.
 func (ctrl *csiSnapshotCommonController) addGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
 	var patches []utils.PatchOp
-	if len(groupSnapshotContent.Finalizers) > 0 {
-		// Add to the end of the finalizers if we have any other finalizers
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers/-",
-			Value: utils.VolumeGroupSnapshotContentFinalizer,
-		})
-	} else {
-		// Replace finalizers with new array if there are no other finalizers
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers",
-			Value: []string{utils.VolumeGroupSnapshotContentFinalizer},
-		})
-	}
+	patches = append(patches, utils.PatchOpsToAddFinalizers(groupSnapshotContent, utils.VolumeGroupSnapshotContentFinalizer)...)
 	newGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset)
 	if err != nil {
 		return newControllerUpdateError(groupSnapshotContent.Name, err.Error())
@@ -1020,11 +1006,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 	var patches []utils.PatchOp
 
 	if addBoundFinalizer {
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers/-",
-			Value: utils.VolumeGroupSnapshotBoundFinalizer,
-		})
+		patches = append(patches, utils.PatchOpsToAddFinalizers(groupSnapshot, utils.VolumeGroupSnapshotBoundFinalizer)...)
 	}
 
 	updatedGroupSnapshot, err = utils.PatchVolumeGroupSnapshot(groupSnapshot, patches, ctrl.clientset)

@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"slices"
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumegroupsnapshot/v1alpha1"
 
@@ -113,14 +111,14 @@ func PatchRemoveFinalizers(object metav1.Object, client clientset.Interface, fin
 	switch object.(type) {
 	case *crdv1.VolumeSnapshot:
 		obj, err := client.SnapshotV1().VolumeSnapshots(object.GetNamespace()).Patch(context.TODO(), object.GetName(), types.JSONPatchType, data, metav1.PatchOptions{})
-		if len(obj.Finalizers) == 0 {
+		if obj != nil && len(obj.Finalizers) == 0 {
 			// to satisfy some tests that requires nil rather than []string{}
 			obj.Finalizers = nil
 		}
 		return obj, err
 	case *crdv1alpha1.VolumeGroupSnapshot:
 		obj, err := client.GroupsnapshotV1alpha1().VolumeGroupSnapshots(object.GetNamespace()).Patch(context.TODO(), object.GetName(), types.JSONPatchType, data, metav1.PatchOptions{})
-		if len(obj.Finalizers) == 0 {
+		if obj != nil && len(obj.Finalizers) == 0 {
 			// to satisfy some tests that requires nil rather than []string{}
 			obj.Finalizers = nil
 		}
@@ -148,27 +146,28 @@ func PatchOpsToRemoveFinalizers(object metav1.Object, finalizers ...string) []Pa
 	if len(finalizers) == 0 {
 		return patches
 	}
-	// remove only the specified finalizers
-	// get index of all finalizers to be removed
-	// sort the indexes in descending order
-	// remove the finalizers in descending order
-	// this is to avoid the need to adjust the index after each removal
-	indexes := []int{}
+	// map of finalizers to remove
+	finalizersToRemove := make(map[string]bool, len(finalizers))
 	for _, finalizer := range finalizers {
-		for i, f := range object.GetFinalizers() {
-			if f == finalizer {
-				indexes = append(indexes, i)
-			}
+		finalizersToRemove[finalizer] = true
+	}
+
+	patches = append(patches, PatchOp{
+		Op:   "remove",
+		Path: "/metadata/finalizers",
+	})
+	annotationsToKeep := []string{}
+	for _, objFinalizer := range object.GetFinalizers() {
+		// finalizers to keep
+		if _, ok := finalizersToRemove[objFinalizer]; !ok {
+			annotationsToKeep = append(annotationsToKeep, objFinalizer)
 		}
 	}
-	slices.Sort(indexes)
-	slices.Reverse(indexes)
-	for _, i := range indexes {
-		patches = append(patches, PatchOp{
-			Op:   "remove",
-			Path: "/metadata/finalizers/" + fmt.Sprint(i),
-		})
-	}
+	patches = append(patches, PatchOp{
+		Op:    "add",
+		Path:  "/metadata/finalizers",
+		Value: annotationsToKeep,
+	})
 	return patches
 }
 
@@ -179,6 +178,17 @@ func PatchOpsBytesToRemoveFinalizers(object metav1.Object, finalizers ...string)
 
 func PatchOpsToAddFinalizers(object metav1.Object, finalizers ...string) []PatchOp {
 	patches := []PatchOp{}
+	if len(finalizers) == 0 {
+		return patches
+	}
+	if object.GetFinalizers() == nil || len(object.GetFinalizers()) == 0{
+		patches = append(patches, PatchOp{
+			Op:    "add",
+			Path:  "/metadata/finalizers",
+			Value: finalizers,
+		})
+		return patches
+	}
 	for _, finalizer := range finalizers {
 		patches = append(patches, PatchOp{
 			Op:    "add",

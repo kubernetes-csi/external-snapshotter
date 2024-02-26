@@ -937,12 +937,13 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		if err != nil {
 			return newControllerUpdateError(pvcClone.Name, err.Error())
 		}
-		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+		pvcCloneAfter, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
 		if err != nil {
 			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
 			return newControllerUpdateError(pvcClone.Name, err.Error())
 		}
 		klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
+		fmt.Printf("pvcCloneAfter: %+v", pvcCloneAfter)
 	}
 
 	return nil
@@ -1505,24 +1506,26 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	var updatedSnapshot *crdv1.VolumeSnapshot
 	var err error
 
-	var patches []utils.PatchOp
-
+	// var patches []utils.PatchOp
+	finalizersToAdd := []string{}
 	// If finalizers exist already, add new ones to the end of the array
 	if addSourceFinalizer {
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers/-",
-			Value: utils.VolumeSnapshotAsSourceFinalizer,
-		})
+		// patches = append(patches, utils.PatchOp{
+		// 	Op:    "add",
+		// 	Path:  "/metadata/finalizers/-",
+		// 	Value: utils.VolumeSnapshotAsSourceFinalizer,
+		// })
+		finalizersToAdd = append(finalizersToAdd, utils.VolumeSnapshotAsSourceFinalizer)
 	}
 	if addBoundFinalizer {
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/finalizers/-",
-			Value: utils.VolumeSnapshotBoundFinalizer,
-		})
+		// patches = append(patches, utils.PatchOp{
+		// 	Op:    "add",
+		// 	Path:  "/metadata/finalizers/-",
+		// 	Value: utils.VolumeSnapshotBoundFinalizer,
+		// })
+		finalizersToAdd = append(finalizersToAdd, utils.VolumeSnapshotBoundFinalizer)
 	}
-
+	patches := utils.PatchOpsToAddFinalizers(snapshot, finalizersToAdd...)
 	updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
 	if err != nil {
 		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())

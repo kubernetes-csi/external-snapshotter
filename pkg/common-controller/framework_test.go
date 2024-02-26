@@ -462,6 +462,44 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		klog.V(4).Infof("saved updated claim %s", claim.Name)
 		return true, claim, nil
 
+	case action.Matches("patch", "persistentvolumeclaims"):
+		claim := &v1.PersistentVolumeClaim{}
+		action := action.(core.PatchAction)
+
+		// Check and bump object version
+		storedClaim, found := r.claims[action.GetName()]
+		if found {
+			// don't modify existing object
+			storedClaim = storedClaim.DeepCopy()
+			// Apply patch
+			storedClaimBytes, err := json.Marshal(storedClaim)
+			if err != nil {
+				return true, nil, err
+			}
+			claimPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+			modified, err := claimPatch.Apply(storedClaimBytes)
+			if err != nil {
+				return true, nil, err
+			}
+			err = json.Unmarshal(modified, claim)
+			if err != nil {
+				return true, nil, err
+			}
+			storedVer, _ := strconv.Atoi(claim.ResourceVersion)
+			claim.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update claim %s: claim not found", action.GetName())
+		}
+		// Store the updated object to appropriate places.
+		r.claims[claim.Name] = claim
+		r.changedObjects = append(r.changedObjects, claim)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated claim %s", claim.Name)
+		return 
+
 	case action.Matches("get", "secrets"):
 		name := action.(core.GetAction).GetName()
 		secret, found := r.secrets[name]
@@ -816,6 +854,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("delete", "volumesnapshotclasses", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
+	kubeClient.AddReactor("patch", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
 
@@ -1260,14 +1299,16 @@ func testSyncContentError(ctrl *csiSnapshotCommonController, reactor *snapshotRe
 }
 
 func testAddPVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	thisTestVolumeSnapshot = test.initialSnapshots[0]
 	return ctrl.ensurePVCFinalizer(test.initialSnapshots[0])
 }
 
 func testRemovePVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.checkandRemovePVCFinalizer(test.initialSnapshots[0], false)
 }
-
+var thisTestVolumeSnapshot *crdv1.VolumeSnapshot
 func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	thisTestVolumeSnapshot = test.initialSnapshots[0]
 	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
 
