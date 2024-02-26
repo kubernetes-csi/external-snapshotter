@@ -1191,7 +1191,7 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 	// TODO: Remove PVC Finalizer
 
 	groupSnapshotClone := groupSnapshot.DeepCopy()
-	newGroupSnapshot, err := utils.PatchRemoveFinalizers(groupSnapshotClone, ctrl.clientset, utils.VolumeGroupSnapshotBoundFinalizer)
+	newGroupSnapshot, err := utils.UpdateRemoveFinalizers(groupSnapshotClone, ctrl.clientset, utils.VolumeGroupSnapshotBoundFinalizer)
 	if err != nil {
 		return newControllerUpdateError(groupSnapshot.Name, err.Error())
 	}

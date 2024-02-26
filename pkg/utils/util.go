@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -187,6 +188,13 @@ func RemoveString(slice []string, s string) []string {
 		// and nil.
 		newSlice = nil
 	}
+	return newSlice
+}
+
+func RemoveStrings(slice []string, removes ...string) []string {
+	newSlice := slices.DeleteFunc(slice, func (remove string) bool {
+		return slices.Contains(removes, remove)
+	})
 	return newSlice
 }
 

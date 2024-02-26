@@ -955,11 +955,7 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 	// TODO(xyang): We get PVC from informer but it may be outdated
 	// Should get it from API server directly before removing finalizer
 	pvcClone := pvc.DeepCopy()
-	patchBytes, err := utils.PatchOpsBytesToRemoveFinalizers(pvcClone, utils.PVCFinalizer)
-	if err != nil {
-		return newControllerUpdateError(pvcClone.Name, err.Error())
-	}
-	_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Patch(context.TODO(), pvcClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
+	_, err := utils.UpdateRemoveFinalizersCoreV1(pvcClone, ctrl.client, utils.PVCFinalizer)
 	if err != nil {
 		return newControllerUpdateError(pvcClone.Name, err.Error())
 	}
@@ -1562,17 +1558,14 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	if removeGroupFinalizer {
 		stringsToRemove = append(stringsToRemove, utils.VolumeSnapshotInGroupFinalizer)
 	}
-	patchBytes, err := utils.PatchOpsBytesToRemoveFinalizers(snapshot, stringsToRemove...)
+	
+	newSnapshot, err := utils.UpdateRemoveFinalizers(snapshotClone, ctrl.clientset, stringsToRemove...)
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())
 	}
-	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Patch(context.TODO(), snapshotClone.Name, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
-	if err != nil {
-		return newControllerUpdateError(snapshot.Name, err.Error())
-	}
-	if len(newSnapshot.Finalizers) == 0 {
+	if len(newSnapshot.GetFinalizers()) == 0 {
 		// some tests require 0 length finalizers to be nil
-		newSnapshot.Finalizers = nil
+		newSnapshot.SetFinalizers(nil)
 	}
 	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
 	if err != nil {
