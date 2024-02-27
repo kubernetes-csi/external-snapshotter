@@ -1558,7 +1558,7 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	if removeGroupFinalizer {
 		stringsToRemove = append(stringsToRemove, utils.VolumeSnapshotInGroupFinalizer)
 	}
-	
+
 	newSnapshot, err := utils.UpdateRemoveFinalizersSnapshots(snapshotClone, ctrl.clientset, stringsToRemove...)
 	if err != nil {
 		return newControllerUpdateError(snapshot.Name, err.Error())

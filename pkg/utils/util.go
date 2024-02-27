@@ -192,7 +192,7 @@ func RemoveString(slice []string, s string) []string {
 }
 
 func RemoveStrings(slice []string, removes ...string) []string {
-	newSlice := slices.DeleteFunc(slice, func (remove string) bool {
+	newSlice := slices.DeleteFunc(slice, func(remove string) bool {
 		return slices.Contains(removes, remove)
 	})
 	return newSlice
