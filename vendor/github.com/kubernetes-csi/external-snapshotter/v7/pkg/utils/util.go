@@ -20,13 +20,11 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -35,8 +33,8 @@ import (
 	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog/v2"
 
-	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumegroupsnapshot/v1alpha1"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
 )
 
 var keyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
@@ -58,9 +56,6 @@ const (
 
 	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"      // Prefixed name key for DeleteSnapshot secret
 	PrefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace" // Prefixed namespace key for DeleteSnapshot secret
-
-	PrefixedGroupSnapshotterSecretNameKey      = csiParameterPrefix + "group-snapshotter-secret-name"      // Prefixed name key for CreateGroupSnapshot secret
-	PrefixedGroupSnapshotterSecretNamespaceKey = csiParameterPrefix + "group-snapshotter-secret-namespace" // Prefixed namespace key for DeleteGroupSnapshot secret
 
 	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"      // Prefixed name key for ListSnapshots secret
 	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace" // Prefixed namespace key for ListSnapshots secret
@@ -138,11 +133,6 @@ const (
 	AnnDeletionSecretRefName      = "snapshot.storage.kubernetes.io/deletion-secret-name"
 	AnnDeletionSecretRefNamespace = "snapshot.storage.kubernetes.io/deletion-secret-namespace"
 
-	// Annotation for secret name and namespace will be added to the group
-	// snapshot content and used at group snapshot content deletion time.
-	AnnDeletionGroupSecretRefName      = "groupsnapshot.storage.kubernetes.io/deletion-secret-name"
-	AnnDeletionGroupSecretRefNamespace = "groupsnapshot.storage.kubernetes.io/deletion-secret-namespace"
-
 	// VolumeSnapshotContentInvalidLabel is applied to invalid content as a label key. The value does not matter.
 	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
 	VolumeSnapshotContentInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-content-resource"
@@ -160,24 +150,10 @@ var SnapshotterSecretParams = secretParamsMap{
 	secretNamespaceKey: PrefixedSnapshotterSecretNamespaceKey,
 }
 
-var GroupSnapshotterSecretParams = secretParamsMap{
-	name:               "GroupSnapshotter",
-	secretNameKey:      PrefixedGroupSnapshotterSecretNameKey,
-	secretNamespaceKey: PrefixedGroupSnapshotterSecretNamespaceKey,
-}
-
 var SnapshotterListSecretParams = secretParamsMap{
 	name:               "SnapshotterList",
 	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
 	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
-}
-
-// Annotations on VolumeSnapshotContent objects entirely controlled by csi-snapshotter
-// Changes to these annotations will be ignored for determining whether to sync changes to content objects
-// AnnVolumeSnapshotBeingCreated is managed entirely by the csi-snapshotter sidecar
-// AnnVolumeSnapshotBeingDeleted is applied by the snapshot-controller and thus is not sidecar-owned
-var sidecarControlledContentAnnotations = map[string]struct{}{
-	AnnVolumeSnapshotBeingCreated: {},
 }
 
 // MapContainsKey checks if a given map of string to string contains the provided string.
@@ -186,18 +162,30 @@ func MapContainsKey(m map[string]string, s string) bool {
 	return r
 }
 
+// ContainsString checks if a given slice of strings contains the provided string.
+func ContainsString(slice []string, s string) bool {
+	for _, item := range slice {
+		if item == s {
+			return true
+		}
+	}
+	return false
+}
+
 // RemoveString returns a newly created []string that contains all items from slice that
 // are not equal to s.
 func RemoveString(slice []string, s string) []string {
-	return RemoveStrings(slice, s)
-}
-
-func RemoveStrings(slice []string, removes ...string) []string {
-	newSlice := slices.DeleteFunc(slice, func(remove string) bool {
-		return slices.Contains(removes, remove)
-	})
+	newSlice := make([]string, 0)
+	for _, item := range slice {
+		if item == s {
+			continue
+		}
+		newSlice = append(newSlice, item)
+	}
 	if len(newSlice) == 0 {
-		return nil
+		// Sanitize for unit tests so we don't need to distinguish empty array
+		// and nil.
+		newSlice = nil
 	}
 	return newSlice
 }
@@ -272,16 +260,14 @@ func GetDynamicSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) st
 	return "snapcontent-" + string(snapshot.UID)
 }
 
-// IsVolumeSnapshotClassDefaultAnnotation returns a true boolean if
-// a VolumeSnapshotClass is marked as the default one
-func IsVolumeSnapshotClassDefaultAnnotation(obj metav1.ObjectMeta) bool {
-	return obj.Annotations[IsDefaultSnapshotClassAnnotation] == "true"
-}
+// IsDefaultAnnotation returns a boolean if
+// the annotation is set
+func IsDefaultAnnotation(obj metav1.ObjectMeta) bool {
+	if obj.Annotations[IsDefaultSnapshotClassAnnotation] == "true" {
+		return true
+	}
 
-// IsVolumeGroupSnapshotClassDefaultAnnotation returns a true boolean if
-// a VolumeGroupSnapshotClass is marked as the default one
-func IsVolumeGroupSnapshotClassDefaultAnnotation(obj metav1.ObjectMeta) bool {
-	return obj.Annotations[IsDefaultGroupSnapshotClassAnnotation] == "true"
+	return false
 }
 
 // verifyAndGetSecretNameAndNamespaceTemplate gets the values (templates) associated
@@ -390,61 +376,6 @@ func GetSecretReference(secretParams secretParamsMap, snapshotClassParams map[st
 	return ref, nil
 }
 
-// GetSecretReference for the group snapshot
-func GetGroupSnapshotSecretReference(secretParams secretParamsMap, volumeGroupSnapshotClassParams map[string]string, groupSnapContentName string, volumeGroupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*v1.SecretReference, error) {
-	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretParams, volumeGroupSnapshotClassParams)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
-	}
-	if nameTemplate == "" && namespaceTemplate == "" {
-		return nil, nil
-	}
-
-	ref := &v1.SecretReference{}
-
-	// Secret namespace template can make use of the VolumeGroupSnapshotContent name, VolumeGroupSnapshot name or namespace.
-	// Note that neither of those things are under the control of the VolumeGroupSnapshot user.
-	namespaceParams := map[string]string{"volumegroupsnapshotcontent.name": groupSnapContentName}
-	// volume group snapshot may be nil when resolving create/delete volumegroupsnapshot secret names because the
-	// volume group snapshot may or may not exist at delete time
-	if volumeGroupSnapshot != nil {
-		namespaceParams["volumegroupsnapshot.namespace"] = volumeGroupSnapshot.Namespace
-	}
-
-	resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
-	if err != nil {
-		return nil, fmt.Errorf("error resolving value %q: %v", namespaceTemplate, err)
-	}
-
-	if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
-		if namespaceTemplate != resolvedNamespace {
-			return nil, fmt.Errorf("%q resolved to %q which is not a valid namespace name", namespaceTemplate, resolvedNamespace)
-		}
-		return nil, fmt.Errorf("%q is not a valid namespace name", namespaceTemplate)
-	}
-	ref.Namespace = resolvedNamespace
-
-	// Secret name template can make use of the VolumeGroupSnapshotContent name, VolumeGroupSnapshot name or namespace.
-	// Note that VolumeGroupSnapshot name and namespace are under the VolumeGroupSnapshot user's control.
-	nameParams := map[string]string{"volumegroupsnapshotcontent.name": groupSnapContentName}
-	if volumeGroupSnapshot != nil {
-		nameParams["volumegroupsnapshot.name"] = volumeGroupSnapshot.Name
-		nameParams["volumegroupsnapshot.namespace"] = volumeGroupSnapshot.Namespace
-	}
-	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
-	if err != nil {
-		return nil, fmt.Errorf("error resolving value %q: %v", nameTemplate, err)
-	}
-	if len(validation.IsDNS1123Subdomain(resolvedName)) > 0 {
-		if nameTemplate != resolvedName {
-			return nil, fmt.Errorf("%q resolved to %q which is not a valid secret name", nameTemplate, resolvedName)
-		}
-		return nil, fmt.Errorf("%q is not a valid secret name", nameTemplate)
-	}
-	ref.Name = resolvedName
-	return ref, nil
-}
-
 // resolveTemplate resolves the template by checking if the value is missing for a key
 func resolveTemplate(template string, params map[string]string) (string, error) {
 	missingParams := sets.NewString()
@@ -486,39 +417,39 @@ func NoResyncPeriodFunc() time.Duration {
 
 // NeedToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
 func NeedToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
-	return content.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
+	return content.ObjectMeta.DeletionTimestamp == nil && !ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
 }
 
 // NeedToAddGroupSnapshotContentFinalizer checks if a Finalizer needs to be added for the volume group snapshot content.
 func NeedToAddGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) bool {
-	return groupSnapshotContent.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshotContent.ObjectMeta.Finalizers, VolumeGroupSnapshotContentFinalizer)
+	return groupSnapshotContent.ObjectMeta.DeletionTimestamp == nil && !ContainsString(groupSnapshotContent.ObjectMeta.Finalizers, VolumeGroupSnapshotContentFinalizer)
 }
 
 // IsSnapshotDeletionCandidate checks if a volume snapshot deletionTimestamp
 // is set and any finalizer is on the snapshot.
 func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp != nil && (slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer) || slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer))
+	return snapshot.ObjectMeta.DeletionTimestamp != nil && (ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer) || ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer))
 }
 
 // IsGroupSnapshotDeletionCandidate checks if a volume group snapshot deletionTimestamp
 // is set and any finalizer is on the group snapshot.
 func IsGroupSnapshotDeletionCandidate(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
-	return groupSnapshot.ObjectMeta.DeletionTimestamp != nil && slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer)
+	return groupSnapshot.ObjectMeta.DeletionTimestamp != nil && ContainsString(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer)
 }
 
 // NeedToAddSnapshotAsSourceFinalizer checks if a Finalizer needs to be added for the volume snapshot as a source for PVC.
 func NeedToAddSnapshotAsSourceFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer)
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer)
 }
 
 // NeedToAddSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume snapshot.
 func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer) && IsBoundVolumeSnapshotContentNameSet(snapshot)
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer) && IsBoundVolumeSnapshotContentNameSet(snapshot)
 }
 
 // NeedToAddGroupSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume group snapshot.
 func NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
-	return groupSnapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer) && IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot)
+	return groupSnapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer) && IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot)
 }
 
 func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {
@@ -542,8 +473,6 @@ func RemovePrefixedParameters(param map[string]string) (map[string]string, error
 			case PrefixedSnapshotterSecretNamespaceKey:
 			case PrefixedSnapshotterListSecretNameKey:
 			case PrefixedSnapshotterListSecretNamespaceKey:
-			case PrefixedGroupSnapshotterSecretNameKey:
-			case PrefixedGroupSnapshotterSecretNamespaceKey:
 			default:
 				return map[string]string{}, fmt.Errorf("found unknown parameter key \"%s\" with reserved namespace %s", k, csiParameterPrefix)
 			}
@@ -631,8 +560,8 @@ func IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot *crdv1alpha1.VolumeG
 	return true
 }
 
-func IsPVCVolumeSnapshotRefListSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
-	if groupSnapshot.Status == nil || len(groupSnapshot.Status.PVCVolumeSnapshotRefList) == 0 {
+func IsVolumeSnapshotRefListSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || len(groupSnapshot.Status.VolumeSnapshotRefList) == 0 {
 		return false
 	}
 	return true
@@ -656,53 +585,4 @@ func IsGroupSnapshotCreated(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool
 // passed in VolumeGroupSnapshot to dynamically provision a group snapshot.
 func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) string {
 	return "groupsnapcontent-" + string(groupSnapshot.UID)
-}
-
-// ShouldEnqueueContentChange indicated whether or not a change to a VolumeSnapshotContent object
-// is a change that should be enqueued for sync
-//
-// The following changes are sanitized (and thus, not considered for determining whether to sync)
-//   - Resource Version (always changed between objects)
-//   - Status (owned and updated only by the sidecar)
-//   - Managed Fields (updated by sidecar, and will not change the sync status)
-//   - Finalizers (updated by sidecar, and will not change the sync status)
-//   - Sidecar-Owned Annotations (annotations that are owned and updated only by the sidecar)
-//     (some annotations, such as AnnVolumeSnapshotBeingDeleted, are applied by the controller - so
-//     only annotatinons entirely controlled by the sidecar are ignored)
-//
-// If the VolumeSnapshotContent object still contains other changes after this sanitization, the changes
-// are potentially meaningful and the object is enqueued to be considered for syncing
-func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.VolumeSnapshotContent) bool {
-	sanitized := new.DeepCopy()
-	// ResourceVersion always changes between revisions
-	sanitized.ResourceVersion = old.ResourceVersion
-	// Fields that should not result in a sync
-	sanitized.Status = old.Status
-	sanitized.ManagedFields = old.ManagedFields
-	sanitized.Finalizers = old.Finalizers
-	// Annotations should cause a sync, except for annotations that csi-snapshotter controls
-	if old.Annotations != nil {
-		// This can happen if the new version has all annotations removed
-		if sanitized.Annotations == nil {
-			sanitized.Annotations = map[string]string{}
-		}
-		for annotation, _ := range sidecarControlledContentAnnotations {
-			if value, ok := old.Annotations[annotation]; ok {
-				sanitized.Annotations[annotation] = value
-			} else {
-				delete(sanitized.Annotations, annotation)
-			}
-		}
-	} else {
-		// Old content has no annotations, so delete any sidecar-controlled annotations present on the new content
-		for annotation, _ := range sidecarControlledContentAnnotations {
-			delete(sanitized.Annotations, annotation)
-		}
-	}
-
-	if equality.Semantic.DeepEqual(old, sanitized) {
-		// The only changes are in the fields we don't care about, so don't enqueue for sync
-		return false
-	}
-	return true
 }

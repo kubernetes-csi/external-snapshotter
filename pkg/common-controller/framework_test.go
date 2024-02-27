@@ -373,6 +373,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		// Check and bump object version
 		storedSnapshotContent, found := r.contents[action.GetName()]
 		if found {
+			// don't modify existing object
+			storedSnapshotContent = storedSnapshotContent.DeepCopy()
 			// Apply patch
 			storedSnapshotBytes, err := json.Marshal(storedSnapshotContent)
 			if err != nil {
@@ -503,6 +505,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		// Check and bump object version
 		storedSnapshot, found := r.snapshots[action.GetName()]
 		if found {
+			// don't modify existing object
+			storedSnapshot = storedSnapshot.DeepCopy()
 			// Apply patch
 			storedSnapshotBytes, err := json.Marshal(storedSnapshot)
 			if err != nil {
@@ -517,7 +521,8 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 			if err != nil {
 				return true, nil, err
 			}
-
+			// following unmarshal removes the time millisecond precision which was present in the original object
+			// make sure time used in tests are in seconds precision
 			err = json.Unmarshal(modified, storedSnapshot)
 			if err != nil {
 				return true, nil, err
@@ -718,6 +723,44 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated claim %s", claim.Name)
 		return true, claim, nil
+
+	case action.Matches("patch", "persistentvolumeclaims"):
+		claim := &v1.PersistentVolumeClaim{}
+		action := action.(core.PatchAction)
+
+		// Check and bump object version
+		storedClaim, found := r.claims[action.GetName()]
+		if found {
+			// don't modify existing object
+			storedClaim = storedClaim.DeepCopy()
+			// Apply patch
+			storedClaimBytes, err := json.Marshal(storedClaim)
+			if err != nil {
+				return true, nil, err
+			}
+			claimPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+			modified, err := claimPatch.Apply(storedClaimBytes)
+			if err != nil {
+				return true, nil, err
+			}
+			err = json.Unmarshal(modified, claim)
+			if err != nil {
+				return true, nil, err
+			}
+			storedVer, _ := strconv.Atoi(claim.ResourceVersion)
+			claim.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update claim %s: claim not found", action.GetName())
+		}
+		// Store the updated object to appropriate places.
+		r.claims[claim.Name] = claim
+		r.changedObjects = append(r.changedObjects, claim)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated claim %s", claim.Name)
+		return
 
 	case action.Matches("get", "secrets"):
 		name := action.(core.GetAction).GetName()
@@ -1165,6 +1208,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("list", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
+	kubeClient.AddReactor("patch", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
 
@@ -1804,7 +1848,6 @@ func testAddPVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotRea
 func testRemovePVCFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.checkandRemovePVCFinalizer(test.initialSnapshots[0], false)
 }
-
 func testAddSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.addSnapshotFinalizer(test.initialSnapshots[0], true, true)
 }
@@ -1814,6 +1857,10 @@ func testAddSingleSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *
 }
 
 func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true, false)
+}
+
+func testRemoveSnapshotFinalizerAfterUpdateConflict(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true, false)
 }
 
@@ -1989,7 +2036,6 @@ func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
 		klog.V(4).Infof("starting test %q", test.name)
-
 		// Initialize the controller
 		kubeClient := &kubefake.Clientset{}
 		client := &fake.Clientset{}
@@ -2032,7 +2078,7 @@ func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*
 
 		// Run the tested functions
 		err = test.test(ctrl, reactor, test)
-		if err != nil {
+		if test.expectSuccess && err != nil {
 			t.Errorf("Test %q failed: %v", test.name, err)
 		}
 

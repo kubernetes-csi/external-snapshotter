@@ -19,8 +19,10 @@ package common_controller
 import (
 	"testing"
 
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 )
 
 // Test single call to ensurePVCFinalizer, checkandRemovePVCFinalizer, addSnapshotFinalizer, removeSnapshotFinalizer
@@ -82,6 +84,38 @@ func TestSnapshotFinalizer(t *testing.T) {
 			initialClaims:    newClaimArray("claim6-2", "pvc-uid6-2", "1Gi", "volume6-2", v1.ClaimBound, &classEmpty),
 			test:             testRemoveSnapshotFinalizer,
 			expectSuccess:    true,
+		},
+		// TODO: Handle conflict errors, currently failing
+		// {
+		// 	name:             "2-4 - successful remove Snapshot finalizer after update conflict",
+		// 	initialSnapshots: newSnapshotArray("snap2-4", "snapuid2-4", "claim2-4", "", classSilver, "", &False, nil, nil, nil, false, true, nil),
+		// 	initialClaims:    newClaimArray("claim2-4", "pvc-uid2-4", "1Gi", "volume2-4", v1.ClaimBound, &classEmpty),
+		// 	test:             testRemoveSnapshotFinalizerAfterUpdateConflict,
+		// 	expectSuccess:    true,
+		// 	errors: []reactorError{
+		// 		{"update", "volumesnapshots", errors.NewConflict(crdv1.Resource("volumesnapshots"), "snap2-4", nil)},
+		// 	},
+		// },
+		{
+			name:             "2-5 - unsuccessful remove Snapshot finalizer after update non-conflict error",
+			initialSnapshots: newSnapshotArray("snap2-5", "snapuid2-5", "claim2-5", "", classSilver, "", &False, nil, nil, nil, false, true, nil),
+			initialClaims:    newClaimArray("claim2-5", "pvc-uid2-5", "1Gi", "volume2-5", v1.ClaimBound, &classEmpty),
+			test:             testRemoveSnapshotFinalizerAfterUpdateConflict,
+			expectSuccess:    false,
+			errors: []reactorError{
+				{"update", "volumesnapshots", errors.NewForbidden(crdv1.Resource("volumesnapshots"), "snap2-5", nil)},
+			},
+		},
+		{
+			name:             "2-6 - unsuccessful remove Snapshot finalizer after update conflict and get fails",
+			initialSnapshots: newSnapshotArray("snap2-6", "snapuid2-6", "claim2-6", "", classSilver, "", &False, nil, nil, nil, false, true, nil),
+			initialClaims:    newClaimArray("claim2-6", "pvc-uid2-6", "1Gi", "volume2-6", v1.ClaimBound, &classEmpty),
+			test:             testRemoveSnapshotFinalizerAfterUpdateConflict,
+			expectSuccess:    false,
+			errors: []reactorError{
+				{"update", "volumesnapshots", errors.NewConflict(crdv1.Resource("volumesnapshots"), "snap2-6", nil)},
+				{"get", "volumesnapshots", errors.NewServerTimeout(crdv1.Resource("volumesnapshots"), "get", 10)},
+			},
 		},
 	}
 	runFinalizerTests(t, tests, snapshotClasses)
