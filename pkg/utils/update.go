@@ -21,24 +21,30 @@ func UpdateRemoveFinalizers[O metav1.Object](
 	updateFunc func(context.Context, O, metav1.UpdateOptions) (O, error),
 	getFunc func(context.Context, string, metav1.GetOptions) (O, error),
 	finalizers ...string) (O, error) {
-	object.SetFinalizers(RemoveStrings(object.GetFinalizers(), finalizers...))
-	object, err := updateFunc(context.TODO(), object, metav1.UpdateOptions{})
-	if err != nil {
-		if apierrors.IsConflict(err) {
-			object, err = getFunc(context.TODO(), object.GetName(), metav1.GetOptions{})
-			if err != nil {
+	for success := false; !success; {
+		object.SetFinalizers(RemoveStrings(object.GetFinalizers(), finalizers...))
+		updatedObject, err := updateFunc(context.TODO(), object, metav1.UpdateOptions{})
+		if err != nil {
+			if apierrors.IsConflict(err) {
+				object, err = getFunc(context.TODO(), object.GetName(), metav1.GetOptions{})
+				if err != nil {
+					return object, err
+				}
+				// retry removing finalizers
+				continue
+			} else {
+				// return error if it's not a conflict
 				return object, err
 			}
-			return UpdateRemoveFinalizers(object, updateFunc, getFunc, finalizers...)
-		} else {
-			return object, err
 		}
+		success = true
+		object = updatedObject
 	}
 	if len(object.GetFinalizers()) == 0 {
 		// to satisfy some tests that requires nil rather than []string{}
 		object.SetFinalizers(nil)
 	}
-	return object, err
+	return object, nil
 }
 
 func UpdateRemoveFinalizersSnapshots(object metav1.Object, client clientset.Interface, finalizers ...string) (metav1.Object, error) {

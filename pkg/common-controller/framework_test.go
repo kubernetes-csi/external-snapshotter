@@ -1317,6 +1317,10 @@ func testRemoveSnapshotFinalizer(ctrl *csiSnapshotCommonController, reactor *sna
 	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true, false)
 }
 
+func testRemoveSnapshotFinalizerAfterUpdateConflict(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.removeSnapshotFinalizer(test.initialSnapshots[0], true, true, false)
+}
+
 func testUpdateSnapshotClass(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	snap, err := ctrl.checkAndUpdateSnapshotClass(test.initialSnapshots[0])
 	// syncSnapshotByKey expects that checkAndUpdateSnapshotClass always returns a snapshot
@@ -1510,7 +1514,7 @@ func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*
 
 		// Run the tested functions
 		err = test.test(ctrl, reactor, test)
-		if err != nil {
+		if test.expectSuccess && err != nil {
 			t.Errorf("Test %q failed: %v", test.name, err)
 		}
 
