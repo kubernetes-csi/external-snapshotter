@@ -743,7 +743,7 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		TODO: Add PVC finalizer
 	*/
 
-	groupSnapshotClass, volumes, contentName, err := ctrl.getCreateGroupSnapshotInput(groupSnapshot)
+	groupSnapshotClass, volumes, contentName, snapshotterSecretRef, err := ctrl.getCreateGroupSnapshotInput(groupSnapshot)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get input parameters to create group snapshot %s: %q", groupSnapshot.Name, err)
 	}
@@ -773,8 +773,15 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	}
 
 	/*
-		TODO: Add secret reference details
+		Add secret reference details
 	*/
+	if snapshotterSecretRef != nil {
+		klog.V(5).Infof("createGroupSnapshotContent: set annotation [%s] on volume group snapshot content [%s].", utils.AnnDeletionSecretRefName, groupSnapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName, snapshotterSecretRef.Name)
+
+		klog.V(5).Infof("creategroupSnapshotContent: set annotation [%s] on volume group snapshot content [%s].", utils.AnnDeletionSecretRefNamespace, groupSnapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, snapshotterSecretRef.Namespace)
+	}
 
 	var updateGroupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent
 	klog.V(5).Infof("volume group snapshot content %#v", groupSnapshotContent)
@@ -810,7 +817,7 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	return updateGroupSnapshotContent, nil
 }
 
-func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*crdv1alpha1.VolumeGroupSnapshotClass, []*v1.PersistentVolume, string, error) {
+func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*crdv1alpha1.VolumeGroupSnapshotClass, []*v1.PersistentVolume, string, *v1.SecretReference, error) {
 	className := groupSnapshot.Spec.VolumeGroupSnapshotClassName
 	klog.V(5).Infof("getCreateGroupSnapshotInput [%s]", groupSnapshot.Name)
 	var groupSnapshotClass *crdv1alpha1.VolumeGroupSnapshotClass
@@ -819,23 +826,29 @@ func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapsh
 		groupSnapshotClass, err = ctrl.getGroupSnapshotClass(*className)
 		if err != nil {
 			klog.Errorf("getCreateGroupSnapshotInput failed to getClassFromVolumeGroupSnapshot %s", err)
-			return nil, nil, "", err
+			return nil, nil, "", nil, err
 		}
 	} else {
 		klog.Errorf("failed to getCreateGroupSnapshotInput %s without a group snapshot class", groupSnapshot.Name)
-		return nil, nil, "", fmt.Errorf("failed to take group snapshot %s without a group snapshot class", groupSnapshot.Name)
+		return nil, nil, "", nil, fmt.Errorf("failed to take group snapshot %s without a group snapshot class", groupSnapshot.Name)
 	}
 
 	volumes, err := ctrl.getVolumesFromVolumeGroupSnapshot(groupSnapshot)
 	if err != nil {
 		klog.Errorf("getCreateGroupSnapshotInput failed to get PersistentVolume objects [%s]: Error: [%#v]", groupSnapshot.Name, err)
-		return nil, nil, "", err
+		return nil, nil, "", nil, err
 	}
 
 	// Create VolumeGroupSnapshotContent name
 	contentName := utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
 
-	return groupSnapshotClass, volumes, contentName, nil
+	// Get the secret reference
+	snapshotterSecretRef, err := utils.GetGroupSnapshotSecretReference(utils.SnapshotterSecretParams, groupSnapshotClass.Parameters, contentName, groupSnapshot)
+	if err != nil {
+		return nil, nil, "", nil, err
+	}
+
+	return groupSnapshotClass, volumes, contentName, snapshotterSecretRef, nil
 }
 
 // syncGroupSnapshotContent deals with one key off the queue

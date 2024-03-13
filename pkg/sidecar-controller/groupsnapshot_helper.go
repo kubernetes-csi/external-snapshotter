@@ -423,6 +423,11 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		creationTime = time.Now()
 	}
 
+	groupSnapshotSecret, err := utils.GetSecretReference(utils.GroupSnapshotterSecretParams, class.Parameters, groupSnapshotContent.GetObjectMeta().GetName(), nil)
+	if err != nil {
+		klog.Errorf("Failed to get secret reference for group snapshot content %s: %v", groupSnapshotContent.Name, err)
+		return groupSnapshotContent, fmt.Errorf("failed to get secret reference for group snapshot content %s: %v", groupSnapshotContent.Name, err)
+	}
 	// Create individual snapshots and snapshot contents
 	var snapshotContentNames []string
 	for _, snapshot := range snapshots {
@@ -452,6 +457,13 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 			},
 		}
 
+		if groupSnapshotSecret != nil {
+			klog.V(5).Infof("createGroupSnapshotContent: set annotation [%s] on volume snapshot content [%s].", utils.AnnDeletionSecretRefName, volumeSnapshotContent.Name)
+			metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName, groupSnapshotSecret.Name)
+
+			klog.V(5).Infof("createGroupSnapshotContent: set annotation [%s] on volume snapshot content [%s].", utils.AnnDeletionSecretRefNamespace, volumeSnapshotContent.Name)
+			metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, groupSnapshotSecret.Namespace)
+		}
 		label := make(map[string]string)
 		label["volumeGroupSnapshotName"] = groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name
 		volumeSnapshot := &crdv1.VolumeSnapshot{
@@ -503,7 +515,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 
 func (ctrl *csiSnapshotSideCarController) getCSIGroupSnapshotInput(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) (*crdv1alpha1.VolumeGroupSnapshotClass, map[string]string, error) {
 	className := groupSnapshotContent.Spec.VolumeGroupSnapshotClassName
-	klog.V(5).Infof("getCSIGroupSnapshotInput for group snapshot content [%s]", groupSnapshotContent.Name)
+	klog.V(5).Infof("getCSIGroupSnapshotInput for group snapshot content %s", groupSnapshotContent.Name)
 	var class *crdv1alpha1.VolumeGroupSnapshotClass
 	var err error
 	if className != nil {
@@ -522,9 +534,13 @@ func (ctrl *csiSnapshotSideCarController) getCSIGroupSnapshotInput(groupSnapshot
 		klog.V(5).Infof("getCSISnapshotInput for groupSnapshotContent [%s]: no VolumeGroupSnapshotClassName provided for pre-provisioned group snapshot", groupSnapshotContent.Name)
 	}
 
-	// TODO: Resolve snapshotting secret credentials.
+	// Resolve snapshotting secret credentials.
+	snapshotterCredentials, err := ctrl.GetGroupCredentialsFromAnnotation(groupSnapshotContent)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	return class, nil, nil
+	return class, snapshotterCredentials, nil
 }
 
 // getGroupSnapshotClass is a helper function to get group snapshot class from the class name.
@@ -830,4 +846,33 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		return updatedContent, nil
 	}
 	return ctrl.createGroupSnapshotWrapper(groupSnapshotContent)
+}
+
+func (ctrl *csiSnapshotSideCarController) GetGroupCredentialsFromAnnotation(content *crdv1alpha1.VolumeGroupSnapshotContent) (map[string]string, error) {
+	var groupSnapshotterCredentials map[string]string
+	var err error
+
+	// Check if annotation exists
+	if metav1.HasAnnotation(content.ObjectMeta, utils.AnnDeletionSecretRefName) && metav1.HasAnnotation(content.ObjectMeta, utils.AnnDeletionSecretRefNamespace) {
+		annDeletionSecretName := content.Annotations[utils.AnnDeletionSecretRefName]
+		annDeletionSecretNamespace := content.Annotations[utils.AnnDeletionSecretRefNamespace]
+
+		groupSnapshotterSecretRef := &v1.SecretReference{}
+
+		if annDeletionSecretName == "" || annDeletionSecretNamespace == "" {
+			return nil, fmt.Errorf("cannot retrieve secrets for volume group snapshot content %#v, err: secret name or namespace not specified", content.Name)
+		}
+
+		groupSnapshotterSecretRef.Name = annDeletionSecretName
+		groupSnapshotterSecretRef.Namespace = annDeletionSecretNamespace
+
+		groupSnapshotterCredentials, err = utils.GetCredentials(ctrl.client, groupSnapshotterSecretRef)
+		if err != nil {
+			// Continue with deletion, as the secret may have already been deleted.
+			klog.Errorf("Failed to get credentials for snapshot %s: %s", content.Name, err.Error())
+			return nil, fmt.Errorf("cannot get credentials for snapshot content %#v", content.Name)
+		}
+	}
+
+	return groupSnapshotterCredentials, nil
 }
