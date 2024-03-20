@@ -2,6 +2,29 @@
 
 [Documentation](https://kubernetes-csi.github.io)
 
+## Changes by Kind
+
+### Bug or Regression
+
+- Cherry-pick from PR [#1005](https://github.com/kubernetes-csi/external-snapshotter/pull/1005). Fixes a panic in the snapshot validation webhook. ([#1006](https://github.com/kubernetes-csi/external-snapshotter/pull/1006), [@xing-yang](https://github.com/xing-yang))
+- Fixes a problem deleting VolumeSnapshotContent with `Retain` policy for pre-provisioned snapshots. ([#249](https://github.com/kubernetes-csi/external-snapshotter/pull/249), [@xing-yang](https://github.com/xing-yang))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/golang/protobuf: [v1.5.3 → v1.5.4](https://github.com/golang/protobuf/compare/v1.5.3...v1.5.4)
+- google.golang.org/protobuf: v1.32.0 → v1.33.0
+
+### Removed
+_Nothing has changed._
+
+# Release notes for v7.0.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
 # Changelog since v7.0.0
 
 ## Changes by Kind
