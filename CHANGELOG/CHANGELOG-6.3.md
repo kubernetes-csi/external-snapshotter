@@ -1,3 +1,21 @@
+# Release notes for v6.3.4
+
+[Documentation](https://kubernetes-csi.github.io)
+
+
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/golang/protobuf: [v1.5.3 → v1.5.4](https://github.com/golang/protobuf/compare/v1.5.3...v1.5.4)
+- google.golang.org/protobuf: v1.31.0 → v1.33.0
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v6.3.3
 
 [Documentation](https://kubernetes-csi.github.io)
