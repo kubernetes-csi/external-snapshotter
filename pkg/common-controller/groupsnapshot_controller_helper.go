@@ -737,7 +737,7 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeGroupSnapshot(groupS
 
 // createGroupSnapshotContent will only be called for dynamic provisioning
 func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*crdv1alpha1.VolumeGroupSnapshotContent, error) {
-	klog.Infof("createSnapshotContent: Creating group snapshot content for group snapshot %s through the plugin ...", utils.GroupSnapshotKey(groupSnapshot))
+	klog.Infof("createGroupSnapshotContent: Creating group snapshot content for group snapshot %s through the plugin ...", utils.GroupSnapshotKey(groupSnapshot))
 
 	/*
 		TODO: Add PVC finalizer
