@@ -57,6 +57,9 @@ const (
 	PrefixedSnapshotterSecretNameKey      = csiParameterPrefix + "snapshotter-secret-name"      // Prefixed name key for DeleteSnapshot secret
 	PrefixedSnapshotterSecretNamespaceKey = csiParameterPrefix + "snapshotter-secret-namespace" // Prefixed namespace key for DeleteSnapshot secret
 
+	PrefixedGroupSnapshotterSecretNameKey      = csiParameterPrefix + "group-snapshotter-secret-name"      // Prefixed name key for CreateGroupSnapshot secret
+	PrefixedGroupSnapshotterSecretNamespaceKey = csiParameterPrefix + "group-snapshotter-secret-namespace" // Prefixed namespace key for DeleteGroupSnapshot secret
+
 	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"      // Prefixed name key for ListSnapshots secret
 	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace" // Prefixed namespace key for ListSnapshots secret
 
@@ -148,6 +151,12 @@ var SnapshotterSecretParams = secretParamsMap{
 	name:               "Snapshotter",
 	secretNameKey:      PrefixedSnapshotterSecretNameKey,
 	secretNamespaceKey: PrefixedSnapshotterSecretNamespaceKey,
+}
+
+var GroupSnapshotterSecretParams = secretParamsMap{
+	name:               "GroupSnapshotter",
+	secretNameKey:      PrefixedGroupSnapshotterSecretNameKey,
+	secretNamespaceKey: PrefixedGroupSnapshotterSecretNamespaceKey,
 }
 
 var SnapshotterListSecretParams = secretParamsMap{
@@ -380,6 +389,61 @@ func GetSecretReference(secretParams secretParamsMap, snapshotClassParams map[st
 	ref.Name = resolvedName
 
 	klog.V(4).Infof("GetSecretReference validated Secret: %+v", ref)
+	return ref, nil
+}
+
+// GetSecretReference for the group snapshot
+func GetGroupSnapshotSecretReference(secretParams secretParamsMap, volumeGroupSnapshotClassParams map[string]string, groupSnapContentName string, volumeGroupSnapshot *crdv1alpha1.VolumeGroupSnapshot) (*v1.SecretReference, error) {
+	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretParams, volumeGroupSnapshotClassParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
+	}
+	if nameTemplate == "" && namespaceTemplate == "" {
+		return nil, nil
+	}
+
+	ref := &v1.SecretReference{}
+
+	// Secret namespace template can make use of the VolumeGroupSnapshotContent name, VolumeGroupSnapshot name or namespace.
+	// Note that neither of those things are under the control of the VolumeGroupSnapshot user.
+	namespaceParams := map[string]string{"volumegroupsnapshotcontent.name": groupSnapContentName}
+	// volume group snapshot may be nil when resolving create/delete volumegroupsnapshot secret names because the
+	// volume group snapshot may or may not exist at delete time
+	if volumeGroupSnapshot != nil {
+		namespaceParams["volumegroupsnapshot.namespace"] = volumeGroupSnapshot.Namespace
+	}
+
+	resolvedNamespace, err := resolveTemplate(namespaceTemplate, namespaceParams)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving value %q: %v", namespaceTemplate, err)
+	}
+
+	if len(validation.IsDNS1123Label(resolvedNamespace)) > 0 {
+		if namespaceTemplate != resolvedNamespace {
+			return nil, fmt.Errorf("%q resolved to %q which is not a valid namespace name", namespaceTemplate, resolvedNamespace)
+		}
+		return nil, fmt.Errorf("%q is not a valid namespace name", namespaceTemplate)
+	}
+	ref.Namespace = resolvedNamespace
+
+	// Secret name template can make use of the VolumeGroupSnapshotContent name, VolumeGroupSnapshot name or namespace.
+	// Note that VolumeGroupSnapshot name and namespace are under the VolumeGroupSnapshot user's control.
+	nameParams := map[string]string{"volumegroupsnapshotcontent.name": groupSnapContentName}
+	if volumeGroupSnapshot != nil {
+		nameParams["volumegroupsnapshot.name"] = volumeGroupSnapshot.Name
+		nameParams["volumegroupsnapshot.namespace"] = volumeGroupSnapshot.Namespace
+	}
+	resolvedName, err := resolveTemplate(nameTemplate, nameParams)
+	if err != nil {
+		return nil, fmt.Errorf("error resolving value %q: %v", nameTemplate, err)
+	}
+	if len(validation.IsDNS1123Subdomain(resolvedName)) > 0 {
+		if nameTemplate != resolvedName {
+			return nil, fmt.Errorf("%q resolved to %q which is not a valid secret name", nameTemplate, resolvedName)
+		}
+		return nil, fmt.Errorf("%q is not a valid secret name", nameTemplate)
+	}
+	ref.Name = resolvedName
 	return ref, nil
 }
 
