@@ -446,10 +446,12 @@ func (ctrl *csiSnapshotSideCarController) updateSnapshotContentStatus(
 			SnapshotHandle: &snapshotHandle,
 			ReadyToUse:     &readyToUse,
 			CreationTime:   &createdAt,
-			RestoreSize:    &size,
 		}
 		if groupSnapshotID != "" {
 			newStatus.VolumeGroupSnapshotHandle = &groupSnapshotID
+		}
+		if size > 0 {
+			newStatus.RestoreSize = &size
 		}
 		updated = true
 	} else {
@@ -469,7 +471,7 @@ func (ctrl *csiSnapshotSideCarController) updateSnapshotContentStatus(
 			newStatus.CreationTime = &createdAt
 			updated = true
 		}
-		if newStatus.RestoreSize == nil {
+		if newStatus.RestoreSize == nil && size > 0 {
 			newStatus.RestoreSize = &size
 			updated = true
 		}

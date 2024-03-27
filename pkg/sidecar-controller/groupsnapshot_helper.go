@@ -477,6 +477,11 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		if err != nil {
 			return groupSnapshotContent, err
 		}
+
+		_, err = ctrl.updateSnapshotContentStatus(volumeSnapshotContent, snapshot.SnapshotId, snapshot.ReadyToUse, snapshot.CreationTime.AsTime().UnixNano(), snapshot.SizeBytes, groupSnapshotID)
+		if err != nil {
+			return groupSnapshotContent, err
+		}
 	}
 
 	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano(), snapshotContentNames)
