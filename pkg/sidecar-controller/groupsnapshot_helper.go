@@ -297,9 +297,9 @@ func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotationForGroupSn
 	var err error
 
 	// Check if annotation exists
-	if metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName) && metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace) {
-		annDeletionSecretName := groupSnapshotContent.Annotations[utils.AnnDeletionSecretRefName]
-		annDeletionSecretNamespace := groupSnapshotContent.Annotations[utils.AnnDeletionSecretRefNamespace]
+	if metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnDeletionGroupSecretRefName) && metav1.HasAnnotation(groupSnapshotContent.ObjectMeta, utils.AnnDeletionGroupSecretRefNamespace) {
+		annDeletionSecretName := groupSnapshotContent.Annotations[utils.AnnDeletionGroupSecretRefName]
+		annDeletionSecretNamespace := groupSnapshotContent.Annotations[utils.AnnDeletionGroupSecretRefNamespace]
 
 		snapshotterSecretRef := &v1.SecretReference{}
 
