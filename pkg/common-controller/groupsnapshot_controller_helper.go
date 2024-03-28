@@ -776,11 +776,11 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		Add secret reference details
 	*/
 	if snapshotterSecretRef != nil {
-		klog.V(5).Infof("createGroupSnapshotContent: set annotation [%s] on volume group snapshot content [%s].", utils.AnnDeletionSecretRefName, groupSnapshotContent.Name)
-		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName, snapshotterSecretRef.Name)
+		klog.V(5).Infof("createGroupSnapshotContent: set annotation [%s] on volume group snapshot content [%s].", utils.AnnDeletionGroupSecretRefName, groupSnapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionGroupSecretRefName, snapshotterSecretRef.Name)
 
-		klog.V(5).Infof("creategroupSnapshotContent: set annotation [%s] on volume group snapshot content [%s].", utils.AnnDeletionSecretRefNamespace, groupSnapshotContent.Name)
-		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, snapshotterSecretRef.Namespace)
+		klog.V(5).Infof("creategroupSnapshotContent: set annotation [%s] on volume group snapshot content [%s].", utils.AnnDeletionGroupSecretRefNamespace, groupSnapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionGroupSecretRefNamespace, snapshotterSecretRef.Namespace)
 	}
 
 	var updateGroupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent
@@ -843,7 +843,7 @@ func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapsh
 	contentName := utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
 
 	// Get the secret reference
-	snapshotterSecretRef, err := utils.GetGroupSnapshotSecretReference(utils.SnapshotterSecretParams, groupSnapshotClass.Parameters, contentName, groupSnapshot)
+	snapshotterSecretRef, err := utils.GetGroupSnapshotSecretReference(utils.GroupSnapshotterSecretParams, groupSnapshotClass.Parameters, contentName, groupSnapshot)
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
