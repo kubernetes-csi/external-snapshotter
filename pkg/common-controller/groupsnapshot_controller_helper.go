@@ -843,7 +843,7 @@ func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapsh
 	contentName := utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
 
 	// Get the secret reference
-	snapshotterSecretRef, err := utils.GetGroupSnapshotSecretReference(utils.SnapshotterSecretParams, groupSnapshotClass.Parameters, contentName, groupSnapshot)
+	snapshotterSecretRef, err := utils.GetGroupSnapshotSecretReference(utils.GroupSnapshotterSecretParams, groupSnapshotClass.Parameters, contentName, groupSnapshot)
 	if err != nil {
 		return nil, nil, "", nil, err
 	}
