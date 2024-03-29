@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -202,7 +203,7 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshot
 // removeGroupSnapshotContentFinalizer removes the VolumeGroupSnapshotContentFinalizer from a
 // group snapshot content if there exists one.
 func (ctrl csiSnapshotSideCarController) removeGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) error {
-	if !utils.ContainsString(groupSnapshotContent.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer) {
+	if !slices.Contains(groupSnapshotContent.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer) {
 		// the finalizer does not exit, return directly
 		return nil
 	}

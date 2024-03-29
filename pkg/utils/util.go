@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -160,16 +161,6 @@ var SnapshotterListSecretParams = secretParamsMap{
 func MapContainsKey(m map[string]string, s string) bool {
 	_, r := m[s]
 	return r
-}
-
-// ContainsString checks if a given slice of strings contains the provided string.
-func ContainsString(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
 }
 
 // RemoveString returns a newly created []string that contains all items from slice that
@@ -417,39 +408,39 @@ func NoResyncPeriodFunc() time.Duration {
 
 // NeedToAddContentFinalizer checks if a Finalizer needs to be added for the volume snapshot content.
 func NeedToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
-	return content.ObjectMeta.DeletionTimestamp == nil && !ContainsString(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
+	return content.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(content.ObjectMeta.Finalizers, VolumeSnapshotContentFinalizer)
 }
 
 // NeedToAddGroupSnapshotContentFinalizer checks if a Finalizer needs to be added for the volume group snapshot content.
 func NeedToAddGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1alpha1.VolumeGroupSnapshotContent) bool {
-	return groupSnapshotContent.ObjectMeta.DeletionTimestamp == nil && !ContainsString(groupSnapshotContent.ObjectMeta.Finalizers, VolumeGroupSnapshotContentFinalizer)
+	return groupSnapshotContent.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshotContent.ObjectMeta.Finalizers, VolumeGroupSnapshotContentFinalizer)
 }
 
 // IsSnapshotDeletionCandidate checks if a volume snapshot deletionTimestamp
 // is set and any finalizer is on the snapshot.
 func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp != nil && (ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer) || ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer))
+	return snapshot.ObjectMeta.DeletionTimestamp != nil && (slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer) || slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer))
 }
 
 // IsGroupSnapshotDeletionCandidate checks if a volume group snapshot deletionTimestamp
 // is set and any finalizer is on the group snapshot.
 func IsGroupSnapshotDeletionCandidate(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
-	return groupSnapshot.ObjectMeta.DeletionTimestamp != nil && ContainsString(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer)
+	return groupSnapshot.ObjectMeta.DeletionTimestamp != nil && slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer)
 }
 
 // NeedToAddSnapshotAsSourceFinalizer checks if a Finalizer needs to be added for the volume snapshot as a source for PVC.
 func NeedToAddSnapshotAsSourceFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer)
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer)
 }
 
 // NeedToAddSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume snapshot.
 func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer) && IsBoundVolumeSnapshotContentNameSet(snapshot)
+	return snapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer) && IsBoundVolumeSnapshotContentNameSet(snapshot)
 }
 
 // NeedToAddGroupSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume group snapshot.
 func NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
-	return groupSnapshot.ObjectMeta.DeletionTimestamp == nil && !ContainsString(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer) && IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot)
+	return groupSnapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer) && IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot)
 }
 
 func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {
