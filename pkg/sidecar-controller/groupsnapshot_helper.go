@@ -797,7 +797,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 	readyToUse := false
 	var driverName string
 	var groupSnapshotID string
-	var snapshotterListCredentials map[string]string
+	var groupSnapshotCredentials map[string]string
 
 	if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
 		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: call GetGroupSnapshotStatus for group snapshot which is pre-bound to group snapshot content [%s]", groupSnapshotContent.Name)
@@ -809,13 +809,13 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 				return groupSnapshotContent, fmt.Errorf("failed to get group snapshot class %s for group snapshot content %s: %v", *groupSnapshotContent.Spec.VolumeGroupSnapshotClassName, groupSnapshotContent.Name, err)
 			}
 
-			snapshotterListSecretRef, err := utils.GetSecretReference(utils.SnapshotterListSecretParams, class.Parameters, groupSnapshotContent.GetObjectMeta().GetName(), nil)
+			groupSnapshotSecretRef, err := utils.GetGroupSnapshotSecretReference(utils.GroupSnapshotterSecretParams, class.Parameters, groupSnapshotContent.GetObjectMeta().GetName(), nil)
 			if err != nil {
 				klog.Errorf("Failed to get secret reference for group snapshot content %s: %v", groupSnapshotContent.Name, err)
 				return groupSnapshotContent, fmt.Errorf("failed to get secret reference for group snapshot content %s: %v", groupSnapshotContent.Name, err)
 			}
 
-			snapshotterListCredentials, err = utils.GetCredentials(ctrl.client, snapshotterListSecretRef)
+			groupSnapshotCredentials, err = utils.GetCredentials(ctrl.client, groupSnapshotSecretRef)
 			if err != nil {
 				// Continue with deletion, as the secret may have already been deleted.
 				klog.Errorf("Failed to get credentials for group snapshot content %s: %v", groupSnapshotContent.Name, err)
@@ -824,7 +824,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		}
 
 		snapshotIDs := groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeSnapshotHandles
-		readyToUse, creationTime, err = ctrl.handler.GetGroupSnapshotStatus(groupSnapshotContent, snapshotIDs, snapshotterListCredentials)
+		readyToUse, creationTime, err = ctrl.handler.GetGroupSnapshotStatus(groupSnapshotContent, snapshotIDs, groupSnapshotCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateGroupSnapshotContentStatusOperation: failed to call get group snapshot status to check whether group snapshot is ready to use %q", err)
 			return groupSnapshotContent, err
