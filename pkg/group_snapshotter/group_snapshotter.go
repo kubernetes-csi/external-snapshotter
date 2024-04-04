@@ -35,7 +35,7 @@ type GroupSnapshotter interface {
 	DeleteGroupSnapshot(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (err error)
 
 	// GetGroupSnapshotStatus returns if a group snapshot is ready to use, its creation time, etc
-	GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterListCredentials map[string]string) (bool, time.Time, error)
+	GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error)
 }
 
 type groupSnapshot struct {
@@ -92,12 +92,12 @@ func (gs *groupSnapshot) DeleteGroupSnapshot(ctx context.Context, groupSnapshotI
 	return nil
 }
 
-func (gs *groupSnapshot) GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIds []string, snapshotterListCredentials map[string]string) (bool, time.Time, error) {
+func (gs *groupSnapshot) GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIds []string, snapshotterCredentials map[string]string) (bool, time.Time, error) {
 	klog.V(5).Infof("CSI GetGroupSnapshotStatus: %s", groupSnapshotID)
 	client := csi.NewGroupControllerClient(gs.conn)
 
 	req := csi.GetVolumeGroupSnapshotRequest{
-		Secrets:         snapshotterListCredentials,
+		Secrets:         snapshotterCredentials,
 		GroupSnapshotId: groupSnapshotID,
 		SnapshotIds:     snapshotIds,
 	}
