@@ -117,9 +117,10 @@ func TestSync(t *testing.T) {
 			initialVolumes:    newVolumeArray("volume2-8", "pv-uid2-8", "pv-handle2-8", "1Gi", "pvc-uid2-8", "claim2-8", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:    []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the first client.VolumesnapshotV1().VolumeSnapshots().Update call.
+				// Inject error to the first client.VolumesnapshotV1().VolumeSnapshots().Update and .Patch call.
 				// All other calls will succeed.
 				{"update", "volumesnapshots", errors.New("mock update error")},
+				{"patch", "volumesnapshots", errors.New("mock update error")},
 			},
 			test: testSyncSnapshotError,
 		},

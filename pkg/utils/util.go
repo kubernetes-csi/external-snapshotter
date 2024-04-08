@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -187,28 +188,21 @@ func MapContainsKey(m map[string]string, s string) bool {
 
 // ContainsString checks if a given slice of strings contains the provided string.
 func ContainsString(slice []string, s string) bool {
-	for _, item := range slice {
-		if item == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, s)
 }
 
 // RemoveString returns a newly created []string that contains all items from slice that
 // are not equal to s.
 func RemoveString(slice []string, s string) []string {
-	newSlice := make([]string, 0)
-	for _, item := range slice {
-		if item == s {
-			continue
-		}
-		newSlice = append(newSlice, item)
-	}
+	return RemoveStrings(slice, s)
+}
+
+func RemoveStrings(slice []string, removes ...string) []string {
+	newSlice := slices.DeleteFunc(slice, func(remove string) bool {
+		return slices.Contains(removes, remove)
+	})
 	if len(newSlice) == 0 {
-		// Sanitize for unit tests so we don't need to distinguish empty array
-		// and nil.
-		newSlice = nil
+		return nil
 	}
 	return newSlice
 }
