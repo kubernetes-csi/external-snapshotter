@@ -25,13 +25,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestContainsString(t *testing.T) {
-	src := []string{"aa", "bb", "cc"}
-	if !ContainsString(src, "bb") {
-		t.Errorf("ContainsString didn't find the string as expected")
-	}
-}
-
 func TestRemoveString(t *testing.T) {
 	tests := []struct {
 		testName string

@@ -19,6 +19,7 @@ package common_controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -921,7 +922,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		return newControllerUpdateError(snapshot.Name, "cannot get claim from snapshot")
 	}
 
-	if utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
+	if slices.Contains(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
 		klog.Infof("Protection finalizer already exists for persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
 		return nil
 	}
@@ -1012,7 +1013,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *cr
 	klog.V(5).Infof("checkandRemovePVCFinalizer for snapshot [%s]: snapshot status [%#v]", snapshot.Name, snapshot.Status)
 
 	// Check if there is a Finalizer on PVC to be removed
-	if utils.ContainsString(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
+	if slices.Contains(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
 		// There is a Finalizer on PVC. Check if PVC is used
 		// and remove finalizer if it's not used.
 		inUse := ctrl.isPVCBeingUsed(pvc, snapshot, skipCurrentSnapshot)

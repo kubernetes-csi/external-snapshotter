@@ -19,6 +19,7 @@ package sidecar_controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -565,7 +566,7 @@ func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *
 // removeContentFinalizer removes the VolumeSnapshotContentFinalizer from a
 // content if there exists one.
 func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.VolumeSnapshotContent) error {
-	if !utils.ContainsString(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer) {
+	if !slices.Contains(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer) {
 		// the finalizer does not exit, return directly
 		return nil
 	}
