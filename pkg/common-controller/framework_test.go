@@ -1363,61 +1363,63 @@ func evaluateTestResults(ctrl *csiSnapshotCommonController, reactor *snapshotRea
 func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		t.Run(test.name, func(t *testing.T) {
+			klog.V(4).Infof("starting test %q", test.name)
 
-		// Initialize the controller
-		kubeClient := &kubefake.Clientset{}
-		client := &fake.Clientset{}
+			// Initialize the controller
+			kubeClient := &kubefake.Clientset{}
+			client := &fake.Clientset{}
 
-		ctrl, err := newTestController(kubeClient, client, nil, t, test)
-		if err != nil {
-			t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
-		}
+			ctrl, err := newTestController(kubeClient, client, nil, t, test)
+			if err != nil {
+				t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
+			}
 
-		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
-		for _, snapshot := range test.initialSnapshots {
-			ctrl.snapshotStore.Add(snapshot)
-			reactor.snapshots[snapshot.Name] = snapshot
-		}
-		for _, content := range test.initialContents {
-			ctrl.contentStore.Add(content)
-			reactor.contents[content.Name] = content
-		}
+			reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+			for _, snapshot := range test.initialSnapshots {
+				ctrl.snapshotStore.Add(snapshot)
+				reactor.snapshots[snapshot.Name] = snapshot
+			}
+			for _, content := range test.initialContents {
+				ctrl.contentStore.Add(content)
+				reactor.contents[content.Name] = content
+			}
 
-		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, claim := range test.initialClaims {
-			reactor.claims[claim.Name] = claim
-			pvcIndexer.Add(claim)
-		}
-		ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
+			pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, claim := range test.initialClaims {
+				reactor.claims[claim.Name] = claim
+				pvcIndexer.Add(claim)
+			}
+			ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
 
-		for _, volume := range test.initialVolumes {
-			reactor.volumes[volume.Name] = volume
-		}
-		for _, secret := range test.initialSecrets {
-			reactor.secrets[secret.Name] = secret
-		}
+			for _, volume := range test.initialVolumes {
+				reactor.volumes[volume.Name] = volume
+			}
+			for _, secret := range test.initialSecrets {
+				reactor.secrets[secret.Name] = secret
+			}
 
-		// Inject classes into controller via a custom lister.
-		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, class := range snapshotClasses {
-			indexer.Add(class)
-		}
-		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+			// Inject classes into controller via a custom lister.
+			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, class := range snapshotClasses {
+				indexer.Add(class)
+			}
+			ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
 
-		// Run the tested functions
-		err = test.test(ctrl, reactor, test)
-		if test.expectSuccess && err != nil {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
+			// Run the tested functions
+			err = test.test(ctrl, reactor, test)
+			if test.expectSuccess && err != nil {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
 
-		// Wait for the target state
-		err = reactor.waitTest(test)
-		if err != nil {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
+			// Wait for the target state
+			err = reactor.waitTest(test)
+			if err != nil {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
 
-		evaluateTestResults(ctrl, reactor, test, t)
+			evaluateTestResults(ctrl, reactor, test, t)
+		})
 	}
 }
 
@@ -1425,56 +1427,58 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 func runFinalizerTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		t.Run(test.name, func(t *testing.T) {
+			klog.V(4).Infof("starting test %q", test.name)
 
-		// Initialize the controller
-		kubeClient := &kubefake.Clientset{}
-		client := &fake.Clientset{}
+			// Initialize the controller
+			kubeClient := &kubefake.Clientset{}
+			client := &fake.Clientset{}
 
-		ctrl, err := newTestController(kubeClient, client, nil, t, test)
-		if err != nil {
-			t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
-		}
+			ctrl, err := newTestController(kubeClient, client, nil, t, test)
+			if err != nil {
+				t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
+			}
 
-		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
-		for _, snapshot := range test.initialSnapshots {
-			ctrl.snapshotStore.Add(snapshot)
-			reactor.snapshots[snapshot.Name] = snapshot
-		}
-		for _, content := range test.initialContents {
-			ctrl.contentStore.Add(content)
-			reactor.contents[content.Name] = content
-		}
+			reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+			for _, snapshot := range test.initialSnapshots {
+				ctrl.snapshotStore.Add(snapshot)
+				reactor.snapshots[snapshot.Name] = snapshot
+			}
+			for _, content := range test.initialContents {
+				ctrl.contentStore.Add(content)
+				reactor.contents[content.Name] = content
+			}
 
-		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, claim := range test.initialClaims {
-			reactor.claims[claim.Name] = claim
-			pvcIndexer.Add(claim)
-		}
-		ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
+			pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, claim := range test.initialClaims {
+				reactor.claims[claim.Name] = claim
+				pvcIndexer.Add(claim)
+			}
+			ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
 
-		for _, volume := range test.initialVolumes {
-			reactor.volumes[volume.Name] = volume
-		}
-		for _, secret := range test.initialSecrets {
-			reactor.secrets[secret.Name] = secret
-		}
+			for _, volume := range test.initialVolumes {
+				reactor.volumes[volume.Name] = volume
+			}
+			for _, secret := range test.initialSecrets {
+				reactor.secrets[secret.Name] = secret
+			}
 
-		// Inject classes into controller via a custom lister.
-		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, class := range snapshotClasses {
-			indexer.Add(class)
-		}
-		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+			// Inject classes into controller via a custom lister.
+			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, class := range snapshotClasses {
+				indexer.Add(class)
+			}
+			ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
 
-		// Run the tested functions
-		err = test.test(ctrl, reactor, test)
-		if err != nil {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
+			// Run the tested functions
+			err = test.test(ctrl, reactor, test)
+			if err != nil {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
 
-		// Verify Finalizer tests results
-		evaluateFinalizerTests(ctrl, reactor, test, t)
+			// Verify Finalizer tests results
+			evaluateFinalizerTests(ctrl, reactor, test, t)
+		})
 	}
 }
 
@@ -1567,61 +1571,63 @@ func evaluateFinalizerTests(ctrl *csiSnapshotCommonController, reactor *snapshot
 func runUpdateSnapshotClassTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		t.Run(test.name, func(t *testing.T) {
+			klog.V(4).Infof("starting test %q", test.name)
 
-		// Initialize the controller
-		kubeClient := &kubefake.Clientset{}
-		client := &fake.Clientset{}
+			// Initialize the controller
+			kubeClient := &kubefake.Clientset{}
+			client := &fake.Clientset{}
 
-		ctrl, err := newTestController(kubeClient, client, nil, t, test)
-		if err != nil {
-			t.Fatalf("Test %q construct test controller failed: %v", test.name, err)
-		}
+			ctrl, err := newTestController(kubeClient, client, nil, t, test)
+			if err != nil {
+				t.Fatalf("Test %q construct test controller failed: %v", test.name, err)
+			}
 
-		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
-		for _, snapshot := range test.initialSnapshots {
-			ctrl.snapshotStore.Add(snapshot)
-			reactor.snapshots[snapshot.Name] = snapshot
-		}
-		for _, content := range test.initialContents {
-			ctrl.contentStore.Add(content)
-			reactor.contents[content.Name] = content
-		}
+			reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+			for _, snapshot := range test.initialSnapshots {
+				ctrl.snapshotStore.Add(snapshot)
+				reactor.snapshots[snapshot.Name] = snapshot
+			}
+			for _, content := range test.initialContents {
+				ctrl.contentStore.Add(content)
+				reactor.contents[content.Name] = content
+			}
 
-		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, claim := range test.initialClaims {
-			reactor.claims[claim.Name] = claim
-			pvcIndexer.Add(claim)
-		}
-		ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
+			pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, claim := range test.initialClaims {
+				reactor.claims[claim.Name] = claim
+				pvcIndexer.Add(claim)
+			}
+			ctrl.pvcLister = corelisters.NewPersistentVolumeClaimLister(pvcIndexer)
 
-		for _, volume := range test.initialVolumes {
-			reactor.volumes[volume.Name] = volume
-		}
-		for _, secret := range test.initialSecrets {
-			reactor.secrets[secret.Name] = secret
-		}
+			for _, volume := range test.initialVolumes {
+				reactor.volumes[volume.Name] = volume
+			}
+			for _, secret := range test.initialSecrets {
+				reactor.secrets[secret.Name] = secret
+			}
 
-		// Inject classes into controller via a custom lister.
-		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, class := range snapshotClasses {
-			indexer.Add(class)
-			reactor.snapshotClasses[class.Name] = class
+			// Inject classes into controller via a custom lister.
+			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, class := range snapshotClasses {
+				indexer.Add(class)
+				reactor.snapshotClasses[class.Name] = class
 
-		}
-		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+			}
+			ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
 
-		// Run the tested functions
-		err = test.test(ctrl, reactor, test)
-		if err != nil && isTestError(err) {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
-		if test.expectSuccess && err != nil {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
+			// Run the tested functions
+			err = test.test(ctrl, reactor, test)
+			if err != nil && isTestError(err) {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
+			if test.expectSuccess && err != nil {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
 
-		// Verify UpdateSnapshotClass tests results
-		evaluateTestResults(ctrl, reactor, test, t)
+			// Verify UpdateSnapshotClass tests results
+			evaluateTestResults(ctrl, reactor, test, t)
+		})
 	}
 }
 
