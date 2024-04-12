@@ -149,31 +149,6 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 			ctrl.snapshotQueue.Add(snapshotName)
 		}
 	}
-
-	// NOTE(xyang): Do not trigger content deletion if
-	// snapshot is nil. This is to avoid data loss if
-	// the user copied the yaml files and expect it to work
-	// in a different setup. In this case snapshot is nil.
-	// If we trigger content deletion, it will delete
-	// physical snapshot resource on the storage system
-	// and result in data loss!
-	//
-	// Trigger content deletion if snapshot is not nil
-	// and snapshot has deletion timestamp.
-	// If snapshot has deletion timestamp and finalizers, set
-	// AnnVolumeSnapshotBeingDeleted annotation on the content.
-	// This may trigger the deletion of the content in the
-	// sidecar controller depending on the deletion policy
-	// on the content.
-	// Snapshot won't be deleted until content is deleted
-	// due to the finalizer.
-	if snapshot != nil && utils.IsSnapshotDeletionCandidate(snapshot) {
-		// Do not need to use the returned content here, as syncContent will get
-		// the correct version from the cache next time. It is also not used after this.
-		_, err = ctrl.setAnnVolumeSnapshotBeingDeleted(content)
-		return err
-	}
-
 	return nil
 }
 
@@ -393,16 +368,12 @@ func (ctrl *csiSnapshotCommonController) checkandAddSnapshotFinalizers(snapshot 
 	// to remove this finalizer and make sure it is removed when it is not needed any more.
 	addSourceFinalizer := utils.NeedToAddSnapshotAsSourceFinalizer(snapshot)
 
-	// note that content could be nil, in this case bound finalizer is not needed
-	addBoundFinalizer := false
-	if content != nil {
-		// A bound finalizer is needed ONLY when all following conditions are satisfied:
-		// 1. the VolumeSnapshot is bound to a content
-		// 2. the VolumeSnapshot does not have deletion timestamp set
-		// 3. the matching content has a deletion policy to be Delete
-		// Note that if a matching content is found, it must points back to the snapshot
-		addBoundFinalizer = utils.NeedToAddSnapshotBoundFinalizer(snapshot) && (content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete)
-	}
+	// A bound finalizer is needed ONLY when all following conditions are satisfied:
+	// 1. the VolumeSnapshot is bound to a content
+	// 2. the VolumeSnapshot does not have deletion timestamp set
+	// Note that if a matching content is found, it must points back to the snapshot
+	addBoundFinalizer := content != nil && utils.NeedToAddSnapshotBoundFinalizer(snapshot)
+
 	if addSourceFinalizer || addBoundFinalizer {
 		// Snapshot is not being deleted -> it should have the finalizer.
 		klog.V(5).Infof("checkandAddSnapshotFinalizers: Add Finalizer for VolumeSnapshot[%s]", utils.SnapshotKey(snapshot))
