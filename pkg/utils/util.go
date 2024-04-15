@@ -638,8 +638,8 @@ func IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot *crdv1alpha1.VolumeG
 	return true
 }
 
-func IsVolumeSnapshotRefListSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
-	if groupSnapshot.Status == nil || len(groupSnapshot.Status.VolumeSnapshotRefList) == 0 {
+func IsPVCVolumeSnapshotRefListSet(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) bool {
+	if groupSnapshot.Status == nil || len(groupSnapshot.Status.PVCVolumeSnapshotRefList) == 0 {
 		return false
 	}
 	return true
