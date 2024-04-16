@@ -754,6 +754,19 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	}
 	var volumeHandles []string
 	for _, pv := range volumes {
+		if pv.Spec.CSI == nil {
+			err := fmt.Errorf(
+				"cannot snapshot a non-CSI volume for group snapshot %s: %s",
+				utils.GroupSnapshotKey(groupSnapshot), pv.Name)
+			klog.Error(err.Error())
+			ctrl.eventRecorder.Event(
+				groupSnapshot,
+				v1.EventTypeWarning,
+				"CreateGroupSnapshotContentFailed",
+				fmt.Sprintf("Cannot snapshot a non-CSI volume: %s", pv.Name),
+			)
+			return nil, err
+		}
 		volumeHandles = append(volumeHandles, pv.Spec.CSI.VolumeHandle)
 	}
 
