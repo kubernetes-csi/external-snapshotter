@@ -484,8 +484,16 @@ func (ctrl *csiSnapshotSideCarController) updateSnapshotContentStatus(
 
 	if updated {
 		contentClone := contentObj.DeepCopy()
-		contentClone.Status = newStatus
-		newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), contentClone, metav1.UpdateOptions{})
+
+		patches := []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/status",
+				Value: newStatus,
+			},
+		}
+
+		newContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset, "status")
 		if err != nil {
 			return contentObj, newControllerUpdateError(content.Name, err.Error())
 		}
