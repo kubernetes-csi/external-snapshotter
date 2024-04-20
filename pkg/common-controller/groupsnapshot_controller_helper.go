@@ -565,8 +565,8 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 	}
 
 	var pvcVolumeSnapshotRefList []crdv1alpha1.PVCVolumeSnapshotPair
-	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentRefList) != 0 {
-		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentRefList {
+	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentList) != 0 {
+		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
 			groupSnapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentName)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get group snapshot content %s from group snapshot content store: %v", contentRef.VolumeSnapshotContentName, err)

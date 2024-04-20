@@ -227,10 +227,10 @@ spec:
                     format: date-time
                     type: string
                 type: object
-              pvVolumeSnapshotContentRefList:
-                description: PVVolumeSnapshotContentRefList is the list of pairs of
-                  PV and VolumeSnapshotCOntent for this group snapshot The maximum
-                  number of allowed snapshots in the group is 100.
+              pvVolumeSnapshotContentList:
+                description: PVVolumeSnapshotContentList is the list of pairs of PV
+                  and VolumeSnapshotContent for this group snapshot The maximum number
+                  of allowed snapshots in the group is 100.
                 items:
                   description: PVVolumeSnapshotContentPair represent a pair of PV
                     names and VolumeSnapshotContent names

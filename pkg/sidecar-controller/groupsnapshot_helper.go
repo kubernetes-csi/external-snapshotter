@@ -240,8 +240,8 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 	}
 
 	var snapshotIDs []string
-	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentRefList) != 0 {
-		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentRefList {
+	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentList) != 0 {
+		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
 			snapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentName)
 			if err != nil {
 				return fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.VolumeSnapshotContentName, err)
@@ -283,7 +283,7 @@ func (ctrl *csiSnapshotSideCarController) clearGroupSnapshotContentStatus(
 		groupSnapshotContent.Status.ReadyToUse = nil
 		groupSnapshotContent.Status.CreationTime = nil
 		groupSnapshotContent.Status.Error = nil
-		groupSnapshotContent.Status.PVVolumeSnapshotContentRefList = nil
+		groupSnapshotContent.Status.PVVolumeSnapshotContentList = nil
 	}
 	newContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContent, metav1.UpdateOptions{})
 	if err != nil {
@@ -650,7 +650,7 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			CreationTime:              &createdAt,
 		}
 		for _, name := range snapshotContentNames {
-			newStatus.PVVolumeSnapshotContentRefList = append(newStatus.PVVolumeSnapshotContentRefList, crdv1alpha1.PVVolumeSnapshotContentPair{
+			newStatus.PVVolumeSnapshotContentList = append(newStatus.PVVolumeSnapshotContentList, crdv1alpha1.PVVolumeSnapshotContentPair{
 				VolumeSnapshotContentName: name,
 			})
 		}
@@ -672,9 +672,9 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			newStatus.CreationTime = &createdAt
 			updated = true
 		}
-		if len(newStatus.PVVolumeSnapshotContentRefList) == 0 {
+		if len(newStatus.PVVolumeSnapshotContentList) == 0 {
 			for _, name := range snapshotContentNames {
-				newStatus.PVVolumeSnapshotContentRefList = append(newStatus.PVVolumeSnapshotContentRefList, crdv1alpha1.PVVolumeSnapshotContentPair{
+				newStatus.PVVolumeSnapshotContentList = append(newStatus.PVVolumeSnapshotContentList, crdv1alpha1.PVVolumeSnapshotContentPair{
 					VolumeSnapshotContentName: name,
 				})
 			}

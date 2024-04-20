@@ -189,7 +189,7 @@ spec:
                   allowed snapshots in the group is 100.
                 items:
                   description: PVCVolumeSnapshotPair defines a pair of a PVC reference
-                    and a Volume Snapshot
+                    and a Volume Snapshot Reference
                   properties:
                     persistentVolumeClaimRef:
                       description: PersistentVolumeClaimRef is a reference to the

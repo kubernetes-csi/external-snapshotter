@@ -107,16 +107,16 @@ type VolumeGroupSnapshotStatus struct {
 	// is part of this group snapshot.
 	// The maximum number of allowed snapshots in the group is 100.
 	// +optional
-	PVCVolumeSnapshotRefList []PVCVolumeSnapshotPair `json:"pvcVolumeSnapshotRefList,omitempty" protobuf:"bytes,6,opt,name=pvcVolumeSnapshotRefList"`
+	PVCVolumeSnapshotRefList []PVCVolumeSnapshotPair `json:"pvcVolumeSnapshotRefList,omitempty" protobuf:"bytes,5,opt,name=pvcVolumeSnapshotRefList"`
 }
 
-// PVCVolumeSnapshotPair defines a pair of a PVC reference and a Volume Snapshot
+// PVCVolumeSnapshotPair defines a pair of a PVC reference and a Volume Snapshot Reference
 type PVCVolumeSnapshotPair struct {
 	// PersistentVolumeClaimRef is a reference to the PVC this pair is referring to
 	PersistentVolumeClaimRef core_v1.ObjectReference `json:"persistentVolumeClaimRef,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeClaimRef"`
 
 	// VolumeSnapshotRef is a reference to the VolumeSnapshot this pair is referring to
-	VolumeSnapshotRef core_v1.ObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,1,opt,name=volumeSnapshotRef"`
+	VolumeSnapshotRef core_v1.ObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
 }
 
 //+genclient
@@ -346,11 +346,11 @@ type VolumeGroupSnapshotContentStatus struct {
 	// +optional
 	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
-	// PVVolumeSnapshotContentRefList is the list of pairs of PV and
-	// VolumeSnapshotCOntent for this group snapshot
+	// PVVolumeSnapshotContentList is the list of pairs of PV and
+	// VolumeSnapshotContent for this group snapshot
 	// The maximum number of allowed snapshots in the group is 100.
 	// +optional
-	PVVolumeSnapshotContentRefList []PVVolumeSnapshotContentPair `json:"pvVolumeSnapshotContentRefList,omitempty" protobuf:"bytes,6,opt,name=pvVolumeSnapshotContentRefList"`
+	PVVolumeSnapshotContentList []PVVolumeSnapshotContentPair `json:"pvVolumeSnapshotContentList,omitempty" protobuf:"bytes,5,opt,name=pvVolumeSnapshotContentRefList"`
 }
 
 // PVVolumeSnapshotContentPair represent a pair of PV names and
@@ -360,7 +360,7 @@ type PVVolumeSnapshotContentPair struct {
 	PersistentVolumeName string `json:"persistentVolumeName,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeName"`
 
 	// VolumeSnapshotContentName is the name of the volume snapshot content resource
-	VolumeSnapshotContentName string `json:"volumeSnapshotContentName,omitempty" protobuf:"bytes,1,opt,name=volumeSnapshotContentName"`
+	VolumeSnapshotContentName string `json:"volumeSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentName"`
 }
 
 // VolumeGroupSnapshotContentSource represents the CSI source of a group snapshot.
