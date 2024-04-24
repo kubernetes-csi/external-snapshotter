@@ -572,7 +572,9 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 				return nil, fmt.Errorf("failed to get group snapshot content %s from group snapshot content store: %v", contentRef.VolumeSnapshotContentName, err)
 			}
 			pvcVolumeSnapshotRefList = append(pvcVolumeSnapshotRefList, crdv1alpha1.PVCVolumeSnapshotPair{
-				VolumeSnapshotRef: groupSnapshotContent.Spec.VolumeSnapshotRef,
+				VolumeSnapshotRef: v1.LocalObjectReference{
+					Name: groupSnapshotContent.Spec.VolumeSnapshotRef.Name,
+				},
 			})
 		}
 	}
@@ -1140,7 +1142,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	// used for restore a PVC
 	// If yes, do nothing and wait until PVC restoration finishes
 	for _, snapshotRef := range groupSnapshot.Status.PVCVolumeSnapshotRefList {
-		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(snapshotRef.VolumeSnapshotRef.Namespace).Get(snapshotRef.VolumeSnapshotRef.Name)
+		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(groupSnapshot.Namespace).Get(snapshotRef.VolumeSnapshotRef.Name)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				continue
@@ -1188,9 +1190,9 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 
 	// Delete the individual snapshots part of the group snapshot
 	for _, snapshot := range groupSnapshot.Status.PVCVolumeSnapshotRefList {
-		err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.VolumeSnapshotRef.Namespace).Delete(context.TODO(), snapshot.VolumeSnapshotRef.Name, metav1.DeleteOptions{})
+		err := ctrl.clientset.SnapshotV1().VolumeSnapshots(groupSnapshot.Namespace).Delete(context.TODO(), snapshot.VolumeSnapshotRef.Name, metav1.DeleteOptions{})
 		if err != nil && !apierrs.IsNotFound(err) {
-			msg := fmt.Sprintf("failed to delete snapshot API object %s/%s part of group snapshot %s: %v", snapshot.VolumeSnapshotRef.Namespace, snapshot.VolumeSnapshotRef.Name, utils.GroupSnapshotKey(groupSnapshot), err)
+			msg := fmt.Sprintf("failed to delete snapshot API object %s/%s part of group snapshot %s: %v", groupSnapshot.Namespace, snapshot.VolumeSnapshotRef.Name, utils.GroupSnapshotKey(groupSnapshot), err)
 			klog.Error(msg)
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
 			return fmt.Errorf(msg)

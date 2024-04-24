@@ -103,7 +103,7 @@ type VolumeGroupSnapshotStatus struct {
 	// +optional
 	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
-	// VolumeSnapshotRefList is the list of PVC and VolumeSnapshot pair that
+	// VolumeSnapshotRefList is the list of PVC and VolumeSnapshot pairs that
 	// is part of this group snapshot.
 	// The maximum number of allowed snapshots in the group is 100.
 	// +optional
@@ -113,10 +113,10 @@ type VolumeGroupSnapshotStatus struct {
 // PVCVolumeSnapshotPair defines a pair of a PVC reference and a Volume Snapshot Reference
 type PVCVolumeSnapshotPair struct {
 	// PersistentVolumeClaimRef is a reference to the PVC this pair is referring to
-	PersistentVolumeClaimRef core_v1.ObjectReference `json:"persistentVolumeClaimRef,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeClaimRef"`
+	PersistentVolumeClaimRef core_v1.LocalObjectReference `json:"persistentVolumeClaimRef,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeClaimRef"`
 
 	// VolumeSnapshotRef is a reference to the VolumeSnapshot this pair is referring to
-	VolumeSnapshotRef core_v1.ObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
+	VolumeSnapshotRef core_v1.LocalObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
 }
 
 //+genclient
