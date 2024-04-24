@@ -235,14 +235,26 @@ spec:
                   description: PVVolumeSnapshotContentPair represent a pair of PV
                     names and VolumeSnapshotContent names
                   properties:
-                    persistentVolumeName:
-                      description: PersistentVolumeName is the name of the persistent
-                        volume
-                      type: string
-                    volumeSnapshotContentName:
-                      description: VolumeSnapshotContentName is the name of the volume
-                        snapshot content resource
-                      type: string
+                    persistentVolumeRef:
+                      description: PersistentVolumeRef is a reference to the persistent
+                        volume resource
+                      properties:
+                        name:
+                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
+                    volumeSnapshotContentRef:
+                      description: VolumeSnapshotContentRef is a reference to the
+                        volume snapshot content resource
+                      properties:
+                        name:
+                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          type: string
+                      type: object
+                      x-kubernetes-map-type: atomic
                   type: object
                 type: array
               readyToUse:

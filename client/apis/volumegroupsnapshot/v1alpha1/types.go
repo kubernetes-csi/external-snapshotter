@@ -356,11 +356,11 @@ type VolumeGroupSnapshotContentStatus struct {
 // PVVolumeSnapshotContentPair represent a pair of PV names and
 // VolumeSnapshotContent names
 type PVVolumeSnapshotContentPair struct {
-	// PersistentVolumeName is the name of the persistent volume
-	PersistentVolumeName string `json:"persistentVolumeName,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeName"`
+	// PersistentVolumeRef is a reference to the persistent volume resource
+	PersistentVolumeRef core_v1.LocalObjectReference `json:"persistentVolumeRef,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeRef"`
 
-	// VolumeSnapshotContentName is the name of the volume snapshot content resource
-	VolumeSnapshotContentName string `json:"volumeSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentName"`
+	// VolumeSnapshotContentRef is a reference to the volume snapshot content resource
+	VolumeSnapshotContentRef core_v1.LocalObjectReference `json:"volumeSnapshotContentRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentRef"`
 }
 
 // VolumeGroupSnapshotContentSource represents the CSI source of a group snapshot.
