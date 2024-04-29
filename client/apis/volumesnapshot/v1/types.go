@@ -91,6 +91,7 @@ type VolumeSnapshotSpec struct {
 	// CreateSnapshot will fail and generate an event.
 	// Empty string is not allowed for this field.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="size(self) > 0",message="volumeSnapshotClassName must not be the empty string when set"
 	VolumeSnapshotClassName *string `json:"volumeSnapshotClassName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotClassName"`
 }
 
@@ -99,6 +100,8 @@ type VolumeSnapshotSpec struct {
 // object should be used.
 // Exactly one of its members must be set.
 // Members in VolumeSnapshotSource are immutable.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.persistentVolumeClaimName) || has(self.persistentVolumeClaimName)", message="persistentVolumeClaimName is required once set"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.volumeSnapshotContentName) || has(self.volumeSnapshotContentName)", message="volumeSnapshotContentName is required once set"
 type VolumeSnapshotSource struct {
 	// persistentVolumeClaimName specifies the name of the PersistentVolumeClaim
 	// object representing the volume from which a snapshot should be created.
@@ -108,6 +111,7 @@ type VolumeSnapshotSource struct {
 	// created.
 	// This field is immutable.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Spec.Source.PersistentVolumeClaimName is immutable"
 	PersistentVolumeClaimName *string `json:"persistentVolumeClaimName,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeClaimName"`
 
 	// volumeSnapshotContentName specifies the name of a pre-existing VolumeSnapshotContent
@@ -115,6 +119,7 @@ type VolumeSnapshotSource struct {
 	// This field should be set if the snapshot already exists and only needs a representation in Kubernetes.
 	// This field is immutable.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Spec.Source.VolumeSnapshotContentName is immutable"
 	VolumeSnapshotContentName *string `json:"volumeSnapshotContentName,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentName"`
 }
 
@@ -289,6 +294,7 @@ type VolumeSnapshotContentList struct {
 }
 
 // VolumeSnapshotContentSpec is the specification of a VolumeSnapshotContent
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.sourceVolumeMode) || has(self.sourceVolumeMode)", message="sourceVolumeMode is required once set"
 type VolumeSnapshotContentSpec struct {
 	// volumeSnapshotRef specifies the VolumeSnapshot object to which this
 	// VolumeSnapshotContent object is bound.
@@ -298,6 +304,7 @@ type VolumeSnapshotContentSpec struct {
 	// VolumeSnapshot object MUST be provided for binding to happen.
 	// This field is immutable after creation.
 	// Required.
+	// +kubebuilder:validation:XValidation:rule="has(self.name) && has(self.__namespace__)",message="both spec.volumeSnapshotRef.name and spec.volumeSnapshotRef.namespace must be set"
 	VolumeSnapshotRef core_v1.ObjectReference `json:"volumeSnapshotRef" protobuf:"bytes,1,opt,name=volumeSnapshotRef"`
 
 	// deletionPolicy determines whether this VolumeSnapshotContent and its physical snapshot on
@@ -340,17 +347,21 @@ type VolumeSnapshotContentSpec struct {
 	// This field is immutable.
 	// This field is an alpha field.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Spec.sourceVolumeMode is immutable"
 	SourceVolumeMode *core_v1.PersistentVolumeMode `json:"sourceVolumeMode" protobuf:"bytes,6,opt,name=sourceVolumeMode"`
 }
 
 // VolumeSnapshotContentSource represents the CSI source of a snapshot.
 // Exactly one of its members must be set.
 // Members in VolumeSnapshotContentSource are immutable.
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.volumeHandle) || has(self.volumeHandle)", message="volumeHandle is required once set"
+// +kubebuilder:validation:XValidation:rule="!has(oldSelf.snapshotHandle) || has(self.snapshotHandle)", message="snapshotHandle is required once set"
 type VolumeSnapshotContentSource struct {
 	// volumeHandle specifies the CSI "volume_id" of the volume from which a snapshot
 	// should be dynamically taken from.
 	// This field is immutable.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Spec.Source.VolumeHandle is immutable"
 	VolumeHandle *string `json:"volumeHandle,omitempty" protobuf:"bytes,1,opt,name=volumeHandle"`
 
 	// snapshotHandle specifies the CSI "snapshot_id" of a pre-existing snapshot on
@@ -358,6 +369,7 @@ type VolumeSnapshotContentSource struct {
 	// was (or should be) created.
 	// This field is immutable.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Spec.Source.SnapshotHandle is immutable"
 	SnapshotHandle *string `json:"snapshotHandle,omitempty" protobuf:"bytes,2,opt,name=snapshotHandle"`
 }
 
