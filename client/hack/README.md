@@ -58,7 +58,7 @@ NOTE: We need to keep both v1beta1 and v1 snapshot APIs but set served and stora
 
 This is the script to update CRD yaml files under /client/config/crd/ based on types.go file.
 
-Make sure to run this script after making changes to /client/apis/volumesnapshot/v1/types.go.
+Make sure to run this script after making changes to /client/apis.
 
 Follow these steps to update the CRD:
 
