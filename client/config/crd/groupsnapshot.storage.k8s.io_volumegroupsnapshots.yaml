@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/814"
+    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/995"
     controller-gen.kubebuilder.io/version: v0.15.0
   name: volumegroupsnapshots.groupsnapshot.storage.k8s.io
 spec:
@@ -132,7 +132,7 @@ spec:
                     type: object
                     x-kubernetes-map-type: atomic
                     x-kubernetes-validations:
-                    - message: Spec.Source.Selector is immutable
+                    - message: selector is immutable
                       rule: self == oldSelf
                   volumeGroupSnapshotContentName:
                     description: |-
@@ -143,7 +143,7 @@ spec:
                       This field is immutable.
                     type: string
                     x-kubernetes-validations:
-                    - message: Spec.Source.VolumeGroupSnapshotContentName is immutable
+                    - message: volumeGroupSnapshotContentName is immutable
                       rule: self == oldSelf
                 type: object
                 x-kubernetes-validations:
@@ -151,6 +151,10 @@ spec:
                   rule: '!has(oldSelf.selector) || has(self.selector)'
                 - message: volumeGroupSnapshotContentName is required once set
                   rule: '!has(oldSelf.volumeGroupSnapshotContentName) || has(self.volumeGroupSnapshotContentName)'
+                - message: exactly one of selector and volumeGroupSnapshotContentName
+                    must be set
+                  rule: (has(self.selector) && !has(self.volumeGroupSnapshotContentName))
+                    || (!has(self.selector) && has(self.volumeGroupSnapshotContentName))
               volumeGroupSnapshotClassName:
                 description: |-
                   VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass
@@ -160,7 +164,7 @@ spec:
                   Empty string is not allowed for this field.
                 type: string
                 x-kubernetes-validations:
-                - message: VolumeGroupSnapshotClassName must not be the empty string
+                - message: volumeGroupSnapshotClassName must not be the empty string
                     when set
                   rule: size(self) > 0
             required:

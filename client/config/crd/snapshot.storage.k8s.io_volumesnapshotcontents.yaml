@@ -3,8 +3,8 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/955"
     controller-gen.kubebuilder.io/version: v0.15.0
+    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/955"
   name: volumesnapshotcontents.snapshot.storage.k8s.io
 spec:
   group: snapshot.storage.k8s.io
@@ -123,7 +123,7 @@ spec:
                       This field is immutable.
                     type: string
                     x-kubernetes-validations:
-                    - message: Spec.Source.SnapshotHandle is immutable
+                    - message: snapshotHandle is immutable
                       rule: self == oldSelf
                   volumeHandle:
                     description: |-
@@ -132,7 +132,7 @@ spec:
                       This field is immutable.
                     type: string
                     x-kubernetes-validations:
-                    - message: Spec.Source.VolumeHandle is immutable
+                    - message: volumeHandle is immutable
                       rule: self == oldSelf
                 type: object
                 x-kubernetes-validations:
@@ -140,6 +140,10 @@ spec:
                   rule: '!has(oldSelf.volumeHandle) || has(self.volumeHandle)'
                 - message: snapshotHandle is required once set
                   rule: '!has(oldSelf.snapshotHandle) || has(self.snapshotHandle)'
+                - message: exactly one of volumeHandle and snapshotHandle must be
+                    set
+                  rule: (has(self.volumeHandle) && !has(self.snapshotHandle)) || (!has(self.volumeHandle)
+                    && has(self.snapshotHandle))
               sourceVolumeMode:
                 description: |-
                   SourceVolumeMode is the mode of the volume whose snapshot is taken.
@@ -149,7 +153,7 @@ spec:
                   This field is an alpha field.
                 type: string
                 x-kubernetes-validations:
-                - message: Spec.sourceVolumeMode is immutable
+                - message: sourceVolumeMode is immutable
                   rule: self == oldSelf
               volumeSnapshotClassName:
                 description: |-

@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/814"
+    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/971"
     controller-gen.kubebuilder.io/version: v0.15.0
   name: volumegroupsnapshotcontents.groupsnapshot.storage.k8s.io
 spec:
@@ -148,7 +148,7 @@ spec:
                     - volumeSnapshotHandles
                     type: object
                     x-kubernetes-validations:
-                    - message: Spec.Source.GroupSnapshotHandles is immutable
+                    - message: groupSnapshotHandles is immutable
                       rule: self == oldSelf
                   volumeHandles:
                     description: |-
@@ -159,14 +159,18 @@ spec:
                       type: string
                     type: array
                     x-kubernetes-validations:
-                    - message: Spec.Source.VolumeHandle is immutable
+                    - message: volumeHandles is immutable
                       rule: self == oldSelf
                 type: object
                 x-kubernetes-validations:
-                - message: volumeHandle is required once set
-                  rule: '!has(oldSelf.volumeHandle) || has(self.volumeHandle)'
+                - message: volumeHandles is required once set
+                  rule: '!has(oldSelf.volumeHandles) || has(self.volumeHandles)'
                 - message: groupSnapshotHandles is required once set
                   rule: '!has(oldSelf.groupSnapshotHandles) || has(self.groupSnapshotHandles)'
+                - message: exactly one of volumeHandles and groupSnapshotHandles must
+                    be set
+                  rule: (has(self.volumeHandles) && !has(self.groupSnapshotHandles))
+                    || (!has(self.volumeHandles) && has(self.groupSnapshotHandles))
               volumeGroupSnapshotClassName:
                 description: |-
                   VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass from
@@ -230,13 +234,11 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
                 x-kubernetes-validations:
-                - message: both Spec.VolumeGroupSnapshotRef.Name and Spec.VolumeGroupSnapshotRef.Namespace
+                - message: both volumeGroupSnapshotRef.name and volumeGroupSnapshotRef.namespace
                     must be set
                   rule: has(self.name) && has(self.__namespace__)
-                - message: Spec.VolumeGroupSnapshotRef.Name is immutable
-                  rule: self.name == oldSelf.name
-                - message: Spec.VolumeGroupSnapshotRef.Namespace is immutable
-                  rule: self.__namespace__ == oldSelf.__namespace__
+                - message: volumeGroupSnapshotRef is immutable
+                  rule: self == oldSelf
             required:
             - deletionPolicy
             - driver
