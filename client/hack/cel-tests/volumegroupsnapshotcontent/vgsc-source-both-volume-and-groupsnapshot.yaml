@@ -1,0 +1,19 @@
+---
+apiVersion: groupsnapshot.storage.k8s.io/v1alpha1
+kind: VolumeGroupSnapshotContent
+metadata:
+  name: new-groupsnapshotcontent-demo
+spec:
+  volumeGroupSnapshotRef:
+    name: new-groupsnapshot-demo
+    namespace: default
+  driver: hostpath.csi.k8s.io
+  source:
+    volumeHandles:
+    - handles
+    groupSnapshotHandles:
+      volumeGroupSnapshotHandle: this-handle
+      volumeSnapshotHandles:
+      - handle
+      - another-handle
+  deletionPolicy: Retain

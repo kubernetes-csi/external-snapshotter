@@ -1,0 +1,12 @@
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotContent
+metadata:
+  name: new-snapshotcontent-test
+spec:
+  deletionPolicy: Retain
+  driver: hostpath.csi.k8s.io
+  source:
+    volumeHandle: this-handle
+  volumeSnapshotRef:
+    namespace: test-vs-ns

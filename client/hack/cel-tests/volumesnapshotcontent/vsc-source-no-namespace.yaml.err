@@ -1,0 +1,1 @@
+both spec.volumeSnapshotRef.name and spec.volumeSnapshotRef.namespace must be set

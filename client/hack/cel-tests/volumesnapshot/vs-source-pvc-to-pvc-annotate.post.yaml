@@ -1,0 +1,11 @@
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: new-snapshot-test
+  annotations:
+    p: q
+spec:
+  volumeSnapshotClassName: "this-is-a-test"
+  source:
+    persistentVolumeClaimName: cluster-example-1
