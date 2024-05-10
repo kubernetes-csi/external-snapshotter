@@ -2,7 +2,7 @@ module github.com/kubernetes-csi/external-snapshotter/v7
 
 go 1.22.0
 
-toolchain go1.22.2
+toolchain go1.22.3
 
 require (
 	github.com/container-storage-interface/spec v1.9.0
