@@ -17,3 +17,16 @@
 CMDS=snapshot-controller csi-snapshotter snapshot-validation-webhook
 all: build
 include release-tools/build.make
+
+# The test-vendor-client target performs vendor checks in both
+# the external-snapshotter module and the client module.
+# This target has been added for the following reasons:
+# 1. The test-vendor target does not perform vendor checks for the client module.
+# 2. The test-vendor target cannot detect if vendor updates have been made in
+# the external-snapshotter module when changes are made in the client module.
+.PHONY: test-vendor-client
+test: test-vendor-client
+test-vendor-client:
+	@ echo; echo "### $@:"
+	@ cd client && ../release-tools/verify-vendor.sh
+	@ hack/verify-vendor.sh
