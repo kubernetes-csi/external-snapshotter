@@ -1,8 +1,6 @@
 module github.com/kubernetes-csi/external-snapshotter/v7
 
-go 1.22.0
-
-toolchain go1.22.3
+go 1.22.3
 
 require (
 	github.com/container-storage-interface/spec v1.9.0
@@ -10,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/mock v1.6.0
 	github.com/google/gofuzz v1.2.0
-	github.com/kubernetes-csi/csi-lib-utils v0.17.0
+	github.com/kubernetes-csi/csi-lib-utils v0.18.0
 	github.com/kubernetes-csi/csi-test/v5 v5.2.0
 	github.com/kubernetes-csi/external-snapshotter/client/v7 v7.0.0
 	github.com/prometheus/client_golang v1.19.0
@@ -22,8 +20,8 @@ require (
 	k8s.io/api v0.30.0
 	k8s.io/apimachinery v0.30.0
 	k8s.io/client-go v0.30.0
-	k8s.io/component-base v0.29.0
-	k8s.io/component-helpers v0.29.0
+	k8s.io/component-base v0.30.0
+	k8s.io/component-helpers v0.30.0
 	k8s.io/klog/v2 v2.120.1
 )
 
@@ -78,14 +76,14 @@ require (
 
 replace github.com/kubernetes-csi/external-snapshotter/client/v7 => ./client
 
-replace k8s.io/api => k8s.io/api v0.29.0
+replace k8s.io/api => k8s.io/api v0.30.0
 
-replace k8s.io/apimachinery => k8s.io/apimachinery v0.29.0
+replace k8s.io/apimachinery => k8s.io/apimachinery v0.30.0
 
-replace k8s.io/client-go => k8s.io/client-go v0.29.0
+replace k8s.io/client-go => k8s.io/client-go v0.30.0
 
-replace k8s.io/code-generator => k8s.io/code-generator v0.29.0
+replace k8s.io/code-generator => k8s.io/code-generator v0.30.0
 
-replace k8s.io/component-base => k8s.io/component-base v0.29.0
+replace k8s.io/component-base => k8s.io/component-base v0.30.0
 
-replace k8s.io/component-helpers => k8s.io/component-helpers v0.29.0
+replace k8s.io/component-helpers => k8s.io/component-helpers v0.30.0
