@@ -4,7 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/1068"
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.15.0
   name: volumegroupsnapshots.groupsnapshot.storage.k8s.io
 spec:
   group: groupsnapshot.storage.k8s.io
@@ -222,9 +222,10 @@ spec:
                     type: string
                 type: object
               pvcVolumeSnapshotRefList:
-                description: VolumeSnapshotRefList is the list of PVC and VolumeSnapshot
-                  pairs that is part of this group snapshot. The maximum number of
-                  allowed snapshots in the group is 100.
+                description: |-
+                  VolumeSnapshotRefList is the list of PVC and VolumeSnapshot pairs that
+                  is part of this group snapshot.
+                  The maximum number of allowed snapshots in the group is 100.
                 items:
                   description: PVCVolumeSnapshotPair defines a pair of a PVC reference
                     and a Volume Snapshot Reference
@@ -234,8 +235,10 @@ spec:
                         PVC this pair is referring to
                       properties:
                         name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          description: |-
+                            Name of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
@@ -244,8 +247,10 @@ spec:
                         this pair is referring to
                       properties:
                         name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          description: |-
+                            Name of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic

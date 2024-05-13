@@ -4,7 +4,7 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/1068"
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.15.0
   name: volumegroupsnapshotcontents.groupsnapshot.storage.k8s.io
 spec:
   group: groupsnapshot.storage.k8s.io
@@ -277,20 +277,24 @@ spec:
                     type: string
                 type: object
               pvVolumeSnapshotContentList:
-                description: PVVolumeSnapshotContentList is the list of pairs of PV
-                  and VolumeSnapshotContent for this group snapshot The maximum number
-                  of allowed snapshots in the group is 100.
+                description: |-
+                  PVVolumeSnapshotContentList is the list of pairs of PV and
+                  VolumeSnapshotContent for this group snapshot
+                  The maximum number of allowed snapshots in the group is 100.
                 items:
-                  description: PVVolumeSnapshotContentPair represent a pair of PV
-                    names and VolumeSnapshotContent names
+                  description: |-
+                    PVVolumeSnapshotContentPair represent a pair of PV names and
+                    VolumeSnapshotContent names
                   properties:
                     persistentVolumeRef:
                       description: PersistentVolumeRef is a reference to the persistent
                         volume resource
                       properties:
                         name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          description: |-
+                            Name of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
@@ -299,8 +303,10 @@ spec:
                         volume snapshot content resource
                       properties:
                         name:
-                          description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                            TODO: Add other useful fields. apiVersion, kind, uid?'
+                          description: |-
+                            Name of the referent.
+                            More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                            TODO: Add other useful fields. apiVersion, kind, uid?
                           type: string
                       type: object
                       x-kubernetes-map-type: atomic
