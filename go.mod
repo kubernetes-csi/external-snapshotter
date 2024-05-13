@@ -10,7 +10,7 @@ require (
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/mock v1.6.0
 	github.com/google/gofuzz v1.2.0
-	github.com/kubernetes-csi/csi-lib-utils v0.17.0
+	github.com/kubernetes-csi/csi-lib-utils v0.18.0
 	github.com/kubernetes-csi/csi-test/v5 v5.2.0
 	github.com/kubernetes-csi/external-snapshotter/client/v7 v7.0.0
 	github.com/prometheus/client_golang v1.19.0
@@ -22,7 +22,7 @@ require (
 	k8s.io/api v0.30.0
 	k8s.io/apimachinery v0.30.0
 	k8s.io/client-go v0.30.0
-	k8s.io/component-base v0.29.0
+	k8s.io/component-base v0.30.0
 	k8s.io/component-helpers v0.29.0
 	k8s.io/klog/v2 v2.120.1
 )
