@@ -116,7 +116,7 @@ are correctly working.
 ### Prerequisites
 
 - Kubectl access to a cluster with the installed CRDs
-- Kubernetes >= 1.29
+- Kubernetes >= 1.30
 
 ### How to use it
 
