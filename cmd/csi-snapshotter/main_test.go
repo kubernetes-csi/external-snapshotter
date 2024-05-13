@@ -154,7 +154,7 @@ func createMockServer(t *testing.T) (*gomock.Controller, *driver.MockCSIDriver, 
 
 	// Create a client connection to it
 	addr := drv.Address()
-	csiConn, err := connection.Connect(addr, metricsManager)
+	csiConn, err := connection.Connect(context.Background(), addr, metricsManager)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
