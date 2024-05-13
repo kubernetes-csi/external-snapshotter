@@ -240,11 +240,11 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 	}
 
 	var snapshotIDs []string
-	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.VolumeSnapshotContentRefList) != 0 {
-		for _, contentRef := range groupSnapshotContent.Status.VolumeSnapshotContentRefList {
-			snapshotContent, err := ctrl.contentLister.Get(contentRef.Name)
+	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentList) != 0 {
+		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
+			snapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentRef.Name)
 			if err != nil {
-				return fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.Name, err)
+				return fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.VolumeSnapshotContentRef.Name, err)
 			}
 			snapshotIDs = append(snapshotIDs, *snapshotContent.Status.SnapshotHandle)
 		}
@@ -283,7 +283,7 @@ func (ctrl *csiSnapshotSideCarController) clearGroupSnapshotContentStatus(
 		groupSnapshotContent.Status.ReadyToUse = nil
 		groupSnapshotContent.Status.CreationTime = nil
 		groupSnapshotContent.Status.Error = nil
-		groupSnapshotContent.Status.VolumeSnapshotContentRefList = nil
+		groupSnapshotContent.Status.PVVolumeSnapshotContentList = nil
 	}
 	newContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContent, metav1.UpdateOptions{})
 	if err != nil {
@@ -650,9 +650,10 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			CreationTime:              &createdAt,
 		}
 		for _, name := range snapshotContentNames {
-			newStatus.VolumeSnapshotContentRefList = append(newStatus.VolumeSnapshotContentRefList, v1.ObjectReference{
-				Kind: "VolumeSnapshotContent",
-				Name: name,
+			newStatus.PVVolumeSnapshotContentList = append(newStatus.PVVolumeSnapshotContentList, crdv1alpha1.PVVolumeSnapshotContentPair{
+				VolumeSnapshotContentRef: v1.LocalObjectReference{
+					Name: name,
+				},
 			})
 		}
 		updated = true
@@ -673,11 +674,12 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			newStatus.CreationTime = &createdAt
 			updated = true
 		}
-		if len(newStatus.VolumeSnapshotContentRefList) == 0 {
+		if len(newStatus.PVVolumeSnapshotContentList) == 0 {
 			for _, name := range snapshotContentNames {
-				newStatus.VolumeSnapshotContentRefList = append(newStatus.VolumeSnapshotContentRefList, v1.ObjectReference{
-					Kind: "VolumeSnapshotContent",
-					Name: name,
+				newStatus.PVVolumeSnapshotContentList = append(newStatus.PVVolumeSnapshotContentList, crdv1alpha1.PVVolumeSnapshotContentPair{
+					VolumeSnapshotContentRef: v1.LocalObjectReference{
+						Name: name,
+					},
 				})
 			}
 			updated = true
