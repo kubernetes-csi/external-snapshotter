@@ -28,7 +28,7 @@ then
   TMP_DIR=$(mktemp -d);
   cd $TMP_DIR;
   go mod init tmp;
-  go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.12.0;
+  go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.15.0;
   rm -rf $TMP_DIR;
   CONTROLLER_GEN=$(which controller-gen)
 fi

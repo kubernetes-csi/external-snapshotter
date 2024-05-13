@@ -106,7 +106,7 @@ github.com/kubernetes-csi/csi-lib-utils/rpc
 github.com/kubernetes-csi/csi-test/v5/driver
 github.com/kubernetes-csi/csi-test/v5/utils
 # github.com/kubernetes-csi/external-snapshotter/client/v7 v7.0.0 => ./client
-## explicit; go 1.21
+## explicit; go 1.22.0
 github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumegroupsnapshot/v1alpha1
 github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned
@@ -149,13 +149,13 @@ github.com/prometheus/client_golang/prometheus/promhttp
 # github.com/prometheus/client_model v0.6.1
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.52.2
-## explicit; go 1.21
+# github.com/prometheus/common v0.53.0
+## explicit; go 1.20
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
 github.com/prometheus/common/model
-# github.com/prometheus/procfs v0.13.0
-## explicit; go 1.19
+# github.com/prometheus/procfs v0.14.0
+## explicit; go 1.21
 github.com/prometheus/procfs
 github.com/prometheus/procfs/internal/fs
 github.com/prometheus/procfs/internal/util
@@ -222,7 +222,7 @@ golang.org/x/time/rate
 # google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de
 ## explicit; go 1.19
 google.golang.org/genproto/googleapis/rpc/status
-# google.golang.org/grpc v1.63.0
+# google.golang.org/grpc v1.63.2
 ## explicit; go 1.19
 google.golang.org/grpc
 google.golang.org/grpc/attributes
@@ -326,7 +326,7 @@ gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.1
 ## explicit
 gopkg.in/yaml.v3
-# k8s.io/api v0.29.0 => k8s.io/api v0.29.0
+# k8s.io/api v0.30.0 => k8s.io/api v0.29.0
 ## explicit; go 1.21
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -382,7 +382,7 @@ k8s.io/api/scheduling/v1beta1
 k8s.io/api/storage/v1
 k8s.io/api/storage/v1alpha1
 k8s.io/api/storage/v1beta1
-# k8s.io/apimachinery v0.29.0 => k8s.io/apimachinery v0.29.0
+# k8s.io/apimachinery v0.30.0 => k8s.io/apimachinery v0.29.0
 ## explicit; go 1.21
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
 k8s.io/apimachinery/pkg/api/equality
@@ -433,7 +433,7 @@ k8s.io/apimachinery/pkg/version
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/client-go v0.29.0 => k8s.io/client-go v0.29.0
+# k8s.io/client-go v0.30.0 => k8s.io/client-go v0.29.0
 ## explicit; go 1.21
 k8s.io/client-go/applyconfigurations/admissionregistration/v1
 k8s.io/client-go/applyconfigurations/admissionregistration/v1alpha1
@@ -754,8 +754,8 @@ k8s.io/klog/v2/internal/dbg
 k8s.io/klog/v2/internal/serialize
 k8s.io/klog/v2/internal/severity
 k8s.io/klog/v2/internal/sloghandler
-# k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
-## explicit; go 1.19
+# k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340
+## explicit; go 1.20
 k8s.io/kube-openapi/pkg/cached
 k8s.io/kube-openapi/pkg/common
 k8s.io/kube-openapi/pkg/handler3
