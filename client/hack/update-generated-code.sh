@@ -20,18 +20,15 @@ set -o pipefail
 
 SCRIPT_ROOT=$(unset CDPATH && cd $(dirname "${BASH_SOURCE[0]}")/.. && pwd)
 
-# generate the code with:
-# --output-base    because this script should also be able to run inside the vendor dir of
-#                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
-#                  instead of the $GOPATH directly. For normal projects this can be dropped.
-${GOPATH}/src/k8s.io/code-generator/generate-groups.sh "deepcopy,client,informer,lister" \
-  github.com/kubernetes-csi/external-snapshotter/client/v7 github.com/kubernetes-csi/external-snapshotter/client/v7/apis \
-  "volumesnapshot:v1 volumegroupsnapshot:v1alpha1" \
-  --go-header-file ${SCRIPT_ROOT}/hack/boilerplate.go.txt
+source "${GOPATH}/src/k8s.io/code-generator/kube_codegen.sh"
 
-# To use your own boilerplate text use:
-#   --go-header-file ${SCRIPT_ROOT}/hack/custom-boilerplate.go.txt
+kube::codegen::gen_helpers \
+    --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \
+    "${SCRIPT_ROOT}/apis"
 
-# Move generated file from client/v7 to client folder and remove client/v7
-cp -rf v7/. .
-rm -rf v7
+kube::codegen::gen_client \
+    --output-dir "${SCRIPT_ROOT}" \
+    --output-pkg "github.com/kubernetes-csi/external-snapshotter/client/v7" \
+    --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \
+    --with-watch \
+    "${SCRIPT_ROOT}/apis"
