@@ -1,0 +1,8 @@
+---
+apiVersion: groupsnapshot.storage.k8s.io/v1alpha1
+kind: VolumeGroupSnapshot
+metadata:
+  name: new-groupsnapshot-demo
+spec:
+  source: {}
+  volumeGroupSnapshotClassName: csi-hostpath-groupsnapclass

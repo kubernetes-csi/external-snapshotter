@@ -1,8 +1,10 @@
 # Scripts User Guide
 
 This README documents:
+
 * What update-crd.sh and update-generated-code.sh do
 * When and how to use them
+* The CRD CEL rules test suite
 
 ## update-generated-code.sh
 
@@ -104,3 +106,35 @@ Update the restoreSize property to use type string only:
 ```
 
 * Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section in `client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml`. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
+
+## Test suite
+
+The `test-suite` directory contains several test cases that are useful to
+validate if the CEL rules that are included in the CRD definitions
+are correctly working.
+
+### Prerequisites
+
+- Kubectl access to a cluster with the installed CRDs
+- Kubernetes >= 1.30
+
+### How to use it
+
+```
+  ./hack/run-cel-tests.sh
+
+  cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.post.yaml: SUCCESS
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.post.yaml: SUCCESS
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-empty.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.pre.yaml: SUCCESS
+  cel-tests/volumegroupsnapshotcontent/vgsc-ref-only-name.yaml: SUCCEES (expected failure)
+  [...]
+  cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.post.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-immutable.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-immutable.post.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.post.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-groupsnapshot-immutable.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-groupsnapshot-immutable.post.yaml: SUCCEES (expected failure)
+  [...]
+
+  SUCCESS: 90
+  FAILURES: 0
+```
