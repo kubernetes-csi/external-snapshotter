@@ -26,7 +26,7 @@ exec_case() {
 		err=$(cat "$test_case_err")
 		if grep "$err" "$test_case_out" > /dev/null 2>&1; then
 			((++successes))
-			echo "$test_case: SUCCEES (expected failure)"
+			echo "$test_case: SUCCESS (expected failure)"
 		else
 			echo "$test_case: FAIL (unexpected msg): $output"
 			((++failures))
@@ -66,7 +66,7 @@ exec_tx_case() {
 		local err
 		err=$(cat "$test_case_err")
 		if grep "$err" "$test_case_out" > /dev/null 2>&1; then
-			echo "$test_header SUCCEES (expected failure)"
+			echo "$test_header SUCCESS (expected failure)"
 			((++successes))
 		else
 			echo "$test_header FAIL (unexpected msg): $output"
