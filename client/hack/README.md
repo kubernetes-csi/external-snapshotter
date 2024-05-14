@@ -125,14 +125,14 @@ are correctly working.
 
   cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.post.yaml: SUCCESS
   cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.post.yaml: SUCCESS
-  cel-tests/volumegroupsnapshotcontent/vgsc-source-empty.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-empty.yaml: SUCCESS (expected failure)
   cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.pre.yaml: SUCCESS
-  cel-tests/volumegroupsnapshotcontent/vgsc-ref-only-name.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-ref-only-name.yaml: SUCCESS (expected failure)
   [...]
-  cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.post.yaml: SUCCEES (expected failure)
-  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-immutable.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-immutable.post.yaml: SUCCEES (expected failure)
-  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.post.yaml: SUCCEES (expected failure)
-  cel-tests/volumegroupsnapshotcontent/vgsc-source-groupsnapshot-immutable.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-groupsnapshot-immutable.post.yaml: SUCCEES (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-change-ref-namespace.post.yaml: SUCCESS (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-immutable.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-immutable.post.yaml: SUCCESS (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-volume-to-groupsnapshot.post.yaml: SUCCESS (expected failure)
+  cel-tests/volumegroupsnapshotcontent/vgsc-source-groupsnapshot-immutable.pre.yaml -> cel-tests/volumegroupsnapshotcontent/vgsc-source-groupsnapshot-immutable.post.yaml: SUCCESS (expected failure)
   [...]
 
   SUCCESS: 90
