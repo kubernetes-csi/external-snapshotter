@@ -567,14 +567,43 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 	var pvcVolumeSnapshotRefList []crdv1alpha1.PVCVolumeSnapshotPair
 	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentList) != 0 {
 		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
-			groupSnapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentRef.Name)
+			var pvcReference v1.LocalObjectReference
+			pv, err := ctrl.client.CoreV1().PersistentVolumes().Get(context.TODO(), contentRef.PersistentVolumeRef.Name, metav1.GetOptions{})
+			if err != nil {
+				if apierrs.IsNotFound(err) {
+					klog.Errorf(
+						"updateGroupSnapshotStatus[%s]: PV [%s] not found",
+						utils.GroupSnapshotKey(groupSnapshot),
+						contentRef.PersistentVolumeRef.Name,
+					)
+				} else {
+					klog.Errorf(
+						"updateGroupSnapshotStatus[%s]: unable to get PV [%s] from the API server: %q",
+						utils.GroupSnapshotKey(groupSnapshot),
+						contentRef.PersistentVolumeRef.Name,
+						err.Error(),
+					)
+				}
+			} else {
+				if pv.Spec.ClaimRef != nil {
+					pvcReference.Name = pv.Spec.ClaimRef.Name
+				} else {
+					klog.Errorf(
+						"updateGroupSnapshotStatus[%s]: PV [%s] is not bound",
+						utils.GroupSnapshotKey(groupSnapshot),
+						contentRef.PersistentVolumeRef.Name)
+				}
+			}
+
+			volumeSnapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentRef.Name)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get group snapshot content %s from group snapshot content store: %v", contentRef.VolumeSnapshotContentRef.Name, err)
 			}
 			pvcVolumeSnapshotRefList = append(pvcVolumeSnapshotRefList, crdv1alpha1.PVCVolumeSnapshotPair{
 				VolumeSnapshotRef: v1.LocalObjectReference{
-					Name: groupSnapshotContent.Spec.VolumeSnapshotRef.Name,
+					Name: volumeSnapshotContent.Spec.VolumeSnapshotRef.Name,
 				},
+				PersistentVolumeClaimRef: pvcReference,
 			})
 		}
 	}
