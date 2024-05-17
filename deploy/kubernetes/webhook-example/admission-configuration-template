@@ -8,7 +8,7 @@ webhooks:
   - apiGroups:   ["snapshot.storage.k8s.io"]
     apiVersions: ["v1"]
     operations:  ["CREATE", "UPDATE"]
-    resources:   ["volumesnapshots", "volumesnapshotcontents", "volumesnapshotclasses"]
+    resources:   ["volumesnapshotclasses"]
     scope:       "*"
   clientConfig:
     service:
@@ -31,7 +31,7 @@ webhooks:
   - apiGroups:   ["groupsnapshot.storage.k8s.io"]
     apiVersions: ["v1alpha1"]
     operations:  ["CREATE", "UPDATE"]
-    resources:   ["volumegroupsnapshots", "volumegroupsnapshotcontents", "volumegroupsnapshotclasses"]
+    resources:   ["volumegroupsnapshotclasses"]
     scope:       "*"
   clientConfig:
     service:
