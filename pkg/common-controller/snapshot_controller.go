@@ -36,7 +36,6 @@ import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/utils"
-	webhook "github.com/kubernetes-csi/external-snapshotter/v7/pkg/validation-webhook"
 )
 
 // ==================================================================
@@ -91,14 +90,6 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 	klog.V(4).Infof("synchronizing VolumeSnapshotContent[%s]: content is bound to snapshot %s", content.Name, snapshotName)
 
 	klog.V(5).Infof("syncContent[%s]: check if we should add invalid label on content", content.Name)
-	// Perform additional validation. Label objects which fail.
-	// Part of a plan to tighten validation, this label will enable users to
-	// query for invalid content objects. See issue #363
-	content, err := ctrl.checkAndSetInvalidContentLabel(content)
-	if err != nil {
-		klog.Errorf("syncContent[%s]:  check and add invalid content label failed, %s", content.Name, err.Error())
-		return err
-	}
 
 	// Keep this check in the controller since the validation webhook may not have been deployed.
 	if (content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil) ||
@@ -128,7 +119,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 	// and it may have already been deleted, and it will fall into the
 	// snapshot == nil case below
 	var snapshot *crdv1.VolumeSnapshot
-	snapshot, err = ctrl.getSnapshotFromStore(snapshotName)
+	snapshot, err := ctrl.getSnapshotFromStore(snapshotName)
 	if err != nil {
 		return err
 	}
@@ -195,14 +186,6 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(snapshot *crdv1.VolumeSnap
 	}
 
 	klog.V(5).Infof("syncSnapshot[%s]: check if we should add invalid label on snapshot", utils.SnapshotKey(snapshot))
-	// Perform additional validation. Label objects which fail.
-	// Part of a plan to tighten validation, this label will enable users to
-	// query for invalid snapshot objects. See issue #363
-	snapshot, err := ctrl.checkAndSetInvalidSnapshotLabel(snapshot)
-	if err != nil {
-		klog.Errorf("syncSnapshot[%s]: check and add invalid snapshot label failed, %s", utils.SnapshotKey(snapshot), err.Error())
-		return err
-	}
 
 	// Proceed with snapshot deletion and remove finalizers when needed
 	if snapshot.ObjectMeta.DeletionTimestamp != nil {
@@ -1652,101 +1635,6 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 		klog.V(5).Infof("setAnnVolumeSnapshotBeingDeleted: volume snapshot content %+v", content)
 	}
 	return content, nil
-}
-
-// checkAndSetInvalidContentLabel adds a label to unlabeled invalid content objects and removes the label from valid ones.
-func (ctrl *csiSnapshotCommonController) checkAndSetInvalidContentLabel(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
-	hasLabel := utils.MapContainsKey(content.ObjectMeta.Labels, utils.VolumeSnapshotContentInvalidLabel)
-	err := webhook.ValidateV1SnapshotContent(content)
-	if err != nil {
-		klog.Errorf("syncContent[%s]: Invalid content detected, %s", content.Name, err.Error())
-	}
-	// If the snapshot content correctly has the label, or correctly does not have the label, take no action.
-	if hasLabel && err != nil || !hasLabel && err == nil {
-		return content, nil
-	}
-
-	var patches []utils.PatchOp
-	contentClone := content.DeepCopy()
-	if hasLabel {
-		// Need to remove the label
-		patches = append(patches, utils.PatchOp{
-			Op:   "remove",
-			Path: "/metadata/labels/" + utils.VolumeSnapshotContentInvalidLabel,
-		})
-
-	} else {
-		// Snapshot content is invalid and does not have the label. Need to add the label
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/labels/" + utils.VolumeSnapshotContentInvalidLabel,
-			Value: "",
-		})
-	}
-	updatedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
-	if err != nil {
-		return content, newControllerUpdateError(content.Name, err.Error())
-	}
-
-	_, err = ctrl.storeContentUpdate(updatedContent)
-	if err != nil {
-		klog.Errorf("failed to update content store %v", err)
-	}
-
-	if hasLabel {
-		klog.V(5).Infof("Removed invalid content label from volume snapshot content %s", content.Name)
-	} else {
-		klog.V(5).Infof("Added invalid content label to volume snapshot content %s", content.Name)
-	}
-	return updatedContent, nil
-}
-
-// checkAndSetInvalidSnapshotLabel adds a label to unlabeled invalid snapshot objects and removes the label from valid ones.
-func (ctrl *csiSnapshotCommonController) checkAndSetInvalidSnapshotLabel(snapshot *crdv1.VolumeSnapshot) (*crdv1.VolumeSnapshot, error) {
-	hasLabel := utils.MapContainsKey(snapshot.ObjectMeta.Labels, utils.VolumeSnapshotInvalidLabel)
-	err := webhook.ValidateV1Snapshot(snapshot)
-	if err != nil {
-		klog.Errorf("syncSnapshot[%s]: Invalid snapshot detected, %s", utils.SnapshotKey(snapshot), err.Error())
-	}
-	// If the snapshot correctly has the label, or correctly does not have the label, take no action.
-	if hasLabel && err != nil || !hasLabel && err == nil {
-		return snapshot, nil
-	}
-
-	var patches []utils.PatchOp
-	snapshotClone := snapshot.DeepCopy()
-	if hasLabel {
-		// Need to remove the label
-		patches = append(patches, utils.PatchOp{
-			Op:   "remove",
-			Path: "/metadata/labels/" + utils.VolumeSnapshotInvalidLabel,
-		})
-	} else {
-		// Snapshot is invalid and does not have the label. Need to add the label
-		patches = append(patches, utils.PatchOp{
-			Op:    "add",
-			Path:  "/metadata/labels/" + utils.VolumeSnapshotInvalidLabel,
-			Value: "",
-		})
-	}
-
-	updatedSnapshot, err := utils.PatchVolumeSnapshot(snapshotClone, patches, ctrl.clientset)
-	if err != nil {
-		return snapshot, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
-	}
-
-	_, err = ctrl.storeSnapshotUpdate(updatedSnapshot)
-	if err != nil {
-		klog.Errorf("failed to update snapshot store %v", err)
-	}
-
-	if hasLabel {
-		klog.V(5).Infof("Removed invalid snapshot label from volume snapshot %s", utils.SnapshotKey(snapshot))
-	} else {
-		klog.V(5).Infof("Added invalid snapshot label to volume snapshot %s", utils.SnapshotKey(snapshot))
-	}
-
-	return updatedSnapshot, nil
 }
 
 func (ctrl *csiSnapshotCommonController) getManagedByNode(pv *v1.PersistentVolume) (string, error) {

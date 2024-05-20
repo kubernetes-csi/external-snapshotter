@@ -73,7 +73,7 @@ func init() {
 	CmdWebhook.Flags().BoolVar(&preventVolumeModeConversion, "prevent-volume-mode-conversion",
 		true, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
 	CmdWebhook.Flags().BoolVar(&enableVolumeGroupSnapshotWebhook, "enable-volume-group-snapshot-webhook",
-		false, "Enables webhook for VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass.")
+		false, "Enables webhook for VolumeGroupSnapshotClass.")
 }
 
 // admitv1beta1Func handles a v1beta1 admission
