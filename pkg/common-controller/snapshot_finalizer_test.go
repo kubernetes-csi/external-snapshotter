@@ -17,7 +17,7 @@ limitations under the License.
 package common_controller
 
 import (
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/utils"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	"testing"
 )

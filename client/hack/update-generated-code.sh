@@ -28,7 +28,7 @@ kube::codegen::gen_helpers \
 
 kube::codegen::gen_client \
     --output-dir "${SCRIPT_ROOT}" \
-    --output-pkg "github.com/kubernetes-csi/external-snapshotter/client/v7" \
+    --output-pkg "github.com/kubernetes-csi/external-snapshotter/client/v8" \
     --boilerplate "${SCRIPT_ROOT}/hack/boilerplate.go.txt" \
     --with-watch \
     "${SCRIPT_ROOT}/apis"

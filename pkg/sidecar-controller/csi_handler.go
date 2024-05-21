@@ -23,11 +23,11 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumegroupsnapshot/v1alpha1"
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/group_snapshotter"
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/group_snapshotter"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/snapshotter"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/snapshotter"
 )
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
