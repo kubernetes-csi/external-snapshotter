@@ -47,7 +47,8 @@ spec:
       jsonPath: .spec.volumeSnapshotRef.name
       name: VolumeSnapshot
       type: string
-    - description: Namespace of the VolumeSnapshot object to which this VolumeSnapshotContent object is bound.
+    - description: Namespace of the VolumeSnapshot object to which this VolumeSnapshotContent
+        object is bound.
       jsonPath: .spec.volumeSnapshotRef.namespace
       name: VolumeSnapshotNamespace
       type: string
