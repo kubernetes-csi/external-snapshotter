@@ -1,4 +1,4 @@
-module github.com/kubernetes-csi/external-snapshotter/v7
+module github.com/kubernetes-csi/external-snapshotter/v8
 
 go 1.22.3
 
@@ -10,7 +10,7 @@ require (
 	github.com/google/gofuzz v1.2.0
 	github.com/kubernetes-csi/csi-lib-utils v0.18.0
 	github.com/kubernetes-csi/csi-test/v5 v5.2.0
-	github.com/kubernetes-csi/external-snapshotter/client/v7 v7.0.0
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.0.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.53.0
@@ -74,7 +74,7 @@ require (
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
 
-replace github.com/kubernetes-csi/external-snapshotter/client/v7 => ./client
+replace github.com/kubernetes-csi/external-snapshotter/client/v8 => ./client
 
 replace k8s.io/api => k8s.io/api v0.30.0
 

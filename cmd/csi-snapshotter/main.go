@@ -43,14 +43,14 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	csirpc "github.com/kubernetes-csi/csi-lib-utils/rpc"
-	controller "github.com/kubernetes-csi/external-snapshotter/v7/pkg/sidecar-controller"
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/snapshotter"
+	controller "github.com/kubernetes-csi/external-snapshotter/v8/pkg/sidecar-controller"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/snapshotter"
 
-	clientset "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned"
-	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v7/clientset/versioned/scheme"
-	informers "github.com/kubernetes-csi/external-snapshotter/client/v7/informers/externalversions"
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/group_snapshotter"
-	utils "github.com/kubernetes-csi/external-snapshotter/v7/pkg/utils"
+	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
+	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/scheme"
+	informers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/group_snapshotter"
+	utils "github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 )
 
 const (

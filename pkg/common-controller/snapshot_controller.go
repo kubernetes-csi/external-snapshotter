@@ -33,9 +33,9 @@ import (
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	klog "k8s.io/klog/v2"
 
-	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v7/apis/volumesnapshot/v1"
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/metrics"
-	"github.com/kubernetes-csi/external-snapshotter/v7/pkg/utils"
+	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 )
 
 // ==================================================================
