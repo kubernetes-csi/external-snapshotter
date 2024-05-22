@@ -105,8 +105,6 @@ Update the restoreSize property to use type string only:
 
 ```
 
-* Add the VolumeSnapshot namespace to the `additionalPrinterColumns` section in `client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml`. Refer https://github.com/kubernetes-csi/external-snapshotter/pull/535 for more details.
-
 ## Test suite
 
 The `test-suite` directory contains several test cases that are useful to

@@ -264,6 +264,7 @@ type VolumeSnapshotClassList struct {
 // +kubebuilder:printcolumn:name="Driver",type=string,JSONPath=`.spec.driver`,description="Name of the CSI driver used to create the physical snapshot on the underlying storage system."
 // +kubebuilder:printcolumn:name="VolumeSnapshotClass",type=string,JSONPath=`.spec.volumeSnapshotClassName`,description="Name of the VolumeSnapshotClass to which this snapshot belongs."
 // +kubebuilder:printcolumn:name="VolumeSnapshot",type=string,JSONPath=`.spec.volumeSnapshotRef.name`,description="Name of the VolumeSnapshot object to which this VolumeSnapshotContent object is bound."
+// +kubebuilder:printcolumn:name="VolumeSnapshotNamespace",type=string,JSONPath=`.spec.volumeSnapshotRef.namespace`,description="Namespace of the VolumeSnapshot object to which this VolumeSnapshotContent object is bound."
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type VolumeSnapshotContent struct {
 	metav1.TypeMeta `json:",inline"`
