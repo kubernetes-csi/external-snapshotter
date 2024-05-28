@@ -1400,7 +1400,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 
 	defaultClasses := []*crdv1.VolumeSnapshotClass{}
 	for _, class := range list {
-		if utils.IsDefaultAnnotation(class.TypeMeta, class.ObjectMeta) && pvDriver == class.Driver {
+		if utils.IsVolumeSnapshotClassDefaultAnnotation(class.ObjectMeta) && pvDriver == class.Driver {
 			defaultClasses = append(defaultClasses, class)
 			klog.V(5).Infof("get defaultClass added: %s, driver: %s", class.Name, pvDriver)
 		}
