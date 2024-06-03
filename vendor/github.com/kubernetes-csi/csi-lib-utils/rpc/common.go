@@ -136,32 +136,35 @@ func GetGroupControllerCapabilities(ctx context.Context, conn *grpc.ClientConn) 
 func ProbeForever(ctx context.Context, conn *grpc.ClientConn, singleProbeTimeout time.Duration) error {
 	logger := klog.FromContext(ctx)
 	ticker := time.NewTicker(probeInterval)
+	defer ticker.Stop()
 
 	for {
+		// Run the probe once before waiting for the ticker
+		logger.Info("Probing CSI driver for readiness")
+		ready, err := probeOnce(ctx, conn, singleProbeTimeout)
+		if err != nil {
+			st, ok := status.FromError(err)
+			if !ok {
+				// This is not gRPC error. The probe must have failed before gRPC
+				// method was called, otherwise we would get gRPC error.
+				return fmt.Errorf("CSI driver probe failed: %s", err)
+			}
+			if st.Code() != codes.DeadlineExceeded {
+				return fmt.Errorf("CSI driver probe failed: %s", err)
+			}
+			// Timeout -> driver is not ready. Fall through to sleep() below.
+			logger.Info("CSI driver probe timed out")
+		} else {
+			if ready {
+				return nil
+			}
+			logger.Info("CSI driver is not ready")
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			logger.Info("Probing CSI driver for readiness")
-			ready, err := probeOnce(ctx, conn, singleProbeTimeout)
-			if err != nil {
-				st, ok := status.FromError(err)
-				if !ok {
-					// This is not gRPC error. The probe must have failed before gRPC
-					// method was called, otherwise we would get gRPC error.
-					return fmt.Errorf("CSI driver probe failed: %s", err)
-				}
-				if st.Code() != codes.DeadlineExceeded {
-					return fmt.Errorf("CSI driver probe failed: %s", err)
-				}
-				// Timeout -> driver is not ready. Fall through to sleep() below.
-				logger.Info("CSI driver probe timed out")
-			} else {
-				if ready {
-					return nil
-				}
-				logger.Info("CSI driver is not ready")
-			}
+			continue
 		}
 	}
 }
