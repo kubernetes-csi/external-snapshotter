@@ -108,6 +108,10 @@ type MetricsManager interface {
 	//          "Unknown" status of the passed-in operation is assumed.
 	RecordMetrics(op OperationKey, status OperationStatus, driverName string)
 
+	// RecordVolumeGroupSnapshotMetrics records a metric for operations related to
+	// VolumeGroupSnapshot
+	RecordVolumeGroupSnapshotMetrics(op OperationKey, status OperationStatus, driverName string)
+
 	// GetRegistry() returns the metrics.KubeRegistry used by this metrics manager.
 	GetRegistry() k8smetrics.KubeRegistry
 }
