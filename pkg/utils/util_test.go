@@ -201,28 +201,21 @@ func TestRemovePrefixedCSIParams(t *testing.T) {
 	}
 }
 
-func TestIsDefaultAnnotation(t *testing.T) {
+func TestIsVolumeSnapshotClassDefaultAnnotation(t *testing.T) {
 	testcases := []struct {
 		name       string
-		typeMeta   metav1.TypeMeta
 		objectMeta metav1.ObjectMeta
 		isDefault  bool
 	}{
 		{
 			name: "no default annotation in snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "VolumeSnapshotClass",
-			},
 			objectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{},
+				Annotations: nil,
 			},
 			isDefault: false,
 		},
 		{
 			name: "with default annotation in snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "VolumeSnapshotClass",
-			},
 			objectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					IsDefaultSnapshotClassAnnotation: "true",
@@ -232,9 +225,6 @@ func TestIsDefaultAnnotation(t *testing.T) {
 		},
 		{
 			name: "with default=false annotation in snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "VolumeSnapshotClass",
-			},
 			objectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					IsDefaultSnapshotClassAnnotation: "false",
@@ -242,21 +232,31 @@ func TestIsDefaultAnnotation(t *testing.T) {
 			},
 			isDefault: false,
 		},
+	}
+	for _, tc := range testcases {
+		t.Logf("test: %s", tc.name)
+		isDefault := IsVolumeSnapshotClassDefaultAnnotation(tc.objectMeta)
+		if tc.isDefault != isDefault {
+			t.Fatalf("default annotation on class incorrectly detected: %v != %v", isDefault, tc.isDefault)
+		}
+	}
+}
+
+func TestIsVolumeGroupSnapshotClassDefaultAnnotation(t *testing.T) {
+	testcases := []struct {
+		name       string
+		objectMeta metav1.ObjectMeta
+		isDefault  bool
+	}{
 		{
 			name: "no default annotation in group snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "VolumeGroupSnapshotClass",
-			},
 			objectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{},
+				Annotations: nil,
 			},
 			isDefault: false,
 		},
 		{
 			name: "with default annotation in group snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "VolumeGroupSnapshotClass",
-			},
 			objectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					IsDefaultGroupSnapshotClassAnnotation: "true",
@@ -266,9 +266,6 @@ func TestIsDefaultAnnotation(t *testing.T) {
 		},
 		{
 			name: "with default=false annotation in group snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "VolumeGroupSnapshotClass",
-			},
 			objectMeta: metav1.ObjectMeta{
 				Annotations: map[string]string{
 					IsDefaultGroupSnapshotClassAnnotation: "false",
@@ -276,20 +273,10 @@ func TestIsDefaultAnnotation(t *testing.T) {
 			},
 			isDefault: false,
 		},
-		{
-			name: "unknown kind, not a snapshot or group snapshot class",
-			typeMeta: metav1.TypeMeta{
-				Kind: "PersistentVolume",
-			},
-			objectMeta: metav1.ObjectMeta{
-				Annotations: map[string]string{},
-			},
-			isDefault: false,
-		},
 	}
 	for _, tc := range testcases {
 		t.Logf("test: %s", tc.name)
-		isDefault := IsDefaultAnnotation(tc.typeMeta, tc.objectMeta)
+		isDefault := IsVolumeGroupSnapshotClassDefaultAnnotation(tc.objectMeta)
 		if tc.isDefault != isDefault {
 			t.Fatalf("default annotation on class incorrectly detected: %v != %v", isDefault, tc.isDefault)
 		}

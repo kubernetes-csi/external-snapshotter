@@ -274,21 +274,16 @@ func GetDynamicSnapshotContentNameForSnapshot(snapshot *crdv1.VolumeSnapshot) st
 	return "snapcontent-" + string(snapshot.UID)
 }
 
-// IsDefaultAnnotation returns a boolean if
-// the annotation is set
-func IsDefaultAnnotation(tm metav1.TypeMeta, obj metav1.ObjectMeta) bool {
-	switch tm.Kind {
-	case "VolumeSnapshotClass":
-		if obj.Annotations[IsDefaultSnapshotClassAnnotation] == "true" {
-			return true
-		}
-	case "VolumeGroupSnapshotClass":
-		if obj.Annotations[IsDefaultGroupSnapshotClassAnnotation] == "true" {
-			return true
-		}
-	}
+// IsVolumeSnapshotClassDefaultAnnotation returns a true boolean if
+// a VolumeSnapshotClass is marked as the default one
+func IsVolumeSnapshotClassDefaultAnnotation(obj metav1.ObjectMeta) bool {
+	return obj.Annotations[IsDefaultSnapshotClassAnnotation] == "true"
+}
 
-	return false
+// IsVolumeGroupSnapshotClassDefaultAnnotation returns a true boolean if
+// a VolumeGroupSnapshotClass is marked as the default one
+func IsVolumeGroupSnapshotClassDefaultAnnotation(obj metav1.ObjectMeta) bool {
+	return obj.Annotations[IsDefaultGroupSnapshotClassAnnotation] == "true"
 }
 
 // verifyAndGetSecretNameAndNamespaceTemplate gets the values (templates) associated
