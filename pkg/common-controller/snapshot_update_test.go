@@ -318,36 +318,37 @@ func TestSync(t *testing.T) {
 			test:          testSyncContentError,
 		},
 		{
+			// TODO: check vs deleted annotation added. Currently not possible because fake client does not respect finalizers.
+			// expectedContents:  withContentAnnotations(newContentArray("snapcontent-snapuid5-3", "snapuid5-3", "snap5-3", "sid5-3", validSecretClass, "", "pv-handle5-3", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			name:              "5-3 - (dynamic) snapshot deletion candidate marked for deletion",
-			initialSnapshots:  newSnapshotArray("snap5-3", "snapuid5-3", "claim5-3", "", validSecretClass, "snapcontent-snapuid5-3", &False, nil, nil, nil, false, true, &timeNowMetav1),
-			expectedSnapshots: newSnapshotArray("snap5-3", "snapuid5-3", "claim5-3", "", validSecretClass, "snapcontent-snapuid5-3", &False, nil, nil, nil, false, true, &timeNowMetav1),
+			initialSnapshots:  withSnapshotFinalizers(newSnapshotArray("snap5-3", "snapuid5-3", "claim5-3", "", validSecretClass, "snapcontent-snapuid5-3", &False, nil, nil, nil, false, false, &timeNowMetav1), utils.VolumeSnapshotBoundFinalizer),
+			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap5-3", "snapuid5-3", "claim5-3", "", validSecretClass, "snapcontent-snapuid5-3", &False, nil, nil, nil, false, false, &timeNowMetav1), utils.VolumeSnapshotBoundFinalizer),
 			initialContents:   newContentArray("snapcontent-snapuid5-3", "snapuid5-3", "snap5-3", "sid5-3", validSecretClass, "", "pv-handle5-3", deletionPolicy, nil, nil, true),
-			expectedContents:  withContentAnnotations(newContentArray("snapcontent-snapuid5-3", "snapuid5-3", "snap5-3", "sid5-3", validSecretClass, "", "pv-handle5-3", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			initialClaims:     newClaimArray("claim5-3", "pvc-uid5-3", "1Gi", "volume5-3", v1.ClaimBound, &classEmpty),
 			initialVolumes:    newVolumeArray("volume5-3", "pv-uid5-3", "pv-handle5-3", "1Gi", "pvc-uid5-3", "claim5-3", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:    []*v1.Secret{secret()},
 			expectSuccess:     true,
-			test:              testSyncContent,
+			test:              testSyncSnapshot,
 		},
 		{
 			name:              "5-4 - (dynamic) snapshot deletion candidate fail to mark for deletion due to failed API call",
-			initialSnapshots:  newSnapshotArray("snap5-4", "snapuid5-4", "claim5-4", "", validSecretClass, "snapcontent-snapuid5-4", &False, nil, nil, nil, false, true, &timeNowMetav1),
-			expectedSnapshots: newSnapshotArray("snap5-4", "snapuid5-4", "claim5-4", "", validSecretClass, "snapcontent-snapuid5-4", &False, nil, nil, nil, false, true, &timeNowMetav1),
+			initialSnapshots:  withSnapshotFinalizers(newSnapshotArray("snap5-4", "snapuid5-4", "claim5-4", "", validSecretClass, "snapcontent-snapuid5-4", &False, nil, nil, nil, false, false, &timeNowMetav1), utils.VolumeSnapshotBoundFinalizer),
+			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap5-4", "snapuid5-4", "claim5-4", "", validSecretClass, "snapcontent-snapuid5-4", &False, nil, nil, nil, false, false, &timeNowMetav1), utils.VolumeSnapshotBoundFinalizer),
 			initialContents:   newContentArray("snapcontent-snapuid5-4", "snapuid5-4", "snap5-4", "sid5-4", validSecretClass, "", "pv-handle5-4", deletionPolicy, nil, nil, true),
-			// result of the test framework - annotation is still set in memory, but update call fails.
+			// result of the test framework - annotation is still set in memory, but patch call fails.
 			expectedContents: withContentAnnotations(newContentArray("snapcontent-snapuid5-4", "snapuid5-4", "snap5-4", "sid5-4", validSecretClass, "", "pv-handle5-4", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			initialClaims:    newClaimArray("claim5-4", "pvc-uid5-4", "1Gi", "volume5-4", v1.ClaimBound, &classEmpty),
 			initialVolumes:   newVolumeArray("volume5-4", "pv-uid5-4", "pv-handle5-4", "1Gi", "pvc-uid5-4", "claim5-4", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classEmpty),
 			initialSecrets:   []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
-				{"update", "volumesnapshotcontents", errors.New("mock update error")},
+				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshotContents().Patch call.
+				{"patch", "volumesnapshotcontents", errors.New("mock update error")},
 			},
-			expectSuccess: false,
-			test:          testSyncContentError,
+			expectSuccess: true,
+			test:          testSyncSnapshotError,
 		},
 		{
-			name:              "5-5 - (dynamic) snapshot deletion candidate marked for deletion by syncSnapshot",
+			name:              "5-5 - (dynamic) Retain snapshot deletion candidate marked for deletion",
 			initialSnapshots:  newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "snapcontent-snapuid5-5", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedSnapshots: newSnapshotArray("snap5-5", "snapuid5-5", "claim5-5", "", validSecretClass, "snapcontent-snapuid5-5", &False, nil, nil, nil, false, false, &timeNowMetav1),
 			initialContents:   newContentArray("snapcontent-snapuid5-5", "snapuid5-5", "snap5-5", "sid5-5", validSecretClass, "", "pv-handle5-5", crdv1.VolumeSnapshotContentRetain, nil, nil, true),
@@ -359,32 +360,33 @@ func TestSync(t *testing.T) {
 			test:              testSyncSnapshot,
 		},
 		{
+			// TODO: check vs deleted annotation added. Currently not possible because fake client does not respect finalizers.
+			// expectedContents:  withContentAnnotations(newContentArray("content5-6", "snapuid5-6", "snap5-6", "sid5-6", validSecretClass, "sid5-6", "", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			name:              "5-6 - (static) snapshot deletion candidate marked for deletion",
-			initialSnapshots:  newSnapshotArray("snap5-6", "snapuid5-6", "", "content5-6", validSecretClass, "content5-6", &False, nil, nil, nil, false, true, &timeNowMetav1),
-			expectedSnapshots: newSnapshotArray("snap5-6", "snapuid5-6", "", "content5-6", validSecretClass, "content5-6", &False, nil, nil, nil, false, true, &timeNowMetav1),
+			initialSnapshots:  withSnapshotFinalizers(newSnapshotArray("snap5-6", "snapuid5-6", "", "content5-6", validSecretClass, "content5-6", &False, nil, nil, nil, false, false, &timeNowMetav1), utils.VolumeSnapshotBoundFinalizer),
+			expectedSnapshots: withSnapshotFinalizers(newSnapshotArray("snap5-6", "snapuid5-6", "", "content5-6", validSecretClass, "content5-6", &False, nil, nil, nil, false, false, &timeNowMetav1), utils.VolumeSnapshotBoundFinalizer),
 			initialContents:   newContentArray("content5-6", "snapuid5-6", "snap5-6", "sid5-6", validSecretClass, "sid5-6", "", deletionPolicy, nil, nil, true),
-			expectedContents:  withContentAnnotations(newContentArray("content5-6", "snapuid5-6", "snap5-6", "sid5-6", validSecretClass, "sid5-6", "", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			initialSecrets:    []*v1.Secret{secret()},
 			expectSuccess:     true,
-			test:              testSyncContent,
+			test:              testSyncSnapshot,
 		},
 		{
 			name:              "5-7 - (static) snapshot deletion candidate fail to mark for deletion due to failed API call",
 			initialSnapshots:  newSnapshotArray("snap5-7", "snapuid5-7", "", "content5-7", validSecretClass, "content5-7", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedSnapshots: newSnapshotArray("snap5-7", "snapuid5-7", "", "content5-7", validSecretClass, "content5-7", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			initialContents:   newContentArray("content5-7", "snapuid5-7", "snap5-7", "sid5-7", validSecretClass, "sid5-7", "", deletionPolicy, nil, nil, true),
-			// result of the test framework - annotation is still set in memory, but update call fails.
+			// result of the test framework - annotation is still set in memory, but patch call fails.
 			expectedContents: withContentAnnotations(newContentArray("content5-7", "snapuid5-7", "snap5-7", "sid5-7", validSecretClass, "sid5-7", "", deletionPolicy, nil, nil, true), map[string]string{utils.AnnVolumeSnapshotBeingDeleted: "yes"}),
 			initialSecrets:   []*v1.Secret{secret()},
 			errors: []reactorError{
-				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshots().Update call.
-				{"update", "volumesnapshotcontents", errors.New("mock update error")},
+				// Inject error to the forth client.VolumesnapshotV1().VolumeSnapshotContents().Patch call.
+				{"patch", "volumesnapshotcontents", errors.New("mock update error")},
 			},
-			expectSuccess: false,
-			test:          testSyncContentError,
+			expectSuccess: true,
+			test:          testSyncSnapshotError,
 		},
 		{
-			name:              "5-8 - (dynamic) snapshot deletion candidate marked for deletion by syncSnapshot",
+			name:              "5-8 - (dynamic) Retain snapshot deletion candidate marked for deletion",
 			initialSnapshots:  newSnapshotArray("snap5-8", "snapuid5-8", "", "content5-8", validSecretClass, "content5-8", &False, nil, nil, nil, false, true, &timeNowMetav1),
 			expectedSnapshots: newSnapshotArray("snap5-8", "snapuid5-8", "", "content5-8", validSecretClass, "content5-8", &False, nil, nil, nil, false, false, &timeNowMetav1),
 			initialContents:   newContentArray("content5-8", "snapuid5-8", "snap5-8", "sid5-8", validSecretClass, "sid5-8", "", crdv1.VolumeSnapshotContentRetain, nil, nil, true),

@@ -774,60 +774,62 @@ func evaluateTestResults(ctrl *csiSnapshotSideCarController, reactor *snapshotRe
 func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
-		klog.V(4).Infof("starting test %q", test.name)
+		t.Run(test.name, func(t *testing.T) {
+			klog.V(4).Infof("starting test %q", test.name)
 
-		// Initialize the controller
-		kubeClient := &kubefake.Clientset{}
-		client := &fake.Clientset{}
+			// Initialize the controller
+			kubeClient := &kubefake.Clientset{}
+			client := &fake.Clientset{}
 
-		ctrl, err := newTestController(kubeClient, client, nil, t, test)
-		if err != nil {
-			t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
-		}
-
-		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
-		for _, content := range test.initialContents {
-			if ctrl.isDriverMatch(test.initialContents[0]) {
-				ctrl.contentStore.Add(content)
-				reactor.contents[content.Name] = content
+			ctrl, err := newTestController(kubeClient, client, nil, t, test)
+			if err != nil {
+				t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
 			}
-		}
 
-		for _, secret := range test.initialSecrets {
-			reactor.secrets[secret.Name] = secret
-		}
+			reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+			for _, content := range test.initialContents {
+				if ctrl.isDriverMatch(test.initialContents[0]) {
+					ctrl.contentStore.Add(content)
+					reactor.contents[content.Name] = content
+				}
+			}
 
-		// Inject classes into controller via a custom lister.
-		indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
-		for _, class := range snapshotClasses {
-			indexer.Add(class)
-			reactor.snapshotClasses[class.Name] = class
-		}
-		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+			for _, secret := range test.initialSecrets {
+				reactor.secrets[secret.Name] = secret
+			}
 
-		// Run the tested functions
-		requeue, err := test.test(ctrl, reactor, test)
-		if test.expectSuccess && err != nil {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
-		if !test.expectSuccess && err == nil {
-			t.Errorf("Test %q failed: expected error, got nil", test.name)
-		}
-		if !test.expectSuccess && err == nil {
-			t.Errorf("Test %q failed: expected error, got nil", test.name)
-		}
-		// requeue has meaning only when err == nil. A snapshot content is automatically requeued on error
-		if err == nil && requeue != test.expectRequeue {
-			t.Errorf("Test %q expected requeue %t, got %t", test.name, test.expectRequeue, requeue)
-		}
+			// Inject classes into controller via a custom lister.
+			indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+			for _, class := range snapshotClasses {
+				indexer.Add(class)
+				reactor.snapshotClasses[class.Name] = class
+			}
+			ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
 
-		// Wait for the target state
-		err = reactor.waitTest(test)
-		if err != nil {
-			t.Errorf("Test %q failed: %v", test.name, err)
-		}
+			// Run the tested functions
+			requeue, err := test.test(ctrl, reactor, test)
+			if test.expectSuccess && err != nil {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
+			if !test.expectSuccess && err == nil {
+				t.Errorf("Test %q failed: expected error, got nil", test.name)
+			}
+			if !test.expectSuccess && err == nil {
+				t.Errorf("Test %q failed: expected error, got nil", test.name)
+			}
+			// requeue has meaning only when err == nil. A snapshot content is automatically requeued on error
+			if err == nil && requeue != test.expectRequeue {
+				t.Errorf("Test %q expected requeue %t, got %t", test.name, test.expectRequeue, requeue)
+			}
 
-		evaluateTestResults(ctrl, reactor, test, t)
+			// Wait for the target state
+			err = reactor.waitTest(test)
+			if err != nil {
+				t.Errorf("Test %q failed: %v", test.name, err)
+			}
+
+			evaluateTestResults(ctrl, reactor, test, t)
+		})
 	}
 }
 
