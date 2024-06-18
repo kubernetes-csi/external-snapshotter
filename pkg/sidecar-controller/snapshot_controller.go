@@ -413,13 +413,16 @@ func (ctrl *csiSnapshotSideCarController) clearVolumeContentStatus(
 	if err != nil {
 		return nil, fmt.Errorf("error get snapshot content %s from api server: %v", contentName, err)
 	}
-	if content.Status != nil {
-		content.Status.SnapshotHandle = nil
-		content.Status.ReadyToUse = nil
-		content.Status.CreationTime = nil
-		content.Status.RestoreSize = nil
+	newStatus := crdv1.VolumeSnapshotContentStatus{}
+	patches := []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/status",
+			Value: newStatus,
+		},
 	}
-	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), content, metav1.UpdateOptions{})
+
+	newContent, err := utils.PatchVolumeSnapshotContent(content.DeepCopy(), patches, ctrl.clientset, "status")
 	if err != nil {
 		return content, newControllerUpdateError(contentName, err.Error())
 	}

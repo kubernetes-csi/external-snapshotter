@@ -77,22 +77,32 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotErrorStatusWithEvent
 		return nil
 	}
 	groupSnapshotClone := groupSnapshot.DeepCopy()
-	if groupSnapshotClone.Status == nil {
-		groupSnapshotClone.Status = &crdv1alpha1.VolumeGroupSnapshotStatus{}
+	newStatus := &crdv1alpha1.VolumeGroupSnapshotStatus{}
+	if groupSnapshot.Status != nil {
+		newStatus = groupSnapshotClone.Status.DeepCopy()
 	}
-	statusError := &crdv1.VolumeSnapshotError{
+	newStatus.Error = &crdv1.VolumeSnapshotError{
 		Time: &metav1.Time{
 			Time: time.Now(),
 		},
 		Message: &message,
 	}
-	groupSnapshotClone.Status.Error = statusError
+
 	// Only update ReadyToUse in VolumeGroupSnapshot's Status to false if setReadyToFalse is true.
 	if setReadyToFalse {
 		ready := false
-		groupSnapshotClone.Status.ReadyToUse = &ready
+		newStatus.ReadyToUse = &ready
 	}
-	newSnapshot, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+
+	patches := []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/status",
+			Value: newStatus,
+		},
+	}
+
+	newSnapshot, err := utils.PatchVolumeGroupSnapshot(groupSnapshotClone, patches, ctrl.clientset, "status")
 
 	// Emit the event even if the status update fails so that user can see the error
 	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
@@ -680,7 +690,15 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeNormal, "GroupSnapshotReady", msg)
 		}
 
-		newGroupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+		patches := []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/status",
+				Value: newStatus,
+			},
+		}
+
+		newGroupSnapshotObj, err := utils.PatchVolumeGroupSnapshot(groupSnapshotClone, patches, ctrl.clientset, "status")
 		if err != nil {
 			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
 		}

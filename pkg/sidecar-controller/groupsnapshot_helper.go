@@ -285,14 +285,16 @@ func (ctrl *csiSnapshotSideCarController) clearGroupSnapshotContentStatus(
 	if err != nil {
 		return nil, fmt.Errorf("error get group snapshot content %s from api server: %v", groupSnapshotContentName, err)
 	}
-	if groupSnapshotContent.Status != nil {
-		groupSnapshotContent.Status.VolumeGroupSnapshotHandle = nil
-		groupSnapshotContent.Status.ReadyToUse = nil
-		groupSnapshotContent.Status.CreationTime = nil
-		groupSnapshotContent.Status.Error = nil
-		groupSnapshotContent.Status.PVVolumeSnapshotContentList = nil
+	newStatus := &crdv1alpha1.VolumeGroupSnapshotContentStatus{}
+	patches := []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/status",
+			Value: newStatus,
+		},
 	}
-	newContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContent, metav1.UpdateOptions{})
+
+	newContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset, "status")
 	if err != nil {
 		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContentName, err.Error())
 	}
@@ -732,8 +734,14 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 
 	if updated {
 		groupSnapshotContentClone := groupSnapshotContentObj.DeepCopy()
-		groupSnapshotContentClone.Status = newStatus
-		newContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContentClone, metav1.UpdateOptions{})
+		patches := []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/status",
+				Value: newStatus,
+			},
+		}
+		newContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContentClone, patches, ctrl.clientset, "status")
 		if err != nil {
 			return groupSnapshotContentObj, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
 		}
