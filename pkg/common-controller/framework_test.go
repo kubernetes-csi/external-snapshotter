@@ -287,10 +287,13 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 				return true, nil, err
 			}
 
-			err = json.Unmarshal(modified, content)
+			//json.Unmarshal will not clear the fields that are not present in the patch
+			var newContent = crdv1.VolumeSnapshotContent{}
+			err = json.Unmarshal(modified, &newContent)
 			if err != nil {
 				return true, nil, err
 			}
+			content = &newContent
 
 			storedVer, _ := strconv.Atoi(content.ResourceVersion)
 			content.ResourceVersion = strconv.Itoa(storedVer + 1)
@@ -351,10 +354,13 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 				return true, nil, err
 			}
 
-			err = json.Unmarshal(modified, storedSnapshot)
+			//json.Unmarshal will not clear the fields that are not present in the patch
+			var newSnapshot = crdv1.VolumeSnapshot{}
+			err = json.Unmarshal(modified, &newSnapshot)
 			if err != nil {
 				return true, nil, err
 			}
+			storedSnapshot = &newSnapshot
 
 			storedVer, _ := strconv.Atoi(storedSnapshot.ResourceVersion)
 			storedSnapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
@@ -1047,6 +1053,14 @@ func newSnapshot(
 	if targetContentName != "" {
 		snapshot.Spec.Source.VolumeSnapshotContentName = &targetContentName
 	}
+
+	// Perform marshal and unmarshal to simulate the real behavior of the API server
+	// for example, field like metav1.Time precision should be normalized
+	buf, _ := json.Marshal(snapshot)
+	normalized := &crdv1.VolumeSnapshot{}
+	_ = json.Unmarshal(buf, normalized)
+	snapshot = *normalized
+
 	if withAllFinalizers {
 		return withSnapshotFinalizers([]*crdv1.VolumeSnapshot{&snapshot}, utils.VolumeSnapshotAsSourceFinalizer, utils.VolumeSnapshotBoundFinalizer)[0]
 	}
@@ -1201,10 +1215,18 @@ func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, bo
 }
 
 func newVolumeError(message string) *crdv1.VolumeSnapshotError {
-	return &crdv1.VolumeSnapshotError{
+	snapErrIn := &crdv1.VolumeSnapshotError{
 		Time:    &metav1.Time{},
 		Message: &message,
 	}
+
+	// Marshal and unmarshal to simulate the real behavior of the API server
+	// for example, metav1.Time precision should be normalized
+	buf, _ := json.Marshal(snapErrIn)
+	snapErrOut := &crdv1.VolumeSnapshotError{}
+	_ = json.Unmarshal(buf, snapErrOut)
+
+	return snapErrOut
 }
 
 func testSyncSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
