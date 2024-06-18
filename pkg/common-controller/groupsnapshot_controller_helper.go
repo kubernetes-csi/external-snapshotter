@@ -838,6 +838,23 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 			)
 			return nil, err
 		}
+
+		volumeCSIDriver := pv.Spec.CSI.Driver
+		classCSIDriver := groupSnapshotClass.Driver
+		if volumeCSIDriver != classCSIDriver {
+			strErr := fmt.Sprintf(
+				"Volume CSI driver (%s) mismatch with VolumeGroupSnapshotClass (%s) %s: %s",
+				volumeCSIDriver, classCSIDriver, utils.GroupSnapshotKey(groupSnapshot), pv.Name)
+			klog.Error(strErr)
+			ctrl.eventRecorder.Event(
+				groupSnapshot,
+				v1.EventTypeWarning,
+				"CreateGroupSnapshotContentFailed",
+				strErr,
+			)
+			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), strErr)
+
+		}
 		volumeHandles = append(volumeHandles, pv.Spec.CSI.VolumeHandle)
 	}
 
