@@ -738,3 +738,143 @@ func TestProcessStartTimeMetricExist(t *testing.T) {
 
 	t.Fatalf("Metrics does not contain %v. Scraped content: %v", processStartTimeMetric, metricsFamilies)
 }
+
+func TestRecordVolumeGroupSnapshotMetrics(t *testing.T) {
+	mgr, srv := initMgr()
+	srvAddr := "http://" + srv.Addr + httpPattern
+	defer shutdown(srv)
+	// add an operation
+	opKey := OperationKey{
+		Name:       "op1",
+		ResourceID: types.UID("uid1"),
+	}
+	opVal := NewOperationValue("driver1", DynamicSnapshotType)
+	mgr.OperationStart(opKey, opVal)
+	// should create a Success data point with latency ~ 1100ms
+	time.Sleep(1100 * time.Millisecond)
+	success := &fakeOpStatus{
+		statusCode: 0,
+	}
+	mgr.RecordVolumeGroupSnapshotMetrics(opKey, success, "driver")
+
+	// add another operation metric
+	opKey.Name = "op2"
+	opKey.ResourceID = types.UID("uid2")
+	mgr.OperationStart(opKey, opVal)
+	// should create a Failure data point with latency ~ 100ms
+	time.Sleep(100 * time.Millisecond)
+	failure := &fakeOpStatus{
+		statusCode: 1,
+	}
+	mgr.RecordVolumeGroupSnapshotMetrics(opKey, failure, "driver2")
+
+	expected :=
+		`# HELP snapshot_controller_operation_total_seconds [ALPHA] Total number of seconds spent by the controller on an operation from end to end
+# TYPE snapshot_controller_operation_total_seconds histogram
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="0.1"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="0.25"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="0.5"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="1"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="2.5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="10"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="15"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="30"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="60"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="120"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="300"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="600"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic",le="+Inf"} 1
+snapshot_controller_operation_total_seconds_sum{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic"} 1.1
+snapshot_controller_operation_total_seconds_count{driver_name="driver",operation_name="op1",operation_status="Success",snapshot_type="dynamic"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="0.1"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="0.25"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="0.5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="1"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="2.5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="10"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="15"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="30"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="60"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="120"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="300"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="600"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic",le="+Inf"} 1
+snapshot_controller_operation_total_seconds_sum{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic"} 0.1
+snapshot_controller_operation_total_seconds_count{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="dynamic"} 1
+`
+	if err := verifyMetric(expected, srvAddr); err != nil {
+		t.Errorf("failed testing [%v]", err)
+	}
+}
+
+func TestRecordVolumeGroupSnapshotMetricsForPreProvisioned(t *testing.T) {
+	mgr, srv := initMgr()
+	srvAddr := "http://" + srv.Addr + httpPattern
+	defer shutdown(srv)
+	// add an operation
+	opKey := OperationKey{
+		Name:       "op1",
+		ResourceID: types.UID("uid1"),
+	}
+	opVal := NewOperationValue("driver", PreProvisionedGroupSnapshotType)
+	mgr.OperationStart(opKey, opVal)
+	// should create a Success data point with latency ~ 1100ms
+	time.Sleep(1100 * time.Millisecond)
+	success := &fakeOpStatus{
+		statusCode: 0,
+	}
+	mgr.RecordVolumeGroupSnapshotMetrics(opKey, success, "driver1")
+
+	// add another operation metric
+	opKey.Name = "op2"
+	opKey.ResourceID = types.UID("uid2")
+	mgr.OperationStart(opKey, opVal)
+	// should create a Failure data point with latency ~ 100ms
+	time.Sleep(100 * time.Millisecond)
+	failure := &fakeOpStatus{
+		statusCode: 1,
+	}
+	mgr.RecordVolumeGroupSnapshotMetrics(opKey, failure, "driver2")
+
+	expected :=
+		`# HELP snapshot_controller_operation_total_seconds [ALPHA] Total number of seconds spent by the controller on an operation from end to end
+# TYPE snapshot_controller_operation_total_seconds histogram
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="0.1"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="0.25"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="0.5"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="1"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="2.5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="10"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="15"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="30"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="60"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="120"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="300"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="600"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned",le="+Inf"} 1
+snapshot_controller_operation_total_seconds_sum{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned"} 1.1
+snapshot_controller_operation_total_seconds_count{driver_name="driver1",operation_name="op1",operation_status="Success",snapshot_type="pre-provisioned"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="0.1"} 0
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="0.25"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="0.5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="1"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="2.5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="5"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="10"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="15"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="30"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="60"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="120"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="300"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="600"} 1
+snapshot_controller_operation_total_seconds_bucket{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned",le="+Inf"} 1
+snapshot_controller_operation_total_seconds_sum{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned"} 0.1
+snapshot_controller_operation_total_seconds_count{driver_name="driver2",operation_name="op2",operation_status="Failure",snapshot_type="pre-provisioned"} 1
+`
+	if err := verifyMetric(expected, srvAddr); err != nil {
+		t.Errorf("failed testing [%v]", err)
+	}
+}

@@ -32,6 +32,7 @@ import (
 
 	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 )
 
@@ -263,6 +264,14 @@ func (ctrl *csiSnapshotCommonController) deleteGroupSnapshot(groupSnapshot *crdv
 	_ = ctrl.snapshotStore.Delete(groupSnapshot)
 	klog.V(4).Infof("group snapshot %q deleted", utils.GroupSnapshotKey(groupSnapshot))
 
+	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
+	if err != nil {
+		klog.Errorf("failed to getGroupSnapshotDriverName while recording metrics for group snapshot %q: %v", utils.GroupSnapshotKey(groupSnapshot), err)
+	} else {
+		deleteOperationKey := metrics.NewOperationKey(metrics.DeleteGroupSnapshotOperationName, groupSnapshot.UID)
+		ctrl.metricsManager.RecordMetrics(deleteOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+	}
+
 	groupSnapshotContentName := ""
 	if groupSnapshot.Status != nil && groupSnapshot.Status.BoundVolumeGroupSnapshotContentName != nil {
 		groupSnapshotContentName = *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName
@@ -376,9 +385,28 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotContentFromStore(conten
 func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
 	uniqueGroupSnapshotName := utils.GroupSnapshotKey(groupSnapshot)
 	klog.V(5).Infof("syncUnreadyGroupSnapshot %s", uniqueGroupSnapshotName)
-	/*
-		TODO: Add metrics
-	*/
+	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
+	if err != nil {
+		klog.Errorf("failed to getGroupSnapshotDriverName while recording metrics for groupsnapshot %q: %s", utils.GroupSnapshotKey(groupSnapshot), err)
+	}
+
+	groupSnapshotProvisionType := metrics.DynamicGroupSnapshotType
+	if groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil {
+		groupSnapshotProvisionType = metrics.PreProvisionedGroupSnapshotType
+	}
+
+	// Start metrics operations for volumegroupsnapshot
+	if !utils.IsGroupSnapshotCreated(groupSnapshot) {
+		// Only start CreateGroupSnapshot operation if the groupsnapshot has not been cut
+		ctrl.metricsManager.OperationStart(
+			metrics.NewOperationKey(metrics.CreateGroupSnapshotOperationName, groupSnapshot.UID),
+			metrics.NewOperationValue(driverName, groupSnapshotProvisionType),
+		)
+	}
+	ctrl.metricsManager.OperationStart(
+		metrics.NewOperationKey(metrics.CreateGroupSnapshotAndReadyOperationName, groupSnapshot.UID),
+		metrics.NewOperationValue(driverName, groupSnapshotProvisionType),
+	)
 
 	// Pre-provisioned snapshot
 	if groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil {
@@ -664,12 +692,20 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 		groupSnapshotClone := groupSnapshotObj.DeepCopy()
 		groupSnapshotClone.Status = newStatus
 
+		// We need to record metrics before updating the status due to a bug causing cache entries after a failed UpdateStatus call.
+		// Must meet the following criteria to emit a successful CreateGroupSnapshot status
+		// 1. Previous status was nil OR Previous status had a nil CreationTime
+		// 2. New status must be non-nil with a non-nil CreationTime
+		driverName := groupSnapshotContent.Spec.Driver
+		createOperationKey := metrics.NewOperationKey(metrics.CreateGroupSnapshotOperationName, groupSnapshot.UID)
+
 		// Must meet the following criteria to emit a successful CreateGroupSnapshot status
 		// 1. Previous status was nil OR Previous status had a nil CreationTime
 		// 2. New status must be non-nil with a non-nil CreationTime
 		if !utils.IsGroupSnapshotCreated(groupSnapshotObj) && utils.IsGroupSnapshotCreated(groupSnapshotClone) {
 			msg := fmt.Sprintf("GroupSnapshot %s was successfully created by the CSI driver.", utils.GroupSnapshotKey(groupSnapshot))
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeNormal, "GroupSnapshotCreated", msg)
+			ctrl.metricsManager.RecordVolumeGroupSnapshotMetrics(createOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
 		}
 
 		// Must meet the following criteria to emit a successful CreateGroupSnapshotAndReady status
@@ -678,6 +714,8 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 		if !utils.IsGroupSnapshotReady(groupSnapshotObj) && utils.IsGroupSnapshotReady(groupSnapshotClone) {
 			msg := fmt.Sprintf("GroupSnapshot %s is ready to use.", utils.GroupSnapshotKey(groupSnapshot))
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeNormal, "GroupSnapshotReady", msg)
+			createAndReadyOperation := metrics.NewOperationKey(metrics.CreateGroupSnapshotAndReadyOperationName, groupSnapshot.UID)
+			ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
 		}
 
 		newGroupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
@@ -1126,6 +1164,21 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimestamp(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
 	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp VolumeGroupSnapshot[%s]: %s", utils.GroupSnapshotKey(groupSnapshot), utils.GetGroupSnapshotStatusForLogging(groupSnapshot))
 
+	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
+	if err != nil {
+		klog.Errorf("failed to getGroupSnapshotDriverName while recording metrics for group snapshot %q: %v", utils.GroupSnapshotKey(groupSnapshot), err)
+	}
+
+	groupSnapshotProvisionType := metrics.DynamicGroupSnapshotType
+	if groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil {
+		groupSnapshotProvisionType = metrics.PreProvisionedGroupSnapshotType
+	}
+
+	// Processing delete, start operation metric
+	deleteOperationKey := metrics.NewOperationKey(metrics.DeleteGroupSnapshotOperationName, groupSnapshot.UID)
+	deleteOperationValue := metrics.NewOperationValue(driverName, groupSnapshotProvisionType)
+	ctrl.metricsManager.OperationStart(deleteOperationKey, deleteOperationValue)
+
 	var groupSnapshotContentName string
 	if groupSnapshot.Status != nil && groupSnapshot.Status.BoundVolumeGroupSnapshotContentName != nil {
 		groupSnapshotContentName = *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName
@@ -1296,4 +1349,43 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 
 	klog.V(5).Infof("Removed protection finalizer from volume group snapshot %s", utils.GroupSnapshotKey(groupSnapshot))
 	return nil
+}
+
+// getGroupSnapshotDriverName is a helper function to get driver from the VolumeGroupSnapshot.
+// We try to get the driverName in multiple ways, as snapshot controller metrics depend on the correct driverName.
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotDriverName(vgs *crdv1alpha1.VolumeGroupSnapshot) (string, error) {
+	klog.V(5).Infof("getSnapshotDriverName: VolumeSnapshot[%s]", vgs.Name)
+	var driverName string
+
+	// Pre-Provisioned groupsnapshots have contentName as source
+	var contentName string
+	if vgs.Spec.Source.VolumeGroupSnapshotContentName != nil {
+		contentName = *vgs.Spec.Source.VolumeGroupSnapshotContentName
+	}
+
+	// Get Driver name from GroupSnapshotContent if we found a contentName
+	if contentName != "" {
+		content, err := ctrl.groupSnapshotContentLister.Get(contentName)
+		if err != nil {
+			klog.Errorf("getGroupSnapshotDriverName: failed to get groupSnapshotContent: %v", contentName)
+		} else {
+			driverName = content.Spec.Driver
+		}
+
+		if driverName != "" {
+			return driverName, nil
+		}
+	}
+
+	// Dynamic groupsnapshots will have a groupsnapshotclass with a driver
+	if vgs.Spec.VolumeGroupSnapshotClassName != nil {
+		class, err := ctrl.getSnapshotClass(*vgs.Spec.VolumeGroupSnapshotClassName)
+		if err != nil {
+			klog.Errorf("getGroupSnapshotDriverName: failed to get groupsnapshotClass: %v", *vgs.Spec.VolumeGroupSnapshotClassName)
+		} else {
+			driverName = class.Driver
+		}
+	}
+
+	return driverName, nil
 }
