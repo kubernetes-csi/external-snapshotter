@@ -44,7 +44,7 @@ Update generated client code in external-snapshotter
     ./hack/update-generated-code.sh
 ``` 
 
-Once you run the script, the code will be generated for volumesnapshot:v1 and volumegroupsnapshot:v1alpha1, and you will get an output as follows:
+Once you run the script, the code will be generated for volumesnapshot:v1 and volumegroupsnapshot:v1beta1, and you will get an output as follows:
     
 ```bash
 Generating deepcopy code for 2 targets
