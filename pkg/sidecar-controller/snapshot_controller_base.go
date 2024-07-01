@@ -34,12 +34,12 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	klog "k8s.io/klog/v2"
 
-	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
+	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
-	groupsnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot/v1alpha1"
+	groupsnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot/v1beta1"
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumesnapshot/v1"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1alpha1"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1"
 	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/snapshotter"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
@@ -313,7 +313,7 @@ func (ctrl *csiSnapshotSideCarController) isDriverMatch(object interface{}) bool
 		}
 		return true
 	}
-	if content, ok := object.(*crdv1alpha1.VolumeGroupSnapshotContent); ok {
+	if content, ok := object.(*crdv1beta1.VolumeGroupSnapshotContent); ok {
 		if content.Spec.Source.GroupSnapshotHandles == nil && len(content.Spec.Source.VolumeHandles) == 0 {
 			// Skip this group snapshot content if it does not have a valid source
 			return false

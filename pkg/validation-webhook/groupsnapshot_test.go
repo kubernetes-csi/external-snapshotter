@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	volumegroupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1alpha1"
+	volumegroupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,14 +30,14 @@ import (
 )
 
 type fakeGroupSnapshotLister struct {
-	values []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass
+	values []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass
 }
 
-func (f *fakeGroupSnapshotLister) List(selector labels.Selector) (ret []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass, err error) {
+func (f *fakeGroupSnapshotLister) List(selector labels.Selector) (ret []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass, err error) {
 	return f.values, nil
 }
 
-func (f *fakeGroupSnapshotLister) Get(name string) (*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass, error) {
+func (f *fakeGroupSnapshotLister) Get(name string) (*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass, error) {
 	for _, v := range f.values {
 		if v.Name == name {
 			return v, nil
@@ -46,11 +46,11 @@ func (f *fakeGroupSnapshotLister) Get(name string) (*volumegroupsnapshotv1alpha1
 	return nil, nil
 }
 
-func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
+func TestAdmitVolumeGroupSnapshotClassV1Beta1(t *testing.T) {
 	testCases := []struct {
 		name              string
-		groupSnapClass    *volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass
-		oldGroupSnapClass *volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass
+		groupSnapClass    *volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass
+		oldGroupSnapClass *volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass
 		shouldAdmit       bool
 		msg               string
 		operation         v1.Operation
@@ -58,7 +58,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 	}{
 		{
 			name: "new default for group snapshot class with no existing group snapshot classes",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -71,11 +71,11 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 			shouldAdmit:       true,
 			msg:               "",
 			operation:         v1.Create,
-			lister:            &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{}},
+			lister:            &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{}},
 		},
 		{
 			name: "new default for group snapshot class for  with existing default group snapshot class with different drivers",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -84,11 +84,11 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldGroupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{},
+			oldGroupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{},
 			shouldAdmit:       true,
 			msg:               "",
 			operation:         v1.Create,
-			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -102,7 +102,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 		},
 		{
 			name: "new default for group snapshot class with existing default group snapshot class same driver",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -111,11 +111,11 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldGroupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{},
+			oldGroupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{},
 			shouldAdmit:       false,
 			msg:               "default group snapshot class: driver-a already exists for driver: test.csi.io",
 			operation:         v1.Create,
-			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -130,7 +130,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 		},
 		{
 			name: "default for group snapshot class with existing default group snapshot class same driver update",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -139,7 +139,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldGroupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			oldGroupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -151,7 +151,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 			shouldAdmit: true,
 			msg:         "",
 			operation:   v1.Update,
-			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -165,16 +165,16 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 		},
 		{
 			name: "new group snapshot for group snapshot class with existing default group snapshot class same driver",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta:   metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{},
 				Driver:     "test.csi.io",
 			},
-			oldGroupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{},
+			oldGroupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{},
 			shouldAdmit:       true,
 			msg:               "",
 			operation:         v1.Create,
-			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -188,7 +188,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 		},
 		{
 			name: "new group snapshot for group snapshot class with existing group snapshot default classes",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -197,11 +197,11 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 				},
 				Driver: "test.csi.io",
 			},
-			oldGroupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{},
+			oldGroupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{},
 			shouldAdmit:       false,
 			msg:               "default group snapshot class: driver-is-default already exists for driver: test.csi.io",
 			operation:         v1.Create,
-			lister: &fakeGroupSnapshotLister{[]*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			lister: &fakeGroupSnapshotLister{[]*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -225,7 +225,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 		},
 		{
 			name: "update group snapshot class to new driver with existing default group snapshot classes",
-			groupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			groupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -234,7 +234,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 				},
 				Driver: "driver.test.csi.io",
 			},
-			oldGroupSnapClass: &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			oldGroupSnapClass: &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				TypeMeta: metav1.TypeMeta{},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations: map[string]string{
@@ -246,7 +246,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 			shouldAdmit: false,
 			msg:         "default group snapshot class: driver-test-default already exists for driver: driver.test.csi.io",
 			operation:   v1.Update,
-			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{
+			lister: &fakeGroupSnapshotLister{values: []*volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{
 				{
 					TypeMeta: metav1.TypeMeta{},
 					ObjectMeta: metav1.ObjectMeta{
@@ -291,7 +291,7 @@ func TestAdmitVolumeGroupSnapshotClassV1Alpha1(t *testing.T) {
 					OldObject: runtime.RawExtension{
 						Raw: oldRaw,
 					},
-					Resource:  GroupSnapshotClassV1Apha1GVR,
+					Resource:  GroupSnapshotClassV1Beta1GVR,
 					Operation: tc.operation,
 				},
 			}

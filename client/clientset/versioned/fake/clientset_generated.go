@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
-	groupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1alpha1"
-	fakegroupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1alpha1/fake"
+	groupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1beta1"
+	fakegroupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1beta1/fake"
 	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumesnapshot/v1"
 	fakesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumesnapshot/v1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -81,9 +81,9 @@ var (
 	_ testing.FakeClient  = &Clientset{}
 )
 
-// GroupsnapshotV1alpha1 retrieves the GroupsnapshotV1alpha1Client
-func (c *Clientset) GroupsnapshotV1alpha1() groupsnapshotv1alpha1.GroupsnapshotV1alpha1Interface {
-	return &fakegroupsnapshotv1alpha1.FakeGroupsnapshotV1alpha1{Fake: &c.Fake}
+// GroupsnapshotV1beta1 retrieves the GroupsnapshotV1beta1Client
+func (c *Clientset) GroupsnapshotV1beta1() groupsnapshotv1beta1.GroupsnapshotV1beta1Interface {
+	return &fakegroupsnapshotv1beta1.FakeGroupsnapshotV1beta1{Fake: &c.Fake}
 }
 
 // SnapshotV1 retrieves the SnapshotV1Client
