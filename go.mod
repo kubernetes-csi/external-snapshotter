@@ -13,7 +13,7 @@ require (
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.0.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.54.0
+	github.com/prometheus/common v0.55.0
 	github.com/spf13/cobra v1.8.1
 	google.golang.org/grpc v1.64.0
 	google.golang.org/protobuf v1.34.2
