@@ -201,5 +201,5 @@ func TestCreateSnapshotSync(t *testing.T) {
 			test:           testSyncSnapshot,
 		},
 	}
-	runSyncTests(t, tests, snapshotClasses)
+	runSyncTests(t, tests, snapshotClasses, nil)
 }
