@@ -518,5 +518,5 @@ func TestSync(t *testing.T) {
 		},
 	}
 
-	runSyncTests(t, tests, snapshotClasses)
+	runSyncTests(t, tests, snapshotClasses, nil)
 }

@@ -17,9 +17,10 @@ limitations under the License.
 package common_controller
 
 import (
+	"testing"
+
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
-	"testing"
 )
 
 // Test single call to ensurePVCFinalizer, checkandRemovePVCFinalizer, addSnapshotFinalizer, removeSnapshotFinalizer
