@@ -1371,7 +1371,7 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 // getGroupSnapshotDriverName is a helper function to get driver from the VolumeGroupSnapshot.
 // We try to get the driverName in multiple ways, as snapshot controller metrics depend on the correct driverName.
 func (ctrl *csiSnapshotCommonController) getGroupSnapshotDriverName(vgs *crdv1alpha1.VolumeGroupSnapshot) (string, error) {
-	klog.V(5).Infof("getSnapshotDriverName: VolumeSnapshot[%s]", vgs.Name)
+	klog.V(5).Infof("getGroupSnapshotDriverName: VolumeGroupSnapshot[%s]", vgs.Name)
 	var driverName string
 
 	// Pre-Provisioned groupsnapshots have contentName as source
@@ -1396,9 +1396,9 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotDriverName(vgs *crdv1al
 
 	// Dynamic groupsnapshots will have a groupsnapshotclass with a driver
 	if vgs.Spec.VolumeGroupSnapshotClassName != nil {
-		class, err := ctrl.getSnapshotClass(*vgs.Spec.VolumeGroupSnapshotClassName)
+		class, err := ctrl.getGroupSnapshotClass(*vgs.Spec.VolumeGroupSnapshotClassName)
 		if err != nil {
-			klog.Errorf("getGroupSnapshotDriverName: failed to get groupsnapshotClass: %v", *vgs.Spec.VolumeGroupSnapshotClassName)
+			klog.Errorf("getGroupSnapshotDriverName: failed to get groupSnapshotClass: %v", *vgs.Spec.VolumeGroupSnapshotClassName)
 		} else {
 			driverName = class.Driver
 		}
