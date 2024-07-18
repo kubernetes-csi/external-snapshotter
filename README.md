@@ -1,8 +1,10 @@
 # CSI Snapshotter
 
-The CSI snapshotter is part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec).
+The CSI snapshotter is part of Kubernetes implementation of [Container Storage Interface (CSI)](https://github.com/container-storage-interface/spec) and implements both the volume snapshot and the volume group snapshot feature.
 
 The volume snapshot feature supports CSI v1.0 and higher. It was introduced as an Alpha feature in Kubernetes v1.12 and has been promoted to a Beta feature in Kubernetes 1.17. In Kubernetes 1.20, the volume snapshot feature moves to GA.
+
+The volume group snapshot feature supports CSI v1.10.0 and higher, and have been introduced in [Kubernetes 1.27 as an alpha feature](https://kubernetes.io/blog/2023/05/08/kubernetes-1-27-volume-group-snapshot-alpha/).
 
 > :warning: **WARNING**: There is a new validating webhook server which provides tightened validation on snapshot objects. This SHOULD be installed by all users of this feature. More details [below](#validating-webhook).
 
@@ -11,8 +13,11 @@ The volume snapshot feature supports CSI v1.0 and higher. It was introduced as a
 
 With the promotion of Volume Snapshot to GA, the feature is enabled by default on standard Kubernetes deployments and cannot be turned off.
 
-Blog post for the GA feature can be found [here](https://kubernetes.io/blog/2020/12/10/kubernetes-1.20-volume-snapshot-moves-to-ga/)
+The Volume Group Snapshot feature is disabled by default, and can be enabled using a command line option. For more information on how to enable it, see the [usage section](https://github.com/kubernetes-csi/external-snapshotter#usage) of this guide.
 
+Blog post for the Snapshot GA feature can be found [here](https://kubernetes.io/blog/2020/12/10/kubernetes-1.20-volume-snapshot-moves-to-ga/).
+
+Blog post for the Volume Group Snapshot Alpha feature can be found [here](https://kubernetes.io/blog/2023/05/08/kubernetes-1-27-volume-group-snapshot-alpha/).
 
 ## Compatibility
 
@@ -26,16 +31,17 @@ This information reflects the head of this branch.
 
 Note: snapshot-controller, snapshot-validation-webhook, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
 
+Note: when the volume group snapshot feature is enabled, snapshot-controller, snapshot-validation-webhook, csi-snapshotter require the v1alpha1 volumegroupsnapshot CRDs to be installed.
+
 ## Feature Status
 
 The `VolumeSnapshotDataSource` feature gate was introduced in Kubernetes 1.12 and it is enabled by default in Kubernetes 1.17 when the volume snapshot feature is promoted to beta. In Kubernetes 1.20, the feature gate is enabled by default on standard Kubernetes deployments and cannot be turned off.
 
-
 ## Design
 
-Both the snapshot controller and CSI external-snapshotter sidecar follow [controller](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/controllers.md) pattern and uses informers to watch for events. The snapshot controller watches for `VolumeSnapshot` and `VolumeSnapshotContent` create/update/delete events.
+Both the snapshot controller and CSI external-snapshotter sidecar follow [controller](https://github.com/kubernetes/community/blob/master/contributors/devel/sig-api-machinery/controllers.md) pattern and uses informers to watch for events. The snapshot controller watches for `VolumeSnapshot` and `VolumeSnapshotContent` create/update/delete events. Similarly, when the volume group snapshot feature is enabled, the snapshot controller watches for `VolumeGroupSnapshot` and `VolumeGroupSnapshotContent` create/update/delete events.
 
-The CSI external-snapshotter sidecar only watches for `VolumeSnapshotContent` create/update/delete events. It filters out these objects with `Driver==<CSI driver name>` specified in the associated VolumeSnapshotClass object and then processes these events in workqueues with exponential backoff.
+The CSI external-snapshotter sidecar only watches for `VolumeSnapshotContent` create/update/delete events. It filters out these objects with `Driver==<CSI driver name>` specified in the associated VolumeSnapshotClass object and then processes these events in workqueues with exponential backoff. Similarly, when the volume group snapshot feature is enabled, the CSI external-controller sidecar only watches for `VolumeGroupSnapshotContent` create/update/delete events.
 
 The CSI external-snapshotter sidecar talks to CSI over socket (/run/csi/socket by default, configurable by -csi-address).
 
@@ -43,17 +49,20 @@ The CSI external-snapshotter sidecar talks to CSI over socket (/run/csi/socket b
 
 In the current release, both v1 and v1beta1 APIs are served while the stored API version is changed from v1beta1 to v1. v1beta1 APIs is deprecated and will be removed in a future release. It is recommended for users to switch to v1 APIs as soon as possible. Any previously created invalid v1beta1 objects have to be deleted before upgrading to version 4.1.
 
+### Volume Group Snapshot v1alpha1 APIs
+
+When enabled, the VolumeGroupSnapshot v1alpha1 APIs are being served.
 
 ## Usage
 
 Volume Snapshot feature contains the following components:
 
-* [Kubernetes Volume Snapshot CRDs](https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd)
-* [Volume snapshot controller](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/common-controller)
-* [Snapshot validation webhook](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/validation-webhook)
+* [Kubernetes Volume Snapshot and Volume Group Snapshot CRDs](https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd)
+* [Volume snapshot and volume group snapshot controller](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/common-controller)
+* [Snapshot and volume group snapshot validation webhook](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/validation-webhook)
 * CSI Driver along with [CSI Snapshotter sidecar](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/sidecar-controller)
 
-The Volume Snapshot feature depends on a volume snapshot controller and the volume snapshot CRDs. Both the volume snapshot controller and the CRDs are independent of any CSI driver. The CSI Snapshotter sidecar must run once per CSI driver. The single snapshot controller deployment works for all CSI drivers in a cluster. With leader election configured, the CSI sidecars and snapshot controller elect one leader per deployment. If deployed with two or more pods and leader election is enabled, the non-leader containers will attempt to get the lease. If the leader container dies, a non-leader will take over.
+The Volume Snapshot feature depends on a volume snapshot controller and the volume snapshot CRDs. Both the controller and the CRDs are independent of any CSI driver. The CSI Snapshotter sidecar must run once per CSI driver. The single snapshot controller deployment works for all CSI drivers in a cluster. With leader election configured, the CSI sidecars and snapshot controller elect one leader per deployment. If deployed with two or more pods and leader election is enabled, the non-leader containers will attempt to get the lease. If the leader container dies, a non-leader will take over.
 
 Therefore, it is strongly recommended that Kubernetes distributors bundle and deploy the controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver).
 
@@ -61,7 +70,7 @@ If your Kubernetes distribution does not bundle the snapshot controller, you may
 
 There is a new validating webhook server which provides tightened validation on snapshot objects. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs. More details [below](#validating-webhook).
 
-Install Snapshot CRDs:
+Install Snapshot and Volume Group Snapshot CRDs:
 * kubectl kustomize client/config/crd | kubectl create -f -
 * https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
 * Do this once per cluster
@@ -147,6 +156,16 @@ The distributed snapshotting feature is provided to handle snapshot operations f
 
 Other than this, the NODE_NAME environment variable must be set where the CSI snapshotter sidecar is deployed. The value of NODE_NAME should be the name of the node where the sidecar is running.
 
+### Volume Group Snapshot Support
+
+The following requisites must be met to enable the volume group snapshot feature:
+
+* the Volume Group Snapshot CRDs are installed in the cluster
+* the `--enable-volume-group-snapshots=true` option is being passed to the snapshot controller
+* the `--enable-volume-group-snapshots=true` option is being passed to the CSI snapshotter sidecar
+
+Specifically, `deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml` needs to be updated with `--enable-volume-group-snapshots=true` in order to enable this feature in the snapshot controller.
+
 ### Snapshot controller command line options
 
 #### Important optional arguments that are highly recommended to be used
@@ -179,6 +198,10 @@ Other than this, the NODE_NAME environment variable must be set where the CSI sn
 * `--enable-distributed-snapshotting` : Enables each node to handle snapshots for the volumes local to that node. Off by default. It should be set to true only if `--node-deployment` parameter for the csi external snapshotter sidecar is set to true. See https://github.com/kubernetes-csi/external-snapshotter/blob/master/README.md#distributed-snapshotting for details.
 
 * `--prevent-volume-mode-conversion`: Boolean that prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot. Was present as an alpha feature in `v6.0.0`; Having graduated to beta, defaults to true.
+
+#### Volume Group Snapshot support
+
+* `--enable-volume-group-snapshots`: Enables support for Volume Group Snapshots. If this option is enabled, the VolumeGroupSnapshots CRD should be available on the cluster.
 
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the snapshot controller uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
@@ -221,6 +244,11 @@ Other than this, the NODE_NAME environment variable must be set where the CSI sn
 * `--retry-interval-start`: Initial retry interval of failed volume snapshot creation or deletion. It doubles with each failure, up to retry-interval-max. Default value is 1 second.
 
 * `--retry-interval-max`: Maximum retry interval of failed volume snapshot creation or deletion. Default value is 5 minutes.
+
+#### Volume Group Snapshot support
+
+* `--enable-volume-group-snapshots`: Enables support for Volume Group Snapshots. If this option is enabled, the VolumeGroupSnapshots CRD should be available on the cluster.
+
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the CSI external-snapshotter uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the external-snapshotter does not run as a Kubernetes pod, e.g. for debugging.
 
