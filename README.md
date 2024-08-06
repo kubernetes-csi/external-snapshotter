@@ -71,6 +71,20 @@ Install Common Snapshot Controller:
 * kubectl -n kube-system kustomize deploy/kubernetes/snapshot-controller | kubectl create -f -
 * Do this once per cluster
 
+Alternatively, you could also install the snapshot-controller using Helm: 
+
+Add the snapshot-controller Helm repository: 
+```sh
+helm repo add snapshot-controller https://github.com/kubernetes-csi/external-snapshotter 
+helm repo update
+```
+Then install a release of the snapshot-controller using the chart
+```sh
+helm upgrade --install snapshot-controller \
+    --namespace kube-system \
+    https://github.com/kubernetes-csi/external-snapshotter/releases/download/helm-chart-snapshot-controller-4.2.1/snapshot-controller-4.2.1.tgz
+```
+
 Install CSI Driver:
 * Follow instructions provided by your CSI Driver vendor.
 * Here is an example to install the sample hostpath CSI driver

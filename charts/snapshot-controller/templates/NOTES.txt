@@ -1,0 +1,5 @@
+
+   
+To verify that snapshot-controller has started, run:
+
+    kubectl get pod -n {{ .Release.Namespace }} -l "app.kubernetes.io/name={{ include "snapshot-controller.name" . }},app.kubernetes.io/instance={{ .Release.Name }}"
