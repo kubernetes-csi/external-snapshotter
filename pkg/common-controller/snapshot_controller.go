@@ -817,7 +817,14 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotErrorStatusWithEvent(snap
 		ready := false
 		snapshotClone.Status.ReadyToUse = &ready
 	}
-	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	patches := []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/status",
+			Value: snapshotClone.Status,
+		},
+	}
+	newSnapshot, err := utils.PatchVolumeSnapshot(snapshotClone, patches, ctrl.clientset, "status")
 
 	// Emit the event even if the status update fails so that user can see the error
 	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
@@ -1250,7 +1257,15 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotReady", msg)
 		}
 
-		newSnapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+		patches := []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/status",
+				Value: newStatus,
+			},
+		}
+		newSnapshotObj, err := utils.PatchVolumeSnapshot(snapshotClone, patches, ctrl.clientset, "status")
+		//newSnapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 		}
