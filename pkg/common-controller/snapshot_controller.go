@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
+	"k8s.io/client-go/util/retry"
 	corev1helpers "k8s.io/component-helpers/scheduling/corev1"
 	klog "k8s.io/klog/v2"
 
@@ -930,19 +931,22 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 
 // removePVCFinalizer removes a Finalizer for VolumeSnapshot Source PVC.
 func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVolumeClaim) error {
-	// Get snapshot source which is a PVC
-	// TODO(xyang): We get PVC from informer but it may be outdated
-	// Should get it from API server directly before removing finalizer
-	pvcClone := pvc.DeepCopy()
-	pvcClone.ObjectMeta.Finalizers = utils.RemoveString(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
+	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get snapshot source which is a PVC
+		newPvc, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		newPvc = newPvc.DeepCopy()
+		newPvc.ObjectMeta.Finalizers = utils.RemoveString(newPvc.ObjectMeta.Finalizers, utils.PVCFinalizer)
+		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(newPvc.Namespace).Update(context.TODO(), newPvc, metav1.UpdateOptions{})
+		if err != nil {
+			return newControllerUpdateError(newPvc.Name, err.Error())
+		}
 
-	_, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
-	if err != nil {
-		return newControllerUpdateError(pvcClone.Name, err.Error())
-	}
-
-	klog.V(5).Infof("Removed protection finalizer from persistent volume claim %s", pvc.Name)
-	return nil
+		klog.V(5).Infof("Removed protection finalizer from persistent volume claim %s", pvc.Name)
+		return nil
+	})
 }
 
 // isPVCBeingUsed checks if a PVC is being used as a source to create a snapshot.
