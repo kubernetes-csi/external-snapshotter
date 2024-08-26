@@ -17,6 +17,7 @@ limitations under the License.
 package metrics
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -290,16 +291,25 @@ func (opMgr *operationMetricsManager) init() {
 	// While we always maintain the number of operations in flight
 	// for every metrics operation start/finish, if any are leaked,
 	// this scheduled routine will catch any leaked operations.
-	go opMgr.scheduleOpsInFlightMetric()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go opMgr.scheduleOpsInFlightMetric(ctx)
 }
 
-func (opMgr *operationMetricsManager) scheduleOpsInFlightMetric() {
-	for range time.Tick(inFlightCheckInterval) {
-		func() {
-			opMgr.mu.Lock()
-			defer opMgr.mu.Unlock()
-			opMgr.opInFlight.Set(float64(len(opMgr.cache)))
-		}()
+func (opMgr *operationMetricsManager) scheduleOpsInFlightMetric(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			for range time.NewTicker(inFlightCheckInterval).C {
+				func() {
+					opMgr.mu.Lock()
+					defer opMgr.mu.Unlock()
+					opMgr.opInFlight.Set(float64(len(opMgr.cache)))
+				}()
+			}
+		}
 	}
 }
 
