@@ -345,6 +345,14 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 			if content, removeAnnotationErr = ctrl.removeAnnVolumeSnapshotBeingCreated(content); removeAnnotationErr != nil {
 				return content, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation from the content %s: %s", content.Name, removeAnnotationErr)
 			}
+
+			if metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) && content.DeletionTimestamp == nil {
+				klog.V(5).Infof("CreateSnapshot for content %s returned final error, and snapshot is being deleted, no more retry", content.Name)
+				err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Delete(context.TODO(), content.Name, metav1.DeleteOptions{})
+				if err != nil {
+					return content, fmt.Errorf("failed to delete the content %s: %s", content.Name, err)
+				}
+			}
 		}
 
 		return content, fmt.Errorf("failed to take snapshot of the volume %s: %q", *content.Spec.Source.VolumeHandle, err)
