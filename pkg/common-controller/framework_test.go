@@ -24,6 +24,7 @@ import (
 	"reflect"
 	sysruntime "runtime"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -32,17 +33,20 @@ import (
 	"time"
 
 	jsonpatch "github.com/evanphx/json-patch"
+	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	"github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions"
+	groupstoragelisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1alpha1"
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/diff"
@@ -96,6 +100,14 @@ type controllerTest struct {
 	initialSnapshots []*crdv1.VolumeSnapshot
 	// Expected content of controller snapshot cache at the end of the test.
 	expectedSnapshots []*crdv1.VolumeSnapshot
+	// Initial content of controller content cache.
+	initialGroupSnapshots []*crdv1alpha1.VolumeGroupSnapshot
+	// Expected content of controller content cache at the end of the test.
+	expectedGroupSnapshots []*crdv1alpha1.VolumeGroupSnapshot
+	// Initial content of controller content cache.
+	initialGroupContents []*crdv1alpha1.VolumeGroupSnapshotContent
+	// Expected content of controller content cache at the end of the test.
+	expectedGroupContents []*crdv1alpha1.VolumeGroupSnapshotContent
 	// Initial content of controller volume cache.
 	initialVolumes []*v1.PersistentVolume
 	// Initial content of controller claim cache.
@@ -122,7 +134,9 @@ const (
 var (
 	errVersionConflict = errors.New("VersionError")
 	nocontents         []*crdv1.VolumeSnapshotContent
+	nogroupcontents    []*crdv1alpha1.VolumeGroupSnapshotContent
 	nosnapshots        []*crdv1.VolumeSnapshot
+	nogroupsnapshots   []*crdv1alpha1.VolumeGroupSnapshot
 	noevents           = []string{}
 	noerrors           = []reactorError{}
 )
@@ -151,6 +165,9 @@ type snapshotReactor struct {
 	contents             map[string]*crdv1.VolumeSnapshotContent
 	snapshots            map[string]*crdv1.VolumeSnapshot
 	snapshotClasses      map[string]*crdv1.VolumeSnapshotClass
+	groupContents        map[string]*crdv1alpha1.VolumeGroupSnapshotContent
+	groupSnapshots       map[string]*crdv1alpha1.VolumeGroupSnapshot
+	groupSnapshotClasses map[string]*crdv1alpha1.VolumeGroupSnapshotClass
 	changedObjects       []interface{}
 	changedSinceLastSync int
 	ctrl                 *csiSnapshotCommonController
@@ -185,6 +202,38 @@ func isTestError(err error) bool {
 	return ok
 }
 
+func withClaimLabels(pvcs []*v1.PersistentVolumeClaim, labels map[string]string) []*v1.PersistentVolumeClaim {
+	for i := range pvcs {
+		if pvcs[i].ObjectMeta.Labels == nil {
+			pvcs[i].ObjectMeta.Labels = make(map[string]string)
+		}
+		for k, v := range labels {
+			pvcs[i].ObjectMeta.Labels[k] = v
+		}
+	}
+	return pvcs
+}
+
+func withVolumesCSIDriverName(pvs []*v1.PersistentVolume, driverName string) []*v1.PersistentVolume {
+	for i := range pvs {
+		if pvs[i].Spec.CSI == nil {
+			pvs[i].Spec.CSI = &v1.CSIPersistentVolumeSource{}
+		}
+		pvs[i].Spec.CSI.Driver = driverName
+	}
+	return pvs
+}
+
+func withVolumesLocalPath(pvs []*v1.PersistentVolume, path string) []*v1.PersistentVolume {
+	for i := range pvs {
+		pvs[i].Spec.CSI = nil
+		pvs[i].Spec.Local = &v1.LocalVolumeSource{
+			Path: path,
+		}
+	}
+	return pvs
+}
+
 func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...string) []*crdv1.VolumeSnapshot {
 	for i := range snapshots {
 		for _, f := range finalizers {
@@ -192,6 +241,15 @@ func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...str
 		}
 	}
 	return snapshots
+}
+
+func withGroupSnapshotFinalizers(groupSnapshots []*crdv1alpha1.VolumeGroupSnapshot, finalizers ...string) []*crdv1alpha1.VolumeGroupSnapshot {
+	for i := range groupSnapshots {
+		for _, f := range finalizers {
+			groupSnapshots[i].ObjectMeta.Finalizers = append(groupSnapshots[i].ObjectMeta.Finalizers, f)
+		}
+	}
+	return groupSnapshots
 }
 
 func withPVCFinalizer(pvc *v1.PersistentVolumeClaim) *v1.PersistentVolumeClaim {
@@ -239,6 +297,23 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		klog.V(5).Infof("created content %s", content.Name)
 		return true, content, nil
 
+	case action.Matches("create", "volumegroupsnapshotcontents"):
+		obj := action.(core.UpdateAction).GetObject()
+		content := obj.(*crdv1alpha1.VolumeGroupSnapshotContent)
+
+		// check the content does not exist
+		_, found := r.contents[content.Name]
+		if found {
+			return true, nil, fmt.Errorf("cannot create content %s: content already exists", content.Name)
+		}
+
+		// Store the updated object to appropriate places.
+		r.groupContents[content.Name] = content
+		r.changedObjects = append(r.changedObjects, content)
+		r.changedSinceLastSync++
+		klog.V(5).Infof("created group content %s", content.Name)
+		return true, content, nil
+
 	case action.Matches("update", "volumesnapshotcontents"):
 		obj := action.(core.UpdateAction).GetObject()
 		content := obj.(*crdv1.VolumeSnapshotContent)
@@ -263,6 +338,32 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedObjects = append(r.changedObjects, content)
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated content %s", content.Name)
+		return true, content, nil
+
+	case action.Matches("update", "volumegroupsnapshotcontents"):
+		obj := action.(core.UpdateAction).GetObject()
+		content := obj.(*crdv1alpha1.VolumeGroupSnapshotContent)
+
+		// Check and bump object version
+		storedVolume, found := r.contents[content.Name]
+		if found {
+			storedVer, _ := strconv.Atoi(storedVolume.ResourceVersion)
+			requestedVer, _ := strconv.Atoi(content.ResourceVersion)
+			if storedVer != requestedVer {
+				return true, obj, errVersionConflict
+			}
+			// Don't modify the existing object
+			content = content.DeepCopy()
+			content.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update content %s: content not found", content.Name)
+		}
+
+		// Store the updated object to appropriate places.
+		r.groupContents[content.Name] = content
+		r.changedObjects = append(r.changedObjects, content)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated group content %s", content.Name)
 		return true, content, nil
 
 	case action.Matches("patch", "volumesnapshotcontents"):
@@ -305,6 +406,46 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		klog.V(4).Infof("saved updated content %s", content.Name)
 		return true, content, nil
 
+	case action.Matches("patch", "volumegroupsnapshotcontents"):
+		content := &crdv1alpha1.VolumeGroupSnapshotContent{}
+		action := action.(core.PatchAction)
+
+		// Check and bump object version
+		storedGroupSnapshotContent, found := r.groupContents[action.GetName()]
+		if found {
+			// Apply patch
+			storedGroupSnapshotBytes, err := json.Marshal(storedGroupSnapshotContent)
+			if err != nil {
+				return true, nil, err
+			}
+			contentPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+
+			modified, err := contentPatch.Apply(storedGroupSnapshotBytes)
+			if err != nil {
+				return true, nil, err
+			}
+
+			err = json.Unmarshal(modified, content)
+			if err != nil {
+				return true, nil, err
+			}
+
+			storedVer, _ := strconv.Atoi(content.ResourceVersion)
+			content.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update group snapshot content %s: group snapshot content not found", action.GetName())
+		}
+
+		// Store the updated object to appropriate places.
+		r.groupContents[content.Name] = content
+		r.changedObjects = append(r.changedObjects, content)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated group content %s", content.Name)
+		return true, content, nil
+
 	case action.Matches("update", "volumesnapshots"):
 		obj := action.(core.UpdateAction).GetObject()
 		snapshot := obj.(*crdv1.VolumeSnapshot)
@@ -330,6 +471,32 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(4).Infof("saved updated snapshot %s", snapshot.Name)
 		return true, snapshot, nil
+
+	case action.Matches("update", "volumegroupsnapshots"):
+		obj := action.(core.UpdateAction).GetObject()
+		groupSnapshot := obj.(*crdv1alpha1.VolumeGroupSnapshot)
+
+		// Check and bump object version
+		storedGroupSnapshot, found := r.groupSnapshots[groupSnapshot.Name]
+		if found {
+			storedVer, _ := strconv.Atoi(storedGroupSnapshot.ResourceVersion)
+			requestedVer, _ := strconv.Atoi(groupSnapshot.ResourceVersion)
+			if storedVer != requestedVer {
+				return true, obj, errVersionConflict
+			}
+			// Don't modify the existing object
+			groupSnapshot = groupSnapshot.DeepCopy()
+			groupSnapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update group snapshot %s: snapshot not found", groupSnapshot.Name)
+		}
+
+		// Store the updated object to appropriate places.
+		r.groupSnapshots[groupSnapshot.Name] = groupSnapshot
+		r.changedObjects = append(r.changedObjects, groupSnapshot)
+		r.changedSinceLastSync++
+		klog.V(4).Infof("saved updated snapshot %s", groupSnapshot.Name)
+		return true, groupSnapshot, nil
 
 	case action.Matches("patch", "volumesnapshots"):
 		action := action.(core.PatchAction)
@@ -370,24 +537,83 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		klog.V(4).Infof("saved updated snapshot %s", storedSnapshot.Name)
 		return true, storedSnapshot, nil
 
+	case action.Matches("patch", "volumegroupsnapshots"):
+		action := action.(core.PatchAction)
+		// Check and bump object version
+		storedGroupSnapshot, found := r.groupSnapshots[action.GetName()]
+		if found {
+			// Apply patch
+			storedGroupSnapshotBytes, err := json.Marshal(storedGroupSnapshot)
+			if err != nil {
+				return true, nil, err
+			}
+			groupSnapPatch, err := jsonpatch.DecodePatch(action.GetPatch())
+			if err != nil {
+				return true, nil, err
+			}
+
+			modified, err := groupSnapPatch.Apply(storedGroupSnapshotBytes)
+			if err != nil {
+				return true, nil, err
+			}
+
+			err = json.Unmarshal(modified, storedGroupSnapshot)
+			if err != nil {
+				return true, nil, err
+			}
+
+			storedVer, _ := strconv.Atoi(storedGroupSnapshot.ResourceVersion)
+			storedGroupSnapshot.ResourceVersion = strconv.Itoa(storedVer + 1)
+		} else {
+			return true, nil, fmt.Errorf("cannot update group snapshot %s: snapshot not found", action.GetName())
+		}
+
+		// Store the updated object to appropriate places.
+		r.groupSnapshots[storedGroupSnapshot.Name] = storedGroupSnapshot
+		r.changedObjects = append(r.changedObjects, storedGroupSnapshot)
+		r.changedSinceLastSync++
+
+		klog.V(4).Infof("saved updated group snapshot %s", storedGroupSnapshot.Name)
+		return true, storedGroupSnapshot, nil
+
 	case action.Matches("get", "volumesnapshotcontents"):
 		name := action.(core.GetAction).GetName()
 		content, found := r.contents[name]
 		if found {
-			klog.V(4).Infof("GetVolume: found %s", content.Name)
+			klog.V(4).Infof("GetVolumeSnapshotContent: found %s", content.Name)
 			return true, content, nil
 		}
-		klog.V(4).Infof("GetVolume: content %s not found", name)
+		klog.V(4).Infof("GetVolumeSnapshotContent: content %s not found", name)
+		return true, nil, fmt.Errorf("cannot find content %s", name)
+
+	case action.Matches("get", "volumegroupsnapshotcontents"):
+		name := action.(core.GetAction).GetName()
+		content, found := r.groupContents[name]
+		if found {
+			klog.V(4).Infof("GetVolumeGroupSnapshotContent: found %s", content.Name)
+			return true, content, nil
+		}
+		klog.V(4).Infof("GetVolumeGroupSnapshotContent: content %s not found", name)
 		return true, nil, fmt.Errorf("cannot find content %s", name)
 
 	case action.Matches("get", "volumesnapshots"):
 		name := action.(core.GetAction).GetName()
 		snapshot, found := r.snapshots[name]
 		if found {
-			klog.V(4).Infof("GetSnapshot: found %s", snapshot.Name)
+			klog.V(4).Infof("GetVolumeSnapshot: found %s", snapshot.Name)
 			return true, snapshot, nil
 		}
-		klog.V(4).Infof("GetSnapshot: content %s not found", name)
+		klog.V(4).Infof("GetVolumeSnapshot: content %s not found", name)
+		return true, nil, fmt.Errorf("cannot find snapshot %s", name)
+
+	case action.Matches("get", "volumegroupsnapshots"):
+		name := action.(core.GetAction).GetName()
+		groupSnapshot, found := r.groupSnapshots[name]
+		if found {
+			klog.V(4).Infof("GetVolumeGroupSnapshot: found %s", groupSnapshot.Name)
+			return true, groupSnapshot, nil
+		}
+		klog.V(4).Infof("GetVolumeGroupSnapshot: content %s not found", name)
 		return true, nil, fmt.Errorf("cannot find snapshot %s", name)
 
 	case action.Matches("delete", "volumesnapshotcontents"):
@@ -401,16 +627,38 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		}
 		return true, nil, fmt.Errorf("cannot delete content %s: not found", name)
 
+	case action.Matches("delete", "volumegroupsnapshotcontents"):
+		name := action.(core.DeleteAction).GetName()
+		klog.V(4).Infof("deleted group content %s", name)
+		_, found := r.groupContents[name]
+		if found {
+			delete(r.groupContents, name)
+			r.changedSinceLastSync++
+			return true, nil, nil
+		}
+		return true, nil, fmt.Errorf("cannot delete group snapshot content %s: not found", name)
+
 	case action.Matches("delete", "volumesnapshots"):
 		name := action.(core.DeleteAction).GetName()
 		klog.V(4).Infof("deleted snapshot %s", name)
-		_, found := r.contents[name]
+		_, found := r.snapshots[name]
 		if found {
 			delete(r.snapshots, name)
 			r.changedSinceLastSync++
 			return true, nil, nil
 		}
 		return true, nil, fmt.Errorf("cannot delete snapshot %s: not found", name)
+
+	case action.Matches("delete", "volumegroupsnapshots"):
+		name := action.(core.DeleteAction).GetName()
+		klog.V(4).Infof("deleted volume group snapshot %s", name)
+		_, found := r.groupSnapshots[name]
+		if found {
+			delete(r.groupSnapshots, name)
+			r.changedSinceLastSync++
+			return true, nil, nil
+		}
+		return true, nil, fmt.Errorf("cannot delete group snapshot %s: not found", name)
 
 	case action.Matches("get", "persistentvolumes"):
 		name := action.(core.GetAction).GetName()
@@ -431,6 +679,19 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		}
 		klog.V(4).Infof("GetClaim: claim %s not found", name)
 		return true, nil, fmt.Errorf("cannot find claim %s", name)
+
+	case action.Matches("list", "persistentvolumeclaims"):
+		matchingLabels := action.(core.ListAction).GetListRestrictions().Labels
+		var result []v1.PersistentVolumeClaim
+		for _, claim := range r.claims {
+			if matchingLabels.Matches(labels.Set(claim.Labels)) {
+				result = append(result, *claim)
+			}
+		}
+		klog.V(4).Infof("ListClaim: found %v", result)
+		return true, &v1.PersistentVolumeClaimList{
+			Items: result,
+		}, nil
 
 	case action.Matches("update", "persistentvolumeclaims"):
 		obj := action.(core.UpdateAction).GetObject()
@@ -532,6 +793,45 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 	return nil
 }
 
+// checkGroupContents compares all expectedGroupContents with set of contents at the end of
+// the test and reports differences.
+func (r *snapshotReactor) checkGroupContents(expectedGroupContents []*crdv1alpha1.VolumeGroupSnapshotContent) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	expectedMap := make(map[string]*crdv1alpha1.VolumeGroupSnapshotContent)
+	gotMap := make(map[string]*crdv1alpha1.VolumeGroupSnapshotContent)
+	// Clear any ResourceVersion from both sets
+	for _, v := range expectedGroupContents {
+		// Don't modify the existing object
+		v := v.DeepCopy()
+		v.ResourceVersion = ""
+		sort.Strings(v.Spec.Source.VolumeHandles)
+		if v.Status != nil {
+			v.Status.CreationTime = nil
+		}
+		expectedMap[v.Name] = v
+	}
+	for _, v := range r.groupContents {
+		// We must clone the content because of golang race check - it was
+		// written by the controller without any locks on it.
+		v := v.DeepCopy()
+		v.ResourceVersion = ""
+		sort.Strings(v.Spec.Source.VolumeHandles)
+		if v.Status != nil {
+			v.Status.CreationTime = nil
+		}
+		gotMap[v.Name] = v
+	}
+
+	if !reflect.DeepEqual(expectedMap, gotMap) {
+		// Print ugly but useful diff of expected and received objects for
+		// easier debugging.
+		return fmt.Errorf("content check failed [A-expected, B-got]: %s", diff.ObjectDiff(expectedMap, gotMap))
+	}
+	return nil
+}
+
 // checkSnapshots compares all expectedSnapshots with set of snapshots at the end of the
 // test and reports differences.
 func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapshot) error {
@@ -550,6 +850,41 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 		expectedMap[c.Name] = c
 	}
 	for _, c := range r.snapshots {
+		// We must clone the snapshot because of golang race check - it was
+		// written by the controller without any locks on it.
+		c = c.DeepCopy()
+		c.ResourceVersion = ""
+		if c.Status != nil && c.Status.Error != nil {
+			c.Status.Error.Time = &metav1.Time{}
+		}
+		gotMap[c.Name] = c
+	}
+	if !reflect.DeepEqual(expectedMap, gotMap) {
+		// Print ugly but useful diff of expected and received objects for
+		// easier debugging.
+		return fmt.Errorf("snapshot check failed [A-expected, B-got result]: %s", diff.ObjectDiff(expectedMap, gotMap))
+	}
+	return nil
+}
+
+// checkGroupSnapshots compares all expectedGroupSnapshots with set of snapshots at the end of the
+// test and reports differences.
+func (r *snapshotReactor) checkGroupSnapshots(expectedGroupSnapshots []*crdv1alpha1.VolumeGroupSnapshot) error {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	expectedMap := make(map[string]*crdv1alpha1.VolumeGroupSnapshot)
+	gotMap := make(map[string]*crdv1alpha1.VolumeGroupSnapshot)
+	for _, c := range expectedGroupSnapshots {
+		// Don't modify the existing object
+		c = c.DeepCopy()
+		c.ResourceVersion = ""
+		if c.Status != nil && c.Status.Error != nil {
+			c.Status.Error.Time = &metav1.Time{}
+		}
+		expectedMap[c.Name] = c
+	}
+	for _, c := range r.groupSnapshots {
 		// We must clone the snapshot because of golang race check - it was
 		// written by the controller without any locks on it.
 		c = c.DeepCopy()
@@ -702,7 +1037,9 @@ func (r *snapshotReactor) waitTest(test controllerTest) error {
 		// Return 'true' if the reactor reached the expected state
 		err1 := r.checkSnapshots(test.expectedSnapshots)
 		err2 := r.checkContents(test.expectedContents)
-		if err1 == nil && err2 == nil {
+		err3 := r.checkGroupSnapshots(test.expectedGroupSnapshots)
+		err4 := r.checkGroupContents(test.expectedGroupContents)
+		if err1 == nil && err2 == nil && err3 == nil && err4 == nil {
 			return true, nil
 		}
 		return false, nil
@@ -786,31 +1123,47 @@ func (r *snapshotReactor) addSnapshotEvent(snapshot *crdv1.VolumeSnapshot) {
 
 func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, ctrl *csiSnapshotCommonController, fakeVolumeWatch, fakeClaimWatch *watch.FakeWatcher, errors []reactorError) *snapshotReactor {
 	reactor := &snapshotReactor{
-		secrets:           make(map[string]*v1.Secret),
-		volumes:           make(map[string]*v1.PersistentVolume),
-		claims:            make(map[string]*v1.PersistentVolumeClaim),
-		snapshotClasses:   make(map[string]*crdv1.VolumeSnapshotClass),
-		contents:          make(map[string]*crdv1.VolumeSnapshotContent),
-		snapshots:         make(map[string]*crdv1.VolumeSnapshot),
-		ctrl:              ctrl,
-		fakeContentWatch:  fakeVolumeWatch,
-		fakeSnapshotWatch: fakeClaimWatch,
-		errors:            errors,
+		secrets:              make(map[string]*v1.Secret),
+		volumes:              make(map[string]*v1.PersistentVolume),
+		claims:               make(map[string]*v1.PersistentVolumeClaim),
+		snapshotClasses:      make(map[string]*crdv1.VolumeSnapshotClass),
+		contents:             make(map[string]*crdv1.VolumeSnapshotContent),
+		snapshots:            make(map[string]*crdv1.VolumeSnapshot),
+		groupSnapshotClasses: make(map[string]*crdv1alpha1.VolumeGroupSnapshotClass),
+		groupContents:        make(map[string]*crdv1alpha1.VolumeGroupSnapshotContent),
+		groupSnapshots:       make(map[string]*crdv1alpha1.VolumeGroupSnapshot),
+		ctrl:                 ctrl,
+		fakeContentWatch:     fakeVolumeWatch,
+		fakeSnapshotWatch:    fakeClaimWatch,
+		errors:               errors,
 	}
 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("create", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("update", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshots", reactor.React)
+	client.AddReactor("update", "volumegroupsnapshots", reactor.React)
 	client.AddReactor("patch", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("patch", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("patch", "volumesnapshots", reactor.React)
+	client.AddReactor("patch", "volumegroupsnapshots", reactor.React)
 	client.AddReactor("update", "volumesnapshotclasses", reactor.React)
+	client.AddReactor("update", "volumegroupsnapshotclasses", reactor.React)
 	client.AddReactor("get", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("get", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("get", "volumesnapshots", reactor.React)
+	client.AddReactor("get", "volumegroupsnapshots", reactor.React)
 	client.AddReactor("get", "volumesnapshotclasses", reactor.React)
+	client.AddReactor("get", "volumegroupsnapshotclasses", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("delete", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshots", reactor.React)
+	client.AddReactor("delete", "volumegroupsnapshots", reactor.React)
 	client.AddReactor("delete", "volumesnapshotclasses", reactor.React)
+	client.AddReactor("delete", "volumegroupsnapshotclasses", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumeclaims", reactor.React)
+	kubeClient.AddReactor("list", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("update", "persistentvolumeclaims", reactor.React)
 	kubeClient.AddReactor("get", "persistentvolumes", reactor.React)
 	kubeClient.AddReactor("get", "secrets", reactor.React)
@@ -856,7 +1209,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 		false,
 		false,
-		false,
+		true,
 	)
 
 	ctrl.eventRecorder = record.NewFakeRecorder(1000)
@@ -924,6 +1277,73 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	return &content
 }
 
+func newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotName, groupSnapshotHandle, groupSnapshotClassName string, desiredVolumeHandles []string, targetVolumeGroupSnapshotHandle string,
+	deletionPolicy crdv1.DeletionPolicy, creationTime *int64,
+	withFinalizer bool, withStatus bool) *crdv1alpha1.VolumeGroupSnapshotContent {
+	ready := true
+	content := crdv1alpha1.VolumeGroupSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            groupSnapshotContentName,
+			ResourceVersion: "1",
+		},
+		Spec: crdv1alpha1.VolumeGroupSnapshotContentSpec{
+			Driver:         mockDriverName,
+			DeletionPolicy: deletionPolicy,
+		},
+	}
+
+	if withStatus {
+		content.Status = &crdv1alpha1.VolumeGroupSnapshotContentStatus{
+			CreationTime: creationTime,
+			ReadyToUse:   &ready,
+		}
+	}
+
+	if withStatus && groupSnapshotHandle != "" {
+		content.Status.VolumeGroupSnapshotHandle = &groupSnapshotHandle
+	}
+
+	if groupSnapshotClassName != "" {
+		content.Spec.VolumeGroupSnapshotClassName = &groupSnapshotClassName
+	}
+
+	if targetVolumeGroupSnapshotHandle != "" {
+		content.Spec.Source.GroupSnapshotHandles = &crdv1alpha1.GroupSnapshotHandles{
+			VolumeGroupSnapshotHandle: targetVolumeGroupSnapshotHandle,
+		}
+	}
+
+	if len(desiredVolumeHandles) != 0 {
+		content.Spec.Source.VolumeHandles = desiredVolumeHandles
+	}
+
+	if boundToGroupSnapshotName != "" {
+		content.Spec.VolumeGroupSnapshotRef = v1.ObjectReference{
+			Kind:            "VolumeGroupSnapshot",
+			APIVersion:      "groupsnapshot.storage.k8s.io/v1alpha1",
+			UID:             types.UID(boundToGroupSnapshotUID),
+			Namespace:       testNamespace,
+			Name:            boundToGroupSnapshotName,
+			ResourceVersion: "1",
+		}
+	}
+
+	if withFinalizer {
+		return withGroupContentFinalizer(&content)
+	}
+	return &content
+}
+
+func newGroupSnapshotContentArray(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotSnapshotName, groupSnapshotHandle, groupSnapshotClassName string, desiredVolumeHandles []string, volumeGroupHandle string,
+	deletionPolicy crdv1.DeletionPolicy, creationTime *int64,
+	withFinalizer bool, withStatus bool) []*crdv1alpha1.VolumeGroupSnapshotContent {
+	return []*crdv1alpha1.VolumeGroupSnapshotContent{
+		newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotSnapshotName, groupSnapshotHandle, groupSnapshotClassName, desiredVolumeHandles, volumeGroupHandle,
+			deletionPolicy, creationTime,
+			withFinalizer, withStatus),
+	}
+}
+
 func withSnapshotContentInvalidLabel(contents []*crdv1.VolumeSnapshotContent) []*crdv1.VolumeSnapshotContent {
 	for i := range contents {
 		if contents[i].ObjectMeta.Labels == nil {
@@ -956,6 +1376,23 @@ func withContentSpecSnapshotClassName(contents []*crdv1.VolumeSnapshotContent, v
 func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
 	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
 	return content
+}
+
+func withGroupContentFinalizer(content *crdv1alpha1.VolumeGroupSnapshotContent) *crdv1alpha1.VolumeGroupSnapshotContent {
+	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer)
+	return content
+}
+
+func withGroupContentAnnotations(contents []*crdv1alpha1.VolumeGroupSnapshotContent, annotations map[string]string) []*crdv1alpha1.VolumeGroupSnapshotContent {
+	for i := range contents {
+		if contents[i].ObjectMeta.Annotations == nil {
+			contents[i].ObjectMeta.Annotations = make(map[string]string)
+		}
+		for k, v := range annotations {
+			contents[i].ObjectMeta.Annotations[k] = v
+		}
+	}
+	return contents
 }
 
 func newContentArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
@@ -1053,12 +1490,70 @@ func newSnapshot(
 	return &snapshot
 }
 
+func newGroupSnapshot(
+	groupSnapshotName, groupSnapshotUID string, selectors map[string]string, targetContentName, groupSnapshotClassName, boundContentName string,
+	readyToUse *bool, creationTime *metav1.Time,
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) *crdv1alpha1.VolumeGroupSnapshot {
+	groupSnapshot := crdv1alpha1.VolumeGroupSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              groupSnapshotName,
+			Namespace:         testNamespace,
+			UID:               types.UID(groupSnapshotUID),
+			ResourceVersion:   "1",
+			SelfLink:          "/apis/groupsnapshot.storage.k8s.io/v1alpha1/namespaces/" + testNamespace + "/volumesnapshots/" + groupSnapshotName,
+			DeletionTimestamp: deletionTimestamp,
+		},
+		Spec: crdv1alpha1.VolumeGroupSnapshotSpec{
+			VolumeGroupSnapshotClassName: nil,
+		},
+	}
+
+	if len(selectors) > 0 {
+		groupSnapshot.Spec.Source.Selector = &metav1.LabelSelector{
+			MatchLabels: selectors,
+		}
+	}
+
+	if !nilStatus {
+		groupSnapshot.Status = &crdv1alpha1.VolumeGroupSnapshotStatus{
+			CreationTime: creationTime,
+			ReadyToUse:   readyToUse,
+			Error:        err,
+		}
+
+		if boundContentName != "" {
+			groupSnapshot.Status.BoundVolumeGroupSnapshotContentName = &boundContentName
+		}
+	}
+
+	if groupSnapshotClassName != "" {
+		groupSnapshot.Spec.VolumeGroupSnapshotClassName = &groupSnapshotClassName
+	}
+
+	if targetContentName != "" {
+		groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName = &targetContentName
+	}
+	if withAllFinalizers {
+		return withGroupSnapshotFinalizers([]*crdv1alpha1.VolumeGroupSnapshot{&groupSnapshot}, utils.VolumeGroupSnapshotContentFinalizer, utils.VolumeGroupSnapshotBoundFinalizer)[0]
+	}
+	return &groupSnapshot
+}
+
+func newGroupSnapshotArray(
+	groupSnapshotName, groupSnapshotUID string, selectors map[string]string, targetContentName, groupSnapshotClassName, boundContentName string,
+	readyToUse *bool, creationTime *metav1.Time,
+	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) []*crdv1alpha1.VolumeGroupSnapshot {
+	return []*crdv1alpha1.VolumeGroupSnapshot{
+		newGroupSnapshot(groupSnapshotName, groupSnapshotUID, selectors, targetContentName, groupSnapshotClassName, boundContentName, readyToUse, creationTime, err, nilStatus, withAllFinalizers, deletionTimestamp),
+	}
+}
+
 func newSnapshotArray(
-	snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName string,
+	groupSnapshotName, groupSnapshotUID, pvcName, targetContentName, groupSnapshotClassName, boundContentName string,
 	readyToUse *bool, creationTime *metav1.Time, restoreSize *resource.Quantity,
 	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
-		newSnapshot(snapshotName, snapshotUID, pvcName, targetContentName, snapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withAllFinalizers, deletionTimestamp),
+		newSnapshot(groupSnapshotName, groupSnapshotUID, pvcName, targetContentName, groupSnapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withAllFinalizers, deletionTimestamp),
 	}
 }
 
@@ -1143,6 +1638,27 @@ func newClaimArray(name, claimUID, capacity, boundToVolume string, phase v1.Pers
 	}
 }
 
+// newClaimCoupleArray returns array with two claims that would be returned by
+// newClaim() with "1-" and "2-" as prefix for names and UID.
+func newClaimCoupleArray(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string) []*v1.PersistentVolumeClaim {
+	pre1 := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return fmt.Sprintf("1-%s", s)
+	}
+	pre2 := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return fmt.Sprintf("2-%s", s)
+	}
+	return []*v1.PersistentVolumeClaim{
+		newClaim(pre1(name), pre1(claimUID), capacity, pre1(boundToVolume), phase, class, false),
+		newClaim(pre2(name), pre2(claimUID), capacity, pre2(boundToVolume), phase, class, false),
+	}
+}
+
 // newClaimArrayFinalizer returns array with a single claim that would be returned by
 // newClaim() with the same parameters plus finalizer.
 func newClaimArrayFinalizer(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string) []*v1.PersistentVolumeClaim {
@@ -1200,6 +1716,28 @@ func newVolumeArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, bo
 	}
 }
 
+// newVolumeCoupleArray returns array with two volumes that would be returned by
+// newVolume() with the same parameters, adding "1-" and "2-" as prefix to their
+// names and UIDs.
+func newVolumeCoupleArray(name, volumeUID, volumeHandle, capacity, boundToClaimUID, boundToClaimName string, phase v1.PersistentVolumePhase, reclaimPolicy v1.PersistentVolumeReclaimPolicy, class string) []*v1.PersistentVolume {
+	pre1 := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return fmt.Sprintf("1-%s", s)
+	}
+	pre2 := func(s string) string {
+		if len(s) == 0 {
+			return s
+		}
+		return fmt.Sprintf("2-%s", s)
+	}
+	return []*v1.PersistentVolume{
+		newVolume(pre1(name), pre1(volumeUID), pre1(volumeHandle), capacity, pre1(boundToClaimUID), pre1(boundToClaimName), phase, reclaimPolicy, class),
+		newVolume(pre2(name), pre2(volumeUID), pre2(volumeHandle), capacity, pre2(boundToClaimUID), pre2(boundToClaimName), phase, reclaimPolicy, class),
+	}
+}
+
 func newVolumeError(message string) *crdv1.VolumeSnapshotError {
 	return &crdv1.VolumeSnapshotError{
 		Time:    &metav1.Time{},
@@ -1209,6 +1747,10 @@ func newVolumeError(message string) *crdv1.VolumeSnapshotError {
 
 func testSyncSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.syncSnapshot(test.initialSnapshots[0])
+}
+
+func testSyncGroupSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.syncGroupSnapshot(test.initialGroupSnapshots[0])
 }
 
 func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
@@ -1348,6 +1890,12 @@ func evaluateTestResults(ctrl *csiSnapshotCommonController, reactor *snapshotRea
 	if err := reactor.checkContents(test.expectedContents); err != nil {
 		t.Errorf("Test %q: %v", test.name, err)
 	}
+	if err := reactor.checkGroupSnapshots(test.expectedGroupSnapshots); err != nil {
+		t.Errorf("Test %q: %v", test.name, err)
+	}
+	if err := reactor.checkGroupContents(test.expectedGroupContents); err != nil {
+		t.Errorf("Test %q: %v", test.name, err)
+	}
 
 	if err := checkEvents(t, test.expectedEvents, ctrl); err != nil {
 		t.Errorf("Test %q: %v", test.name, err)
@@ -1360,7 +1908,7 @@ func evaluateTestResults(ctrl *csiSnapshotCommonController, reactor *snapshotRea
 //  2. Call the tested function (syncSnapshot/syncContent) via
 //     controllerTest.testCall *once*.
 //  3. Compare resulting contents and snapshots with expected contents and snapshots.
-func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass) {
+func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1.VolumeSnapshotClass, groupSnapshotClasses []*crdv1alpha1.VolumeGroupSnapshotClass) {
 	snapshotscheme.AddToScheme(scheme.Scheme)
 	for _, test := range tests {
 		klog.V(4).Infof("starting test %q", test.name)
@@ -1383,6 +1931,14 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 			ctrl.contentStore.Add(content)
 			reactor.contents[content.Name] = content
 		}
+		for _, groupsnapshot := range test.initialGroupSnapshots {
+			ctrl.groupSnapshotStore.Add(groupsnapshot)
+			reactor.groupSnapshots[groupsnapshot.Name] = groupsnapshot
+		}
+		for _, groupcontent := range test.initialGroupContents {
+			ctrl.groupSnapshotContentStore.Add(groupcontent)
+			reactor.groupContents[groupcontent.Name] = groupcontent
+		}
 
 		pvcIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
 		for _, claim := range test.initialClaims {
@@ -1404,6 +1960,13 @@ func runSyncTests(t *testing.T, tests []controllerTest, snapshotClasses []*crdv1
 			indexer.Add(class)
 		}
 		ctrl.classLister = storagelisters.NewVolumeSnapshotClassLister(indexer)
+
+		// Inject group snapshot classes into the controller
+		groupIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+		for _, groupClass := range groupSnapshotClasses {
+			groupIndexer.Add(groupClass)
+		}
+		ctrl.groupSnapshotClassLister = groupstoragelisters.NewVolumeGroupSnapshotClassLister(groupIndexer)
 
 		// Run the tested functions
 		err = test.test(ctrl, reactor, test)
