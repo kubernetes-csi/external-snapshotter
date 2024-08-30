@@ -206,7 +206,7 @@ Specifically, `deploy/kubernetes/snapshot-controller/setup-snapshot-controller.y
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the snapshot controller uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
 
-* `--resync-period <duration>`: Internal resync interval when the snapshot controller re-evaluates all existing `VolumeSnapshot` instances and tries to fulfill them, i.e. create / delete corresponding snapshots. It does not affect re-tries of failed calls! It should be used only when there is a bug in Kubernetes watch logic. Default is 15 minutes.
+* `--resync-period <duration>`: Internal resync interval when the snapshot controller re-evaluates all existing `VolumeSnapshot` instances and tries to fulfill them, i.e. create / delete corresponding snapshots. It does not affect re-tries of failed calls! It should be used only when there is a bug in Kubernetes watch logic. Default is 0 and resyncs are turned off.
 
 * `--version`: Prints current snapshot controller version and quits.
 
@@ -252,7 +252,7 @@ Specifically, `deploy/kubernetes/snapshot-controller/setup-snapshot-controller.y
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the CSI external-snapshotter uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the external-snapshotter does not run as a Kubernetes pod, e.g. for debugging.
 
-* `--resync-period <duration>`: Internal resync interval when the CSI external-snapshotter re-evaluates all existing `VolumeSnapshotContent` instances and tries to fulfill them, i.e. update / delete corresponding snapshots. It does not affect re-tries of failed CSI calls! It should be used only when there is a bug in Kubernetes watch logic. Default is 15 minutes.
+* `--resync-period <duration>`: Internal resync interval when the CSI external-snapshotter re-evaluates all existing `VolumeSnapshotContent` instances and tries to fulfill them, i.e. update / delete corresponding snapshots. It does not affect re-tries of failed CSI calls! It should be used only when there is a bug in Kubernetes watch logic. Default is 0 and resyncs are turned off.
 
 * `--version`: Prints current CSI external-snapshotter version and quits.
 

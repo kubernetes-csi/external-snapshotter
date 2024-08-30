@@ -53,7 +53,7 @@ import (
 // Command line flags
 var (
 	kubeconfig   = flag.String("kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
-	resyncPeriod = flag.Duration("resync-period", 15*time.Minute, "Resync interval of the controller.")
+	resyncPeriod = flag.Duration("resync-period", 0*time.Second, "Resync interval of the controller. Defaults to 0, and resyncs are turned off.")
 	showVersion  = flag.Bool("version", false, "Show version.")
 	threads      = flag.Int("worker-threads", 10, "Number of worker threads.")
 
