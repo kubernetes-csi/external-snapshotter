@@ -30,6 +30,7 @@ import (
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -123,7 +124,9 @@ func main() {
 	config.QPS = (float32)(*kubeAPIQPS)
 	config.Burst = *kubeAPIBurst
 
-	kubeClient, err := kubernetes.NewForConfig(config)
+	coreConfig := rest.CopyConfig(config)
+	coreConfig.ContentType = runtime.ContentTypeProtobuf
+	kubeClient, err := kubernetes.NewForConfig(coreConfig)
 	if err != nil {
 		klog.Error(err.Error())
 		os.Exit(1)

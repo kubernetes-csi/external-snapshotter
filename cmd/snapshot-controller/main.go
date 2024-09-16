@@ -36,6 +36,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	klog "k8s.io/klog/v2"
@@ -166,7 +167,9 @@ func main() {
 	config.QPS = (float32)(*kubeAPIQPS)
 	config.Burst = *kubeAPIBurst
 
-	kubeClient, err := kubernetes.NewForConfig(config)
+	coreConfig := rest.CopyConfig(config)
+	coreConfig.ContentType = runtime.ContentTypeProtobuf
+	kubeClient, err := kubernetes.NewForConfig(coreConfig)
 	if err != nil {
 		klog.Error(err.Error())
 		os.Exit(1)
