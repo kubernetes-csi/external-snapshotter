@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-//go:generate mockgen -package=driver -destination=driver.mock.go github.com/container-storage-interface/spec/lib/go/csi IdentityServer,ControllerServer,NodeServer
+//go:generate mockgen -package=driver -destination=driver.mock.go github.com/container-storage-interface/spec/lib/go/csi IdentityServer,ControllerServer,NodeServer,SnapshotMetadataServer
 
 package driver
 
@@ -47,9 +47,10 @@ var (
 // CSIDriverServers is a unified driver component with both Controller and Node
 // services.
 type CSIDriverServers struct {
-	Controller csi.ControllerServer
-	Identity   csi.IdentityServer
-	Node       csi.NodeServer
+	Controller       csi.ControllerServer
+	Identity         csi.IdentityServer
+	Node             csi.NodeServer
+	SnapshotMetadata csi.SnapshotMetadataServer
 }
 
 // This is the key name in all the CSI secret objects.
@@ -116,6 +117,10 @@ func (c *CSIDriver) Start(l net.Listener) error {
 	if c.servers.Node != nil {
 		csi.RegisterNodeServer(c.server, c.servers.Node)
 	}
+	if c.servers.SnapshotMetadata != nil {
+		csi.RegisterSnapshotMetadataServer(c.server, c.servers.SnapshotMetadata)
+	}
+
 	reflection.Register(c.server)
 
 	// Start listening for requests
