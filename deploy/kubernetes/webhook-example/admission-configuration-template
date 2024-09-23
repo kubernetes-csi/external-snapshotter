@@ -29,7 +29,7 @@ webhooks:
 - name: "validation-webhook.groupsnapshot.storage.k8s.io"
   rules:
   - apiGroups:   ["groupsnapshot.storage.k8s.io"]
-    apiVersions: ["v1alpha1"]
+    apiVersions: ["v1beta1"]
     operations:  ["CREATE", "UPDATE"]
     resources:   ["volumegroupsnapshotclasses"]
     scope:       "*"

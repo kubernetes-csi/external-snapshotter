@@ -1,0 +1,7 @@
+---
+apiVersion: groupsnapshot.storage.k8s.io/v1beta1
+kind: VolumeGroupSnapshotClass
+metadata:
+  name: csi-hostpath-groupsnapclass
+driver: hostpath.csi.k8s.io
+deletionPolicy: Delete
