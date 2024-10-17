@@ -359,6 +359,12 @@ type VolumeGroupSnapshotContentStatus struct {
 	// The maximum number of allowed snapshots in the group is 100.
 	// +optional
 	PVVolumeSnapshotContentList []PVVolumeSnapshotContentPair `json:"pvVolumeSnapshotContentList,omitempty" protobuf:"bytes,5,opt,name=pvVolumeSnapshotContentRefList"`
+
+	// VolumeSnapshotHandlePairList is a list of CSI "volume_id" and "snapshot_id"
+	// pair returned by the CSI driver to identify snapshots and their source volumes
+	// on the storage system.
+	// +optional
+	VolumeSnapshotHandlePairList []VolumeSnapshotHandlePair `json:"volumeSnapshotHandlePairList,omitempty" protobuf:"bytes,6,opt,name=volumeSnapshotHandlePairList"`
 }
 
 // PVVolumeSnapshotContentPair represent a pair of PV names and
@@ -409,4 +415,15 @@ type GroupSnapshotHandles struct {
 	// This field is immutable.
 	// Required.
 	VolumeSnapshotHandles []string `json:"volumeSnapshotHandles" protobuf:"bytes,2,opt,name=volumeSnapshotHandles"`
+}
+
+// VolumeSnapshotHandlePair defines a pair of a source volume handle and a snapshot handle
+type VolumeSnapshotHandlePair struct {
+	// VolumeHandle is a unique id returned by the CSI driver to identify a volume
+	// on the storage system
+	VolumeHandle string `json:"volumeHandle" protobuf:"bytes,1,opt,name=volumeHandle"`
+
+	// SnapshotHandle is a unique id returned by the CSI driver to identify a volume
+	// snapshot on the storage system
+	SnapshotHandle string `json:"snapshotHandle" protobuf:"bytes,2,opt,name=snapshotHandle"`
 }

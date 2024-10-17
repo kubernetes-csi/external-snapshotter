@@ -325,6 +325,30 @@ spec:
                   If a storage system does not provide such an id, the
                   CSI driver can choose to return the VolumeGroupSnapshot name.
                 type: string
+              volumeSnapshotHandlePairList:
+                description: |-
+                  VolumeSnapshotHandlePairList is a list of CSI "volume_id" and "snapshot_id"
+                  pair returned by the CSI driver to identify snapshots and their source volumes
+                  on the storage system.
+                items:
+                  description: VolumeSnapshotHandlePair defines a pair of a source
+                    volume handle and a snapshot handle
+                  properties:
+                    snapshotHandle:
+                      description: |-
+                        SnapshotHandle is a unique id returned by the CSI driver to identify a volume
+                        snapshot on the storage system
+                      type: string
+                    volumeHandle:
+                      description: |-
+                        VolumeHandle is a unique id returned by the CSI driver to identify a volume
+                        on the storage system
+                      type: string
+                  required:
+                  - snapshotHandle
+                  - volumeHandle
+                  type: object
+                type: array
             type: object
         required:
         - spec
