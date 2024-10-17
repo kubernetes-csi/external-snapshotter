@@ -39,6 +39,7 @@ import (
 // the handle of the volume that was snapshotted
 type snapshotContentNameVolumeHandlePair struct {
 	snapshotContentName string
+	snapshotHandle      string
 	volumeHandle        string
 }
 
@@ -493,6 +494,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		}
 		snapshotContentLinks = append(snapshotContentLinks, snapshotContentNameVolumeHandlePair{
 			snapshotContentName: vsc.Name,
+			snapshotHandle:      snapshot.SnapshotId,
 			volumeHandle:        snapshot.SourceVolumeId,
 		})
 
@@ -685,7 +687,13 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 					Name: pvName,
 				},
 			})
+
+			newStatus.VolumeSnapshotHandlePairList = append(newStatus.VolumeSnapshotHandlePairList, crdv1alpha1.VolumeSnapshotHandlePair{
+				VolumeHandle:   snapshotContentLink.volumeHandle,
+				SnapshotHandle: snapshotContentLink.snapshotHandle,
+			})
 		}
+
 		updated = true
 	} else {
 		newStatus = groupSnapshotContentObj.Status.DeepCopy()
@@ -724,6 +732,15 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 					PersistentVolumeRef: v1.LocalObjectReference{
 						Name: pvName,
 					},
+				})
+			}
+			updated = true
+		}
+		if len(newStatus.VolumeSnapshotHandlePairList) == 0 {
+			for _, snapshotContentLink := range snapshotContentLinks {
+				newStatus.VolumeSnapshotHandlePairList = append(newStatus.VolumeSnapshotHandlePairList, crdv1alpha1.VolumeSnapshotHandlePair{
+					VolumeHandle:   snapshotContentLink.volumeHandle,
+					SnapshotHandle: snapshotContentLink.snapshotHandle,
 				})
 			}
 			updated = true
