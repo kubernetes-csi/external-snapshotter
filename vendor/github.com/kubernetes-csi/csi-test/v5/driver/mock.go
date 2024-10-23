@@ -19,14 +19,17 @@ package driver
 import (
 	"net"
 
-	"github.com/kubernetes-csi/csi-test/v5/utils"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
+
+	"github.com/kubernetes-csi/csi-test/v5/utils"
 )
 
 type MockCSIDriverServers struct {
-	Controller *MockControllerServer
-	Identity   *MockIdentityServer
-	Node       *MockNodeServer
+	Controller       *MockControllerServer
+	Identity         *MockIdentityServer
+	Node             *MockNodeServer
+	SnapshotMetadata *MockSnapshotMetadataServer
 }
 
 type MockCSIDriver struct {
@@ -38,9 +41,22 @@ func NewMockCSIDriver(servers *MockCSIDriverServers) *MockCSIDriver {
 	return &MockCSIDriver{
 		CSIDriver: CSIDriver{
 			servers: &CSIDriverServers{
-				Controller: servers.Controller,
-				Node:       servers.Node,
-				Identity:   servers.Identity,
+				Controller: struct {
+					csi.UnsafeControllerServer
+					*MockControllerServer
+				}{MockControllerServer: servers.Controller},
+				Node: struct {
+					csi.UnsafeNodeServer
+					*MockNodeServer
+				}{MockNodeServer: servers.Node},
+				Identity: struct {
+					csi.UnsafeIdentityServer
+					*MockIdentityServer
+				}{MockIdentityServer: servers.Identity},
+				SnapshotMetadata: struct {
+					csi.UnsafeSnapshotMetadataServer
+					*MockSnapshotMetadataServer
+				}{MockSnapshotMetadataServer: servers.SnapshotMetadata},
 			},
 		},
 	}

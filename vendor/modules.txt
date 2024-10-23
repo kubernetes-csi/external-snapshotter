@@ -7,7 +7,7 @@ github.com/blang/semver/v4
 # github.com/cespare/xxhash/v2 v2.3.0
 ## explicit; go 1.11
 github.com/cespare/xxhash/v2
-# github.com/container-storage-interface/spec v1.9.0
+# github.com/container-storage-interface/spec v1.10.0
 ## explicit; go 1.18
 github.com/container-storage-interface/spec/lib/go/csi
 # github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -63,7 +63,6 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-github.com/golang/protobuf/ptypes/wrappers
 # github.com/google/gnostic-models v0.6.8
 ## explicit; go 1.18
 github.com/google/gnostic-models/compiler
@@ -113,7 +112,7 @@ github.com/kubernetes-csi/csi-lib-utils/leaderelection
 github.com/kubernetes-csi/csi-lib-utils/metrics
 github.com/kubernetes-csi/csi-lib-utils/protosanitizer
 github.com/kubernetes-csi/csi-lib-utils/rpc
-# github.com/kubernetes-csi/csi-test/v5 v5.2.0
+# github.com/kubernetes-csi/csi-test/v5 v5.3.1
 ## explicit; go 1.18
 github.com/kubernetes-csi/csi-test/v5/driver
 github.com/kubernetes-csi/csi-test/v5/utils

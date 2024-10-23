@@ -29,8 +29,9 @@ import (
 
 // CSIDriverControllerServer is the Controller service component of the driver.
 type CSIDriverControllerServer struct {
-	Controller csi.ControllerServer
-	Identity   csi.IdentityServer
+	Controller       csi.ControllerServer
+	Identity         csi.IdentityServer
+	SnapshotMetadata csi.SnapshotMetadataServer
 }
 
 // CSIDriverController is the CSI Driver Controller backend.
@@ -75,6 +76,9 @@ func (c *CSIDriverController) Start(l net.Listener) error {
 	}
 	if c.controllerServer.Identity != nil {
 		csi.RegisterIdentityServer(c.server, c.controllerServer.Identity)
+	}
+	if c.controllerServer.SnapshotMetadata != nil {
+		csi.RegisterSnapshotMetadataServer(c.server, c.controllerServer.SnapshotMetadata)
 	}
 
 	reflection.Register(c.server)
