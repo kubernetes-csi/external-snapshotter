@@ -251,6 +251,10 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
 			snapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentRef.Name)
 			if err != nil {
+				if errors.IsNotFound(err) {
+					klog.Infof("snapshot content %v not found", contentRef.VolumeSnapshotContentRef.Name)
+					continue
+				}
 				return fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.VolumeSnapshotContentRef.Name, err)
 			}
 			snapshotIDs = append(snapshotIDs, *snapshotContent.Status.SnapshotHandle)
