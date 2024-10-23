@@ -19,8 +19,8 @@ package webhook
 import (
 	"fmt"
 
-	volumegroupsnapshotv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1alpha1"
+	volumegroupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/admission/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,8 +29,8 @@ import (
 )
 
 var (
-	// GroupSnapshotClassV1Apha1GVR is GroupVersionResource for v1alpha1 VolumeGroupSnapshotClasses
-	GroupSnapshotClassV1Apha1GVR = metav1.GroupVersionResource{Group: volumegroupsnapshotv1alpha1.GroupName, Version: "v1alpha1", Resource: "volumegroupsnapshotclasses"}
+	// GroupSnapshotClassV1Beta1GVR is GroupVersionResource for v1beta1 VolumeGroupSnapshotClasses
+	GroupSnapshotClassV1Beta1GVR = metav1.GroupVersionResource{Group: volumegroupsnapshotv1beta1.GroupName, Version: "v1beta1", Resource: "volumegroupsnapshotclasses"}
 )
 
 type GroupSnapshotAdmitter interface {
@@ -66,27 +66,27 @@ func (a groupSnapshotAdmitter) Admit(ar v1.AdmissionReview) *v1.AdmissionRespons
 
 	deserializer := codecs.UniversalDeserializer()
 	switch ar.Request.Resource {
-	case GroupSnapshotClassV1Apha1GVR:
-		groupSnapClass := &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{}
+	case GroupSnapshotClassV1Beta1GVR:
+		groupSnapClass := &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{}
 		if _, _, err := deserializer.Decode(raw, nil, groupSnapClass); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
-		oldGroupSnapClass := &volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass{}
+		oldGroupSnapClass := &volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{}
 		if _, _, err := deserializer.Decode(oldRaw, nil, oldGroupSnapClass); err != nil {
 			klog.Error(err)
 			return toV1AdmissionResponse(err)
 		}
-		return decideGroupSnapshotClassV1Alpha1(groupSnapClass, oldGroupSnapClass, a.lister)
+		return decideGroupSnapshotClassV1Beta1(groupSnapClass, oldGroupSnapClass, a.lister)
 	default:
 		err := fmt.Errorf("expect resource to be %s, but found %v",
-			GroupSnapshotClassV1Apha1GVR, ar.Request.Resource)
+			GroupSnapshotClassV1Beta1GVR, ar.Request.Resource)
 		klog.Error(err)
 		return toV1AdmissionResponse(err)
 	}
 }
 
-func decideGroupSnapshotClassV1Alpha1(groupSnapClass, oldGroupSnapClass *volumegroupsnapshotv1alpha1.VolumeGroupSnapshotClass, lister groupsnapshotlisters.VolumeGroupSnapshotClassLister) *v1.AdmissionResponse {
+func decideGroupSnapshotClassV1Beta1(groupSnapClass, oldGroupSnapClass *volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass, lister groupsnapshotlisters.VolumeGroupSnapshotClassLister) *v1.AdmissionResponse {
 	reviewResponse := &v1.AdmissionResponse{
 		Allowed: true,
 		Result:  &metav1.Status{},

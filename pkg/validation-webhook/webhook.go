@@ -26,7 +26,7 @@ import (
 	"os"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1alpha1"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1"
 	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
 	"github.com/spf13/cobra"
 
@@ -276,7 +276,7 @@ func main(cmd *cobra.Command, args []string) {
 	snapshotLister := factory.Snapshot().V1().VolumeSnapshotClasses().Lister()
 	var groupSnapshotLister groupsnapshotlisters.VolumeGroupSnapshotClassLister
 	if enableVolumeGroupSnapshotWebhook {
-		groupSnapshotLister = factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses().Lister()
+		groupSnapshotLister = factory.Groupsnapshot().V1beta1().VolumeGroupSnapshotClasses().Lister()
 	}
 
 	// Start the informers

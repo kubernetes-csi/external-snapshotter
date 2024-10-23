@@ -21,7 +21,7 @@ package externalversions
 import (
 	"fmt"
 
-	v1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
+	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
 	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
@@ -53,13 +53,13 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=groupsnapshot.storage.k8s.io, Version=v1alpha1
-	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshots"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1alpha1().VolumeGroupSnapshots().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses().Informer()}, nil
-	case v1alpha1.SchemeGroupVersion.WithResource("volumegroupsnapshotcontents"):
-		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents().Informer()}, nil
+	// Group=groupsnapshot.storage.k8s.io, Version=v1beta1
+	case v1beta1.SchemeGroupVersion.WithResource("volumegroupsnapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1beta1().VolumeGroupSnapshots().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1beta1().VolumeGroupSnapshotClasses().Informer()}, nil
+	case v1beta1.SchemeGroupVersion.WithResource("volumegroupsnapshotcontents"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1beta1().VolumeGroupSnapshotContents().Informer()}, nil
 
 		// Group=snapshot.storage.k8s.io, Version=v1
 	case v1.SchemeGroupVersion.WithResource("volumesnapshots"):
