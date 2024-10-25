@@ -65,6 +65,9 @@ const (
 	PrefixedSnapshotterListSecretNameKey      = csiParameterPrefix + "snapshotter-list-secret-name"      // Prefixed name key for ListSnapshots secret
 	PrefixedSnapshotterListSecretNamespaceKey = csiParameterPrefix + "snapshotter-list-secret-namespace" // Prefixed namespace key for ListSnapshots secret
 
+	PrefixedGroupSnapshotterGetSecretNameKey      = csiParameterPrefix + "group-snapshotter-get-secret-name"      // Prefixed name key for GetVolumeGroupSnapshot secret
+	PrefixedGroupSnapshotterGetSecretNamespaceKey = csiParameterPrefix + "group-snapshotter-get-secret-namespace" // Prefixed namespace key for GetVolumeGroupSnapshot secret
+
 	PrefixedVolumeSnapshotNameKey        = csiParameterPrefix + "volumesnapshot/name"        // Prefixed VolumeSnapshot name key
 	PrefixedVolumeSnapshotNamespaceKey   = csiParameterPrefix + "volumesnapshot/namespace"   // Prefixed VolumeSnapshot namespace key
 	PrefixedVolumeSnapshotContentNameKey = csiParameterPrefix + "volumesnapshotcontent/name" // Prefixed VolumeSnapshotContent name key
@@ -170,6 +173,12 @@ var SnapshotterListSecretParams = secretParamsMap{
 	name:               "SnapshotterList",
 	secretNameKey:      PrefixedSnapshotterListSecretNameKey,
 	secretNamespaceKey: PrefixedSnapshotterListSecretNamespaceKey,
+}
+
+var GroupSnapshotterGetSecretParams = secretParamsMap{
+	name:               "GroupSnapshotterGet",
+	secretNameKey:      PrefixedGroupSnapshotterGetSecretNameKey,
+	secretNamespaceKey: PrefixedGroupSnapshotterGetSecretNamespaceKey,
 }
 
 // Annotations on VolumeSnapshotContent objects entirely controlled by csi-snapshotter
@@ -544,6 +553,8 @@ func RemovePrefixedParameters(param map[string]string) (map[string]string, error
 			case PrefixedSnapshotterSecretNamespaceKey:
 			case PrefixedSnapshotterListSecretNameKey:
 			case PrefixedSnapshotterListSecretNamespaceKey:
+			case PrefixedGroupSnapshotterGetSecretNameKey:
+			case PrefixedGroupSnapshotterGetSecretNamespaceKey:
 			case PrefixedGroupSnapshotterSecretNameKey:
 			case PrefixedGroupSnapshotterSecretNamespaceKey:
 			default:
