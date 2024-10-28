@@ -609,7 +609,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			},
 			Spec: crdv1.VolumeSnapshotSpec{
 				Source: crdv1.VolumeSnapshotSource{
-					VolumeSnapshotContentName: &volumeSnapshotContentName,
+					PersistentVolumeClaimName: &pv.Spec.ClaimRef.Name,
 				},
 			},
 			// The status will be set by VolumeSnapshot reconciler
@@ -621,7 +621,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshotcontent %w", err)
 		}
 
-		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(ctx, volumeSnapshot, metav1.CreateOptions{})
+		createdVolumeSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(ctx, volumeSnapshot, metav1.CreateOptions{})
 		if err != nil && !apierrs.IsAlreadyExists(err) {
 			return groupSnapshotContent, fmt.Errorf(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshot %w", err)
@@ -636,6 +636,40 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			groupSnapshotContent.Status.PVVolumeSnapshotContentList[i].PersistentVolumeRef = v1.LocalObjectReference{
 				Name: pv.Name,
 			}
+		}
+
+		// bind the volume snapshot content to the volume snapshot
+		// like a dynamically provisioned snapshot would do
+		volumeSnapshotContent.Spec.VolumeSnapshotRef.UID = createdVolumeSnapshot.UID
+		_, err = utils.PatchVolumeSnapshotContent(volumeSnapshotContent, []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/spec/volumeSnapshotRef/uid",
+				Value: volumeSnapshotContent.Spec.VolumeSnapshotRef.UID,
+			},
+		}, ctrl.clientset)
+		if err != nil {
+			return groupSnapshotContent, fmt.Errorf(
+				"createSnapshotsForGroupSnapshotContent: binding volumesnapshotcontent to volumesnapshot %w", err)
+		}
+
+		// bind the volume snapshot to the volume snapshot content
+		// like a dynamically provisioned snapshot would do
+		_, err = utils.PatchVolumeSnapshot(createdVolumeSnapshot, []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/status",
+				Value: &crdv1.VolumeSnapshotStatus{},
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/boundVolumeSnapshotContentName",
+				Value: volumeSnapshotContentName,
+			},
+		}, ctrl.clientset, "status")
+		if err != nil {
+			return groupSnapshotContent, fmt.Errorf(
+				"createSnapshotsForGroupSnapshotContent: binding volumesnapshot to volumesnapshotcontent %w", err)
 		}
 	}
 
