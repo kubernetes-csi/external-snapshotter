@@ -281,7 +281,7 @@ type VolumeGroupSnapshotContentSpec struct {
 	// This field is immutable after creation.
 	// Required.
 	// +kubebuilder:validation:XValidation:rule="has(self.name) && has(self.__namespace__)",message="both volumeGroupSnapshotRef.name and volumeGroupSnapshotRef.namespace must be set"
-	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="volumeGroupSnapshotRef is immutable"
+	// +kubebuilder:validation:XValidation:rule="self.name == oldSelf.name && self.__namespace__ == oldSelf.__namespace__",message="volumeGroupSnapshotRef is immutable"
 	VolumeGroupSnapshotRef core_v1.ObjectReference `json:"volumeGroupSnapshotRef" protobuf:"bytes,1,opt,name=volumeGroupSnapshotRef"`
 
 	// DeletionPolicy determines whether this VolumeGroupSnapshotContent and the

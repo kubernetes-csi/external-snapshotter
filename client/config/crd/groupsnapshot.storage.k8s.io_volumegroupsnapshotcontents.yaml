@@ -238,7 +238,7 @@ spec:
                     must be set
                   rule: has(self.name) && has(self.__namespace__)
                 - message: volumeGroupSnapshotRef is immutable
-                  rule: self == oldSelf
+                  rule: self.name == oldSelf.name && self.__namespace__ == oldSelf.__namespace__
             required:
             - deletionPolicy
             - driver
