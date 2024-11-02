@@ -529,14 +529,6 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			groupSnapshotContent.Name, err)
 	}
 
-	// TODO(leonardoce): this API server call is very expensive. We need to introduce a
-	// PV lister on the controller and an indexer on spec.csi.driver + "^" + spec.csi.volumeHandle
-	// to be used for fast lookups
-	pvs, err := ctrl.client.CoreV1().PersistentVolumes().List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		return groupSnapshotContent, fmt.Errorf("createSnapshotsForGroupSnapshotContent: error get PersistentVolumes list from API server: %v", err)
-	}
-
 	// Phase 1: create the VolumeSnapshotContent and VolumeSnapshot objects
 	klog.V(4).Infof(
 		"createSnapshotsForGroupSnapshotContent[%s]: creating volumesnapshots and volumesnapshotcontent for group snapshot content",
@@ -550,12 +542,13 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		snapshotHandle := snapshot.SnapshotHandle
 		volumeHandle := snapshot.VolumeHandle
 
-		pv := utils.GetPersistentVolumeFromHandle(pvs, groupSnapshotContent.Spec.Driver, volumeHandle)
-		if pv == nil {
+		pv, err := ctrl.findPersistentVolumeByCSIDriverHandle(groupSnapshotContent.Spec.Driver, volumeHandle)
+		if err != nil {
 			klog.Errorf(
-				"updateGroupSnapshotContentStatus: unable to find PV for volumeHandle:[%s] and CSI driver:[%s]",
+				"updateGroupSnapshotContentStatus: error while finding PV for volumeHandle:[%s] and CSI driver:[%s]: %s",
 				volumeHandle,
-				groupSnapshotContent.Spec.Driver)
+				groupSnapshotContent.Spec.Driver,
+				err)
 		}
 
 		volumeSnapshotContentName := getSnapshotContentNameForVolumeGroupSnapshotContent(
@@ -615,7 +608,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			// The status will be set by VolumeSnapshot reconciler
 		}
 
-		_, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
+		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil && !apierrs.IsAlreadyExists(err) {
 			return groupSnapshotContent, fmt.Errorf(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshotcontent %w", err)
@@ -691,6 +684,39 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 	}
 
 	return newGroupSnapshotObj, nil
+}
+
+// findPersistentVolumeByCSIDriverHandle looks at an existing PersistentVolume
+// by CSI driver name and volume handle.
+func (ctrl *csiSnapshotCommonController) findPersistentVolumeByCSIDriverHandle(driverName, volumeHandle string) (*v1.PersistentVolume, error) {
+	pvList, err := ctrl.pvIndexer.ByIndex(
+		utils.CSIDriverHandleIndexName,
+		utils.PersistentVolumeKeyFuncByCSIDriverHandle(driverName, volumeHandle),
+	)
+	switch {
+	case err != nil:
+		return nil, err
+
+	case len(pvList) == 0:
+		return nil, nil
+
+	case len(pvList) > 1:
+		klog.Errorf(
+			"findPersistentVolumeByCSIDriverHandle: multiple PVs found for for volumeHandle:[%s] and CSI driver:[%s]",
+			volumeHandle,
+			driverName)
+		return nil, fmt.Errorf("multiple PVs found")
+
+	default:
+		if pvObject, ok := pvList[0].(*v1.PersistentVolume); ok {
+			return pvObject, nil
+		}
+
+		klog.Errorf(
+			"findPersistentVolumeByCSIDriverHandle: found erroneous content in the index")
+		klog.V(5).Info("findPersistentVolumeByCSIDriverHandle: erroneous content", pvList[0])
+		return nil, fmt.Errorf("found erroneous indexed content")
+	}
 }
 
 // getSnapshotNameForVolumeGroupSnapshotContent returns a unique snapshot name for a VolumeGroupSnapshotContent.

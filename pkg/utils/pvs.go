@@ -16,21 +16,26 @@ limitations under the License.
 
 package utils
 
-import v1 "k8s.io/api/core/v1"
+import (
+	"fmt"
 
-// GetPersistentVolumeFromHandle looks for the PV having a certain CSI driver name
-// and corresponding to a volume with a given handle, in a PV List.
-// If the PV is not found, returns nil
-func GetPersistentVolumeFromHandle(pvList *v1.PersistentVolumeList, driverName, volumeHandle string) *v1.PersistentVolume {
-	for i := range pvList.Items {
-		if pvList.Items[i].Spec.CSI == nil {
-			continue
-		}
+	v1 "k8s.io/api/core/v1"
+)
 
-		if pvList.Items[i].Spec.CSI.Driver == driverName && pvList.Items[i].Spec.CSI.VolumeHandle == volumeHandle {
-			return &pvList.Items[i]
-		}
+const CSIDriverHandleIndexName = "ByVolumeHandle"
+
+// PersistentVolumeKeyFunc maps a persistent volume to a string usable
+// as KeyFunc to recover it from the CSI driver name and the volume handle.
+// If the passed PV is not CSI-based, it will return the empty string
+func PersistentVolumeKeyFunc(pv *v1.PersistentVolume) string {
+	if pv != nil && pv.Spec.CSI != nil {
+		return fmt.Sprintf("%s^%s", pv.Spec.CSI.Driver, pv.Spec.CSI.VolumeHandle)
 	}
+	return ""
+}
 
-	return nil
+// PersistentVolumeKeyFuncByCSIDriverHandle returns the key to be used form
+// the individual data components
+func PersistentVolumeKeyFuncByCSIDriverHandle(driverName, volumeHandle string) string {
+	return fmt.Sprintf("%s^%s", driverName, volumeHandle)
 }
