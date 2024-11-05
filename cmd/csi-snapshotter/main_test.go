@@ -26,6 +26,7 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/v5/driver"
+	"github.com/kubernetes-csi/csi-test/v5/utils"
 
 	"google.golang.org/grpc"
 )
@@ -125,7 +126,7 @@ func Test_supportsControllerCreateSnapshot(t *testing.T) {
 		}
 
 		// Setup expectation
-		controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), in).Return(out, injectedErr).Times(1)
+		controllerServer.EXPECT().ControllerGetCapabilities(gomock.Any(), utils.Protobuf(in)).Return(out, injectedErr).Times(1)
 
 		ok, err := supportsControllerCreateSnapshot(context.Background(), csiConn)
 		if test.expectError && err == nil {

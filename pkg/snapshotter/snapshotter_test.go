@@ -28,6 +28,7 @@ import (
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/v5/driver"
+	"github.com/kubernetes-csi/csi-test/v5/utils"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -210,7 +211,7 @@ func TestCreateSnapshot(t *testing.T) {
 		// Setup expectation
 		if in != nil {
 			identityServer.EXPECT().GetPluginInfo(gomock.Any(), gomock.Any()).Return(pluginInfoOutput, nil).Times(1)
-			controllerServer.EXPECT().CreateSnapshot(gomock.Any(), in).Return(out, injectedErr).Times(1)
+			controllerServer.EXPECT().CreateSnapshot(gomock.Any(), utils.Protobuf(in)).Return(out, injectedErr).Times(1)
 		}
 
 		s := NewSnapshotter(csiConn)
@@ -318,7 +319,7 @@ func TestDeleteSnapshot(t *testing.T) {
 
 		// Setup expectation
 		if in != nil {
-			controllerServer.EXPECT().DeleteSnapshot(gomock.Any(), in).Return(out, injectedErr).Times(1)
+			controllerServer.EXPECT().DeleteSnapshot(gomock.Any(), utils.Protobuf(in)).Return(out, injectedErr).Times(1)
 		}
 
 		s := NewSnapshotter(csiConn)
@@ -463,7 +464,7 @@ func TestGetSnapshotStatus(t *testing.T) {
 				Capabilities: controllerCapabilities,
 			}, nil).Times(1)
 			if test.listSnapshotsSupported {
-				controllerServer.EXPECT().ListSnapshots(gomock.Any(), in).Return(out, injectedErr).Times(1)
+				controllerServer.EXPECT().ListSnapshots(gomock.Any(), utils.Protobuf(in)).Return(out, injectedErr).Times(1)
 			}
 		}
 
