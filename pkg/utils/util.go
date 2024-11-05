@@ -143,6 +143,10 @@ const (
 	AnnDeletionGroupSecretRefName      = "groupsnapshot.storage.kubernetes.io/deletion-secret-name"
 	AnnDeletionGroupSecretRefNamespace = "groupsnapshot.storage.kubernetes.io/deletion-secret-namespace"
 
+	// VolumeGroupSnapshotNameLabel is applied to VolumeSnapshots that are member
+	// of a VolumeGroupSnapshot, and indicates the name of the latter.
+	VolumeGroupSnapshotNameLabel = "groupsnapshot.storage.k8s.io/volumeGroupSnapshotName"
+
 	// VolumeSnapshotContentInvalidLabel is applied to invalid content as a label key. The value does not matter.
 	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
 	VolumeSnapshotContentInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-content-resource"
