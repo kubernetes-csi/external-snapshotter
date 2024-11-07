@@ -27,6 +27,8 @@ jobs:
 
       - name: Run Trivy vulnerability scanner on csi-snapshotter image
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db:2"
         with:
           image-ref: 'test/csi-snapshotter:latest'
           format: 'table'
@@ -37,6 +39,8 @@ jobs:
 
       - name: Run Trivy vulnerability scanner on snapshotter-controller image
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db:2"
         with:
           image-ref: 'test/snapshot-controller:latest'
           format: 'table'
@@ -47,6 +51,8 @@ jobs:
 
       - name: Run Trivy vulnerability scanner on snapshot-validation-webhook image
         uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db:2"
         with:
           image-ref: 'test/snapshot-validation-webhook:latest'
           format: 'table'
