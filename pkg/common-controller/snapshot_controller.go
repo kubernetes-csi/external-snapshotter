@@ -484,6 +484,40 @@ func (ctrl *csiSnapshotCommonController) syncUnreadySnapshot(snapshot *crdv1.Vol
 		return nil
 	}
 
+	// member of a dynamically provisioned volume group snapshot
+	if _, ok := snapshot.Labels[utils.VolumeGroupSnapshotNameLabel]; ok {
+		if snapshot.Status == nil || snapshot.Status.BoundVolumeSnapshotContentName == nil {
+			klog.V(5).Infof(
+				"syncUnreadySnapshot [%s]: detected group snapshot member with no content, retrying",
+				utils.SnapshotKey(snapshot))
+			return fmt.Errorf("detected group snapshot member %s with no content, retrying",
+				utils.SnapshotKey(snapshot))
+		}
+
+		volumeSnapshotContentName := *snapshot.Status.BoundVolumeSnapshotContentName
+
+		content, err := ctrl.getContentFromStore(volumeSnapshotContentName)
+		if err != nil {
+			return err
+		}
+		if content == nil {
+			// can not find the desired VolumeSnapshotContent from cache store
+			// we'll retry
+			return fmt.Errorf("group snapshot member %s requests an non-existing content %s", utils.SnapshotKey(snapshot), volumeSnapshotContentName)
+		}
+
+		// update snapshot status
+		klog.V(5).Infof("syncUnreadySnapshot [%s]: trying to update group snapshot member status", utils.SnapshotKey(snapshot))
+		if _, err = ctrl.updateSnapshotStatus(snapshot, content); err != nil {
+			// update snapshot status failed
+			klog.V(4).Infof("failed to update group snapshot member %s status: %v", utils.SnapshotKey(snapshot), err)
+			ctrl.updateSnapshotErrorStatusWithEvent(snapshot, false, v1.EventTypeWarning, "SnapshotStatusUpdateFailed", fmt.Sprintf("Snapshot status update failed, %v", err))
+			return err
+		}
+
+		return nil
+	}
+
 	// snapshot.Spec.Source.VolumeSnapshotContentName == nil - dynamically creating snapshot
 	klog.V(5).Infof("getDynamicallyProvisionedContentFromStore for snapshot %s", uniqueSnapshotName)
 	contentObj, err := ctrl.getDynamicallyProvisionedContentFromStore(snapshot)
@@ -1387,6 +1421,12 @@ func (ctrl *csiSnapshotCommonController) SetDefaultSnapshotClass(snapshot *crdv1
 	if snapshot.Spec.Source.VolumeSnapshotContentName != nil {
 		// don't return error for pre-provisioned snapshots
 		klog.V(5).Infof("Don't need to find SnapshotClass for pre-provisioned snapshot [%s]", snapshot.Name)
+		return nil, snapshot, nil
+	}
+
+	if _, ok := snapshot.Labels[utils.VolumeGroupSnapshotNameLabel]; ok {
+		// don't return error for volume group snapshot members
+		klog.V(5).Infof("Don't need to find SnapshotClass for volume group snapshot member [%s]", snapshot.Name)
 		return nil, snapshot, nil
 	}
 
