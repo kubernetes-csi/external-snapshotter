@@ -23,84 +23,60 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestGetPersistentVolumeFromHandle(t *testing.T) {
+func TestPersistentVolumeKeyFunc(t *testing.T) {
 	testDriverName := "hostpath.csi.k8s.io"
 	testVolumeHandle := "df39ea9e-1296-11ef-adde-baf37ed30dae"
 	testPvName := "pv-name"
 
-	pvListTest := v1.PersistentVolumeList{
-		Items: []v1.PersistentVolume{
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: testPvName,
-				},
-				Spec: v1.PersistentVolumeSpec{
-					PersistentVolumeSource: v1.PersistentVolumeSource{
-						CSI: &v1.CSIPersistentVolumeSource{
-							Driver:       testDriverName,
-							VolumeHandle: testVolumeHandle,
-						},
-					},
+	csiPV := v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testPvName,
+		},
+		Spec: v1.PersistentVolumeSpec{
+			PersistentVolumeSource: v1.PersistentVolumeSource{
+				CSI: &v1.CSIPersistentVolumeSource{
+					Driver:       testDriverName,
+					VolumeHandle: testVolumeHandle,
 				},
 			},
-			{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "pv-no-csi",
-				},
-				Spec: v1.PersistentVolumeSpec{
-					PersistentVolumeSource: v1.PersistentVolumeSource{
-						HostPath: &v1.HostPathVolumeSource{},
-					},
-				},
+		},
+	}
+	hostPathPV := v1.PersistentVolume{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "pv-no-csi",
+		},
+		Spec: v1.PersistentVolumeSpec{
+			PersistentVolumeSource: v1.PersistentVolumeSource{
+				HostPath: &v1.HostPathVolumeSource{},
 			},
 		},
 	}
 
 	tests := []struct {
-		testName     string
-		driverName   string
-		volumeHandle string
-		pvList       v1.PersistentVolumeList
-		pvName       string
+		testName    string
+		pv          *v1.PersistentVolume
+		expectedKey string
 	}{
 		{
-			testName:     "empty-pv-list",
-			driverName:   testDriverName,
-			volumeHandle: testVolumeHandle,
-			pvName:       "",
+			testName:    "nil-pv",
+			pv:          nil,
+			expectedKey: "",
 		},
 		{
-			testName:     "pv-in-list",
-			driverName:   testDriverName,
-			volumeHandle: testVolumeHandle,
-			pvList:       pvListTest,
-			pvName:       testPvName,
+			testName:    "csi-pv",
+			pv:          &csiPV,
+			expectedKey: "hostpath.csi.k8s.io^df39ea9e-1296-11ef-adde-baf37ed30dae",
 		},
 		{
-			testName:     "not-existing-volume-handle",
-			driverName:   testDriverName,
-			volumeHandle: "not-existing-volume-handle",
-			pvList:       pvListTest,
-			pvName:       "",
-		},
-		{
-			testName:     "invalid-driver-name",
-			driverName:   "invalid-driver-name",
-			volumeHandle: testVolumeHandle,
-			pvList:       pvListTest,
-			pvName:       "",
+			testName:    "hostpath-pv",
+			pv:          &hostPathPV,
+			expectedKey: "",
 		},
 	}
 	for _, tt := range tests {
-		got := GetPersistentVolumeFromHandle(&tt.pvList, tt.driverName, tt.volumeHandle)
-		if got == nil {
-			if len(tt.pvName) != 0 {
-				t.Errorf("%v: GetPersistentVolumeFromHandle = %v WANT %v", tt.testName, got, tt.pvName)
-			}
-		} else {
-			if tt.pvName != got.Name {
-				t.Errorf("%v: GetPersistentVolumeFromHandle = %v WANT %v", tt.testName, got.Name, tt.pvName)
-			}
+		got := PersistentVolumeKeyFunc(tt.pv)
+		if got != tt.expectedKey {
+			t.Errorf("%v: PersistentVolumeKeyFunc = %#v WANT %#v", tt.testName, got, tt.expectedKey)
 		}
 	}
 }

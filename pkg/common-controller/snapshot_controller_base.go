@@ -62,6 +62,8 @@ type csiSnapshotCommonController struct {
 	classListerSynced                cache.InformerSynced
 	pvcLister                        corelisters.PersistentVolumeClaimLister
 	pvcListerSynced                  cache.InformerSynced
+	pvLister                         corelisters.PersistentVolumeLister
+	pvListerSynced                   cache.InformerSynced
 	nodeLister                       corelisters.NodeLister
 	nodeListerSynced                 cache.InformerSynced
 	groupSnapshotLister              groupsnapshotlisters.VolumeGroupSnapshotLister
@@ -83,6 +85,8 @@ type csiSnapshotCommonController struct {
 	enableDistributedSnapshotting bool
 	preventVolumeModeConversion   bool
 	enableVolumeGroupSnapshots    bool
+
+	pvIndexer cache.Indexer
 }
 
 // NewCSISnapshotController returns a new *csiSnapshotCommonController
@@ -96,6 +100,7 @@ func NewCSISnapshotCommonController(
 	volumeGroupSnapshotContentInformer groupsnapshotinformers.VolumeGroupSnapshotContentInformer,
 	volumeGroupSnapshotClassInformer groupsnapshotinformers.VolumeGroupSnapshotClassInformer,
 	pvcInformer coreinformers.PersistentVolumeClaimInformer,
+	pvInformer coreinformers.PersistentVolumeInformer,
 	nodeInformer coreinformers.NodeInformer,
 	metricsManager metrics.MetricsManager,
 	resyncPeriod time.Duration,
@@ -127,6 +132,22 @@ func NewCSISnapshotCommonController(
 
 	ctrl.pvcLister = pvcInformer.Lister()
 	ctrl.pvcListerSynced = pvcInformer.Informer().HasSynced
+
+	ctrl.pvLister = pvInformer.Lister()
+	ctrl.pvListerSynced = pvInformer.Informer().HasSynced
+
+	pvInformer.Informer().AddIndexers(map[string]cache.IndexFunc{
+		utils.CSIDriverHandleIndexName: func(obj interface{}) ([]string, error) {
+			if pv, ok := obj.(*v1.PersistentVolume); ok {
+				if key := utils.PersistentVolumeKeyFunc(pv); key != "" {
+					return []string{key}, nil
+				}
+			}
+
+			return nil, nil
+		},
+	})
+	ctrl.pvIndexer = pvInformer.Informer().GetIndexer()
 
 	volumeSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
@@ -212,7 +233,13 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 	klog.Infof("Starting snapshot controller")
 	defer klog.Infof("Shutting snapshot controller")
 
-	informersSynced := []cache.InformerSynced{ctrl.snapshotListerSynced, ctrl.contentListerSynced, ctrl.classListerSynced, ctrl.pvcListerSynced}
+	informersSynced := []cache.InformerSynced{
+		ctrl.snapshotListerSynced,
+		ctrl.contentListerSynced,
+		ctrl.classListerSynced,
+		ctrl.pvcListerSynced,
+		ctrl.pvListerSynced,
+	}
 	if ctrl.enableDistributedSnapshotting {
 		informersSynced = append(informersSynced, ctrl.nodeListerSynced)
 	}

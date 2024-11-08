@@ -1200,6 +1200,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		informerFactory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents(),
 		informerFactory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
+		coreFactory.Core().V1().PersistentVolumes(),
 		nil,
 		metricsManager,
 		60*time.Second,

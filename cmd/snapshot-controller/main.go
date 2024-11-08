@@ -218,6 +218,7 @@ func main() {
 		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents(),
 		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
+		coreFactory.Core().V1().PersistentVolumes(),
 		nodeInformer,
 		metricsManager,
 		*resyncPeriod,
