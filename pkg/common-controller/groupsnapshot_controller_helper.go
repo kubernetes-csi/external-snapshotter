@@ -234,7 +234,7 @@ func (ctrl *csiSnapshotCommonController) getClaimsFromVolumeGroupSnapshot(groupS
 
 // updateGroupSnapshot runs in worker thread and handles "groupsnapshot added",
 // "groupsnapshot updated" and "periodic sync" events.
-func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(ctx context.Context, groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
 	// Store the new group snapshot version in the cache and do not process it
 	// if this is an old version.
 	klog.V(5).Infof("updateGroupSnapshot %q", utils.GroupSnapshotKey(groupSnapshot))
@@ -246,7 +246,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(groupSnapshot *crdv
 		return nil
 	}
 
-	err = ctrl.syncGroupSnapshot(groupSnapshot)
+	err = ctrl.syncGroupSnapshot(ctx, groupSnapshot)
 	if err != nil {
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
@@ -294,7 +294,7 @@ func (ctrl *csiSnapshotCommonController) deleteGroupSnapshot(groupSnapshot *crdv
 // a group snapshot is created, updated or periodically synced. We do not
 // differentiate between these events.
 // For easier readability, it is split into syncUnreadyGroupSnapshot and syncReadyGroupSnapshot
-func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
 	klog.V(5).Infof("synchronizing VolumeGroupSnapshot[%s]", utils.GroupSnapshotKey(groupSnapshot))
 
 	klog.V(5).Infof("syncGroupSnapshot [%s]: check if we should remove finalizer on group snapshot PVC source and remove it if we can", utils.GroupSnapshotKey(groupSnapshot))
@@ -326,7 +326,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(groupSnapshot *crdv1a
 	// 3) groupSnapshot.Status.IsBoundVolumeGroupSnapshotContentNameSet is not set
 	// 4) groupSnapshot.Status.IsVolumeSnapshotRefListSet is not set
 	if !utils.IsGroupSnapshotReady(groupSnapshot) || !utils.IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot) || !utils.IsPVCVolumeSnapshotRefListSet(groupSnapshot) {
-		return ctrl.syncUnreadyGroupSnapshot(groupSnapshot)
+		return ctrl.syncUnreadyGroupSnapshot(ctx, groupSnapshot)
 	}
 	return ctrl.syncReadyGroupSnapshot(groupSnapshot)
 }
@@ -383,7 +383,7 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotContentFromStore(conten
 
 // syncUnreadyGroupSnapshot is the main controller method to decide what to do
 // with a group snapshot which is not set to ready.
-func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Context, groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
 	uniqueGroupSnapshotName := utils.GroupSnapshotKey(groupSnapshot)
 	klog.V(5).Infof("syncUnreadyGroupSnapshot %s", uniqueGroupSnapshotName)
 	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
@@ -460,8 +460,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(groupSnapshot 
 			return fmt.Errorf("VolumeGroupSnapshotHandle should not be set in the group snapshot content for dynamic provisioning for group snapshot %s", uniqueGroupSnapshotName)
 		}
 
-		// TODO(leonardoce): introduce a current context in this function
-		newGroupSnapshotContentObj, err := ctrl.createSnapshotsForGroupSnapshotContent(context.TODO(), contentObj, groupSnapshot)
+		newGroupSnapshotContentObj, err := ctrl.createSnapshotsForGroupSnapshotContent(ctx, contentObj, groupSnapshot)
 		if err != nil {
 			klog.V(4).Infof("createSnapshotsForGroupSnapshotContent[%s]: failed to create snapshots and snapshotcontents for group snapshot %v: %v",
 				contentObj.Name, groupSnapshot.Name, err.Error())

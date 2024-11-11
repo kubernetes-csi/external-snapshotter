@@ -17,6 +17,7 @@ limitations under the License.
 package common_controller
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1751,7 +1752,7 @@ func testSyncSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReacto
 }
 
 func testSyncGroupSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	return ctrl.syncGroupSnapshot(test.initialGroupSnapshots[0])
+	return ctrl.syncGroupSnapshot(context.TODO(), test.initialGroupSnapshots[0])
 }
 
 func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
