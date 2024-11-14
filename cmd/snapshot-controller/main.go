@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 
@@ -43,12 +44,15 @@ import (
 
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
 	controller "github.com/kubernetes-csi/external-snapshotter/v8/pkg/common-controller"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/features"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	coreinformers "k8s.io/client-go/informers"
+	utilflag "k8s.io/component-base/cli/flag"
 )
 
 // Command line flags
@@ -73,9 +77,9 @@ var (
 	retryIntervalMax              = flag.Duration("retry-interval-max", 5*time.Minute, "Maximum retry interval of failed volume snapshot creation or deletion. Default is 5 minutes.")
 	enableDistributedSnapshotting = flag.Bool("enable-distributed-snapshotting", false, "Enables each node to handle snapshotting for the local volumes created on that node")
 	preventVolumeModeConversion   = flag.Bool("prevent-volume-mode-conversion", true, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
-	enableVolumeGroupSnapshots    = flag.Bool("enable-volume-group-snapshots", false, "Enables the volume group snapshot feature, allowing the user to create a snapshot of a group of volumes.")
 
 	retryCRDIntervalMax = flag.Duration("retry-crd-interval-max", 30*time.Second, "Maximum time to wait for CRDs to appear. The default is 30 seconds.")
+	featureGates        map[string]bool
 )
 
 var version = "unknown"
@@ -147,9 +151,16 @@ func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVol
 }
 
 func main() {
+	flag.Var(utilflag.NewMapStringBool(&featureGates), "feature-gates", "Comma-seprated list of key=value pairs that describe feature gates for alpha/experimental features. "+
+		"Options are:\n"+strings.Join(utilfeature.DefaultFeatureGate.KnownFeatures(), "\n"))
+
 	klog.InitFlags(nil)
 	flag.Set("logtostderr", "true")
 	flag.Parse()
+
+	if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(featureGates); err != nil {
+		klog.Fatal("Error while parsing feature gates: ", err)
+	}
 
 	if *showVersion {
 		fmt.Println(os.Args[0], version)
@@ -228,10 +239,10 @@ func main() {
 		workqueue.NewItemExponentialFailureRateLimiter(*retryIntervalStart, *retryIntervalMax),
 		*enableDistributedSnapshotting,
 		*preventVolumeModeConversion,
-		*enableVolumeGroupSnapshots,
+		utilfeature.DefaultFeatureGate.Enabled(features.VolumeGroupSnapshot),
 	)
 
-	if err := ensureCustomResourceDefinitionsExist(snapClient, *enableVolumeGroupSnapshots); err != nil {
+	if err := ensureCustomResourceDefinitionsExist(snapClient, utilfeature.DefaultFeatureGate.Enabled(features.VolumeGroupSnapshot)); err != nil {
 		klog.Errorf("Exiting due to failure to ensure CRDs exist during startup: %+v", err)
 		os.Exit(1)
 	}
