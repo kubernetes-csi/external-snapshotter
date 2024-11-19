@@ -353,12 +353,6 @@ type VolumeGroupSnapshotContentStatus struct {
 	// +optional
 	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 
-	// PVVolumeSnapshotContentList is the list of pairs of PV and
-	// VolumeSnapshotContent for this group snapshot
-	// The maximum number of allowed snapshots in the group is 100.
-	// +optional
-	PVVolumeSnapshotContentList []PVVolumeSnapshotContentPair `json:"pvVolumeSnapshotContentList,omitempty" protobuf:"bytes,5,opt,name=pvVolumeSnapshotContentRefList"`
-
 	// VolumeSnapshotHandlePairList is a list of CSI "volume_id" and "snapshot_id"
 	// pair returned by the CSI driver to identify snapshots and their source volumes
 	// on the storage system.

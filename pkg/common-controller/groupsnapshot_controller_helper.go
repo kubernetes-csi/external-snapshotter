@@ -533,11 +533,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		"createSnapshotsForGroupSnapshotContent[%s]: creating volumesnapshots and volumesnapshotcontent for group snapshot content",
 		groupSnapshotContent.Name)
 
-	groupSnapshotContent.Status.PVVolumeSnapshotContentList = make(
-		[]crdv1alpha1.PVVolumeSnapshotContentPair,
-		len(groupSnapshotContent.Status.VolumeSnapshotHandlePairList),
-	)
-	for i, snapshot := range groupSnapshotContent.Status.VolumeSnapshotHandlePairList {
+	for _, snapshot := range groupSnapshotContent.Status.VolumeSnapshotHandlePairList {
 		snapshotHandle := snapshot.SnapshotHandle
 		volumeHandle := snapshot.VolumeHandle
 
@@ -619,17 +615,6 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshot %w", err)
 		}
 
-		groupSnapshotContent.Status.PVVolumeSnapshotContentList[i] = crdv1alpha1.PVVolumeSnapshotContentPair{
-			VolumeSnapshotContentRef: v1.LocalObjectReference{
-				Name: volumeSnapshotContentName,
-			},
-		}
-		if pv != nil {
-			groupSnapshotContent.Status.PVVolumeSnapshotContentList[i].PersistentVolumeRef = v1.LocalObjectReference{
-				Name: pv.Name,
-			}
-		}
-
 		// bind the volume snapshot content to the volume snapshot
 		// like a dynamically provisioned snapshot would do
 		volumeSnapshotContent.Spec.VolumeSnapshotRef.UID = createdVolumeSnapshot.UID
@@ -665,24 +650,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		}
 	}
 
-	// Phase 2: set the backlinks
-	var patches []utils.PatchOp
-	patches = append(patches, utils.PatchOp{
-		Op:    "replace",
-		Path:  "/status/pvVolumeSnapshotContentList",
-		Value: groupSnapshotContent.Status.PVVolumeSnapshotContentList,
-	})
-
-	newGroupSnapshotObj, err := utils.PatchVolumeGroupSnapshotContent(
-		groupSnapshotContent,
-		patches,
-		ctrl.clientset,
-		"status")
-	if err != nil {
-		return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
-	}
-
-	return newGroupSnapshotObj, nil
+	return groupSnapshotContent, nil
 }
 
 // findPersistentVolumeByCSIDriverHandle looks at an existing PersistentVolume
@@ -836,50 +804,6 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 		volumeSnapshotErr = groupSnapshotContent.Status.Error.DeepCopy()
 	}
 
-	var pvcVolumeSnapshotRefList []crdv1alpha1.PVCVolumeSnapshotPair
-	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentList) != 0 {
-		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
-			var pvcReference v1.LocalObjectReference
-			pv, err := ctrl.client.CoreV1().PersistentVolumes().Get(context.TODO(), contentRef.PersistentVolumeRef.Name, metav1.GetOptions{})
-			if err != nil {
-				if apierrs.IsNotFound(err) {
-					klog.Errorf(
-						"updateGroupSnapshotStatus[%s]: PV [%s] not found",
-						utils.GroupSnapshotKey(groupSnapshot),
-						contentRef.PersistentVolumeRef.Name,
-					)
-				} else {
-					klog.Errorf(
-						"updateGroupSnapshotStatus[%s]: unable to get PV [%s] from the API server: %q",
-						utils.GroupSnapshotKey(groupSnapshot),
-						contentRef.PersistentVolumeRef.Name,
-						err.Error(),
-					)
-				}
-			} else {
-				if pv.Spec.ClaimRef != nil {
-					pvcReference.Name = pv.Spec.ClaimRef.Name
-				} else {
-					klog.Errorf(
-						"updateGroupSnapshotStatus[%s]: PV [%s] is not bound",
-						utils.GroupSnapshotKey(groupSnapshot),
-						contentRef.PersistentVolumeRef.Name)
-				}
-			}
-
-			volumeSnapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentRef.Name)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.VolumeSnapshotContentRef.Name, err)
-			}
-			pvcVolumeSnapshotRefList = append(pvcVolumeSnapshotRefList, crdv1alpha1.PVCVolumeSnapshotPair{
-				VolumeSnapshotRef: v1.LocalObjectReference{
-					Name: volumeSnapshotContent.Spec.VolumeSnapshotRef.Name,
-				},
-				PersistentVolumeClaimRef: pvcReference,
-			})
-		}
-	}
-
 	klog.V(5).Infof("updateGroupSnapshotStatus: updating VolumeGroupSnapshot [%+v] based on VolumeGroupSnapshotContentStatus [%+v]", groupSnapshot, groupSnapshotContent.Status)
 
 	groupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshots(groupSnapshot.Namespace).Get(context.TODO(), groupSnapshot.Name, metav1.GetOptions{})
@@ -899,9 +823,6 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 		}
 		if volumeSnapshotErr != nil {
 			newStatus.Error = volumeSnapshotErr
-		}
-		if len(pvcVolumeSnapshotRefList) == 0 {
-			newStatus.PVCVolumeSnapshotRefList = pvcVolumeSnapshotRefList
 		}
 
 		updated = true
@@ -924,10 +845,6 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 		}
 		if (newStatus.Error == nil && volumeSnapshotErr != nil) || (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) || (newStatus.Error != nil && volumeSnapshotErr == nil) {
 			newStatus.Error = volumeSnapshotErr
-			updated = true
-		}
-		if len(newStatus.PVCVolumeSnapshotRefList) == 0 {
-			newStatus.PVCVolumeSnapshotRefList = pvcVolumeSnapshotRefList
 			updated = true
 		}
 	}
