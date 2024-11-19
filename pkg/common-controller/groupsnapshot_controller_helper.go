@@ -504,6 +504,12 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		return groupSnapshotContent, nil
 	}
 
+	// No volume group snapshot handle is present.
+	// Let's wait for the snapshotter sidecar to fill it.
+	if groupSnapshotContent.Status.VolumeGroupSnapshotHandle == nil {
+		return groupSnapshotContent, nil
+	}
+
 	// The contents of the volume group snapshot class are needed to set the
 	// metadata containing the secrets to recover the snapshots
 	if groupSnapshot.Spec.VolumeGroupSnapshotClassName == nil {
@@ -561,6 +567,9 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		volumeSnapshotContent := &crdv1.VolumeSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: volumeSnapshotContentName,
+				Labels: map[string]string{
+					utils.VolumeGroupSnapshotHandleLabel: *groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
+				},
 			},
 			Spec: crdv1.VolumeSnapshotContentSpec{
 				VolumeSnapshotRef: v1.ObjectReference{
@@ -571,7 +580,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 				DeletionPolicy: groupSnapshotContent.Spec.DeletionPolicy,
 				Driver:         groupSnapshotContent.Spec.Driver,
 				Source: crdv1.VolumeSnapshotContentSource{
-					SnapshotHandle: &snapshotHandle,
+					VolumeHandle: &volumeHandle,
 				},
 			},
 			// The status will be set by VolumeSnapshotContent reconciler
@@ -590,24 +599,28 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, groupSnapshotSecret.Namespace)
 		}
 
-		label := make(map[string]string)
-		label[utils.VolumeGroupSnapshotNameLabel] = groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name
 		volumeSnapshot := &crdv1.VolumeSnapshot{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:       volumeSnapshotName,
-				Namespace:  volumeSnapshotNamespace,
-				Labels:     label,
+				Name:      volumeSnapshotName,
+				Namespace: volumeSnapshotNamespace,
+				Labels: map[string]string{
+					utils.VolumeGroupSnapshotNameLabel: groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name,
+				},
 				Finalizers: []string{utils.VolumeSnapshotInGroupFinalizer},
 			},
-			Spec: crdv1.VolumeSnapshotSpec{
-				Source: crdv1.VolumeSnapshotSource{
-					PersistentVolumeClaimName: &pv.Spec.ClaimRef.Name,
-				},
-			},
+			// The spec stanza is set immediately
 			// The status will be set by VolumeSnapshot reconciler
 		}
 
-		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
+		if pv != nil {
+			volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &pv.Spec.ClaimRef.Name
+		} else {
+			// If no persistent volume was found, set the PVC name to empty
+			var emptyString string
+			volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &emptyString
+		}
+
+		createdVolumeSnapshotContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil && !apierrs.IsAlreadyExists(err) {
 			return groupSnapshotContent, fmt.Errorf(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshotcontent %w", err)
@@ -663,6 +676,32 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			return groupSnapshotContent, fmt.Errorf(
 				"createSnapshotsForGroupSnapshotContent: binding volumesnapshot to volumesnapshotcontent %w", err)
 		}
+
+		// set the snapshot handle and the group snapshot handle
+		// inside the volume snapshot content to allow
+		// the CSI Snapshotter sidecar to reconcile its status
+		_, err = utils.PatchVolumeSnapshotContent(createdVolumeSnapshotContent, []utils.PatchOp{
+			{
+				Op:    "replace",
+				Path:  "/status",
+				Value: &crdv1.VolumeSnapshotContentStatus{},
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/snapshotHandle",
+				Value: snapshotHandle,
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/volumeGroupSnapshotHandle",
+				Value: groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
+			},
+		}, ctrl.clientset, "status")
+		if err != nil {
+			return groupSnapshotContent, fmt.Errorf(
+				"createSnapshotsForGroupSnapshotContent: setting snapshotHandle in volumesnapshotcontent %w", err)
+		}
+
 	}
 
 	// Phase 2: set the backlinks
