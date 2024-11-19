@@ -247,13 +247,9 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 	}
 
 	var snapshotIDs []string
-	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.PVVolumeSnapshotContentList) != 0 {
-		for _, contentRef := range groupSnapshotContent.Status.PVVolumeSnapshotContentList {
-			snapshotContent, err := ctrl.contentLister.Get(contentRef.VolumeSnapshotContentRef.Name)
-			if err != nil {
-				return fmt.Errorf("failed to get snapshot content %s from snapshot content store: %v", contentRef.VolumeSnapshotContentRef.Name, err)
-			}
-			snapshotIDs = append(snapshotIDs, *snapshotContent.Status.SnapshotHandle)
+	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.VolumeSnapshotHandlePairList) != 0 {
+		for _, contentRef := range groupSnapshotContent.Status.VolumeSnapshotHandlePairList {
+			snapshotIDs = append(snapshotIDs, contentRef.SnapshotHandle)
 		}
 	}
 
@@ -290,7 +286,6 @@ func (ctrl *csiSnapshotSideCarController) clearGroupSnapshotContentStatus(
 		groupSnapshotContent.Status.ReadyToUse = nil
 		groupSnapshotContent.Status.CreationTime = nil
 		groupSnapshotContent.Status.Error = nil
-		groupSnapshotContent.Status.PVVolumeSnapshotContentList = nil
 	}
 	newContent, err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContent, metav1.UpdateOptions{})
 	if err != nil {
