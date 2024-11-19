@@ -17,6 +17,7 @@ limitations under the License.
 package common_controller
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -671,7 +672,7 @@ func (ctrl *csiSnapshotCommonController) groupSnapshotWorker() {
 	}
 	defer ctrl.groupSnapshotQueue.Done(keyObj)
 
-	if err := ctrl.syncGroupSnapshotByKey(keyObj.(string)); err != nil {
+	if err := ctrl.syncGroupSnapshotByKey(context.Background(), keyObj.(string)); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
 		ctrl.groupSnapshotQueue.AddRateLimited(keyObj)
@@ -704,7 +705,7 @@ func (ctrl *csiSnapshotCommonController) groupSnapshotContentWorker() {
 }
 
 // syncGroupSnapshotByKey processes a VolumeGroupSnapshot request.
-func (ctrl *csiSnapshotCommonController) syncGroupSnapshotByKey(key string) error {
+func (ctrl *csiSnapshotCommonController) syncGroupSnapshotByKey(ctx context.Context, key string) error {
 	klog.V(5).Infof("syncGroupSnapshotByKey[%s]", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -726,7 +727,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotByKey(key string) erro
 				klog.V(5).Infof("GroupSnapshot %q is being deleted. GroupSnapshotClass has already been removed", key)
 			}
 			klog.V(5).Infof("Updating group snapshot %q", key)
-			return ctrl.updateGroupSnapshot(newGroupSnapshot)
+			return ctrl.updateGroupSnapshot(ctx, newGroupSnapshot)
 		}
 		return err
 	}
