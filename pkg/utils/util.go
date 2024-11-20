@@ -150,6 +150,13 @@ const (
 	// of a VolumeGroupSnapshot, and indicates the name of the latter.
 	VolumeGroupSnapshotNameLabel = "groupsnapshot.storage.k8s.io/volumeGroupSnapshotName"
 
+	// VolumeGroupSnapshotHandleLabel is applied to VolumeSnapshotContents that are member
+	// of a VolumeGroupSnapshotContent, and indicates the handle of the latter.
+	//
+	// This label is applied to inform the sidecar not to call CSI driver
+	// to create snapshot if the snapshot belongs to a group.
+	VolumeGroupSnapshotHandleLabel = "groupsnapshot.storage.k8s.io/volumeGroupSnapshotHandle"
+
 	// VolumeSnapshotContentInvalidLabel is applied to invalid content as a label key. The value does not matter.
 	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
 	VolumeSnapshotContentInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-content-resource"

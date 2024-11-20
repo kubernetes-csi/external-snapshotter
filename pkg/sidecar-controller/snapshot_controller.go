@@ -83,10 +83,15 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 		return false, nil
 
 	}
-	if content.Spec.Source.VolumeHandle != nil && content.Status == nil {
+
+	// Create snapshot calling the CSI driver only if it is a dynamic
+	// provisioning for an independent snapshot.
+	_, groupSnapshotMember := content.Labels[utils.VolumeGroupSnapshotHandleLabel]
+	if content.Spec.Source.VolumeHandle != nil && content.Status == nil && !groupSnapshotMember {
 		klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
 		return ctrl.createSnapshot(content)
 	}
+
 	// Skip checkandUpdateContentStatus() if ReadyToUse is
 	// already true. We don't want to keep calling CreateSnapshot
 	// or ListSnapshots CSI methods over and over again for
@@ -253,11 +258,13 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	var size int64
 	readyToUse := false
 	var driverName string
-	var snapshotID, groupSnapshotID string
+	var groupSnapshotID string
 	var snapshotterListCredentials map[string]string
 
-	if content.Spec.Source.SnapshotHandle != nil {
-		klog.V(5).Infof("checkandUpdateContentStatusOperation: call GetSnapshotStatus for snapshot which is pre-bound to content [%s]", content.Name)
+	volumeGroupSnapshotMember := content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil
+
+	if content.Spec.Source.SnapshotHandle != nil || (volumeGroupSnapshotMember && content.Status.SnapshotHandle != nil) {
+		klog.V(5).Infof("checkandUpdateContentStatusOperation: call GetSnapshotStatus for snapshot content [%s]", content.Name)
 
 		if content.Spec.VolumeSnapshotClassName != nil {
 			class, err := ctrl.getSnapshotClass(*content.Spec.VolumeSnapshotClassName)
@@ -286,7 +293,13 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 			return content, err
 		}
 		driverName = content.Spec.Driver
-		snapshotID = *content.Spec.Source.SnapshotHandle
+
+		var snapshotID string
+		if content.Spec.Source.SnapshotHandle != nil {
+			snapshotID = *content.Spec.Source.SnapshotHandle
+		} else {
+			snapshotID = *content.Status.SnapshotHandle
+		}
 
 		klog.V(5).Infof("checkandUpdateContentStatusOperation: driver %s, snapshotId %s, creationTime %v, size %d, readyToUse %t, groupSnapshotID %s", driverName, snapshotID, creationTime, size, readyToUse, groupSnapshotID)
 
