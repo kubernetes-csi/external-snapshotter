@@ -325,7 +325,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, 
 	// 2) groupSnapshot.Status.ReadyToUse is false
 	// 3) groupSnapshot.Status.IsBoundVolumeGroupSnapshotContentNameSet is not set
 	// 4) groupSnapshot.Status.IsVolumeSnapshotRefListSet is not set
-	if !utils.IsGroupSnapshotReady(groupSnapshot) || !utils.IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot) || !utils.IsPVCVolumeSnapshotRefListSet(groupSnapshot) {
+	if !utils.IsGroupSnapshotReady(groupSnapshot) || !utils.IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot) {
 		return ctrl.syncUnreadyGroupSnapshot(ctx, groupSnapshot)
 	}
 	return ctrl.syncReadyGroupSnapshot(groupSnapshot)
@@ -1437,11 +1437,17 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 		return nil
 	}
 
+	snapshotMembers, err := ctrl.snapshotLister.List(labels.SelectorFromSet(
+		labels.Set{
+			utils.VolumeGroupSnapshotNameLabel: groupSnapshot.Name,
+		},
+	))
+
 	// check if an individual snapshot belonging to the group snapshot is being
 	// used for restore a PVC
 	// If yes, do nothing and wait until PVC restoration finishes
-	for _, snapshotRef := range groupSnapshot.Status.PVCVolumeSnapshotRefList {
-		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(groupSnapshot.Namespace).Get(snapshotRef.VolumeSnapshotRef.Name)
+	for _, snapshot := range snapshotMembers {
+		snapshot, err := ctrl.snapshotLister.VolumeSnapshots(groupSnapshot.Namespace).Get(snapshot.Name)
 		if err != nil {
 			if apierrs.IsNotFound(err) {
 				continue
@@ -1488,10 +1494,16 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: Delete individual snapshots that are part of the group snapshot", utils.GroupSnapshotKey(groupSnapshot))
 
 	// Delete the individual snapshots part of the group snapshot
-	for _, snapshot := range groupSnapshot.Status.PVCVolumeSnapshotRefList {
-		err := ctrl.clientset.SnapshotV1().VolumeSnapshots(groupSnapshot.Namespace).Delete(context.TODO(), snapshot.VolumeSnapshotRef.Name, metav1.DeleteOptions{})
+	for _, snapshot := range snapshotMembers {
+		err := ctrl.clientset.SnapshotV1().
+			VolumeSnapshots(groupSnapshot.Namespace).
+			Delete(context.TODO(), snapshot.Name, metav1.DeleteOptions{})
 		if err != nil && !apierrs.IsNotFound(err) {
-			msg := fmt.Sprintf("failed to delete snapshot API object %s/%s part of group snapshot %s: %v", groupSnapshot.Namespace, snapshot.VolumeSnapshotRef.Name, utils.GroupSnapshotKey(groupSnapshot), err)
+			msg := fmt.Sprintf(
+				"failed to delete snapshot API object %s/%s part of group snapshot %s: %v",
+				groupSnapshot.Namespace,
+				snapshot.Name,
+				utils.GroupSnapshotKey(groupSnapshot), err)
 			klog.Error(msg)
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeleteError", msg)
 			return fmt.Errorf(msg)

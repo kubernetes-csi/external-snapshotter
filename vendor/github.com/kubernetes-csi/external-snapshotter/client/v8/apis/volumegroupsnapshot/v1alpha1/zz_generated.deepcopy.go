@@ -440,11 +440,6 @@ func (in *VolumeGroupSnapshotStatus) DeepCopyInto(out *VolumeGroupSnapshotStatus
 		*out = new(v1.VolumeSnapshotError)
 		(*in).DeepCopyInto(*out)
 	}
-	if in.PVCVolumeSnapshotRefList != nil {
-		in, out := &in.PVCVolumeSnapshotRefList, &out.PVCVolumeSnapshotRefList
-		*out = make([]PVCVolumeSnapshotPair, len(*in))
-		copy(*out, *in)
-	}
 	return
 }
 

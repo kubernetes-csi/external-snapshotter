@@ -108,12 +108,6 @@ type VolumeGroupSnapshotStatus struct {
 	// group snapshot creation. Upon success, this error field will be cleared.
 	// +optional
 	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
-
-	// VolumeSnapshotRefList is the list of PVC and VolumeSnapshot pairs that
-	// is part of this group snapshot.
-	// The maximum number of allowed snapshots in the group is 100.
-	// +optional
-	PVCVolumeSnapshotRefList []PVCVolumeSnapshotPair `json:"pvcVolumeSnapshotRefList,omitempty" protobuf:"bytes,5,opt,name=pvcVolumeSnapshotRefList"`
 }
 
 // PVCVolumeSnapshotPair defines a pair of a PVC reference and a Volume Snapshot Reference
