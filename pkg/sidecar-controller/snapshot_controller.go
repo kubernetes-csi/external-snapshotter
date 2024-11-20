@@ -234,13 +234,15 @@ func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.Vol
 			return nil, nil, err
 		}
 	} else {
-		// If dynamic provisioning, return failure if no snapshot class
-		if content.Spec.Source.VolumeHandle != nil {
+		// If dynamic provisioning for an independent snapshot, return failure if no snapshot class
+		_, groupSnapshotMember := content.Labels[utils.VolumeGroupSnapshotHandleLabel]
+		if content.Spec.Source.VolumeHandle != nil && !groupSnapshotMember {
 			klog.Errorf("failed to getCSISnapshotInput %s without a snapshot class", content.Name)
 			return nil, nil, fmt.Errorf("failed to take snapshot %s without a snapshot class", content.Name)
 		}
-		// For pre-provisioned snapshot, snapshot class is not required
-		klog.V(5).Infof("getCSISnapshotInput for content [%s]: no VolumeSnapshotClassName provided for pre-provisioned snapshot", content.Name)
+		// For pre-provisioned snapshot or an individual snapshot in a dynamically provisioned
+		// volume group snapshot, snapshot class is not required
+		klog.V(5).Infof("getCSISnapshotInput for content [%s]: no VolumeSnapshotClassName provided for pre-provisioned snapshot or an individual snapshot in a dynamically provisioned volume group snapshot", content.Name)
 	}
 
 	// Resolve snapshotting secret credentials.
