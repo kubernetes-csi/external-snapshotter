@@ -157,12 +157,6 @@ const (
 	// to create snapshot if the snapshot belongs to a group.
 	VolumeGroupSnapshotHandleLabel = "groupsnapshot.storage.k8s.io/volumeGroupSnapshotHandle"
 
-	// VolumeSnapshotContentInvalidLabel is applied to invalid content as a label key. The value does not matter.
-	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
-	VolumeSnapshotContentInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-content-resource"
-	// VolumeSnapshotInvalidLabel is applied to invalid snapshot as a label key. The value does not matter.
-	// See https://github.com/kubernetes/enhancements/blob/master/keps/sig-storage/177-volume-snapshot/tighten-validation-webhook-crd.md#automatic-labelling-of-invalid-objects
-	VolumeSnapshotInvalidLabel = "snapshot.storage.kubernetes.io/invalid-snapshot-resource"
 	// VolumeSnapshotContentManagedByLabel is applied by the snapshot controller to the VolumeSnapshotContent object in case distributed snapshotting is enabled.
 	// The value contains the name of the node that handles the snapshot for the volume local to that node.
 	VolumeSnapshotContentManagedByLabel = "snapshot.storage.kubernetes.io/managed-by"

@@ -1346,16 +1346,6 @@ func newGroupSnapshotContentArray(groupSnapshotContentName, boundToGroupSnapshot
 	}
 }
 
-func withSnapshotContentInvalidLabel(contents []*crdv1.VolumeSnapshotContent) []*crdv1.VolumeSnapshotContent {
-	for i := range contents {
-		if contents[i].ObjectMeta.Labels == nil {
-			contents[i].ObjectMeta.Labels = make(map[string]string)
-		}
-		contents[i].ObjectMeta.Labels[utils.VolumeSnapshotContentInvalidLabel] = ""
-	}
-	return contents
-}
-
 func withContentAnnotations(contents []*crdv1.VolumeSnapshotContent, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
 	for i := range contents {
 		if contents[i].ObjectMeta.Annotations == nil {
@@ -1556,40 +1546,6 @@ func newSnapshotArray(
 	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) []*crdv1.VolumeSnapshot {
 	return []*crdv1.VolumeSnapshot{
 		newSnapshot(groupSnapshotName, groupSnapshotUID, pvcName, targetContentName, groupSnapshotClassName, boundContentName, readyToUse, creationTime, restoreSize, err, nilStatus, withAllFinalizers, deletionTimestamp),
-	}
-}
-
-func withSnapshotInvalidLabel(snapshots []*crdv1.VolumeSnapshot) []*crdv1.VolumeSnapshot {
-	for i := range snapshots {
-		if snapshots[i].ObjectMeta.Labels == nil {
-			snapshots[i].ObjectMeta.Labels = make(map[string]string)
-		}
-		snapshots[i].ObjectMeta.Labels[utils.VolumeSnapshotInvalidLabel] = ""
-	}
-	return snapshots
-}
-
-func newSnapshotClass(snapshotClassName, snapshotClassUID, driverName string, isDefaultClass bool) *crdv1.VolumeSnapshotClass {
-	sc := &crdv1.VolumeSnapshotClass{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            snapshotClassName,
-			Namespace:       testNamespace,
-			UID:             types.UID(snapshotClassUID),
-			ResourceVersion: "1",
-			SelfLink:        "/apis/snapshot.storage.k8s.io/v1/namespaces/" + testNamespace + "/volumesnapshotclasses/" + snapshotClassName,
-		},
-		Driver: driverName,
-	}
-	if isDefaultClass {
-		sc.Annotations = make(map[string]string)
-		sc.Annotations[utils.IsDefaultSnapshotClassAnnotation] = "true"
-	}
-	return sc
-}
-
-func newSnapshotClassArray(snapshotClassName, snapshotClassUID, driverName string, isDefaultClass bool) []*crdv1.VolumeSnapshotClass {
-	return []*crdv1.VolumeSnapshotClass{
-		newSnapshotClass(snapshotClassName, snapshotClassUID, driverName, isDefaultClass),
 	}
 }
 
