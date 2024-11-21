@@ -303,7 +303,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, 
 	if groupSnapshot.ObjectMeta.DeletionTimestamp != nil {
 		return ctrl.processGroupSnapshotWithDeletionTimestamp(groupSnapshot)
 	}
-	// Keep this check in the controller since the validation webhook may not have been deployed.
+
 	klog.V(5).Infof("syncGroupSnapshot[%s]: validate group snapshot to make sure source has been correctly specified", utils.GroupSnapshotKey(groupSnapshot))
 	if (groupSnapshot.Spec.Source.Selector == nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil) ||
 		(groupSnapshot.Spec.Source.Selector != nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil) {
@@ -1159,7 +1159,6 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotC
 
 	klog.V(5).Infof("syncGroupSnapshotContent[%s]: check if we should add invalid label on group snapshot content", groupSnapshotContent.Name)
 
-	// Keep this check in the controller since the validation webhook may not have been deployed.
 	if (groupSnapshotContent.Spec.Source.GroupSnapshotHandles == nil && len(groupSnapshotContent.Spec.Source.VolumeHandles) == 0) ||
 		(groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil && len(groupSnapshotContent.Spec.Source.VolumeHandles) > 0) {
 		err := fmt.Errorf("Exactly one of GroupSnapshotHandles and VolumeHandles should be specified")
