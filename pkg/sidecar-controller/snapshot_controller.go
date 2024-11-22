@@ -263,9 +263,9 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 	var groupSnapshotID string
 	var snapshotterListCredentials map[string]string
 
-	volumeGroupSnapshotMember := content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil
+	volumeGroupSnapshotMemberWithGroupSnapshotHandle := content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil
 
-	if content.Spec.Source.SnapshotHandle != nil || (volumeGroupSnapshotMember && content.Status.SnapshotHandle != nil) {
+	if content.Spec.Source.SnapshotHandle != nil || (volumeGroupSnapshotMemberWithGroupSnapshotHandle && content.Status.SnapshotHandle != nil) {
 		klog.V(5).Infof("checkandUpdateContentStatusOperation: call GetSnapshotStatus for snapshot content [%s]", content.Name)
 
 		if content.Spec.VolumeSnapshotClassName != nil {
@@ -315,7 +315,13 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		}
 		return updatedContent, nil
 	}
-	return ctrl.createSnapshotWrapper(content)
+
+	_, groupSnapshotMember := content.Labels[utils.VolumeGroupSnapshotHandleLabel]
+	if !groupSnapshotMember {
+		return ctrl.createSnapshotWrapper(content)
+	}
+
+	return content, nil
 }
 
 // This is a wrapper function for the snapshot creation process.
