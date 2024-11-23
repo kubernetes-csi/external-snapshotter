@@ -110,15 +110,6 @@ type VolumeGroupSnapshotStatus struct {
 	Error *snapshotv1.VolumeSnapshotError `json:"error,omitempty" protobuf:"bytes,4,opt,name=error,casttype=VolumeSnapshotError"`
 }
 
-// PVCVolumeSnapshotPair defines a pair of a PVC reference and a Volume Snapshot Reference
-type PVCVolumeSnapshotPair struct {
-	// PersistentVolumeClaimRef is a reference to the PVC this pair is referring to
-	PersistentVolumeClaimRef core_v1.LocalObjectReference `json:"persistentVolumeClaimRef,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeClaimRef"`
-
-	// VolumeSnapshotRef is a reference to the VolumeSnapshot this pair is referring to
-	VolumeSnapshotRef core_v1.LocalObjectReference `json:"volumeSnapshotRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotRef"`
-}
-
 //+genclient
 //+k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -352,16 +343,6 @@ type VolumeGroupSnapshotContentStatus struct {
 	// on the storage system.
 	// +optional
 	VolumeSnapshotHandlePairList []VolumeSnapshotHandlePair `json:"volumeSnapshotHandlePairList,omitempty" protobuf:"bytes,6,opt,name=volumeSnapshotHandlePairList"`
-}
-
-// PVVolumeSnapshotContentPair represent a pair of PV names and
-// VolumeSnapshotContent names
-type PVVolumeSnapshotContentPair struct {
-	// PersistentVolumeRef is a reference to the persistent volume resource
-	PersistentVolumeRef core_v1.LocalObjectReference `json:"persistentVolumeRef,omitempty" protobuf:"bytes,1,opt,name=persistentVolumeRef"`
-
-	// VolumeSnapshotContentRef is a reference to the volume snapshot content resource
-	VolumeSnapshotContentRef core_v1.LocalObjectReference `json:"volumeSnapshotContentRef,omitempty" protobuf:"bytes,2,opt,name=volumeSnapshotContentRef"`
 }
 
 // VolumeGroupSnapshotContentSource represents the CSI source of a group snapshot.
