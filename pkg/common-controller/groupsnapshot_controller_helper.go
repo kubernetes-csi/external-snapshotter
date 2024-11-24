@@ -262,7 +262,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(ctx context.Context
 
 // deleteGroupSnapshot runs in worker thread and handles "groupsnapshot deleted" event.
 func (ctrl *csiSnapshotCommonController) deleteGroupSnapshot(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) {
-	_ = ctrl.snapshotStore.Delete(groupSnapshot)
+	_ = ctrl.groupSnapshotStore.Delete(groupSnapshot)
 	klog.V(4).Infof("group snapshot %q deleted", utils.GroupSnapshotKey(groupSnapshot))
 
 	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
