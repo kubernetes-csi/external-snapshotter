@@ -1441,6 +1441,13 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 			utils.VolumeGroupSnapshotNameLabel: groupSnapshot.Name,
 		},
 	))
+	if err != nil {
+		klog.Errorf(
+			"processGroupSnapshotWithDeletionTimestamp[%s]: Failed to look for snapshot members: %v",
+			utils.GroupSnapshotKey(groupSnapshot),
+			err.Error())
+		return err
+	}
 
 	// check if an individual snapshot belonging to the group snapshot is being
 	// used for restore a PVC
