@@ -86,7 +86,7 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 
 	// Create snapshot calling the CSI driver only if it is a dynamic
 	// provisioning for an independent snapshot.
-	_, groupSnapshotMember := content.Labels[utils.VolumeGroupSnapshotHandleLabel]
+	_, groupSnapshotMember := content.Annotations[utils.VolumeGroupSnapshotHandleAnnotation]
 	if content.Spec.Source.VolumeHandle != nil && content.Status == nil && !groupSnapshotMember {
 		klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
 		return ctrl.createSnapshot(content)
@@ -235,7 +235,7 @@ func (ctrl *csiSnapshotSideCarController) getCSISnapshotInput(content *crdv1.Vol
 		}
 	} else {
 		// If dynamic provisioning for an independent snapshot, return failure if no snapshot class
-		_, groupSnapshotMember := content.Labels[utils.VolumeGroupSnapshotHandleLabel]
+		_, groupSnapshotMember := content.Annotations[utils.VolumeGroupSnapshotHandleAnnotation]
 		if content.Spec.Source.VolumeHandle != nil && !groupSnapshotMember {
 			klog.Errorf("failed to getCSISnapshotInput %s without a snapshot class", content.Name)
 			return nil, nil, fmt.Errorf("failed to take snapshot %s without a snapshot class", content.Name)
@@ -316,7 +316,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 		return updatedContent, nil
 	}
 
-	_, groupSnapshotMember := content.Labels[utils.VolumeGroupSnapshotHandleLabel]
+	_, groupSnapshotMember := content.Annotations[utils.VolumeGroupSnapshotHandleAnnotation]
 	if !groupSnapshotMember {
 		return ctrl.createSnapshotWrapper(content)
 	}

@@ -563,8 +563,8 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		volumeSnapshotContent := &crdv1.VolumeSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: volumeSnapshotContentName,
-				Labels: map[string]string{
-					utils.VolumeGroupSnapshotHandleLabel: *groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
+				Annotations: map[string]string{
+					utils.VolumeGroupSnapshotHandleAnnotation: *groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
 				},
 			},
 			Spec: crdv1.VolumeSnapshotContentSpec{
