@@ -301,11 +301,13 @@ spec:
                       description: |-
                         SnapshotHandle is a unique id returned by the CSI driver to identify a volume
                         snapshot on the storage system
+                        Required.
                       type: string
                     volumeHandle:
                       description: |-
                         VolumeHandle is a unique id returned by the CSI driver to identify a volume
                         on the storage system
+                        Required.
                       type: string
                   required:
                   - snapshotHandle

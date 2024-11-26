@@ -391,9 +391,11 @@ type GroupSnapshotHandles struct {
 type VolumeSnapshotHandlePair struct {
 	// VolumeHandle is a unique id returned by the CSI driver to identify a volume
 	// on the storage system
+	// Required.
 	VolumeHandle string `json:"volumeHandle" protobuf:"bytes,1,opt,name=volumeHandle"`
 
 	// SnapshotHandle is a unique id returned by the CSI driver to identify a volume
 	// snapshot on the storage system
+	// Required.
 	SnapshotHandle string `json:"snapshotHandle" protobuf:"bytes,2,opt,name=snapshotHandle"`
 }
