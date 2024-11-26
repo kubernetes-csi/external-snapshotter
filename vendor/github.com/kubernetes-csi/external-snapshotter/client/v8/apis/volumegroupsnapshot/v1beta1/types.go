@@ -90,6 +90,7 @@ type VolumeGroupSnapshotStatus struct {
 	// The format of this field is a Unix nanoseconds time encoded as an int64.
 	// On Unix, the command date +%s%N returns the current time in nanoseconds
 	// since 1970-01-01 00:00:00 UTC.
+	// This field is updated based on the CreationTime field in VolumeGroupSnapshotContentStatus
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
 
@@ -324,6 +325,7 @@ type VolumeGroupSnapshotContentStatus struct {
 	// The format of this field is a Unix nanoseconds time encoded as an int64.
 	// On Unix, the command date +%s%N returns the current time in nanoseconds
 	// since 1970-01-01 00:00:00 UTC.
+	// This field is the source for the CreationTime field in VolumeGroupSnapshotStatus
 	// +optional
 	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,2,opt,name=creationTime"`
 

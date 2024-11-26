@@ -255,6 +255,7 @@ spec:
                   The format of this field is a Unix nanoseconds time encoded as an int64.
                   On Unix, the command date +%s%N returns the current time in nanoseconds
                   since 1970-01-01 00:00:00 UTC.
+                  This field is the source for the CreationTime field in VolumeGroupSnapshotStatus
                 format: int64
                 type: integer
               error:
