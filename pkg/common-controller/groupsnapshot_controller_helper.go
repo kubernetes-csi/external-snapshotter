@@ -1315,9 +1315,8 @@ func (ctrl *csiSnapshotCommonController) checkandAddGroupSnapshotFinalizers(grou
 	// A bound finalizer is needed ONLY when all following conditions are satisfied:
 	// 1. the VolumeGroupSnapshot is bound to a VolumeGroupSnapshotContent
 	// 2. the VolumeGroupSnapshot does not have deletion timestamp set
-	// 3. the matching VolumeGroupSnapshotContent has a deletion policy to be Delete
 	// Note that if a matching VolumeGroupSnapshotContent is found, it must point back to the VolumeGroupSnapshot
-	if groupSnapshotContent != nil && utils.NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot) && (groupSnapshotContent.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete) {
+	if groupSnapshotContent != nil && utils.NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot) {
 		// Snapshot is not being deleted -> it should have the finalizer.
 		klog.V(5).Infof("checkandAddGroupSnapshotFinalizers: Add Finalizer for VolumeGroupSnapshot[%s]", utils.GroupSnapshotKey(groupSnapshot))
 		return ctrl.addGroupSnapshotFinalizer(groupSnapshot, true)
