@@ -1728,7 +1728,7 @@ func newVolumeError(message string) *crdv1.VolumeSnapshotError {
 }
 
 func testSyncSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	return ctrl.syncSnapshot(test.initialSnapshots[0])
+	return ctrl.syncSnapshot(context.TODO(), test.initialSnapshots[0])
 }
 
 func testSyncGroupSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
@@ -1736,7 +1736,7 @@ func testSyncGroupSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotR
 }
 
 func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
-	err := ctrl.syncSnapshot(test.initialSnapshots[0])
+	err := ctrl.syncSnapshot(context.TODO(), test.initialSnapshots[0])
 	if err != nil {
 		return nil
 	}

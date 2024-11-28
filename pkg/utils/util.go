@@ -146,10 +146,6 @@ const (
 	AnnDeletionGroupSecretRefName      = "groupsnapshot.storage.kubernetes.io/deletion-secret-name"
 	AnnDeletionGroupSecretRefNamespace = "groupsnapshot.storage.kubernetes.io/deletion-secret-namespace"
 
-	// VolumeGroupSnapshotNameLabel is applied to VolumeSnapshots that are member
-	// of a VolumeGroupSnapshot, and indicates the name of the latter.
-	VolumeGroupSnapshotNameLabel = "groupsnapshot.storage.k8s.io/volumeGroupSnapshotName"
-
 	// VolumeGroupSnapshotHandleAnnotation is applied to VolumeSnapshotContents that are member
 	// of a VolumeGroupSnapshotContent, and indicates the handle of the latter.
 	//

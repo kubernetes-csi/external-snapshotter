@@ -27,6 +27,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ref "k8s.io/client-go/tools/reference"
 	klog "k8s.io/klog/v2"
@@ -301,7 +302,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, 
 
 	// Proceed with group snapshot deletion and remove finalizers when needed
 	if groupSnapshot.ObjectMeta.DeletionTimestamp != nil {
-		return ctrl.processGroupSnapshotWithDeletionTimestamp(groupSnapshot)
+		return ctrl.processGroupSnapshotWithDeletionTimestamp(ctx, groupSnapshot)
 	}
 
 	klog.V(5).Infof("syncGroupSnapshot[%s]: validate group snapshot to make sure source has been correctly specified", utils.GroupSnapshotKey(groupSnapshot))
@@ -599,8 +600,8 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      volumeSnapshotName,
 				Namespace: volumeSnapshotNamespace,
-				Labels: map[string]string{
-					utils.VolumeGroupSnapshotNameLabel: groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name,
+				OwnerReferences: []metav1.OwnerReference{
+					utils.BuildVolumeGroupSnapshotOwnerReference(groupSnapshot),
 				},
 				Finalizers: []string{utils.VolumeSnapshotInGroupFinalizer},
 			},
@@ -1376,7 +1377,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 // with information obtained from step 1. This function name is very long but the
 // name suggests what it does. It determines whether to remove finalizers on group
 // snapshot and whether to delete group snapshot content.
-func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimestamp(groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimestamp(ctx context.Context, groupSnapshot *crdv1alpha1.VolumeGroupSnapshot) error {
 	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp VolumeGroupSnapshot[%s]: %s", utils.GroupSnapshotKey(groupSnapshot), utils.GetGroupSnapshotStatusForLogging(groupSnapshot))
 
 	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
@@ -1435,11 +1436,13 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 		return nil
 	}
 
-	snapshotMembers, err := ctrl.snapshotLister.List(labels.SelectorFromSet(
-		labels.Set{
-			utils.VolumeGroupSnapshotNameLabel: groupSnapshot.Name,
+	// Look up for members of this volume group snapshot
+	snapshotMembers, err := ctrl.findGroupSnapshotMembers(
+		types.NamespacedName{
+			Name:      groupSnapshot.Name,
+			Namespace: groupSnapshot.Namespace,
 		},
-	))
+	)
 	if err != nil {
 		klog.Errorf(
 			"processGroupSnapshotWithDeletionTimestamp[%s]: Failed to look for snapshot members: %v",
@@ -1489,7 +1492,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	// VolumeGroupSnapshotContent won't be deleted immediately due to the VolumeGroupSnapshotContentFinalizer
 	if groupSnapshotContent != nil && deleteGroupSnapshotContent {
 		klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: set DeletionTimeStamp on group snapshot content [%s].", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
-		err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Delete(context.TODO(), groupSnapshotContent.Name, metav1.DeleteOptions{})
+		err := ctrl.clientset.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().Delete(ctx, groupSnapshotContent.Name, metav1.DeleteOptions{})
 		if err != nil {
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "GroupSnapshotContentObjectDeleteError", "Failed to delete group snapshot content API object")
 			return fmt.Errorf("failed to delete VolumeGroupSnapshotContent %s from API server: %q", groupSnapshotContent.Name, err)
@@ -1559,6 +1562,32 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeGroupSnapshotBeingDeleted(g
 		klog.V(5).Infof("setAnnVolumeGroupSnapshotBeingDeleted: volume group snapshot content %+v", groupSnapshotContent)
 	}
 	return groupSnapshotContent, nil
+}
+
+// findGroupSnapshotMembers get the list of members of a group snapshot
+// using the local cache and indexer
+func (ctrl *csiSnapshotCommonController) findGroupSnapshotMembers(groupSnapshotName types.NamespacedName) ([]*crdv1.VolumeSnapshot, error) {
+	// Look up for the members of this volume group snapshot
+	snapshotMembers, err := ctrl.snapshotIndexer.ByIndex(
+		utils.VolumeSnapshotParentGroupIndex,
+		utils.VolumeSnapshotParentGroupKeyFuncByComponents(
+			groupSnapshotName,
+		),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]*crdv1.VolumeSnapshot, len(snapshotMembers))
+	for i := range snapshotMembers {
+		var ok bool
+		result[i], ok = snapshotMembers[i].(*crdv1.VolumeSnapshot)
+		if !ok {
+			return nil, fmt.Errorf("unexpected content found in snapshot index: %v", snapshotMembers[i])
+		}
+	}
+
+	return result, nil
 }
 
 // removeGroupSnapshotFinalizer removes a Finalizer for VolumeGroupSnapshot.
