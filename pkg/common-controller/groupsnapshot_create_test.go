@@ -19,14 +19,14 @@ package common_controller
 import (
 	"testing"
 
-	crdv1alpha1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1alpha1"
+	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var groupSnapshotClasses = []*crdv1alpha1.VolumeGroupSnapshotClass{
+var groupSnapshotClasses = []*crdv1beta1.VolumeGroupSnapshotClass{
 	{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "VolumeGroupSnapshotClass",

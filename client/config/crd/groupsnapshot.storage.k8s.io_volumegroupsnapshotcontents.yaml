@@ -53,7 +53,7 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
-    name: v1alpha1
+    name: v1beta1
     schema:
       openAPIV3Schema:
         description: |-
@@ -255,6 +255,7 @@ spec:
                   The format of this field is a Unix nanoseconds time encoded as an int64.
                   On Unix, the command date +%s%N returns the current time in nanoseconds
                   since 1970-01-01 00:00:00 UTC.
+                  This field is the source for the CreationTime field in VolumeGroupSnapshotStatus
                 format: int64
                 type: integer
               error:
@@ -300,11 +301,13 @@ spec:
                       description: |-
                         SnapshotHandle is a unique id returned by the CSI driver to identify a volume
                         snapshot on the storage system
+                        Required.
                       type: string
                     volumeHandle:
                       description: |-
                         VolumeHandle is a unique id returned by the CSI driver to identify a volume
                         on the storage system
+                        Required.
                       type: string
                   required:
                   - snapshotHandle

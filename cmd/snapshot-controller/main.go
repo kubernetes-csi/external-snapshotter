@@ -110,20 +110,20 @@ func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVol
 			return false, nil
 		}
 		if enableVolumeGroupSnapshots {
-			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshots("").List(ctx, listOptions)
+			_, err = client.GroupsnapshotV1beta1().VolumeGroupSnapshots("").List(ctx, listOptions)
 			if err != nil {
-				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshots with error=%+v", err)
+				klog.Errorf("Failed to list v1beta1 volumegroupsnapshots with error=%+v", err)
 				return false, nil
 			}
 
-			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotClasses().List(ctx, listOptions)
+			_, err = client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().List(ctx, listOptions)
 			if err != nil {
-				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshotclasses with error=%+v", err)
+				klog.Errorf("Failed to list v1beta1 volumegroupsnapshotclasses with error=%+v", err)
 				return false, nil
 			}
-			_, err = client.GroupsnapshotV1alpha1().VolumeGroupSnapshotContents().List(ctx, listOptions)
+			_, err = client.GroupsnapshotV1beta1().VolumeGroupSnapshotContents().List(ctx, listOptions)
 			if err != nil {
-				klog.Errorf("Failed to list v1alpha1 volumegroupsnapshotcontents with error=%+v", err)
+				klog.Errorf("Failed to list v1beta1 volumegroupsnapshotcontents with error=%+v", err)
 				return false, nil
 			}
 		}
@@ -225,9 +225,9 @@ func main() {
 		factory.Snapshot().V1().VolumeSnapshots(),
 		factory.Snapshot().V1().VolumeSnapshotContents(),
 		factory.Snapshot().V1().VolumeSnapshotClasses(),
-		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshots(),
-		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents(),
-		factory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses(),
+		factory.Groupsnapshot().V1beta1().VolumeGroupSnapshots(),
+		factory.Groupsnapshot().V1beta1().VolumeGroupSnapshotContents(),
+		factory.Groupsnapshot().V1beta1().VolumeGroupSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		coreFactory.Core().V1().PersistentVolumes(),
 		nodeInformer,

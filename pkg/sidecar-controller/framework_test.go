@@ -577,8 +577,8 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		true,
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 		false,
-		informerFactory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotContents(),
-		informerFactory.Groupsnapshot().V1alpha1().VolumeGroupSnapshotClasses(),
+		informerFactory.Groupsnapshot().V1beta1().VolumeGroupSnapshotContents(),
+		informerFactory.Groupsnapshot().V1beta1().VolumeGroupSnapshotClasses(),
 		workqueue.NewItemExponentialFailureRateLimiter(1*time.Millisecond, 1*time.Minute),
 	)
 
