@@ -246,10 +246,18 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 		return fmt.Errorf("failed to get input parameters to delete group snapshot for group snapshot content %s: %q", groupSnapshotContent.Name, err)
 	}
 
+	// Collect the snapshot ids considering both dynamic and static provisioning.
+	// For dynamic provisioning, they can be found in groupContent.Status.VolumeSnapshotHandlePairList
+	// For static provisioning, they can be found in groupContent.Spec.Source.GroupSnapshotHandles.VolumeSnapshotHandles
 	var snapshotIDs []string
-	if groupSnapshotContent.Status != nil && len(groupSnapshotContent.Status.VolumeSnapshotHandlePairList) != 0 {
-		for _, contentRef := range groupSnapshotContent.Status.VolumeSnapshotHandlePairList {
-			snapshotIDs = append(snapshotIDs, contentRef.SnapshotHandle)
+	if groupSnapshotContent.Status != nil {
+		if len(groupSnapshotContent.Status.VolumeSnapshotHandlePairList) != 0 {
+			for _, contentRef := range groupSnapshotContent.Status.VolumeSnapshotHandlePairList {
+				snapshotIDs = append(snapshotIDs, contentRef.SnapshotHandle)
+			}
+		} else if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
+			ids := groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeSnapshotHandles
+			snapshotIDs = slices.Clone(ids)
 		}
 	}
 

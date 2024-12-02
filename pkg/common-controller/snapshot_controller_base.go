@@ -87,7 +87,8 @@ type csiSnapshotCommonController struct {
 	preventVolumeModeConversion   bool
 	enableVolumeGroupSnapshots    bool
 
-	pvIndexer cache.Indexer
+	pvIndexer       cache.Indexer
+	snapshotIndexer cache.Indexer
 }
 
 // NewCSISnapshotController returns a new *csiSnapshotCommonController
@@ -158,8 +159,20 @@ func NewCSISnapshotCommonController(
 		},
 		ctrl.resyncPeriod,
 	)
+	volumeSnapshotInformer.Informer().AddIndexers(map[string]cache.IndexFunc{
+		utils.VolumeSnapshotParentGroupIndex: func(obj interface{}) ([]string, error) {
+			if snapshot, ok := obj.(*crdv1.VolumeSnapshot); ok {
+				if key := utils.VolumeSnapshotParentGroupKeyFunc(snapshot); key != "" {
+					return []string{key}, nil
+				}
+			}
+
+			return nil, nil
+		},
+	})
 	ctrl.snapshotLister = volumeSnapshotInformer.Lister()
 	ctrl.snapshotListerSynced = volumeSnapshotInformer.Informer().HasSynced
+	ctrl.snapshotIndexer = volumeSnapshotInformer.Informer().GetIndexer()
 
 	volumeSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
@@ -323,6 +336,7 @@ func (ctrl *csiSnapshotCommonController) snapshotWorker() {
 
 // syncSnapshotByKey processes a VolumeSnapshot request.
 func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
+	ctx := context.Background()
 	klog.V(5).Infof("syncSnapshotByKey[%s]", key)
 
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
@@ -344,7 +358,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
 				klog.V(5).Infof("Snapshot %q is being deleted. SnapshotClass has already been removed", key)
 			}
 			klog.V(5).Infof("Updating snapshot %q", key)
-			return ctrl.updateSnapshot(newSnapshot)
+			return ctrl.updateSnapshot(ctx, newSnapshot)
 		}
 		return err
 	}
@@ -476,7 +490,7 @@ func (ctrl *csiSnapshotCommonController) checkAndUpdateSnapshotClass(snapshot *c
 
 // updateSnapshot runs in worker thread and handles "snapshot added",
 // "snapshot updated" and "periodic sync" events.
-func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSnapshot) error {
+func (ctrl *csiSnapshotCommonController) updateSnapshot(ctx context.Context, snapshot *crdv1.VolumeSnapshot) error {
 	// Store the new snapshot version in the cache and do not process it if this is
 	// an old version.
 	klog.V(5).Infof("updateSnapshot %q", utils.SnapshotKey(snapshot))
@@ -488,7 +502,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshot(snapshot *crdv1.VolumeSn
 		return nil
 	}
 
-	err = ctrl.syncSnapshot(snapshot)
+	err = ctrl.syncSnapshot(ctx, snapshot)
 	if err != nil {
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
