@@ -667,6 +667,15 @@ func newContentArrayWithReadyToUse(contentName, boundToSnapshotUID, boundToSnaps
 	}
 }
 
+func newContentWithVolumeGroupSnapshotHandle(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, volumeGroupSnapshotHandle, snapshotClassName, desiredSnapshotHandle,
+	volumeHandle string, deletionPolicy crdv1.DeletionPolicy, creationTime, size *int64, withFinalizer bool, deletionTime *metav1.Time) []*crdv1.VolumeSnapshotContent {
+	content := newContentArrayWithDeletionTimestamp(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle, deletionPolicy, creationTime, size, withFinalizer, deletionTime)
+	for _, c := range content {
+		c.Status.VolumeGroupSnapshotHandle = &volumeGroupSnapshotHandle
+	}
+	return content
+}
+
 func newContentArrayWithDeletionTimestamp(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
 	deletionPolicy crdv1.DeletionPolicy, size, creationTime *int64,
 	withFinalizer bool, deletionTime *metav1.Time) []*crdv1.VolumeSnapshotContent {
