@@ -50,10 +50,10 @@ type csiSnapshotCommonController struct {
 	clientset                 clientset.Interface
 	client                    kubernetes.Interface
 	eventRecorder             record.EventRecorder
-	snapshotQueue             workqueue.RateLimitingInterface
-	contentQueue              workqueue.RateLimitingInterface
-	groupSnapshotQueue        workqueue.RateLimitingInterface
-	groupSnapshotContentQueue workqueue.RateLimitingInterface
+	snapshotQueue             workqueue.TypedRateLimitingInterface[string]
+	contentQueue              workqueue.TypedRateLimitingInterface[string]
+	groupSnapshotQueue        workqueue.TypedRateLimitingInterface[string]
+	groupSnapshotContentQueue workqueue.TypedRateLimitingInterface[string]
 
 	snapshotLister                   snapshotlisters.VolumeSnapshotLister
 	snapshotListerSynced             cache.InformerSynced
@@ -106,10 +106,10 @@ func NewCSISnapshotCommonController(
 	nodeInformer coreinformers.NodeInformer,
 	metricsManager metrics.MetricsManager,
 	resyncPeriod time.Duration,
-	snapshotRateLimiter workqueue.RateLimiter,
-	contentRateLimiter workqueue.RateLimiter,
-	groupSnapshotRateLimiter workqueue.RateLimiter,
-	groupSnapshotContentRateLimiter workqueue.RateLimiter,
+	snapshotRateLimiter workqueue.TypedRateLimiter[string],
+	contentRateLimiter workqueue.TypedRateLimiter[string],
+	groupSnapshotRateLimiter workqueue.TypedRateLimiter[string],
+	groupSnapshotContentRateLimiter workqueue.TypedRateLimiter[string],
 	enableDistributedSnapshotting bool,
 	preventVolumeModeConversion bool,
 	enableVolumeGroupSnapshots bool,
@@ -121,14 +121,18 @@ func NewCSISnapshotCommonController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
 
 	ctrl := &csiSnapshotCommonController{
-		clientset:      clientset,
-		client:         client,
-		eventRecorder:  eventRecorder,
-		resyncPeriod:   resyncPeriod,
-		snapshotStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentStore:   cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		snapshotQueue:  workqueue.NewNamedRateLimitingQueue(snapshotRateLimiter, "snapshot-controller-snapshot"),
-		contentQueue:   workqueue.NewNamedRateLimitingQueue(contentRateLimiter, "snapshot-controller-content"),
+		clientset:     clientset,
+		client:        client,
+		eventRecorder: eventRecorder,
+		resyncPeriod:  resyncPeriod,
+		snapshotStore: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		contentStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		snapshotQueue: workqueue.NewTypedRateLimitingQueueWithConfig(snapshotRateLimiter,
+			workqueue.TypedRateLimitingQueueConfig[string]{
+				Name: "snapshot-controller-snapshot"}),
+		contentQueue: workqueue.NewTypedRateLimitingQueueWithConfig(contentRateLimiter,
+			workqueue.TypedRateLimitingQueueConfig[string]{
+				Name: "snapshot-controller-content"}),
 		metricsManager: metricsManager,
 	}
 
@@ -203,8 +207,12 @@ func NewCSISnapshotCommonController(
 		ctrl.groupSnapshotStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 		ctrl.groupSnapshotContentStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
 
-		ctrl.groupSnapshotQueue = workqueue.NewNamedRateLimitingQueue(groupSnapshotRateLimiter, "snapshot-controller-group-snapshot")
-		ctrl.groupSnapshotContentQueue = workqueue.NewNamedRateLimitingQueue(groupSnapshotContentRateLimiter, "snapshot-controller-group-content")
+		ctrl.groupSnapshotQueue = workqueue.NewTypedRateLimitingQueueWithConfig(
+			groupSnapshotRateLimiter, workqueue.TypedRateLimitingQueueConfig[string]{
+				Name: "snapshot-controller-group-snapshot"})
+		ctrl.groupSnapshotContentQueue = workqueue.NewTypedRateLimitingQueueWithConfig(
+			groupSnapshotContentRateLimiter, workqueue.TypedRateLimitingQueueConfig[string]{
+				Name: "snapshot-controller-group-content"})
 
 		volumeGroupSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
@@ -316,21 +324,21 @@ func (ctrl *csiSnapshotCommonController) enqueueContentWork(obj interface{}) {
 
 // snapshotWorker is the main worker for VolumeSnapshots.
 func (ctrl *csiSnapshotCommonController) snapshotWorker() {
-	keyObj, quit := ctrl.snapshotQueue.Get()
+	key, quit := ctrl.snapshotQueue.Get()
 	if quit {
 		return
 	}
-	defer ctrl.snapshotQueue.Done(keyObj)
+	defer ctrl.snapshotQueue.Done(key)
 
-	if err := ctrl.syncSnapshotByKey(keyObj.(string)); err != nil {
+	if err := ctrl.syncSnapshotByKey(key); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
-		ctrl.snapshotQueue.AddRateLimited(keyObj)
-		klog.V(4).Infof("Failed to sync snapshot %q, will retry again: %v", keyObj.(string), err)
+		ctrl.snapshotQueue.AddRateLimited(key)
+		klog.V(4).Infof("Failed to sync snapshot %q, will retry again: %v", key, err)
 	} else {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
-		ctrl.snapshotQueue.Forget(keyObj)
+		ctrl.snapshotQueue.Forget(key)
 	}
 }
 
@@ -392,21 +400,21 @@ func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
 
 // contentWorker is the main worker for VolumeSnapshotContent.
 func (ctrl *csiSnapshotCommonController) contentWorker() {
-	keyObj, quit := ctrl.contentQueue.Get()
+	key, quit := ctrl.contentQueue.Get()
 	if quit {
 		return
 	}
-	defer ctrl.contentQueue.Done(keyObj)
+	defer ctrl.contentQueue.Done(key)
 
-	if err := ctrl.syncContentByKey(keyObj.(string)); err != nil {
+	if err := ctrl.syncContentByKey(key); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
-		ctrl.contentQueue.AddRateLimited(keyObj)
-		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", keyObj.(string), err)
+		ctrl.contentQueue.AddRateLimited(key)
+		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", key, err)
 	} else {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
-		ctrl.contentQueue.Forget(keyObj)
+		ctrl.contentQueue.Forget(key)
 	}
 }
 
@@ -680,41 +688,41 @@ func (ctrl *csiSnapshotCommonController) enqueueGroupSnapshotContentWork(obj int
 
 // groupSnapshotWorker is the main worker for VolumeGroupSnapshots.
 func (ctrl *csiSnapshotCommonController) groupSnapshotWorker() {
-	keyObj, quit := ctrl.groupSnapshotQueue.Get()
+	key, quit := ctrl.groupSnapshotQueue.Get()
 	if quit {
 		return
 	}
-	defer ctrl.groupSnapshotQueue.Done(keyObj)
+	defer ctrl.groupSnapshotQueue.Done(key)
 
-	if err := ctrl.syncGroupSnapshotByKey(context.Background(), keyObj.(string)); err != nil {
+	if err := ctrl.syncGroupSnapshotByKey(context.Background(), key); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
-		ctrl.groupSnapshotQueue.AddRateLimited(keyObj)
-		klog.V(4).Infof("Failed to sync group snapshot %q, will retry again: %v", keyObj.(string), err)
+		ctrl.groupSnapshotQueue.AddRateLimited(key)
+		klog.V(4).Infof("Failed to sync group snapshot %q, will retry again: %v", key, err)
 	} else {
 		// Finally, if no error occurs we forget this item so it does not
 		// get queued again until another change happens.
-		ctrl.groupSnapshotQueue.Forget(keyObj)
+		ctrl.groupSnapshotQueue.Forget(key)
 	}
 }
 
 // groupSnapshotContentWorker is the main worker for VolumeGroupSnapshotContent.
 func (ctrl *csiSnapshotCommonController) groupSnapshotContentWorker() {
-	keyObj, quit := ctrl.groupSnapshotContentQueue.Get()
+	key, quit := ctrl.groupSnapshotContentQueue.Get()
 	if quit {
 		return
 	}
-	defer ctrl.groupSnapshotContentQueue.Done(keyObj)
+	defer ctrl.groupSnapshotContentQueue.Done(key)
 
-	if err := ctrl.syncGroupSnapshotContentByKey(keyObj.(string)); err != nil {
+	if err := ctrl.syncGroupSnapshotContentByKey(key); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
-		ctrl.groupSnapshotContentQueue.AddRateLimited(keyObj)
-		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", keyObj.(string), err)
+		ctrl.groupSnapshotContentQueue.AddRateLimited(key)
+		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", key, err)
 	} else {
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.
-		ctrl.groupSnapshotContentQueue.Forget(keyObj)
+		ctrl.groupSnapshotContentQueue.Forget(key)
 	}
 }
 

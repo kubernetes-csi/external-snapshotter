@@ -66,23 +66,23 @@ func (ctrl *csiSnapshotSideCarController) enqueueGroupSnapshotContentWork(obj in
 // groupSnapshotContentWorker processes items from groupSnapshotContentQueue.
 // It must run only once, syncGroupSnapshotContent is not assured to be reentrant.
 func (ctrl *csiSnapshotSideCarController) groupSnapshotContentWorker() {
-	keyObj, quit := ctrl.groupSnapshotContentQueue.Get()
+	key, quit := ctrl.groupSnapshotContentQueue.Get()
 	if quit {
 		return
 	}
-	defer ctrl.groupSnapshotContentQueue.Done(keyObj)
+	defer ctrl.groupSnapshotContentQueue.Done(key)
 
-	if err := ctrl.syncGroupSnapshotContentByKey(keyObj.(string)); err != nil {
+	if err := ctrl.syncGroupSnapshotContentByKey(key); err != nil {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
-		ctrl.groupSnapshotContentQueue.AddRateLimited(keyObj)
-		klog.V(4).Infof("Failed to sync group snapshot content %q, will retry again: %v", keyObj.(string), err)
+		ctrl.groupSnapshotContentQueue.AddRateLimited(key)
+		klog.V(4).Infof("Failed to sync group snapshot content %q, will retry again: %v", key, err)
 		return
 	}
 
 	// Finally, if no error occurs we forget this item so it does not
 	// get queued again until another change happens.
-	ctrl.groupSnapshotContentQueue.Forget(keyObj)
+	ctrl.groupSnapshotContentQueue.Forget(key)
 	return
 }
 
