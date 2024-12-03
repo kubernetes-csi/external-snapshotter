@@ -250,7 +250,7 @@ func main() {
 		if err != nil {
 			klog.Errorf("error determining if driver supports create/delete group snapshot operations: %v", err)
 		} else if !supportsCreateVolumeGroupSnapshot {
-			klog.Warningf("CSI driver %s does not support GroupControllerCreateVolumeGroupSnapshot when the --enable-volume-group-snapshots flag is true", driverName)
+			klog.Warningf("CSI driver %s does not support GroupControllerCreateVolumeGroupSnapshot when the --feature-gates=CSIVolumeGroupSnapshot=true flag is set", driverName)
 		}
 		groupSnapshotter = group_snapshotter.NewGroupSnapshotter(csiConn)
 		if len(*groupSnapshotNamePrefix) == 0 {
