@@ -50,7 +50,7 @@ type csiSnapshotSideCarController struct {
 	client              kubernetes.Interface
 	driverName          string
 	eventRecorder       record.EventRecorder
-	contentQueue        workqueue.RateLimitingInterface
+	contentQueue        workqueue.TypedRateLimitingInterface[string]
 	extraCreateMetadata bool
 
 	contentLister       snapshotlisters.VolumeSnapshotContentLister
@@ -65,7 +65,7 @@ type csiSnapshotSideCarController struct {
 	resyncPeriod time.Duration
 
 	enableVolumeGroupSnapshots       bool
-	groupSnapshotContentQueue        workqueue.RateLimitingInterface
+	groupSnapshotContentQueue        workqueue.TypedRateLimitingInterface[string]
 	groupSnapshotContentLister       groupsnapshotlisters.VolumeGroupSnapshotContentLister
 	groupSnapshotContentListerSynced cache.InformerSynced
 	groupSnapshotClassLister         groupsnapshotlisters.VolumeGroupSnapshotClassLister
@@ -89,11 +89,11 @@ func NewCSISnapshotSideCarController(
 	groupSnapshotNamePrefix string,
 	groupSnapshotNameUUIDLength int,
 	extraCreateMetadata bool,
-	contentRateLimiter workqueue.RateLimiter,
+	contentRateLimiter workqueue.TypedRateLimiter[string],
 	enableVolumeGroupSnapshots bool,
 	volumeGroupSnapshotContentInformer groupsnapshotinformers.VolumeGroupSnapshotContentInformer,
 	volumeGroupSnapshotClassInformer groupsnapshotinformers.VolumeGroupSnapshotClassInformer,
-	groupSnapshotContentRateLimiter workqueue.RateLimiter,
+	groupSnapshotContentRateLimiter workqueue.TypedRateLimiter[string],
 ) *csiSnapshotSideCarController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -102,14 +102,16 @@ func NewCSISnapshotSideCarController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", driverName)})
 
 	ctrl := &csiSnapshotSideCarController{
-		clientset:           clientset,
-		client:              client,
-		driverName:          driverName,
-		eventRecorder:       eventRecorder,
-		handler:             NewCSIHandler(snapshotter, groupSnapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength, groupSnapshotNamePrefix, groupSnapshotNameUUIDLength),
-		resyncPeriod:        resyncPeriod,
-		contentStore:        cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentQueue:        workqueue.NewNamedRateLimitingQueue(contentRateLimiter, "csi-snapshotter-content"),
+		clientset:     clientset,
+		client:        client,
+		driverName:    driverName,
+		eventRecorder: eventRecorder,
+		handler:       NewCSIHandler(snapshotter, groupSnapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength, groupSnapshotNamePrefix, groupSnapshotNameUUIDLength),
+		resyncPeriod:  resyncPeriod,
+		contentStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		contentQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			contentRateLimiter, workqueue.TypedRateLimitingQueueConfig[string]{
+				Name: "csi-snapshotter-content"}),
 		extraCreateMetadata: extraCreateMetadata,
 	}
 
@@ -136,7 +138,9 @@ func NewCSISnapshotSideCarController(
 	ctrl.enableVolumeGroupSnapshots = enableVolumeGroupSnapshots
 	if enableVolumeGroupSnapshots {
 		ctrl.groupSnapshotContentStore = cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
-		ctrl.groupSnapshotContentQueue = workqueue.NewNamedRateLimitingQueue(groupSnapshotContentRateLimiter, "csi-snapshotter-groupsnapshotcontent")
+		ctrl.groupSnapshotContentQueue = workqueue.NewTypedRateLimitingQueueWithConfig(
+			groupSnapshotContentRateLimiter, workqueue.TypedRateLimitingQueueConfig[string]{
+				Name: "csi-snapshotter-groupsnapshotcontent"})
 
 		volumeGroupSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
@@ -217,27 +221,27 @@ func (ctrl *csiSnapshotSideCarController) contentWorker() {
 }
 
 func (ctrl *csiSnapshotSideCarController) processNextItem() bool {
-	keyObj, quit := ctrl.contentQueue.Get()
+	key, quit := ctrl.contentQueue.Get()
 	if quit {
 		return false
 	}
-	defer ctrl.contentQueue.Done(keyObj)
+	defer ctrl.contentQueue.Done(key)
 
-	requeue, err := ctrl.syncContentByKey(keyObj.(string))
+	requeue, err := ctrl.syncContentByKey(key)
 	if err != nil {
-		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", keyObj.(string), err)
+		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", key, err)
 		// Always requeue on error to be able to call functions like "return false, doSomething()" where doSomething
 		// does not need to worry about re-queueing.
 		requeue = true
 	}
 	if requeue {
-		ctrl.contentQueue.AddRateLimited(keyObj)
+		ctrl.contentQueue.AddRateLimited(key)
 		return true
 	}
 
 	// Finally, if no error occurs we Forget this item so it does not
 	// get queued again until another change happens.
-	ctrl.contentQueue.Forget(keyObj)
+	ctrl.contentQueue.Forget(key)
 	return true
 }
 
