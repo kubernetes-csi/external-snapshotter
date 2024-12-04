@@ -61,10 +61,11 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 	if ctrl.shouldDelete(content) {
 		klog.V(4).Infof("VolumeSnapshotContent[%s]: the policy is %s", content.Name, content.Spec.DeletionPolicy)
 		if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete &&
-			content.Status != nil && content.Status.SnapshotHandle != nil {
-			// issue a CSI deletion call if the snapshot has not been deleted yet from
-			// underlying storage system. Note that the deletion snapshot operation will
-			// update content SnapshotHandle to nil upon a successful deletion. At this
+			content.Status != nil && content.Status.SnapshotHandle != nil && content.Status.VolumeGroupSnapshotHandle == nil {
+			// issue a CSI deletion call if the snapshot does not belong to volumegroupsnapshot
+			// and it has not been deleted yet from underlying storage system.
+			// Note that the deletion snapshot operation will update content SnapshotHandle
+			// to nil upon a successful deletion. At this
 			// point, the finalizer on content should NOT be removed to avoid leaking.
 			err := ctrl.deleteCSISnapshot(content)
 			if err != nil {
@@ -73,9 +74,9 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			return false, nil
 		}
 		// otherwise, either the snapshot has been deleted from the underlying
-		// storage system, or the deletion policy is Retain, remove the finalizer
-		// if there is one so that API server could delete the object if there is
-		// no other finalizer.
+		// storage system, or it belongs to a volumegroupsnapshot, or the deletion policy is Retain,
+		// remove the finalizer if there is one so that API server could delete
+		// the object if there is no other finalizer.
 		err := ctrl.removeContentFinalizer(content)
 		if err != nil {
 			return true, err

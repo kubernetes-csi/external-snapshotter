@@ -354,6 +354,25 @@ func TestDeleteSync(t *testing.T) {
 			expectedDeleteCalls: []deleteCall{{"sid1-15", nil, nil}},
 			test:                testSyncContent,
 		},
+
+		{
+			name:                "1-16 - (dynamic)deletion of content with no VolumeGroupSnapshotHandle should succeed",
+			initialContents:     newContentWithVolumeGroupSnapshotHandle("content1-16", "sid1-16", "snap1-16", "snap1-16", "grp-snap1-16", "", "", "snap1-16-volumehandle", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentWithVolumeGroupSnapshotHandle("content1-16", "sid1-16", "snap1-16", "snap1-16", "grp-snap1-16", "", "", "snap1-16-volumehandle", deletePolicy, nil, &defaultSize, false, &nonFractionalTime),
+			expectSuccess:       true,
+			errors:              noerrors,
+			expectedDeleteCalls: []deleteCall{{"sid1-16", nil, nil}},
+			test:                testSyncContent,
+		},
+		{
+			name:                "1-17 - (dynamic)deletion of content with VolumeGroupSnapshotHandle should succeed with no call to CSI driver",
+			initialContents:     newContentWithVolumeGroupSnapshotHandle("content1-17", "sid1-17", "snap1-17", "snap1-17", "grp-snap1-17", "", "", "snap1-17-volumehandle", deletePolicy, nil, &defaultSize, true, &nonFractionalTime),
+			expectedContents:    newContentWithVolumeGroupSnapshotHandle("content1-17", "sid1-17", "snap1-17", "snap1-17", "grp-snap1-17", "", "", "snap1-17-volumehandle", deletePolicy, nil, &defaultSize, false, &nonFractionalTime),
+			expectSuccess:       true,
+			errors:              noerrors,
+			expectedDeleteCalls: []deleteCall{},
+			test:                testSyncContent,
+		},
 	}
 	runSyncContentTests(t, tests, snapshotClasses)
 }
