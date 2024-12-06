@@ -425,7 +425,7 @@ die () {
     exit 1
 }
 
-# Ensure that PATH has the desired version of the Go tools, then run command given as argument.
+# Ensure we use the desired version of the Go tools, then run command given as argument.
 # Empty parameter uses the already installed Go. In Prow, that version is kept up-to-date by
 # bumping the container image regularly.
 run_with_go () {
@@ -433,15 +433,15 @@ run_with_go () {
     version="$1"
     shift
 
-    if ! [ "$version" ] || go version 2>/dev/null | grep -q "go$version"; then
-        run "$@"
-    else
-        if ! [ -d "${CSI_PROW_WORK}/go-$version" ];  then
-            run curl --fail --location "https://dl.google.com/go/go$version.linux-amd64.tar.gz" | tar -C "${CSI_PROW_WORK}" -zxf - || die "installation of Go $version failed"
-            mv "${CSI_PROW_WORK}/go" "${CSI_PROW_WORK}/go-$version"
+    if [ "$version" ]; then
+        version=go$version
+        if [ "$(GOTOOLCHAIN=$version go version | cut -d' ' -f3)" != "$version" ]; then
+            die "Please install Go 1.21+"
         fi
-        PATH="${CSI_PROW_WORK}/go-$version/bin:$PATH" run "$@"
+    else
+        version=local
     fi
+    GOTOOLCHAIN=$version run "$@"
 }
 
 # Ensure that we have the desired version of kind.
