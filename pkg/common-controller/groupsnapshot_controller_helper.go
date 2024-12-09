@@ -832,8 +832,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 	boundContentName := groupSnapshotContent.Name
 	var createdAt *time.Time
 	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.CreationTime != nil {
-		unixTime := time.Unix(0, *groupSnapshotContent.Status.CreationTime)
-		createdAt = &unixTime
+		createdAt = &groupSnapshotContent.Status.CreationTime.DeepCopy().Time
 	}
 	var readyToUse bool
 	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.ReadyToUse != nil {

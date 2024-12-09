@@ -1280,7 +1280,7 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 }
 
 func newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotName, groupSnapshotHandle, groupSnapshotClassName string, desiredVolumeHandles []string, targetVolumeGroupSnapshotHandle string,
-	deletionPolicy crdv1.DeletionPolicy, creationTime *int64,
+	deletionPolicy crdv1.DeletionPolicy, creationTime *metav1.Time,
 	withFinalizer bool, withStatus bool) *crdv1beta1.VolumeGroupSnapshotContent {
 	ready := true
 	content := crdv1beta1.VolumeGroupSnapshotContent{
@@ -1337,7 +1337,7 @@ func newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, 
 }
 
 func newGroupSnapshotContentArray(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotSnapshotName, groupSnapshotHandle, groupSnapshotClassName string, desiredVolumeHandles []string, volumeGroupHandle string,
-	deletionPolicy crdv1.DeletionPolicy, creationTime *int64,
+	deletionPolicy crdv1.DeletionPolicy, creationTime *metav1.Time,
 	withFinalizer bool, withStatus bool) []*crdv1beta1.VolumeGroupSnapshotContent {
 	return []*crdv1beta1.VolumeGroupSnapshotContent{
 		newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotSnapshotName, groupSnapshotHandle, groupSnapshotClassName, desiredVolumeHandles, volumeGroupHandle,

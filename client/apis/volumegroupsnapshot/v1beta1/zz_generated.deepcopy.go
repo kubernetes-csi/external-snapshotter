@@ -270,8 +270,7 @@ func (in *VolumeGroupSnapshotContentStatus) DeepCopyInto(out *VolumeGroupSnapsho
 	}
 	if in.CreationTime != nil {
 		in, out := &in.CreationTime, &out.CreationTime
-		*out = new(int64)
-		**out = **in
+		*out = (*in).DeepCopy()
 	}
 	if in.ReadyToUse != nil {
 		in, out := &in.ReadyToUse, &out.ReadyToUse

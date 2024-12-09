@@ -443,7 +443,7 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 		})
 	}
 
-	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano(), snapshotContentLinks)
+	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), snapshotContentLinks)
 	if err != nil {
 		klog.Errorf("error updating status for volume group snapshot content %s: %v.", groupSnapshotContent.Name, err)
 		return groupSnapshotContent, fmt.Errorf("error updating status for volume group snapshot content %s: %v", groupSnapshotContent.Name, err)
@@ -578,7 +578,7 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 	groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent,
 	groupSnapshotHandle string,
 	readyToUse bool,
-	createdAt int64,
+	createdAt metav1.Time,
 	snapshotContentLinks []snapshotContentNameVolumeHandlePair,
 ) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
 	klog.V(5).Infof("updateGroupSnapshotContentStatus: updating VolumeGroupSnapshotContent [%s], groupSnapshotHandle %s, readyToUse %v, createdAt %v", groupSnapshotContent.Name, groupSnapshotHandle, readyToUse, createdAt)
@@ -789,7 +789,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		}
 
 		// TODO: Get a reference to snapshot contents for this volume group snapshot
-		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, creationTime.UnixNano(), []snapshotContentNameVolumeHandlePair{})
+		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), []snapshotContentNameVolumeHandlePair{})
 		if err != nil {
 			return groupSnapshotContent, err
 		}
