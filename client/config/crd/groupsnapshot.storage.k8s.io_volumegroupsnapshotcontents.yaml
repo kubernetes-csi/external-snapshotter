@@ -256,8 +256,8 @@ spec:
                   On Unix, the command date +%s%N returns the current time in nanoseconds
                   since 1970-01-01 00:00:00 UTC.
                   This field is the source for the CreationTime field in VolumeGroupSnapshotStatus
-                format: int64
-                type: integer
+                format: date-time
+                type: string
               error:
                 description: |-
                   Error is the last observed error during group snapshot creation, if any.

@@ -327,7 +327,7 @@ type VolumeGroupSnapshotContentStatus struct {
 	// since 1970-01-01 00:00:00 UTC.
 	// This field is the source for the CreationTime field in VolumeGroupSnapshotStatus
 	// +optional
-	CreationTime *int64 `json:"creationTime,omitempty" protobuf:"varint,2,opt,name=creationTime"`
+	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
 
 	// ReadyToUse indicates if all the individual snapshots in the group are ready to be
 	// used to restore a group of volumes.
