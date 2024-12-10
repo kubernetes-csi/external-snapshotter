@@ -1,3 +1,39 @@
+# Release notes for v8.0.2
+
+[Documentation](https://kubernetes-csi.github.io)
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Fix unbounded volumesnapshots list call on Snapshot Controller startup ([#1240](https://github.com/kubernetes-csi/external-snapshotter/pull/1240), [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot))
+- Fix: GHSA-xr7q-jx4m-x55m ([#1138](https://github.com/kubernetes-csi/external-snapshotter/pull/1138), [@andyzhangx](https://github.com/andyzhangx))
+
+## Dependencies
+
+### Added
+- cel.dev/expr: v0.15.0
+
+### Changed
+- github.com/cncf/xds/go: [8a4994d → 555b57e](https://github.com/cncf/xds/compare/8a4994d...555b57e)
+- github.com/golang/glog: [v1.2.0 → v1.2.1](https://github.com/golang/glog/compare/v1.2.0...v1.2.1)
+- golang.org/x/crypto: v0.23.0 → v0.26.0
+- golang.org/x/mod: v0.15.0 → v0.17.0
+- golang.org/x/net: v0.25.0 → v0.28.0
+- golang.org/x/sync: v0.7.0 → v0.8.0
+- golang.org/x/sys: v0.20.0 → v0.24.0
+- golang.org/x/term: v0.20.0 → v0.23.0
+- golang.org/x/text: v0.15.0 → v0.17.0
+- golang.org/x/tools: v0.18.0 → e35e4cc
+- google.golang.org/appengine: v1.6.8 → v1.6.7
+- google.golang.org/genproto/googleapis/api: 94a12d6 → 5315273
+- google.golang.org/genproto/googleapis/rpc: 94a12d6 → 8ffd90a
+- google.golang.org/grpc: v1.64.0 → v1.65.0
+- google.golang.org/protobuf: v1.34.1 → v1.34.2
+
+### Removed
+- cloud.google.com/go/compute: v1.25.1
+
 # Release notes for v8.0.1
 
 [Documentation](https://kubernetes-csi.github.io)
