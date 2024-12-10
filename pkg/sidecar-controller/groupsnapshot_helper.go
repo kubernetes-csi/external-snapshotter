@@ -238,6 +238,9 @@ func (ctrl csiSnapshotSideCarController) removeGroupSnapshotContentFinalizer(gro
 
 // Delete a groupsnapshot: Ask the backend to remove the groupsnapshot device
 func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) error {
+	if groupSnapshotContent == nil {
+		return fmt.Errorf("groupSnapshotContent is nil")
+	}
 	klog.V(5).Infof("deleteCSIGroupSnapshotOperation [%s] started", groupSnapshotContent.Name)
 
 	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotationForGroupSnapshot(groupSnapshotContent)
@@ -258,6 +261,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 		} else if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
 			ids := groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeSnapshotHandles
 			snapshotIDs = slices.Clone(ids)
+
 		}
 	}
 
