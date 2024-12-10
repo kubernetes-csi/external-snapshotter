@@ -83,9 +83,9 @@ var version = "unknown"
 func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVolumeGroupSnapshots bool) error {
 	condition := func(ctx context.Context) (bool, error) {
 		var err error
-		// List calls should return faster with a limit of 0.
+		// List calls should return faster with a limit of 1.
 		// We do not care about what is returned and just want to make sure the CRDs exist.
-		listOptions := metav1.ListOptions{Limit: 0}
+		listOptions := metav1.ListOptions{Limit: 1}
 
 		// scoping to an empty namespace makes `List` work across all namespaces
 		_, err = client.SnapshotV1().VolumeSnapshots("").List(ctx, listOptions)
