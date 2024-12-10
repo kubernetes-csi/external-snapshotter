@@ -1249,7 +1249,10 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 	}
 
 	klog.V(5).Infof("updateSnapshotStatus: updating VolumeSnapshot [%+v] based on VolumeSnapshotContentStatus [%+v]", snapshot, content.Status)
-
+	if content.Status != nil && snapshot != nil {
+		status := *content.Status
+		klog.V(5).Infof("VolumeSnapshotContentStatus for VolumeSnapshot [%+v] is: {SnapshotHandle: %s, ReadyToUse: %t, Error: %v}", snapshot.Name, *status.SnapshotHandle, *status.ReadyToUse, *status.Error)
+	}
 	snapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error get snapshot %s from api server: %v", utils.SnapshotKey(snapshot), err)
@@ -1258,10 +1261,14 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 	var newStatus *crdv1.VolumeSnapshotStatus
 	updated := false
 	if snapshotObj.Status == nil {
+		klog.V(5).Infof("Entered snapshotObj.Status == nil check for %s", snapshotObj.Name)
+
 		newStatus = &crdv1.VolumeSnapshotStatus{
 			BoundVolumeSnapshotContentName: &boundContentName,
 			ReadyToUse:                     &readyToUse,
 		}
+		klog.V(5).Infof("set newStatus for %s to have BoundVolumeSnapshotContentName: %s, and ReadyToUse: %t", snapshotObj.Name, boundContentName, readyToUse)
+
 		if createdAt != nil {
 			newStatus.CreationTime = &metav1.Time{Time: *createdAt}
 		}
@@ -1269,6 +1276,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 			newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
 		}
 		if volumeSnapshotErr != nil {
+			klog.V(5).Infof("set newStatus.Error for %s to %+v", snapshotObj.Name, *volumeSnapshotErr)
 			newStatus.Error = volumeSnapshotErr
 		}
 		if groupSnapshotName != "" {
@@ -1276,19 +1284,26 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		}
 		updated = true
 	} else {
+		klog.V(5).Infof("Entered else statement for %s", snapshotObj.Name)
 		newStatus = snapshotObj.Status.DeepCopy()
 		if newStatus.BoundVolumeSnapshotContentName == nil {
+			klog.V(5).Infof("newStatus.BoundVolumeSnapshotContentName == nil for %s", snapshotObj.Name)
 			newStatus.BoundVolumeSnapshotContentName = &boundContentName
 			updated = true
 		}
 		if newStatus.CreationTime == nil && createdAt != nil {
+			klog.V(5).Infof("newStatus.CreationTime == nil && createdAt != nil for %s", snapshotObj.Name)
 			newStatus.CreationTime = &metav1.Time{Time: *createdAt}
 			updated = true
 		}
 		if newStatus.ReadyToUse == nil || *newStatus.ReadyToUse != readyToUse {
+			klog.V(5).Infof("newStatus.ReadyToUse == nil : %t, for %s", newStatus.ReadyToUse == nil, snapshotObj.Name)
+			klog.V(5).Infof("*newStatus.ReadyToUse != readyToUse : %t, for %s", *newStatus.ReadyToUse != readyToUse, snapshotObj.Name)
+
 			newStatus.ReadyToUse = &readyToUse
 			updated = true
 			if readyToUse && newStatus.Error != nil {
+				klog.V(5).Infof("readyToUse &&  newStatus.Error != nil, for %s", snapshotObj.Name)
 				newStatus.Error = nil
 			}
 		}
@@ -1297,6 +1312,11 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 			updated = true
 		}
 		if (newStatus.Error == nil && volumeSnapshotErr != nil) || (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) || (newStatus.Error != nil && volumeSnapshotErr == nil) {
+			klog.V(5).Infof("entered long error statment for %s", snapshotObj.Name)
+			klog.V(5).Infof("newStatus.Error == nil && volumeSnapshotErr != nil : %t, for %s", newStatus.Error == nil && volumeSnapshotErr != nil, snapshotObj.Name)
+			klog.V(5).Infof("(newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) : %t, for %s", (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time), snapshotObj.Name)
+			klog.V(5).Infof("(newStatus.Error != nil && volumeSnapshotErr == nil) : %t, for %s", (newStatus.Error != nil && volumeSnapshotErr == nil), snapshotObj.Name)
+
 			newStatus.Error = volumeSnapshotErr
 			updated = true
 		}
@@ -1306,7 +1326,11 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 		}
 	}
 
+	klog.V(5).Infof("Updated is %t for %s", updated, snapshotObj.Name)
+
 	if updated {
+		klog.V(5).Infof("Entered if updated for %s", snapshotObj.Name)
+
 		snapshotClone := snapshotObj.DeepCopy()
 		snapshotClone.Status = newStatus
 
@@ -1320,6 +1344,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 			ctrl.metricsManager.RecordMetrics(createOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
 			msg := fmt.Sprintf("Snapshot %s was successfully created by the CSI driver.", utils.SnapshotKey(snapshot))
 			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotCreated", msg)
+			klog.V(5).Infof("!utils.IsSnapshotCreated(snapshotObj) && utils.IsSnapshotCreated(snapshotClone) is %t for %s", !utils.IsSnapshotCreated(snapshotObj) && utils.IsSnapshotCreated(snapshotClone), snapshotObj.Name)
 		}
 
 		// Must meet the following criteria to emit a successful CreateSnapshotAndReady status
@@ -1330,15 +1355,18 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 			ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
 			msg := fmt.Sprintf("Snapshot %s is ready to use.", utils.SnapshotKey(snapshot))
 			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotReady", msg)
+			klog.V(5).Infof("!utils.IsSnapshotReady(snapshotObj) && utils.IsSnapshotReady(snapshotClone) is %t for %s", !utils.IsSnapshotReady(snapshotObj) && utils.IsSnapshotReady(snapshotClone), snapshotObj.Name)
+
 		}
 
 		newSnapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 		}
-
+		klog.V(5).Infof("returning newSnapshotObj %+v  for %s", newSnapshotObj, snapshotObj.Name)
 		return newSnapshotObj, nil
 	}
+	klog.V(5).Infof("returning old snapshotObj %+v  for %s", snapshotObj, snapshotObj.Name)
 
 	return snapshotObj, nil
 }
