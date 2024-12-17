@@ -1,3 +1,24 @@
+# Release notes for v8.1.1
+
+[Documentation](https://kubernetes-csi.github.io)
+
+## Changes by Kind
+
+### Bug or Regression
+
+- Fix unbounded volumesnapshots list call on Snapshot Controller startup ([#1242](https://github.com/kubernetes-csi/external-snapshotter/pull/1242), [@k8s-infra-cherrypick-robot](https://github.com/k8s-infra-cherrypick-robot))
+
+## Dependencies
+
+### Added
+_Nothing has changed._
+
+### Changed
+- github.com/prometheus/client_golang: [v1.20.2 → v1.20.5](https://github.com/prometheus/client_golang/compare/v1.20.2...v1.20.5)
+
+### Removed
+_Nothing has changed._
+
 # Release notes for v8.1.0
 
 [Documentation](https://kubernetes-csi.github.io)
