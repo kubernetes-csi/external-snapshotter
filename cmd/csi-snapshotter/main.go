@@ -49,6 +49,10 @@ import (
 	controller "github.com/kubernetes-csi/external-snapshotter/v8/pkg/sidecar-controller"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/snapshotter"
 	utilflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/featuregate"
+	"k8s.io/component-base/logs"
+	logsapi "k8s.io/component-base/logs/api/v1"
+	_ "k8s.io/component-base/logs/json/register"
 	"k8s.io/component-base/metrics/legacyregistry"
 	_ "k8s.io/component-base/metrics/prometheus/clientgo/leaderelection" // register leader election in the default legacy registry
 	_ "k8s.io/component-base/metrics/prometheus/workqueue"               // register work queues in the default legacy registry
@@ -106,9 +110,16 @@ func main() {
 	flag.Var(utilflag.NewMapStringBool(&featureGates), "feature-gates", "Comma-seprated list of key=value pairs that describe feature gates for alpha/experimental features. "+
 		"Options are:\n"+strings.Join(utilfeature.DefaultFeatureGate.KnownFeatures(), "\n"))
 
-	klog.InitFlags(nil)
-	flag.Set("logtostderr", "true")
+	fg := featuregate.NewFeatureGate()
+	logsapi.AddFeatureGates(fg)
+	c := logsapi.NewLoggingConfiguration()
+	logsapi.AddGoFlags(c, flag.CommandLine)
+	logs.InitLogs()
 	flag.Parse()
+	if err := logsapi.ValidateAndApply(c, fg); err != nil {
+		klog.ErrorS(err, "LoggingConfiguration is invalid")
+		klog.FlushAndExit(klog.ExitFlushTimeout, 1)
+	}
 
 	if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(featureGates); err != nil {
 		klog.Fatal("Error while parsing feature gates: ", err)
@@ -118,7 +129,7 @@ func main() {
 		fmt.Println(os.Args[0], version)
 		os.Exit(0)
 	}
-	klog.Infof("Version: %s", version)
+	klog.InfoS("Version", "version", version)
 
 	// If distributed snapshotting is enabled and leaderElection is also set to true, return
 	if *enableNodeDeployment && *leaderElection {
