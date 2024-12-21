@@ -27,9 +27,13 @@ github.com/fxamacker/cbor/v2
 ## explicit; go 1.18
 github.com/go-logr/logr
 github.com/go-logr/logr/funcr
+github.com/go-logr/logr/slogr
 # github.com/go-logr/stdr v1.2.2
 ## explicit; go 1.16
 github.com/go-logr/stdr
+# github.com/go-logr/zapr v1.3.0
+## explicit; go 1.18
+github.com/go-logr/zapr
 # github.com/go-openapi/jsonpointer v0.21.0
 ## explicit; go 1.20
 github.com/go-openapi/jsonpointer
@@ -197,6 +201,20 @@ go.opentelemetry.io/otel/metric/noop
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 go.opentelemetry.io/otel/trace/noop
+# go.uber.org/multierr v1.11.0
+## explicit; go 1.19
+go.uber.org/multierr
+# go.uber.org/zap v1.27.0
+## explicit; go 1.19
+go.uber.org/zap
+go.uber.org/zap/buffer
+go.uber.org/zap/internal
+go.uber.org/zap/internal/bufferpool
+go.uber.org/zap/internal/color
+go.uber.org/zap/internal/exit
+go.uber.org/zap/internal/pool
+go.uber.org/zap/internal/stacktrace
+go.uber.org/zap/zapcore
 # golang.org/x/net v0.32.0
 ## explicit; go 1.18
 golang.org/x/net/http/httpguts
@@ -791,6 +809,12 @@ k8s.io/client-go/util/workqueue
 ## explicit; go 1.23.0
 k8s.io/component-base/cli/flag
 k8s.io/component-base/featuregate
+k8s.io/component-base/logs
+k8s.io/component-base/logs/api/v1
+k8s.io/component-base/logs/internal/setverbositylevel
+k8s.io/component-base/logs/json
+k8s.io/component-base/logs/json/register
+k8s.io/component-base/logs/klogflags
 k8s.io/component-base/metrics
 k8s.io/component-base/metrics/legacyregistry
 k8s.io/component-base/metrics/prometheus/feature
@@ -809,6 +833,8 @@ k8s.io/klog/v2/internal/dbg
 k8s.io/klog/v2/internal/serialize
 k8s.io/klog/v2/internal/severity
 k8s.io/klog/v2/internal/sloghandler
+k8s.io/klog/v2/internal/verbosity
+k8s.io/klog/v2/textlogger
 # k8s.io/kube-openapi v0.0.0-20241212222426-2c72e554b1e7
 ## explicit; go 1.21
 k8s.io/kube-openapi/pkg/cached
