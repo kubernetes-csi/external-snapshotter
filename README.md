@@ -67,20 +67,20 @@ Therefore, it is strongly recommended that Kubernetes distributors bundle and de
 If your Kubernetes distribution does not bundle the snapshot controller, you may manually install these components by executing the following steps. Note that the snapshot controller YAML files in the git repository deploy into the default namespace for system testing purposes. For general use, update the snapshot controller YAMLs with an appropriate namespace prior to installing. For example, on a Vanilla Kubernetes cluster update the namespace from 'default' to 'kube-system' prior to issuing the kubectl create command.
 
 Install Snapshot and Volume Group Snapshot CRDs:
-* kubectl kustomize client/config/crd | kubectl create -f -
-* https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd
+* With the repo cloned locally: `kubectl kustomize client/config/crd | kubectl create -f -`
+* From the repo remotely: `kubectl kustomize https://github.com/kubernetes-csi/external-snapshotter/client/config/crd | kubectl create -f -`
 * Do this once per cluster
 
 Install Common Snapshot Controller:
 * Update the namespace to an appropriate value for your environment (e.g. kube-system)
-* kubectl -n kube-system kustomize deploy/kubernetes/snapshot-controller | kubectl create -f -
+* `kubectl -n kube-system kustomize deploy/kubernetes/snapshot-controller | kubectl create -f -`
 * Do this once per cluster
 
 Install CSI Driver:
 * Follow instructions provided by your CSI Driver vendor.
 * Here is an example to install the sample hostpath CSI driver
-  * kubectl kustomize deploy/kubernetes/csi-snapshotter | kubectl create -f -
-  * https://github.com/kubernetes-csi/external-snapshotter/tree/master/deploy/kubernetes/csi-snapshotter
+  * With the repo cloned locally: `kubectl kustomize deploy/kubernetes/csi-snapshotter | kubectl create -f -`
+  * From the repo remotely: `kubectl kustomize https://github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/csi-snapshotter | kubectl create -f -`
 
 ##### Volume Snapshot
 
