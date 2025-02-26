@@ -90,7 +90,7 @@ github.com/klauspost/compress/internal/cpuinfo
 github.com/klauspost/compress/internal/snapref
 github.com/klauspost/compress/zstd
 github.com/klauspost/compress/zstd/internal/xxhash
-# github.com/kubernetes-csi/csi-lib-utils v0.20.0
+# github.com/kubernetes-csi/csi-lib-utils v0.21.0
 ## explicit; go 1.23.1
 github.com/kubernetes-csi/csi-lib-utils/connection
 github.com/kubernetes-csi/csi-lib-utils/leaderelection
@@ -197,7 +197,7 @@ go.opentelemetry.io/otel/metric/noop
 go.opentelemetry.io/otel/trace
 go.opentelemetry.io/otel/trace/embedded
 go.opentelemetry.io/otel/trace/noop
-# golang.org/x/net v0.32.0
+# golang.org/x/net v0.33.0
 ## explicit; go 1.18
 golang.org/x/net/http/httpguts
 golang.org/x/net/http2
@@ -793,7 +793,9 @@ k8s.io/component-base/cli/flag
 k8s.io/component-base/featuregate
 k8s.io/component-base/metrics
 k8s.io/component-base/metrics/legacyregistry
+k8s.io/component-base/metrics/prometheus/clientgo/leaderelection
 k8s.io/component-base/metrics/prometheus/feature
+k8s.io/component-base/metrics/prometheus/workqueue
 k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/version
 # k8s.io/component-helpers v0.32.0
