@@ -680,6 +680,10 @@ func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1beta1.Vol
 // If the VolumeSnapshotContent object still contains other changes after this sanitization, the changes
 // are potentially meaningful and the object is enqueued to be considered for syncing
 func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.VolumeSnapshotContent) bool {
+	if new.ObjectMeta.DeletionTimestamp != nil {
+		// This allows a hanging content to get bailed out eventually through resync period
+		return true
+	}
 	sanitized := new.DeepCopy()
 	// ResourceVersion always changes between revisions
 	sanitized.ResourceVersion = old.ResourceVersion
