@@ -28,33 +28,35 @@ func TestGroupSnapshotFinalizer(t *testing.T) {
 	tests := []controllerTest{
 		{
 			name: "3-1 - finalizer is added on dynamically provisioned group contents if the volume group snapshot class specify a Deletion retain policy",
-			initialGroupSnapshots: newGroupSnapshotArray(
-				"group-snap-1-1", "group-snapuid1-1", map[string]string{
+			initialGroupSnapshots: NewVolumeGroupSnapshotBuilder("group-snap-1-1", "group-snapuid1-1").
+				WithSelectors(map[string]string{
 					"app.kubernetes.io/name": "postgresql",
-				},
-				"", classGold, "groupsnapcontent-group-snapuid1-1", &False, nil, nil, false, false, nil,
-			),
-			expectedGroupSnapshots: withGroupSnapshotFinalizers(
-				newGroupSnapshotArray(
-					"group-snap-1-1", "group-snapuid1-1", map[string]string{
-						"app.kubernetes.io/name": "postgresql",
-					},
-					"", classGold, "groupsnapcontent-group-snapuid1-1", &False, nil, nil, false, false, nil,
-				),
-				utils.VolumeGroupSnapshotBoundFinalizer,
-			),
-			initialGroupContents: newGroupSnapshotContentArray(
-				"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "group-snapshot-handle", classGold, []string{
-					"1-pv-handle6-1",
-					"2-pv-handle6-1",
-				}, "", deletionPolicy, nil, false, false,
-			),
-			expectedGroupContents: newGroupSnapshotContentArray(
-				"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "group-snapshot-handle", classGold, []string{
-					"1-pv-handle6-1",
-					"2-pv-handle6-1",
-				}, "", deletionPolicy, nil, false, false,
-			),
+				}).
+				WithGroupSnapshotClass(classGold).
+				WithStatusReadyToUse(false).
+				WithStatusBoundContentName("groupsnapcontent-group-snapuid1-1").
+				BuildArray(),
+			expectedGroupSnapshots: NewVolumeGroupSnapshotBuilder("group-snap-1-1", "group-snapuid1-1").
+				WithSelectors(map[string]string{
+					"app.kubernetes.io/name": "postgresql",
+				}).
+				WithGroupSnapshotClass(classGold).
+				WithStatusReadyToUse(false).
+				WithStatusBoundContentName("groupsnapcontent-group-snapuid1-1").
+				WithFinalizers(utils.VolumeGroupSnapshotBoundFinalizer).
+				BuildArray(),
+			initialGroupContents: NewVolumeGroupSnapshotContentBuilder("groupsnapcontent-group-snapuid1-1").
+				WithBoundGroupSnapshot("group-snap-1-1", "group-snapuid1-1").
+				WithDeletionPolicy(deletionPolicy).
+				WithGroupSnapshotClassName(classGold).
+				WithDesiredVolumeHandles("1-pv-handle6-1", "2-pv-handle6-1").
+				BuildArray(),
+			expectedGroupContents: NewVolumeGroupSnapshotContentBuilder("groupsnapcontent-group-snapuid1-1").
+				WithBoundGroupSnapshot("group-snap-1-1", "group-snapuid1-1").
+				WithDeletionPolicy(deletionPolicy).
+				WithGroupSnapshotClassName(classGold).
+				WithDesiredVolumeHandles("1-pv-handle6-1", "2-pv-handle6-1").
+				BuildArray(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim1-1", "pvc-uid6-1", "1Gi", "volume6-1", v1.ClaimBound, &classGold),
 				map[string]string{
@@ -66,34 +68,36 @@ func TestGroupSnapshotFinalizer(t *testing.T) {
 			expectSuccess:  true,
 		},
 		{
-			name: "3-2 - finalizer is not added on dynamically provisioned group contents if the volume group snapshot class specify the Retain retain policy",
-			initialGroupSnapshots: newGroupSnapshotArray(
-				"group-snap-1-1", "group-snapuid1-1", map[string]string{
+			name: "3-2 - finalizer is added on dynamically provisioned group contents if the volume group snapshot class specify the Retain retain policy",
+			initialGroupSnapshots: NewVolumeGroupSnapshotBuilder("group-snap-1-1", "group-snapuid1-1").
+				WithSelectors(map[string]string{
 					"app.kubernetes.io/name": "postgresql",
-				},
-				"", classSilver, "groupsnapcontent-group-snapuid1-1", &False, nil, nil, false, false, nil,
-			),
-			expectedGroupSnapshots: withGroupSnapshotFinalizers(
-				newGroupSnapshotArray(
-					"group-snap-1-1", "group-snapuid1-1", map[string]string{
-						"app.kubernetes.io/name": "postgresql",
-					},
-					"", classSilver, "groupsnapcontent-group-snapuid1-1", &False, nil, nil, false, false, nil,
-				),
-				utils.VolumeGroupSnapshotBoundFinalizer,
-			),
-			initialGroupContents: newGroupSnapshotContentArray(
-				"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "group-snapshot-handle", classSilver, []string{
-					"1-pv-handle6-1",
-					"2-pv-handle6-1",
-				}, "", deletionPolicy, nil, false, false,
-			),
-			expectedGroupContents: newGroupSnapshotContentArray(
-				"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "group-snapshot-handle", classSilver, []string{
-					"1-pv-handle6-1",
-					"2-pv-handle6-1",
-				}, "", deletionPolicy, nil, false, false,
-			),
+				}).
+				WithGroupSnapshotClass(classSilver).
+				WithStatusReadyToUse(false).
+				WithStatusBoundContentName("groupsnapcontent-group-snapuid1-1").
+				BuildArray(),
+			expectedGroupSnapshots: NewVolumeGroupSnapshotBuilder("group-snap-1-1", "group-snapuid1-1").
+				WithSelectors(map[string]string{
+					"app.kubernetes.io/name": "postgresql",
+				}).
+				WithGroupSnapshotClass(classSilver).
+				WithStatusReadyToUse(false).
+				WithStatusBoundContentName("groupsnapcontent-group-snapuid1-1").
+				WithFinalizers(utils.VolumeGroupSnapshotBoundFinalizer).
+				BuildArray(),
+			initialGroupContents: NewVolumeGroupSnapshotContentBuilder("groupsnapcontent-group-snapuid1-1").
+				WithBoundGroupSnapshot("group-snap-1-1", "group-snapuid1-1").
+				WithDeletionPolicy(deletionPolicy).
+				WithGroupSnapshotClassName(classSilver).
+				WithDesiredVolumeHandles("1-pv-handle6-1", "2-pv-handle6-1").
+				BuildArray(),
+			expectedGroupContents: NewVolumeGroupSnapshotContentBuilder("groupsnapcontent-group-snapuid1-1").
+				WithBoundGroupSnapshot("group-snap-1-1", "group-snapuid1-1").
+				WithDeletionPolicy(deletionPolicy).
+				WithGroupSnapshotClassName(classSilver).
+				WithDesiredVolumeHandles("1-pv-handle6-1", "2-pv-handle6-1").
+				BuildArray(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim1-1", "pvc-uid6-1", "1Gi", "volume6-1", v1.ClaimBound, &classSilver),
 				map[string]string{
@@ -106,38 +110,38 @@ func TestGroupSnapshotFinalizer(t *testing.T) {
 		},
 		{
 			name: "3-3 - dynamic group snapshot have been deleted, retention policy set to Delete - the finalizer will be removed",
-			initialGroupSnapshots: withGroupSnapshotFinalizers(
-				newGroupSnapshotArray(
-					"group-snap-1-1", "group-snapuid1-1", map[string]string{
-						"app.kubernetes.io/name": "postgresql",
-					},
-					"", classGold, "groupsnapcontent-group-snapuid1-1", &False, nil, nil, false, false, &timeNowMetav1,
-				),
-				utils.VolumeGroupSnapshotBoundFinalizer,
-			),
-			expectedGroupSnapshots: newGroupSnapshotArray(
-				"group-snap-1-1", "group-snapuid1-1", map[string]string{
+			initialGroupSnapshots: NewVolumeGroupSnapshotBuilder("group-snap-1-1", "group-snapuid1-1").
+				WithSelectors(map[string]string{
 					"app.kubernetes.io/name": "postgresql",
-				},
-				"", classGold, "groupsnapcontent-group-snapuid1-1", &False, nil, nil, false, false, &timeNowMetav1,
-			),
-			initialGroupContents: newGroupSnapshotContentArray(
-				"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "group-snapshot-handle", classGold, []string{
-					"1-pv-handle6-1",
-					"2-pv-handle6-1",
-				}, "", crdv1.VolumeSnapshotContentRetain, nil, false, false,
-			),
-			expectedGroupContents: withGroupContentAnnotations(
-				newGroupSnapshotContentArray(
-					"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "group-snapshot-handle", classGold, []string{
-						"1-pv-handle6-1",
-						"2-pv-handle6-1",
-					}, "", crdv1.VolumeSnapshotContentRetain, nil, false, false,
-				),
-				map[string]string{
-					utils.AnnVolumeGroupSnapshotBeingDeleted: "yes",
-				},
-			),
+				}).
+				WithGroupSnapshotClass(classGold).
+				WithDeletionTimestamp(timeNowMetav1).
+				WithStatusReadyToUse(false).
+				WithStatusBoundContentName("groupsnapcontent-group-snapuid1-1").
+				WithFinalizers(utils.VolumeGroupSnapshotBoundFinalizer).
+				BuildArray(),
+			expectedGroupSnapshots: NewVolumeGroupSnapshotBuilder("group-snap-1-1", "group-snapuid1-1").
+				WithSelectors(map[string]string{
+					"app.kubernetes.io/name": "postgresql",
+				}).
+				WithGroupSnapshotClass(classGold).
+				WithDeletionTimestamp(timeNowMetav1).
+				WithStatusReadyToUse(false).
+				WithStatusBoundContentName("groupsnapcontent-group-snapuid1-1").
+				BuildArray(),
+			initialGroupContents: NewVolumeGroupSnapshotContentBuilder("groupsnapcontent-group-snapuid1-1").
+				WithBoundGroupSnapshot("group-snap-1-1", "group-snapuid1-1").
+				WithDeletionPolicy(crdv1.VolumeSnapshotContentRetain).
+				WithGroupSnapshotClassName(classGold).
+				WithDesiredVolumeHandles("1-pv-handle6-1", "2-pv-handle6-1").
+				BuildArray(),
+			expectedGroupContents: NewVolumeGroupSnapshotContentBuilder("groupsnapcontent-group-snapuid1-1").
+				WithAnnotation(utils.AnnVolumeGroupSnapshotBeingDeleted, "yes").
+				WithBoundGroupSnapshot("group-snap-1-1", "group-snapuid1-1").
+				WithDeletionPolicy(crdv1.VolumeSnapshotContentRetain).
+				WithGroupSnapshotClassName(classGold).
+				WithDesiredVolumeHandles("1-pv-handle6-1", "2-pv-handle6-1").
+				BuildArray(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim1-1", "pvc-uid6-1", "1Gi", "volume6-1", v1.ClaimBound, &classGold),
 				map[string]string{
