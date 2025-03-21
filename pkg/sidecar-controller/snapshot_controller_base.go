@@ -64,6 +64,8 @@ type csiSnapshotSideCarController struct {
 
 	resyncPeriod time.Duration
 
+	pollSnapshotPeriod time.Duration
+
 	enableVolumeGroupSnapshots       bool
 	groupSnapshotContentQueue        workqueue.TypedRateLimitingInterface[string]
 	groupSnapshotContentLister       groupsnapshotlisters.VolumeGroupSnapshotContentLister
@@ -94,6 +96,7 @@ func NewCSISnapshotSideCarController(
 	volumeGroupSnapshotContentInformer groupsnapshotinformers.VolumeGroupSnapshotContentInformer,
 	volumeGroupSnapshotClassInformer groupsnapshotinformers.VolumeGroupSnapshotClassInformer,
 	groupSnapshotContentRateLimiter workqueue.TypedRateLimiter[string],
+	pollSnapshotPeriod time.Duration,
 ) *csiSnapshotSideCarController {
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
@@ -102,13 +105,14 @@ func NewCSISnapshotSideCarController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", driverName)})
 
 	ctrl := &csiSnapshotSideCarController{
-		clientset:     clientset,
-		client:        client,
-		driverName:    driverName,
-		eventRecorder: eventRecorder,
-		handler:       NewCSIHandler(snapshotter, groupSnapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength, groupSnapshotNamePrefix, groupSnapshotNameUUIDLength),
-		resyncPeriod:  resyncPeriod,
-		contentStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		clientset:          clientset,
+		client:             client,
+		driverName:         driverName,
+		eventRecorder:      eventRecorder,
+		handler:            NewCSIHandler(snapshotter, groupSnapshotter, timeout, snapshotNamePrefix, snapshotNameUUIDLength, groupSnapshotNamePrefix, groupSnapshotNameUUIDLength),
+		resyncPeriod:       resyncPeriod,
+		pollSnapshotPeriod: pollSnapshotPeriod,
+		contentStore:       cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		contentQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			contentRateLimiter, workqueue.TypedRateLimitingQueueConfig[string]{
 				Name: "csi-snapshotter-content"}),
@@ -232,16 +236,17 @@ func (ctrl *csiSnapshotSideCarController) processNextItem() bool {
 		klog.V(4).Infof("Failed to sync content %q, will retry again: %v", key, err)
 		// Always requeue on error to be able to call functions like "return false, doSomething()" where doSomething
 		// does not need to worry about re-queueing.
-		requeue = true
-	}
-	if requeue {
 		ctrl.contentQueue.AddRateLimited(key)
-		return true
+	} else {
+		// if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		ctrl.contentQueue.Forget(key)
+
+		if requeue {
+			ctrl.contentQueue.AddAfter(key, ctrl.pollSnapshotPeriod)
+		}
 	}
 
-	// Finally, if no error occurs we Forget this item so it does not
-	// get queued again until another change happens.
-	ctrl.contentQueue.Forget(key)
 	return true
 }
 
