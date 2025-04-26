@@ -554,10 +554,10 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		}
 
 		volumeSnapshotContentName := getSnapshotContentNameForVolumeGroupSnapshotContent(
-			string(groupSnapshotContent.UID), volumeHandle)
+			string(groupSnapshot.UID), volumeHandle)
 
 		volumeSnapshotName := getSnapshotNameForVolumeGroupSnapshotContent(
-			string(groupSnapshotContent.UID), volumeHandle)
+			string(groupSnapshot.UID), volumeHandle)
 
 		volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
 
@@ -727,14 +727,14 @@ func (ctrl *csiSnapshotCommonController) findPersistentVolumeByCSIDriverHandle(d
 }
 
 // getSnapshotNameForVolumeGroupSnapshotContent returns a unique snapshot name for a VolumeGroupSnapshotContent.
-func getSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotContentUUID, volumeHandle string) string {
-	return fmt.Sprintf("snapshot-%x", sha256.Sum256([]byte(groupSnapshotContentUUID+volumeHandle)))
+func getSnapshotNameForVolumeGroupSnapshotContent(groupSnapshotUUID, volumeHandle string) string {
+	return fmt.Sprintf("snapshot-%x", sha256.Sum256([]byte(groupSnapshotUUID+volumeHandle)))
 }
 
 // getSnapshotContentNameForVolumeGroupSnapshotContent returns a unique content name for the
 // passed in VolumeGroupSnapshotContent.
-func getSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContentUUID, volumeHandle string) string {
-	return fmt.Sprintf("snapcontent-%x", sha256.Sum256([]byte(groupSnapshotContentUUID+volumeHandle)))
+func getSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotUUID, volumeHandle string) string {
+	return fmt.Sprintf("snapcontent-%x", sha256.Sum256([]byte(groupSnapshotUUID+volumeHandle)))
 }
 
 // getPreprovisionedGroupSnapshotContentFromStore tries to find a pre-provisioned
