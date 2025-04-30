@@ -290,6 +290,15 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateContentStatusOperation(c
 			}
 		}
 
+		// The VolumeSnapshotContents that are a member of a VolumeGroupSnapshot will always
+		// have Spec.VolumeSnapshotClassName unset, use annotations for secrets in such case.
+		if volumeGroupSnapshotMemberWithGroupSnapshotHandle {
+			snapshotterListCredentials, err = ctrl.GetCredentialsFromAnnotation(content)
+			if err != nil {
+				return content, fmt.Errorf("failed to get credentials from annotation for snapshot content %s: %v", content.Name, err)
+			}
+		}
+
 		readyToUse, creationTime, size, groupSnapshotID, err = ctrl.handler.GetSnapshotStatus(content, snapshotterListCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateContentStatusOperation: failed to call get snapshot status to check whether snapshot is ready to use %q", err)
