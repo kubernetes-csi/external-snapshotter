@@ -385,12 +385,14 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 	}
 	content = newContent
 
-	// NOTE(xyang): handle create timeout
-	// Remove annotation to indicate storage system has successfully
-	// cut the snapshot
-	content, err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
-	if err != nil {
-		return content, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
+	if contentIsReady(content) {
+		// NOTE(xyang): handle create timeout
+		// Remove annotation to indicate storage system has successfully
+		// cut the snapshot
+		content, err = ctrl.removeAnnVolumeSnapshotBeingCreated(content)
+		if err != nil {
+			return content, fmt.Errorf("failed to remove VolumeSnapshotBeingCreated annotation on the content %s: %q", content.Name, err)
+		}
 	}
 
 	return content, nil
