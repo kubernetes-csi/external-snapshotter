@@ -19,7 +19,7 @@ package utils
 import (
 	"fmt"
 
-	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -38,8 +38,8 @@ func getVolumeGroupSnapshotParentObjectName(snapshot *crdv1.VolumeSnapshot) stri
 
 	apiVersion := fmt.Sprintf(
 		"%s/%s",
-		crdv1beta1.SchemeGroupVersion.Group,
-		crdv1beta1.SchemeGroupVersion.Version,
+		crdv1beta2.SchemeGroupVersion.Group,
+		crdv1beta2.SchemeGroupVersion.Version,
 	)
 
 	for _, owner := range snapshot.ObjectMeta.OwnerReferences {
@@ -100,12 +100,12 @@ func NeedToAddVolumeGroupSnapshotOwnership(snapshot *crdv1.VolumeSnapshot) bool 
 
 // BuildVolumeGroupSnapshotOwnerReference creates a OwnerReference record declaring an
 // object as a child of passed VolumeGroupSnapshot
-func BuildVolumeGroupSnapshotOwnerReference(parentGroup *crdv1beta1.VolumeGroupSnapshot) metav1.OwnerReference {
+func BuildVolumeGroupSnapshotOwnerReference(parentGroup *crdv1beta2.VolumeGroupSnapshot) metav1.OwnerReference {
 	return metav1.OwnerReference{
 		APIVersion: fmt.Sprintf(
 			"%s/%s",
-			crdv1beta1.SchemeGroupVersion.Group,
-			crdv1beta1.SchemeGroupVersion.Version,
+			crdv1beta2.SchemeGroupVersion.Group,
+			crdv1beta2.SchemeGroupVersion.Version,
 		),
 		Kind: "VolumeGroupSnapshot",
 		Name: parentGroup.Name,

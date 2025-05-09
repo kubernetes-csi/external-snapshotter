@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -60,17 +60,17 @@ func PatchVolumeSnapshot(
 
 // PatchVolumeGroupSnapshot patches a volume group snapshot object
 func PatchVolumeGroupSnapshot(
-	existingGroupSnapshot *crdv1beta1.VolumeGroupSnapshot,
+	existingGroupSnapshot *crdv1beta2.VolumeGroupSnapshot,
 	patch []PatchOp,
 	client clientset.Interface,
 	subresources ...string,
-) (*crdv1beta1.VolumeGroupSnapshot, error) {
+) (*crdv1beta2.VolumeGroupSnapshot, error) {
 	data, err := json.Marshal(patch)
 	if nil != err {
 		return existingGroupSnapshot, err
 	}
 
-	newGroupSnapshot, err := client.GroupsnapshotV1beta1().VolumeGroupSnapshots(existingGroupSnapshot.Namespace).Patch(context.TODO(), existingGroupSnapshot.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
+	newGroupSnapshot, err := client.GroupsnapshotV1beta2().VolumeGroupSnapshots(existingGroupSnapshot.Namespace).Patch(context.TODO(), existingGroupSnapshot.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
 	if err != nil {
 		return existingGroupSnapshot, err
 	}
@@ -80,17 +80,17 @@ func PatchVolumeGroupSnapshot(
 
 // PatchVolumeGroupSnapshotContent patches a volume group snapshot content object
 func PatchVolumeGroupSnapshotContent(
-	existingGroupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent,
+	existingGroupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
 	patch []PatchOp,
 	client clientset.Interface,
 	subresources ...string,
-) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	data, err := json.Marshal(patch)
 	if nil != err {
 		return existingGroupSnapshotContent, err
 	}
 
-	newGroupSnapshotContent, err := client.GroupsnapshotV1beta1().VolumeGroupSnapshotContents().Patch(context.TODO(), existingGroupSnapshotContent.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
+	newGroupSnapshotContent, err := client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Patch(context.TODO(), existingGroupSnapshotContent.Name, types.JSONPatchType, data, metav1.PatchOptions{}, subresources...)
 	if err != nil {
 		return existingGroupSnapshotContent, err
 	}
