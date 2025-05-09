@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog/v2"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
@@ -439,15 +440,13 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshotWrapper(groupSnapsh
 	}
 
 	// Create individual snapshots and snapshot contents
-	var snapshotContentLinks []snapshotContentNameVolumeHandlePair
-	for _, snapshot := range snapshots {
-		snapshotContentLinks = append(snapshotContentLinks, snapshotContentNameVolumeHandlePair{
-			snapshotHandle: snapshot.SnapshotId,
-			volumeHandle:   snapshot.SourceVolumeId,
-		})
-	}
-
-	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), snapshotContentLinks)
+	newGroupSnapshotContent, err := ctrl.updateGroupSnapshotContentStatus(
+		groupSnapshotContent,
+		groupSnapshotID,
+		readyToUse,
+		metav1.NewTime(creationTime),
+		snapshots,
+	)
 	if err != nil {
 		klog.Errorf("error updating status for volume group snapshot content %s: %v.", groupSnapshotContent.Name, err)
 		return groupSnapshotContent, fmt.Errorf("error updating status for volume group snapshot content %s: %v", groupSnapshotContent.Name, err)
@@ -583,7 +582,7 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 	groupSnapshotHandle string,
 	readyToUse bool,
 	createdAt metav1.Time,
-	snapshotContentLinks []snapshotContentNameVolumeHandlePair,
+	snapshotList []*csi.Snapshot,
 ) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	klog.V(5).Infof("updateGroupSnapshotContentStatus: updating VolumeGroupSnapshotContent [%s], groupSnapshotHandle %s, readyToUse %v, createdAt %v", groupSnapshotContent.Name, groupSnapshotHandle, readyToUse, createdAt)
 
@@ -600,11 +599,13 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			ReadyToUse:                &readyToUse,
 			CreationTime:              &createdAt,
 		}
-		for _, snapshotContentLink := range snapshotContentLinks {
-
+		for _, snapshot := range snapshotList {
 			newStatus.VolumeSnapshotInfoList = append(newStatus.VolumeSnapshotInfoList, crdv1beta2.VolumeSnapshotInfo{
-				VolumeHandle:   snapshotContentLink.volumeHandle,
-				SnapshotHandle: snapshotContentLink.snapshotHandle,
+				VolumeHandle:   snapshot.SourceVolumeId,
+				SnapshotHandle: snapshot.SnapshotId,
+				CreationTime:   utils.CsiTimestampToKubernetes(snapshot.CreationTime),
+				ReadyToUse:     &snapshot.ReadyToUse,
+				RestoreSize:    utils.CsiSizeToKubernetes(snapshot.SizeBytes),
 			})
 		}
 
@@ -627,10 +628,13 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			updated = true
 		}
 		if len(newStatus.VolumeSnapshotInfoList) == 0 {
-			for _, snapshotContentLink := range snapshotContentLinks {
+			for _, snapshot := range snapshotList {
 				newStatus.VolumeSnapshotInfoList = append(newStatus.VolumeSnapshotInfoList, crdv1beta2.VolumeSnapshotInfo{
-					VolumeHandle:   snapshotContentLink.volumeHandle,
-					SnapshotHandle: snapshotContentLink.snapshotHandle,
+					VolumeHandle:   snapshot.SourceVolumeId,
+					SnapshotHandle: snapshot.SnapshotId,
+					CreationTime:   utils.CsiTimestampToKubernetes(snapshot.CreationTime),
+					ReadyToUse:     &snapshot.ReadyToUse,
+					RestoreSize:    utils.CsiSizeToKubernetes(snapshot.SizeBytes),
 				})
 			}
 			updated = true
@@ -793,7 +797,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		}
 
 		// TODO: Get a reference to snapshot contents for this volume group snapshot
-		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), []snapshotContentNameVolumeHandlePair{})
+		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), []*csi.Snapshot{})
 		if err != nil {
 			return groupSnapshotContent, err
 		}

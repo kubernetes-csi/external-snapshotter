@@ -580,8 +580,9 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 					VolumeHandle: &volumeHandle,
 				},
 			},
-			// The status will be set by VolumeSnapshotContent reconciler
-			// in the CSI snapshotter sidecar.
+			// The status will be set in a separate patch request by
+			// common snapshot controller, using the information from
+			// the VolumeGroupSnapshotContent object.
 		}
 
 		if pv != nil {
@@ -681,6 +682,21 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 				Op:    "replace",
 				Path:  "/status/volumeGroupSnapshotHandle",
 				Value: groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/creationTime",
+				Value: snapshot.CreationTime,
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/restoreSize",
+				Value: snapshot.RestoreSize,
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/readyToUse",
+				Value: snapshot.ReadyToUse,
 			},
 		}, ctrl.clientset, "status")
 		if err != nil {
