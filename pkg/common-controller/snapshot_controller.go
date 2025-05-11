@@ -1019,7 +1019,8 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 		newPvc.ObjectMeta.Finalizers = utils.RemoveString(newPvc.ObjectMeta.Finalizers, utils.PVCFinalizer)
 		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(newPvc.Namespace).Update(context.TODO(), newPvc, metav1.UpdateOptions{})
 		if err != nil {
-			return newControllerUpdateError(newPvc.Name, err.Error())
+			// Have to return raw err here otherwise IsConflict is going to always evaluate to false
+			return err
 		}
 
 		klog.V(5).Infof("Removed protection finalizer from persistent volume claim %s", pvc.Name)
