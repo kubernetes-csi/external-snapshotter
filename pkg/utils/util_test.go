@@ -489,9 +489,30 @@ func TestShouldEnqueueContentChange(t *testing.T) {
 			},
 			expectedResult: true,
 		},
+		{
+			name: "resync from informer (old matches new including resource version)",
+			old: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: oldValue,
+				},
+			},
+			new: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: oldValue,
+				},
+			},
+			expectedResult: true,
+		},
 	}
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
+			// Inject resource version unless it is already set in test object
+			if tc.old.ResourceVersion == "" {
+				tc.old.ResourceVersion = oldValue
+			}
+			if tc.new.ResourceVersion == "" {
+				tc.old.ResourceVersion = newValue
+			}
 			result := ShouldEnqueueContentChange(tc.old, tc.new)
 			if result != tc.expectedResult {
 				t.Fatalf("Incorrect result: Expected %v received %v", tc.expectedResult, result)
