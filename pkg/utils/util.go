@@ -680,6 +680,10 @@ func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1beta1.Vol
 // If the VolumeSnapshotContent object still contains other changes after this sanitization, the changes
 // are potentially meaningful and the object is enqueued to be considered for syncing
 func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.VolumeSnapshotContent) bool {
+	// Always enqueue resyncs, which show up as an update with no change (thus no new version)
+	if old.ResourceVersion == new.ResourceVersion {
+		return true
+	}
 	sanitized := new.DeepCopy()
 	// ResourceVersion always changes between revisions
 	sanitized.ResourceVersion = old.ResourceVersion
@@ -693,7 +697,7 @@ func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.Vol
 		if sanitized.Annotations == nil {
 			sanitized.Annotations = map[string]string{}
 		}
-		for annotation, _ := range sidecarControlledContentAnnotations {
+		for annotation := range sidecarControlledContentAnnotations {
 			if value, ok := old.Annotations[annotation]; ok {
 				sanitized.Annotations[annotation] = value
 			} else {
@@ -702,7 +706,7 @@ func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.Vol
 		}
 	} else {
 		// Old content has no annotations, so delete any sidecar-controlled annotations present on the new content
-		for annotation, _ := range sidecarControlledContentAnnotations {
+		for annotation := range sidecarControlledContentAnnotations {
 			delete(sanitized.Annotations, annotation)
 		}
 	}
