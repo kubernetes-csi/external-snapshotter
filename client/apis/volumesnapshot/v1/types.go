@@ -344,7 +344,7 @@ type VolumeSnapshotContentSpec struct {
 	Source VolumeSnapshotContentSource `json:"source" protobuf:"bytes,5,opt,name=source"`
 
 	// SourceVolumeMode is the mode of the volume whose snapshot is taken.
-	// Can be either “Filesystem” or “Block”.
+	// Can be either "Filesystem" or "Block".
 	// If not specified, it indicates the source volume's mode is unknown.
 	// This field is immutable.
 	// This field is an alpha field.
