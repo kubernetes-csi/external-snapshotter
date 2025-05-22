@@ -43,6 +43,7 @@ import (
 	klog "k8s.io/klog/v2"
 
 	"github.com/kubernetes-csi/csi-lib-utils/leaderelection"
+	"github.com/kubernetes-csi/csi-lib-utils/standardflags"
 	controller "github.com/kubernetes-csi/external-snapshotter/v8/pkg/common-controller"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/features"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
@@ -163,6 +164,7 @@ func main() {
 	c := logsapi.NewLoggingConfiguration()
 	logsapi.AddGoFlags(c, flag.CommandLine)
 	logs.InitLogs()
+	standardflags.AddAutomaxprocs(klog.Infof)
 	flag.Parse()
 	if err := logsapi.ValidateAndApply(c, fg); err != nil {
 		klog.ErrorS(err, "LoggingConfiguration is invalid")

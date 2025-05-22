@@ -8,7 +8,7 @@ require (
 	github.com/container-storage-interface/spec v1.11.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/golang/mock v1.6.0
-	github.com/kubernetes-csi/csi-lib-utils v0.21.0
+	github.com/kubernetes-csi/csi-lib-utils v0.22.0
 	github.com/kubernetes-csi/csi-test/v5 v5.3.1
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
 	github.com/prometheus/client_golang v1.22.0
@@ -16,11 +16,11 @@ require (
 	github.com/prometheus/common v0.62.0
 	google.golang.org/grpc v1.69.0
 	google.golang.org/protobuf v1.36.5
-	k8s.io/api v0.33.0
-	k8s.io/apimachinery v0.33.0
+	k8s.io/api v0.33.1
+	k8s.io/apimachinery v0.33.1
 	k8s.io/apiserver v0.33.0
-	k8s.io/client-go v0.33.0
-	k8s.io/component-base v0.33.0
+	k8s.io/client-go v0.33.1
+	k8s.io/component-base v0.33.1
 	k8s.io/component-helpers v0.33.0
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
@@ -60,6 +60,7 @@ require (
 	go.opentelemetry.io/otel v1.33.0 // indirect
 	go.opentelemetry.io/otel/metric v1.33.0 // indirect
 	go.opentelemetry.io/otel/trace v1.33.0 // indirect
+	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
