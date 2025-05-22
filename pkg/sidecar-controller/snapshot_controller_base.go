@@ -260,11 +260,27 @@ func (ctrl *csiSnapshotSideCarController) syncContentByKey(key string) (requeue 
 	// been add/update/sync
 	if err == nil {
 		if ctrl.isDriverMatch(content) {
-			requeue, err = ctrl.updateContentInInformerCache(content)
-		}
-		if err != nil {
-			// If error occurs we add this item back to the queue
-			return true, err
+			// Store the new content version in the cache and do not process it if this is
+			// an old version.
+			new, err := ctrl.storeContentUpdate(content)
+			if err != nil {
+				klog.Errorf("%v", err)
+			}
+			if !new {
+				return false, nil
+			}
+			requeue, err = ctrl.syncContent(content)
+			if err != nil {
+				if errors.IsConflict(err) {
+					// Version conflict error happens quite often and the controller
+					// recovers from it easily.
+					klog.V(3).Infof("could not sync content %q: %+v", content.Name, err)
+				} else {
+					klog.Errorf("could not sync content %q: %+v", content.Name, err)
+				}
+				// If error occurs we add this item back to the queue
+				return true, err
+			}
 		}
 		return requeue, nil
 	}
@@ -337,32 +353,6 @@ func (ctrl *csiSnapshotSideCarController) isDriverMatch(object interface{}) bool
 		return true
 	}
 	return false
-}
-
-// updateContentInInformerCache runs in worker thread and handles "content added",
-// "content updated" and "periodic sync" events.
-func (ctrl *csiSnapshotSideCarController) updateContentInInformerCache(content *crdv1.VolumeSnapshotContent) (requeue bool, err error) {
-	// Store the new content version in the cache and do not process it if this is
-	// an old version.
-	new, err := ctrl.storeContentUpdate(content)
-	if err != nil {
-		klog.Errorf("%v", err)
-	}
-	if !new {
-		return false, nil
-	}
-	requeue, err = ctrl.syncContent(content)
-	if err != nil {
-		if errors.IsConflict(err) {
-			// Version conflict error happens quite often and the controller
-			// recovers from it easily.
-			klog.V(3).Infof("could not sync content %q: %+v", content.Name, err)
-		} else {
-			klog.Errorf("could not sync content %q: %+v", content.Name, err)
-		}
-		return requeue, err
-	}
-	return requeue, nil
 }
 
 // deleteContent runs in worker thread and handles "content deleted" event.
