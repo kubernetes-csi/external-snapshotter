@@ -40,6 +40,8 @@ const (
 	defaultRenewDeadline = 10 * time.Second
 	defaultRetryPeriod   = 5 * time.Second
 
+	defaultReleaseOnCancel = false
+
 	DefaultHealthCheckTimeout = 20 * time.Second
 
 	// HealthCheckerAddress is the address at which the leader election health
@@ -66,6 +68,8 @@ type leaderElection struct {
 	// within a timeout period.
 	healthCheck *leaderelection.HealthzAdaptor
 
+	releaseOnCancel bool
+
 	leaseDuration time.Duration
 	renewDeadline time.Duration
 	retryPeriod   time.Duration
@@ -83,13 +87,14 @@ func NewLeaderElection(clientset kubernetes.Interface, lockName string, runFunc 
 // NewLeaderElectionWithLeases returns an implementation of leader election using Leases
 func NewLeaderElectionWithLeases(clientset kubernetes.Interface, lockName string, runFunc func(ctx context.Context)) *leaderElection {
 	return &leaderElection{
-		runFunc:       runFunc,
-		lockName:      lockName,
-		resourceLock:  resourcelock.LeasesResourceLock,
-		leaseDuration: defaultLeaseDuration,
-		renewDeadline: defaultRenewDeadline,
-		retryPeriod:   defaultRetryPeriod,
-		clientset:     clientset,
+		runFunc:         runFunc,
+		lockName:        lockName,
+		resourceLock:    resourcelock.LeasesResourceLock,
+		leaseDuration:   defaultLeaseDuration,
+		renewDeadline:   defaultRenewDeadline,
+		releaseOnCancel: defaultReleaseOnCancel,
+		retryPeriod:     defaultRetryPeriod,
+		clientset:       clientset,
 	}
 }
 
@@ -111,6 +116,10 @@ func (l *leaderElection) WithRenewDeadline(renewDeadline time.Duration) {
 
 func (l *leaderElection) WithRetryPeriod(retryPeriod time.Duration) {
 	l.retryPeriod = retryPeriod
+}
+
+func (l *leaderElection) WithReleaseOnCancel(releaseOnCancel bool) {
+	l.releaseOnCancel = releaseOnCancel
 }
 
 // WithContext Add context
@@ -174,10 +183,11 @@ func (l *leaderElection) Run() error {
 	}
 
 	leaderConfig := leaderelection.LeaderElectionConfig{
-		Lock:          lock,
-		LeaseDuration: l.leaseDuration,
-		RenewDeadline: l.renewDeadline,
-		RetryPeriod:   l.retryPeriod,
+		Lock:            lock,
+		LeaseDuration:   l.leaseDuration,
+		RenewDeadline:   l.renewDeadline,
+		RetryPeriod:     l.retryPeriod,
+		ReleaseOnCancel: l.releaseOnCancel,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				logger := klog.FromContext(ctx)
