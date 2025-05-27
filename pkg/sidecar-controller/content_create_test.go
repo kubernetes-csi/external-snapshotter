@@ -205,7 +205,7 @@ func TestSyncContent(t *testing.T) {
 				nil),
 			expectedContents: withContentAnnotations(withContentStatus(newContentArray("content1-7", "snapuid1-7", "snap1-7", "sid1-7", defaultClass, "", "volume-handle-1-7", retainPolicy, nil, &defaultSize, true),
 				&crdv1.VolumeSnapshotContentStatus{SnapshotHandle: toStringPointer("snapuid1-7"), RestoreSize: &defaultSize, ReadyToUse: &False}),
-				map[string]string{}),
+				map[string]string{"snapshot.storage.kubernetes.io/volumesnapshot-being-created": "yes"}),
 			expectedEvents: noevents,
 			expectedCreateCalls: []createCall{
 				{
@@ -236,7 +236,7 @@ func TestSyncContent(t *testing.T) {
 				map[string]string{}),
 			expectedContents: withContentAnnotations(withContentStatus(newContentArray("content1-8", "snapuid1-8", "snap1-8", "sid1-8", defaultClass, "", "volume-handle-1-8", retainPolicy, nil, &defaultSize, true),
 				&crdv1.VolumeSnapshotContentStatus{SnapshotHandle: toStringPointer("snapuid1-8"), RestoreSize: &defaultSize, ReadyToUse: &False}),
-				map[string]string{}),
+				map[string]string{"snapshot.storage.kubernetes.io/volumesnapshot-being-created": "yes"}),
 			expectedEvents: noevents,
 			expectedCreateCalls: []createCall{
 				{
