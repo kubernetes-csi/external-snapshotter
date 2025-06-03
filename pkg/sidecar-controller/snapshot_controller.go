@@ -67,14 +67,15 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			// Note that the deletion snapshot operation will update content SnapshotHandle
 			// to nil upon a successful deletion. At this
 			// point, the finalizer on content should NOT be removed to avoid leaking.
-			err := ctrl.deleteCSISnapshot(content)
+			var err error
+			content, err = ctrl.deleteCSISnapshot(content)
 			if err != nil {
 				return true, err
 			}
-			return false, nil
+			// Continue removing the finalizer
 		}
-		// otherwise, either the snapshot has been deleted from the underlying
-		// storage system, or it belongs to a volumegroupsnapshot, or the deletion policy is Retain,
+		// the snapshot has been deleted from the underlying storage system, or
+		// it belongs to a volumegroupsnapshot, or the deletion policy is Retain,
 		// remove the finalizer if there is one so that API server could delete
 		// the object if there is no other finalizer.
 		err := ctrl.removeContentFinalizer(content)
@@ -82,7 +83,6 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 			return true, err
 		}
 		return false, nil
-
 	}
 
 	// Create snapshot calling the CSI driver only if it is a dynamic
@@ -109,7 +109,7 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 }
 
 // deleteCSISnapshot starts delete action.
-func (ctrl *csiSnapshotSideCarController) deleteCSISnapshot(content *crdv1.VolumeSnapshotContent) error {
+func (ctrl *csiSnapshotSideCarController) deleteCSISnapshot(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	klog.V(5).Infof("Deleting snapshot for content: %s", content.Name)
 	return ctrl.deleteCSISnapshotOperation(content)
 }
@@ -406,31 +406,29 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 }
 
 // Delete a snapshot: Ask the backend to remove the snapshot device
-func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *crdv1.VolumeSnapshotContent) error {
+func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	klog.V(5).Infof("deleteCSISnapshotOperation [%s] started", content.Name)
 
 	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotation(content)
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot credentials")
-		return fmt.Errorf("failed to get input parameters to delete snapshot for content %s: %q", content.Name, err)
+		return content, fmt.Errorf("failed to get input parameters to delete snapshot for content %s: %q", content.Name, err)
 	}
 
 	err = ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to delete snapshot")
-		return fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
+		return content, fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
 	}
 	// the snapshot has been deleted from the underlying storage system, update
 	// content status to remove snapshot handle etc.
+	// This triggers a re-sync of the content object, which will continue cleaning the object (e.g. finalizers)
 	newContent, err := ctrl.clearVolumeContentStatus(content.Name)
 	if err != nil {
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to clear content status")
-		return err
+		return content, err
 	}
-	// trigger syncContent
-	// TODO: just enqueue the content object instead of calling syncContent directly
-	ctrl.updateContentInInformerCache(newContent)
-	return nil
+	return newContent, nil
 }
 
 // clearVolumeContentStatus resets all fields to nil related to a snapshot in
