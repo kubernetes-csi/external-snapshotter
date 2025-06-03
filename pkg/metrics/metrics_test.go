@@ -594,8 +594,10 @@ func verifyMetric(expected, srvAddr string) error {
 			// return correctly if both are EOF
 			if expectedErr == io.EOF && gotErr == io.EOF {
 				break
+			} else if expectedErr != nil {
+				return expectedErr
 			} else {
-				return err
+				return gotErr
 			}
 		}
 		gotMfs = append(gotMfs, gotMf)
