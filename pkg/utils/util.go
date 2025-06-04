@@ -484,6 +484,15 @@ func IsBoundVolumeSnapshotContentNameSet(snapshot *crdv1.VolumeSnapshot) bool {
 	return true
 }
 
+func HasSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, finalizer string) bool {
+	for _, f := range snapshot.ObjectMeta.Finalizers {
+		if f == finalizer {
+			return true
+		}
+	}
+	return false
+}
+
 func IsSnapshotReady(snapshot *crdv1.VolumeSnapshot) bool {
 	if snapshot.Status == nil || snapshot.Status.ReadyToUse == nil || *snapshot.Status.ReadyToUse == false {
 		return false
