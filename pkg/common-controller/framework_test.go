@@ -244,15 +244,6 @@ func withSnapshotFinalizers(snapshots []*crdv1.VolumeSnapshot, finalizers ...str
 	return snapshots
 }
 
-func withGroupSnapshotFinalizers(groupSnapshots []*crdv1beta1.VolumeGroupSnapshot, finalizers ...string) []*crdv1beta1.VolumeGroupSnapshot {
-	for i := range groupSnapshots {
-		for _, f := range finalizers {
-			groupSnapshots[i].ObjectMeta.Finalizers = append(groupSnapshots[i].ObjectMeta.Finalizers, f)
-		}
-	}
-	return groupSnapshots
-}
-
 func withPVCFinalizer(pvc *v1.PersistentVolumeClaim) *v1.PersistentVolumeClaim {
 	pvc.ObjectMeta.Finalizers = append(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer)
 	return pvc
@@ -1279,73 +1270,6 @@ func newContent(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHa
 	return &content
 }
 
-func newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotName, groupSnapshotHandle, groupSnapshotClassName string, desiredVolumeHandles []string, targetVolumeGroupSnapshotHandle string,
-	deletionPolicy crdv1.DeletionPolicy, creationTime *metav1.Time,
-	withFinalizer bool, withStatus bool) *crdv1beta1.VolumeGroupSnapshotContent {
-	ready := true
-	content := crdv1beta1.VolumeGroupSnapshotContent{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            groupSnapshotContentName,
-			ResourceVersion: "1",
-		},
-		Spec: crdv1beta1.VolumeGroupSnapshotContentSpec{
-			Driver:         mockDriverName,
-			DeletionPolicy: deletionPolicy,
-		},
-	}
-
-	if withStatus {
-		content.Status = &crdv1beta1.VolumeGroupSnapshotContentStatus{
-			CreationTime: creationTime,
-			ReadyToUse:   &ready,
-		}
-	}
-
-	if withStatus && groupSnapshotHandle != "" {
-		content.Status.VolumeGroupSnapshotHandle = &groupSnapshotHandle
-	}
-
-	if groupSnapshotClassName != "" {
-		content.Spec.VolumeGroupSnapshotClassName = &groupSnapshotClassName
-	}
-
-	if targetVolumeGroupSnapshotHandle != "" {
-		content.Spec.Source.GroupSnapshotHandles = &crdv1beta1.GroupSnapshotHandles{
-			VolumeGroupSnapshotHandle: targetVolumeGroupSnapshotHandle,
-		}
-	}
-
-	if len(desiredVolumeHandles) != 0 {
-		content.Spec.Source.VolumeHandles = desiredVolumeHandles
-	}
-
-	if boundToGroupSnapshotName != "" {
-		content.Spec.VolumeGroupSnapshotRef = v1.ObjectReference{
-			Kind:            "VolumeGroupSnapshot",
-			APIVersion:      "groupsnapshot.storage.k8s.io/v1beta1",
-			UID:             types.UID(boundToGroupSnapshotUID),
-			Namespace:       testNamespace,
-			Name:            boundToGroupSnapshotName,
-			ResourceVersion: "1",
-		}
-	}
-
-	if withFinalizer {
-		return withGroupContentFinalizer(&content)
-	}
-	return &content
-}
-
-func newGroupSnapshotContentArray(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotSnapshotName, groupSnapshotHandle, groupSnapshotClassName string, desiredVolumeHandles []string, volumeGroupHandle string,
-	deletionPolicy crdv1.DeletionPolicy, creationTime *metav1.Time,
-	withFinalizer bool, withStatus bool) []*crdv1beta1.VolumeGroupSnapshotContent {
-	return []*crdv1beta1.VolumeGroupSnapshotContent{
-		newGroupSnapshotContent(groupSnapshotContentName, boundToGroupSnapshotUID, boundToGroupSnapshotSnapshotName, groupSnapshotHandle, groupSnapshotClassName, desiredVolumeHandles, volumeGroupHandle,
-			deletionPolicy, creationTime,
-			withFinalizer, withStatus),
-	}
-}
-
 func withContentAnnotations(contents []*crdv1.VolumeSnapshotContent, annotations map[string]string) []*crdv1.VolumeSnapshotContent {
 	for i := range contents {
 		if contents[i].ObjectMeta.Annotations == nil {
@@ -1368,23 +1292,6 @@ func withContentSpecSnapshotClassName(contents []*crdv1.VolumeSnapshotContent, v
 func withContentFinalizer(content *crdv1.VolumeSnapshotContent) *crdv1.VolumeSnapshotContent {
 	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeSnapshotContentFinalizer)
 	return content
-}
-
-func withGroupContentFinalizer(content *crdv1beta1.VolumeGroupSnapshotContent) *crdv1beta1.VolumeGroupSnapshotContent {
-	content.ObjectMeta.Finalizers = append(content.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer)
-	return content
-}
-
-func withGroupContentAnnotations(contents []*crdv1beta1.VolumeGroupSnapshotContent, annotations map[string]string) []*crdv1beta1.VolumeGroupSnapshotContent {
-	for i := range contents {
-		if contents[i].ObjectMeta.Annotations == nil {
-			contents[i].ObjectMeta.Annotations = make(map[string]string)
-		}
-		for k, v := range annotations {
-			contents[i].ObjectMeta.Annotations[k] = v
-		}
-	}
-	return contents
 }
 
 func newContentArray(contentName, boundToSnapshotUID, boundToSnapshotName, snapshotHandle, snapshotClassName, desiredSnapshotHandle, volumeHandle string,
@@ -1480,64 +1387,6 @@ func newSnapshot(
 		return withSnapshotFinalizers([]*crdv1.VolumeSnapshot{&snapshot}, utils.VolumeSnapshotAsSourceFinalizer, utils.VolumeSnapshotBoundFinalizer)[0]
 	}
 	return &snapshot
-}
-
-func newGroupSnapshot(
-	groupSnapshotName, groupSnapshotUID string, selectors map[string]string, targetContentName, groupSnapshotClassName, boundContentName string,
-	readyToUse *bool, creationTime *metav1.Time,
-	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) *crdv1beta1.VolumeGroupSnapshot {
-	groupSnapshot := crdv1beta1.VolumeGroupSnapshot{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:              groupSnapshotName,
-			Namespace:         testNamespace,
-			UID:               types.UID(groupSnapshotUID),
-			ResourceVersion:   "1",
-			SelfLink:          "/apis/groupsnapshot.storage.k8s.io/v1beta1/namespaces/" + testNamespace + "/volumesnapshots/" + groupSnapshotName,
-			DeletionTimestamp: deletionTimestamp,
-		},
-		Spec: crdv1beta1.VolumeGroupSnapshotSpec{
-			VolumeGroupSnapshotClassName: nil,
-		},
-	}
-
-	if len(selectors) > 0 {
-		groupSnapshot.Spec.Source.Selector = &metav1.LabelSelector{
-			MatchLabels: selectors,
-		}
-	}
-
-	if !nilStatus {
-		groupSnapshot.Status = &crdv1beta1.VolumeGroupSnapshotStatus{
-			CreationTime: creationTime,
-			ReadyToUse:   readyToUse,
-			Error:        err,
-		}
-
-		if boundContentName != "" {
-			groupSnapshot.Status.BoundVolumeGroupSnapshotContentName = &boundContentName
-		}
-	}
-
-	if groupSnapshotClassName != "" {
-		groupSnapshot.Spec.VolumeGroupSnapshotClassName = &groupSnapshotClassName
-	}
-
-	if targetContentName != "" {
-		groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName = &targetContentName
-	}
-	if withAllFinalizers {
-		return withGroupSnapshotFinalizers([]*crdv1beta1.VolumeGroupSnapshot{&groupSnapshot}, utils.VolumeGroupSnapshotContentFinalizer, utils.VolumeGroupSnapshotBoundFinalizer)[0]
-	}
-	return &groupSnapshot
-}
-
-func newGroupSnapshotArray(
-	groupSnapshotName, groupSnapshotUID string, selectors map[string]string, targetContentName, groupSnapshotClassName, boundContentName string,
-	readyToUse *bool, creationTime *metav1.Time,
-	err *crdv1.VolumeSnapshotError, nilStatus bool, withAllFinalizers bool, deletionTimestamp *metav1.Time) []*crdv1beta1.VolumeGroupSnapshot {
-	return []*crdv1beta1.VolumeGroupSnapshot{
-		newGroupSnapshot(groupSnapshotName, groupSnapshotUID, selectors, targetContentName, groupSnapshotClassName, boundContentName, readyToUse, creationTime, err, nilStatus, withAllFinalizers, deletionTimestamp),
-	}
 }
 
 func newSnapshotArray(
