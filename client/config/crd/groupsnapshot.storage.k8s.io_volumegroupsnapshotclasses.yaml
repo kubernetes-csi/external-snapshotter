@@ -17,6 +17,15 @@ spec:
     - vgsclasses
     singular: volumegroupsnapshotclass
   scope: Cluster
+  conversion:
+    strategy: Webhook
+    webhook:
+      conversionReviewVersions: ["v1","v1beta1"]
+      clientConfig:
+        service:
+          namespace: default
+          name: snapshot-webhook-service
+          path: /convert
   versions:
   - additionalPrinterColumns:
     - jsonPath: .driver
