@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-.PHONY: all snapshot-controller csi-snapshotter snapshot-webhook clean test
+.PHONY: all snapshot-controller csi-snapshotter snapshot-conversion-webhook clean test
 
-CMDS=snapshot-controller csi-snapshotter snapshot-webhook
+CMDS=snapshot-controller csi-snapshotter snapshot-conversion-webhook
 all: build
 include release-tools/build.make
 

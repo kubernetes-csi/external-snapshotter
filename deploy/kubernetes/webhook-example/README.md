@@ -13,7 +13,7 @@ make
 Build the docker image
 
 ```bash
-docker build -t snapshot-webhook:latest -f ./cmd/snapshot-webhook/Dockerfile .
+docker build -t snapshot-conversion-webhook:latest -f ./cmd/snapshot-conversion-webhook/Dockerfile .
 ```
 
 ## How to deploy the webhook
@@ -35,7 +35,7 @@ These commands should be run from the top level directory.
 
     ```bash
     # This script will create a TLS certificate signed by the [cluster](https://kubernetes.io/docs/tasks/tls/managing-tls-in-a-cluster/). It will place the public and private key into a secret on the cluster.
-    ./deploy/kubernetes/webhook-example/create-cert.sh --service snapshot-webhook-service --secret snapshot-webhook-secret --namespace default # Make sure to use a different namespace
+    ./deploy/kubernetes/webhook-example/create-cert.sh --service snapshot-conversion-webhook-service --secret snapshot-conversion-webhook-secret --namespace default # Make sure to use a different namespace
     ```
 
 2. Patch the VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass CRDs filling in the CA bundle field.

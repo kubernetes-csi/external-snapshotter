@@ -20,15 +20,15 @@ Blog post for the Volume Group Snapshot Alpha feature can be found [here](https:
 
 This information reflects the head of this branch.
 
-| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version) |
-| ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | --------------- |  --------------- |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.20         | 1.20         |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.20     | 1.20         |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-webhook  | 1.20     | 1.20         |
+| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image                                    | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version) |
+| ------------------------------------------------------------------------------------------ | ----------------------------|----------------------------------------------------| --------------- |  --------------- |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/csi-snapshotter             | 1.20         | 1.20         |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-controller         | 1.20     | 1.20         |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-conversion-webhook | 1.20     | 1.20         |
 
-Note: snapshot-controller, snapshot-webhook, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
+Note: snapshot-controller, snapshot-conversion-webhook, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
 
-Note: when the volume group snapshot feature is enabled, snapshot-controller, snapshot-webhook, csi-snapshotter require the v1alpha1 volumegroupsnapshot CRDs to be installed.
+Note: when the volume group snapshot feature is enabled, snapshot-controller, snapshot-conversion-webhook, csi-snapshotter require the v1alpha1 volumegroupsnapshot CRDs to be installed.
 
 ## Feature Status
 

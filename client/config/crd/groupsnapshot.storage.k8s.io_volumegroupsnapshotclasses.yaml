@@ -24,7 +24,7 @@ spec:
       clientConfig:
         service:
           namespace: default
-          name: snapshot-webhook-service
+          name: snapshot-conversion-webhook-service
           path: /convert
   versions:
   - additionalPrinterColumns:
