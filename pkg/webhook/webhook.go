@@ -22,48 +22,14 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/spf13/cobra"
-
 	"k8s.io/klog/v2"
 )
 
-var (
-	certFile                         string
-	keyFile                          string
-	kubeconfigFile                   string
-	port                             int
-	preventVolumeModeConversion      bool
-	enableVolumeGroupSnapshotWebhook bool
-)
-
-var CmdWebhook = &cobra.Command{
-	Use:   "conversion-webhook",
-	Short: "Starts a HTTPS server to perform conversion between v1beta1 and v1beta2 VolumeGroupSnapshot API",
-	Args:  cobra.MaximumNArgs(0),
-	Run:   main,
-}
-
-func init() {
-	CmdWebhook.Flags().StringVar(&certFile, "tls-cert-file", "",
-		"File containing the x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). Required.")
-	CmdWebhook.Flags().StringVar(&keyFile, "tls-private-key-file", "",
-		"File containing the x509 private key matching --tls-cert-file. Required.")
-	CmdWebhook.Flags().IntVar(&port, "port", 443,
-		"Secure port that the webhook listens on")
-	CmdWebhook.MarkFlagRequired("tls-cert-file")
-	CmdWebhook.MarkFlagRequired("tls-private-key-file")
-	// Add optional flag for kubeconfig
-	CmdWebhook.Flags().StringVar(&kubeconfigFile, "kubeconfig", "", "kubeconfig file to use for volumesnapshotclasses")
-	CmdWebhook.Flags().BoolVar(&preventVolumeModeConversion, "prevent-volume-mode-conversion",
-		true, "Prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot.")
-	CmdWebhook.Flags().BoolVar(&enableVolumeGroupSnapshotWebhook, "enable-volume-group-snapshot-webhook",
-		false, "Enables webhook for VolumeGroupSnapshotClass.")
-}
-
-func startServer(
+func StartServer(
 	ctx context.Context,
 	tlsConfig *tls.Config,
 	cw *CertWatcher,
+	port int,
 ) error {
 	go func() {
 		klog.Info("Starting certificate watcher")
@@ -71,8 +37,6 @@ func startServer(
 			klog.Errorf("certificate watcher error: %v", err)
 		}
 	}()
-
-	fmt.Println("Starting conversion webhook server")
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/readyz", func(w http.ResponseWriter, req *http.Request) { w.Write([]byte("ok")) })
@@ -90,22 +54,4 @@ func startServer(
 	}
 
 	return srv.Serve(listener)
-}
-
-func main(cmd *cobra.Command, args []string) {
-	// Create new cert watcher
-	ctx, cancel := context.WithCancel(cmd.Context())
-	defer cancel() // stops certwatcher
-
-	cw, err := NewCertWatcher(certFile, keyFile)
-	if err != nil {
-		klog.Fatalf("failed to initialize new cert watcher: %v", err)
-	}
-	tlsConfig := &tls.Config{
-		GetCertificate: cw.GetCertificate,
-	}
-
-	if err := startServer(ctx, tlsConfig, cw); err != nil {
-		klog.Fatalf("server stopped: %v", err)
-	}
 }

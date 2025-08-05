@@ -1,6 +1,6 @@
 ---
 apiVersion: groupsnapshot.storage.k8s.io/v1beta1
-kind: VolumeGroupSnapshot
+kind: VolumeGroupSnapshotContent
 metadata:
   name: new-groupsnapshot-demo
   annotations:
@@ -21,14 +21,7 @@ metadata:
           "restoreSize": 12
         }
       ]
-spec:
-  source:
-    selector:
-      matchLabels:
-        # The PVCs will need to have this label for it to be
-        # included in the VolumeGroupSnapshot
-        cnpg.io/instanceName: cluster-example-1
-  volumeGroupSnapshotClassName: csi-hostpath-groupsnapclass
+spec: {}
 status:
   readyToUse: true
   volumeGroupSnapshotHandle: feae7cc9-d339-11ef-9750-6a7695ce0383

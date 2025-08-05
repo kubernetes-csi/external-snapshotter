@@ -16,15 +16,6 @@ spec:
     - vgs
     singular: volumegroupsnapshot
   scope: Namespaced
-  conversion:
-    strategy: Webhook
-    webhook:
-      conversionReviewVersions: ["v1","v1beta1"]
-      clientConfig:
-        service:
-          namespace: default
-          name: snapshot-conversion-webhook-service
-          path: /convert
   versions:
   - additionalPrinterColumns:
     - description: Indicates if all the individual snapshots in the group are ready

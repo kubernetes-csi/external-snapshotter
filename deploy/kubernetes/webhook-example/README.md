@@ -1,6 +1,11 @@
-# Validating Webhook
+# Conversion Webhook
 
-The snapshot validating webhook is an HTTP callback which responds to [admission requests](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/). It is part of a larger [plan](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook#proposal) to tighten validation for volume snapshot objects. This webhook introduces the [ratcheting validation](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook#backwards-compatibility) mechanism targeting the tighter validation. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs.
+The snapshot conversion webhook is an HTTP callback which responds to 
+[conversion requests](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion),
+allowing the API server to convert between the VolumeGroupSnapshotContent v1beta1 API to and from the v1beta2 API.
+
+The cluster admin or Kubernetes distribution admin should install the webhook
+alongside the snapshot controllers and CRDs.
 
 ## How to build the webhook
 
@@ -18,11 +23,25 @@ docker build -t snapshot-conversion-webhook:latest -f ./cmd/snapshot-conversion-
 
 ## How to deploy the webhook
 
-The webhook server is provided as an image which can be built from this repository. It can be deployed anywhere, as long as the api server is able to reach it over HTTPS. It is recommended to deploy the webhook server in the cluster as snapshotting is latency sensitive. A `ValidatingWebhookConfiguration` object is needed to configure the api server to contact the webhook server. Please see the [documentation](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/) for more details. The webhook server code is adapted from the [webhook server](https://github.com/kubernetes/kubernetes/tree/v1.18.6/test/images/agnhost/webhook) used in the kubernetes/kubernetes end to end testing code.
+The webhook server is provided as an image which can be built from this repository. It can be deployed anywhere, 
+as long as the api server is able to reach it over HTTPS. It is recommended to deploy the webhook server in the
+cluster as snapshotting is latency sensitive.
+
+The CRD may need to be patched to allow safe TLS communication to the webhook server. 
+Please see the [documentation](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion)
+for more details.
+
+The webhook server code is adapted from the [webhook server](https://github.com/kubernetes/kubernetes/blob/v1.25.3/test/images/agnhost/crd-conversion-webhook/main.go)
+used in the kubernetes/kubernetes e2e testing code.
 
 ### Example in-cluster deployment using Kubernetes Secrets
 
-Please note this is not considered to be a production ready method to deploy the certificates and is only provided for demo purposes. This is only one of many ways to deploy the certificates, it is your responsibility to ensure the security of your cluster. TLS certificates and private keys should be handled with care and you may not want to keep them in plain Kubernetes secrets.
+Please note this is not considered to be a production ready method to deploy the certificates and is only provided
+for demo purposes. This is only one of many ways to deploy the certificates, it is your responsibility to
+ensure the security of your cluster.
+
+TLS certificates and private keys should be handled with care and you may not want to keep them in plain
+Kubernetes secrets.
 
 This method was heavily adapted from [banzai cloud](https://banzaicloud.com/blog/k8s-admission-webhooks/).
 
@@ -38,7 +57,7 @@ These commands should be run from the top level directory.
     ./deploy/kubernetes/webhook-example/create-cert.sh --service snapshot-conversion-webhook-service --secret snapshot-conversion-webhook-secret --namespace default # Make sure to use a different namespace
     ```
 
-2. Patch the VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass CRDs filling in the CA bundle field.
+2. Patch the VolumeGroupSnapshotContent CRD filling in the CA bundle field.
 
     ```bash
     ./deploy/kubernetes/webhook-example/patch-ca-bundle.sh
@@ -56,20 +75,18 @@ Once all the pods from the deployment are up and running, you should be ready to
 
 #### Verify the webhook works
 
-Try to query the API server for a VolumeGroupSnapshot object in the version `v1beta1`.
+Try to query the API server for a VolumeGroupSnapshotContent object in the version `v1beta1`.
 
 ```bash
-kubectl get volumegroupsnapshotclass.v1beta1.groupsnapshot.storage.k8s.io 
-
 kubectl get volumegroupsnapshotcontent.v1beta1.groupsnapshot.storage.k8s.io 
-
-kubectl get volumegroupsnapshot.v1beta1.groupsnapshot.storage.k8s.io 
 ```
 
 ### Other methods to deploy the webhook server
 
-Look into [cert-manager](https://cert-manager.io/) to handle the certificates, and this kube-builder [tutorial](https://book.kubebuilder.io/cronjob-tutorial/cert-manager.html) on how to deploy a webhook.
+Look into [cert-manager](https://cert-manager.io/) to handle the certificates,
+and this kube-builder [tutorial](https://book.kubebuilder.io/cronjob-tutorial/cert-manager.html) on how to deploy a webhook.
 
 #### Important
 
-Please see the deployment [yaml](./webhook.yaml) for the arguments expected by the webhook server. The snapshot validation webhook is served at the path `/volumesnapshot`.
+Please see the deployment [yaml](./webhook.yaml) for the arguments expected by the
+webhook server. The conversion webhook is served at the path `/convert`.

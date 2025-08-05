@@ -17,17 +17,65 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"flag"
 
-	webhook "github.com/kubernetes-csi/external-snapshotter/v8/pkg/webhook"
+	"github.com/kubernetes-csi/csi-lib-utils/standardflags"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/webhook"
+	"k8s.io/component-base/logs"
+	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
 )
 
-func main() {
-	rootCmd := webhook.CmdWebhook
+var (
+	certFile = flag.String(
+		"tls-cert-file",
+		"",
+		"File containing the x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). Required.",
+	)
+	keyFile = flag.String(
+		"tls-private-key-file",
+		"",
+		"File containing the x509 private key matching --tls-cert-file. Required.",
+	)
+	port = flag.Int(
+		"port",
+		443,
+		"Secure port that the webhook listens on",
+	)
+)
 
-	loggingFlags := &flag.FlagSet{}
-	klog.InitFlags(loggingFlags)
-	rootCmd.PersistentFlags().AddGoFlagSet(loggingFlags)
-	rootCmd.Execute()
+func main() {
+	c := logsapi.NewLoggingConfiguration()
+	logsapi.AddGoFlags(c, flag.CommandLine)
+	logs.InitLogs()
+	standardflags.AddAutomaxprocs(klog.Infof)
+	flag.Parse()
+
+	klog.Info("Starting conversion webhook server")
+
+	if certFile == nil || *certFile == "" {
+		klog.Fatal("--tls-cert-file must be specified")
+	}
+	if keyFile == nil || *keyFile == "" {
+		klog.Fatal("--tls-private-key-file must be specified")
+	}
+
+	// Create new cert watcher
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // stops certwatcher
+
+	cw, err := webhook.NewCertWatcher(*certFile, *keyFile)
+	if err != nil {
+		klog.Fatalf("failed to initialize new cert watcher: %v", err)
+	}
+	tlsConfig := &tls.Config{
+		GetCertificate: cw.GetCertificate,
+	}
+
+	// Start the webhook server
+	if err := webhook.StartServer(ctx, tlsConfig, cw, *port); err != nil {
+		klog.Fatalf("server stopped: %v", err)
+	}
 }

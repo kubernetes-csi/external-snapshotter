@@ -48,10 +48,8 @@ func convertGroupSnapshotCRD(obj *unstructured.Unstructured, toVersion string) (
 		switch toVersion {
 		case "groupsnapshot.storage.k8s.io/v1beta2":
 			switch kind {
-			case "VolumeGroupSnapshot":
-			case "VolumeGroupSnapshotClass":
 			case "VolumeGroupSnapshotContent":
-				if err := convertVolumeGroupSnapshotFromV1beta1ToV1beta2(convertedObject); err != nil {
+				if err := convertVolumeGroupSnapshotContentFromV1beta1ToV1beta2(convertedObject); err != nil {
 					return nil, statusErrorWithMessage("%s", err.Error())
 				}
 			default:
@@ -64,10 +62,8 @@ func convertGroupSnapshotCRD(obj *unstructured.Unstructured, toVersion string) (
 		switch toVersion {
 		case "groupsnapshot.storage.k8s.io/v1beta1":
 			switch kind {
-			case "VolumeGroupSnapshot":
-			case "VolumeGroupSnapshotClass":
 			case "VolumeGroupSnapshotContent":
-				if err := convertVolumeGroupSnapshotFromV1beta2ToV1beta1(convertedObject); err != nil {
+				if err := convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(convertedObject); err != nil {
 					return nil, statusErrorWithMessage("%s", err.Error())
 				}
 			default:
@@ -83,7 +79,7 @@ func convertGroupSnapshotCRD(obj *unstructured.Unstructured, toVersion string) (
 	return convertedObject, statusSucceed()
 }
 
-func convertVolumeGroupSnapshotFromV1beta1ToV1beta2(obj *unstructured.Unstructured) error {
+func convertVolumeGroupSnapshotContentFromV1beta1ToV1beta2(obj *unstructured.Unstructured) error {
 	annotations := obj.GetAnnotations()
 	if value, ok := annotations[volumeSnapshotInfoAnnotationName]; ok {
 		// We use the annotation to fill the missing fields into the status
@@ -129,7 +125,7 @@ func convertVolumeGroupSnapshotFromV1beta1ToV1beta2(obj *unstructured.Unstructur
 	return nil
 }
 
-func convertVolumeGroupSnapshotFromV1beta2ToV1beta1(obj *unstructured.Unstructured) error {
+func convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(obj *unstructured.Unstructured) error {
 	volumeSnapshotInfoList, found, err := unstructured.NestedSlice(obj.Object, "status", "volumeSnapshotInfoList")
 	if err != nil {
 		return fmt.Errorf("unable to traverse for .status.volumeSnapshotInfoList: %w", err)

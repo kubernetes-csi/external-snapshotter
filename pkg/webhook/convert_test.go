@@ -39,7 +39,7 @@ func TestFromBeta1ToBeta2(t *testing.T) {
 			from := fromFile(t, beta1FileName)
 			to := fromFile(t, beta2FileName)
 
-			err := convertVolumeGroupSnapshotFromV1beta1ToV1beta2(from)
+			err := convertVolumeGroupSnapshotContentFromV1beta1ToV1beta2(from)
 			if err != nil {
 				t.Fatalf("conversion failed: %v", err.Error())
 			}
@@ -65,7 +65,7 @@ func TestFromBeta2ToBeta1(t *testing.T) {
 			from := fromFile(t, beta2FileName)
 			to := fromFile(t, beta1FileName)
 
-			err := convertVolumeGroupSnapshotFromV1beta2ToV1beta1(from)
+			err := convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(from)
 			if err != nil {
 				t.Fatalf("conversion failed: %v", err.Error())
 			}

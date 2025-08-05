@@ -35,9 +35,9 @@ import (
 func TestWebhookCertReload(t *testing.T) {
 	// Initialize test space
 	tmpDir := os.TempDir() + "/webhook-cert-tests"
-	certFile = tmpDir + "/tls.crt"
-	keyFile = tmpDir + "/tls.key"
-	port = 30443
+	certFile := tmpDir + "/tls.crt"
+	keyFile := tmpDir + "/tls.key"
+	port := 30443
 	err := os.Mkdir(tmpDir, 0o777)
 	if err != nil && err != os.ErrExist {
 		t.Errorf("unexpected error occurred while creating tmp dir: %v", err)
@@ -64,9 +64,10 @@ func TestWebhookCertReload(t *testing.T) {
 		GetCertificate: cw.GetCertificate,
 	}
 	go func() {
-		err := startServer(ctx,
+		err := StartServer(ctx,
 			tlsConfig,
 			cw,
+			port,
 		)
 		if err != nil {
 			panic(err)

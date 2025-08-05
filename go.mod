@@ -9,7 +9,6 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/golang/mock v1.6.0
-	github.com/google/gofuzz v1.2.0
 	github.com/kubernetes-csi/csi-lib-utils v0.22.0
 	github.com/kubernetes-csi/csi-test/v5 v5.3.1
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
@@ -17,7 +16,6 @@ require (
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.62.0
-	github.com/spf13/cobra v1.8.1
 	google.golang.org/grpc v1.69.0
 	google.golang.org/protobuf v1.36.5
 	k8s.io/api v0.33.2
@@ -57,6 +55,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/spf13/cobra v1.8.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
