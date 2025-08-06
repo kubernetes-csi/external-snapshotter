@@ -28,7 +28,7 @@ This information reflects the head of this branch.
 
 Note: snapshot-controller, snapshot-conversion-webhook, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
 
-Note: when the volume group snapshot feature is enabled, snapshot-controller, snapshot-conversion-webhook, csi-snapshotter require the v1alpha1 volumegroupsnapshot CRDs to be installed.
+Note: when the volume group snapshot feature is enabled, snapshot-controller, snapshot-conversion-webhook, csi-snapshotter require the v1beta2 volumegroupsnapshot CRDs to be installed.
 
 ## Feature Status
 
@@ -46,9 +46,9 @@ The CSI external-snapshotter sidecar talks to CSI over socket (/run/csi/socket b
 
 In the current release, both v1 and v1beta1 APIs are served while the stored API version is changed from v1beta1 to v1. v1beta1 APIs is deprecated and will be removed in a future release. It is recommended for users to switch to v1 APIs as soon as possible. Any previously created invalid v1beta1 objects have to be deleted before upgrading to version 4.1.
 
-### Volume Group Snapshot v1alpha1 APIs
+### Volume Group Snapshot v1beta2 APIs
 
-When enabled, the VolumeGroupSnapshot v1alpha1 APIs are being served.
+When enabled, the VolumeGroupSnapshot v1beta2 APIs are being served.
 
 ## Usage
 
@@ -65,7 +65,7 @@ Therefore, it is strongly recommended that Kubernetes distributors bundle and de
 
 If your Kubernetes distribution does not bundle the snapshot controller, you may manually install these components by executing the following steps. Note that the snapshot controller YAML files in the git repository deploy into the default namespace for system testing purposes. For general use, update the snapshot controller YAMLs with an appropriate namespace prior to installing. For example, on a Vanilla Kubernetes cluster update the namespace from 'default' to 'kube-system' prior to issuing the kubectl create command.
 
-There is a new validating webhook server which provides tightened validation on snapshot objects. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs. More details [below](#validating-webhook).
+There is a new conversion webhook server which provides conversion between v1beta1 and v1beta2 group snapshot objects. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs if they want to provide group snapshot v1beta1 API. More details [below](#conversion-webhook).).
 
 Install Snapshot and Volume Group Snapshot CRDs:
 * With the repo cloned locally: `kubectl kustomize client/config/crd | kubectl create -f -`
@@ -83,61 +83,22 @@ Install CSI Driver:
   * With the repo cloned locally: `kubectl kustomize deploy/kubernetes/csi-snapshotter | kubectl create -f -`
   * From the repo remotely: `kubectl kustomize https://github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/csi-snapshotter | kubectl create -f -`
 
-### Validating Webhook
+### Conversion Webhook
 
-The snapshot validating webhook is an HTTP callback which responds to [admission requests](https://kubernetes.io/docs/reference/access-authn-authz/extensible-admission-controllers/). It is part of a larger [plan](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook) to tighten validation for volume snapshot objects. This webhook introduces the [ratcheting validation](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook#backwards-compatibility) mechanism targeting the tighter validation. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs.
 
-Along with the validation webhook, the volume snapshot controller will start [labeling](https://github.com/kubernetes/enhancements/tree/master/keps/sig-storage/1900-volume-snapshot-validation-webhook#automatic-labelling-of-invalid-objects) invalid snapshot objects which already existed. This is to enable quick identification of invalid snapshot objects in the system by running:
-```
-kubectl get volumesnapshots --selector=snapshot.storage.kubernetes.io/invalid-snapshot-resource: ""
-kubectl get volumesnapshotcontents --selector=snapshot.storage.kubernetes.io/invalid-snapshot-content-resource: ""
-```
-
-Users should run this to identify, remove any invalid objects, and correct their workflows before upgrading to v1. Once the API has been switched to the v1 type, those invalid objects will not be deletable from the system.
-
-If there are no existing invalid v1beta1 objects, after upgrading to v1, the webhook and schema validation will prevent the user from creating new invalid v1 and v1beta1 objects.
-
-If there are existing invalid v1beta1 objects, the user should make sure that the snapshot controller is upgraded to v3.0.0 or higher (v3.0.3 is the latest recommended v3.0.x release) and install the corresponding validation webhook before upgrading to v1 so that those invalid objects will be labeled and can be identified easily and removed before upgrading to v1.
-
-If there are existing invalid v1beta1 objects, and the user didn't upgrade to the snapshot controller 3.0.0 or higher and install the corresponding validation webhook before upgrading to v1, those existing invalid v1beta1 objects will not be labeled by the snapshot controller.
-
-So the recommendation is that before upgrading to v1 CRDs and upgrading snapshot controller and validation webhook to v4.0, the user should upgrade to the snapshot controller 3.0.0 and higher (v3.0.3 is the latest recommended version for 3.0.x) and install the corresponding validation webhook so that all existing invalid objects will be labeled and can be easily identified and deleted.
-
-> :warning: **WARNING**: Cluster admins choosing not to install the webhook server and participate in the phased release process can cause future problems when upgrading from `v1beta1` to `v1` volumesnapshot API, if there are currently persisted objects which fail the new stricter validation. Potential impacts include being unable to delete invalid snapshot objects.
+The snapshot conversion webhook is an HTTP callback which responds to
+[conversion requests](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion),
+allowing the API server to convert between the VolumeGroupSnapshotContent v1beta1 API to and from the v1beta2 API.
 
 Read more about how to install the example webhook [here](deploy/kubernetes/webhook-example/README.md).
 
-####  Validating Webhook Command Line Options
+####  Conversion Webhook Command Line Options
 
 * `--tls-cert-file`: File containing the x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). Required.
 
 * `--tls-private-key-file`: File containing the x509 private key matching --tls-cert-file. Required.
 
 * `--port`: Secure port that the webhook listens on (default 443)
-
-* `--kubeconfig <path>`: Path to Kubernetes client configuration that the webhook uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
-
-* `--prevent-volume-mode-conversion`: Boolean that prevents an unauthorised user from modifying the volume mode when creating a PVC from an existing VolumeSnapshot. Was present as an alpha feature in `v6.0.0`; Having graduated to beta, defaults to true.
-
-#### Validating Webhook Validations
-
-##### Volume Snapshot
-
-* Spec.VolumeSnapshotClassName must not be an empty string or nil on creation
-* Spec.Source.PersistentVolumeClaimName must not be changed on update requests
-* Spec.Source.VolumeSnapshotContentName must not be changed on update requests
-
-##### Volume Snapshot Content
-
-* Spec.VolumeSnapshotRef.Name must not be an empty string on creation
-* Spec.VolumeSnapshotRef.Namespace must not be an empty string on creation
-* Spec.Source.VolumeHandle must not be changed on update requests
-* Spec.Source.SnapshotHandle must not be changed on update requests
-* Spec.SourceVolumeMode must not be changes on update requests
-
-##### Volume Snapshot Classes
-
-* There can only be a single default volume snapshot class for a particular driver.
 
 ### Distributed Snapshotting
 
