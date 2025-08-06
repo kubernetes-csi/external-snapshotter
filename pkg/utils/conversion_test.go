@@ -23,22 +23,22 @@ import (
 )
 
 func TestCsiSizeToKubernetes(t *testing.T) {
-	if CsiSizeToKubernetes(0) != nil {
+	if CSISizeToKubernetes(0) != nil {
 		t.Error("Expected nil")
 	}
 
-	if *CsiSizeToKubernetes(123) != 123 {
+	if *CSISizeToKubernetes(123) != 123 {
 		t.Error("Wrong size conversion")
 	}
 }
 
 func TestCsiTimestampToKubernetes(t *testing.T) {
-	if CsiTimestampToKubernetes(nil) != nil {
+	if CSITimestampToKubernetes(nil) != nil {
 		t.Error("Expected nil")
 	}
 
 	now := timestamppb.Now()
-	if *CsiTimestampToKubernetes(now) != now.AsTime().UnixNano() {
+	if *CSITimestampToKubernetes(now) != now.AsTime().UnixNano() {
 		t.Error("Expected correct time conversion")
 	}
 }

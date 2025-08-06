@@ -39,7 +39,7 @@ import (
 )
 
 // convertFunc is the user defined function for any conversion. The code in this file is a
-// template that can be use for any CR conversion given this function.
+// template that can be used for any CR conversion given this function.
 type convertFunc func(Object *unstructured.Unstructured, version string) (*unstructured.Unstructured, metav1.Status)
 
 func statusErrorWithMessage(msg string, params ...interface{}) metav1.Status {
@@ -52,37 +52,6 @@ func statusErrorWithMessage(msg string, params ...interface{}) metav1.Status {
 func statusSucceed() metav1.Status {
 	return metav1.Status{
 		Status: metav1.StatusSuccess,
-	}
-}
-
-// doConversionV1beta1 converts the requested objects in the v1beta1 ConversionRequest using the given conversion function and
-// returns a conversion response. Failures are reported with the Reason in the conversion response.
-func doConversionV1beta1(convertRequest *v1beta1.ConversionRequest, convert convertFunc) *v1beta1.ConversionResponse {
-	var convertedObjects []runtime.RawExtension
-	for _, obj := range convertRequest.Objects {
-		cr := unstructured.Unstructured{}
-		if err := cr.UnmarshalJSON(obj.Raw); err != nil {
-			klog.Error(err)
-			return &v1beta1.ConversionResponse{
-				Result: metav1.Status{
-					Message: fmt.Sprintf("failed to unmarshall object (%v) with error: %v", string(obj.Raw), err),
-					Status:  metav1.StatusFailure,
-				},
-			}
-		}
-		convertedCR, status := convert(&cr, convertRequest.DesiredAPIVersion)
-		if status.Status != metav1.StatusSuccess {
-			klog.Error(status.String())
-			return &v1beta1.ConversionResponse{
-				Result: status,
-			}
-		}
-		convertedCR.SetAPIVersion(convertRequest.DesiredAPIVersion)
-		convertedObjects = append(convertedObjects, runtime.RawExtension{Object: convertedCR})
-	}
-	return &v1beta1.ConversionResponse{
-		ConvertedObjects: convertedObjects,
-		Result:           statusSucceed(),
 	}
 }
 
@@ -145,21 +114,6 @@ func serve(w http.ResponseWriter, r *http.Request, convert convertFunc) {
 
 	var responseObj runtime.Object
 	switch *gvk {
-	case v1beta1.SchemeGroupVersion.WithKind("ConversionReview"):
-		convertReview, ok := obj.(*v1beta1.ConversionReview)
-		if !ok {
-			msg := fmt.Sprintf("Expected v1beta1.ConversionReview but got: %T", obj)
-			klog.Errorf("%s", msg)
-			http.Error(w, msg, http.StatusBadRequest)
-			return
-		}
-		convertReview.Response = doConversionV1beta1(convertReview.Request, convert)
-		convertReview.Response.UID = convertReview.Request.UID
-		klog.V(2).Info(fmt.Sprintf("sending response: %v", convertReview.Response))
-
-		// reset the request, it is not needed in a response.
-		convertReview.Request = &v1beta1.ConversionRequest{}
-		responseObj = convertReview
 	case v1.SchemeGroupVersion.WithKind("ConversionReview"):
 		convertReview, ok := obj.(*v1.ConversionReview)
 		if !ok {

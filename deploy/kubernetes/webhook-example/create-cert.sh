@@ -53,6 +53,8 @@ fi
 
 csrName=${service}.${namespace}
 tmpdir=$(mktemp -d)
+trap 'rm -r -- "${tmpdir}"' EXIT
+
 echo "creating certs in tmpdir ${tmpdir} "
 
 cat <<EOF >> ${tmpdir}/csr.conf

@@ -18,9 +18,9 @@ package utils
 
 import "google.golang.org/protobuf/types/known/timestamppb"
 
-// CsiTimestampToKubernetes converts a CSI timestamp in the format
+// CSITimestampToKubernetes converts a CSI timestamp in the format
 // used by the Snapshot API
-func CsiTimestampToKubernetes(creationTime *timestamppb.Timestamp) *int64 {
+func CSITimestampToKubernetes(creationTime *timestamppb.Timestamp) *int64 {
 	if creationTime == nil {
 		return nil
 	}
@@ -29,9 +29,9 @@ func CsiTimestampToKubernetes(creationTime *timestamppb.Timestamp) *int64 {
 	return &result
 }
 
-// CsiSizeToKubernetes converts the size to the format used by
+// CSISizeToKubernetes converts the size to the format used by
 // the Snapshot API
-func CsiSizeToKubernetes(sizeBytes int64) *int64 {
+func CSISizeToKubernetes(sizeBytes int64) *int64 {
 	if sizeBytes == 0 {
 		return nil
 	}

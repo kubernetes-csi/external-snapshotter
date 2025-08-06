@@ -603,9 +603,9 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			newStatus.VolumeSnapshotInfoList = append(newStatus.VolumeSnapshotInfoList, crdv1beta2.VolumeSnapshotInfo{
 				VolumeHandle:   snapshot.SourceVolumeId,
 				SnapshotHandle: snapshot.SnapshotId,
-				CreationTime:   utils.CsiTimestampToKubernetes(snapshot.CreationTime),
+				CreationTime:   utils.CSITimestampToKubernetes(snapshot.CreationTime),
 				ReadyToUse:     &snapshot.ReadyToUse,
-				RestoreSize:    utils.CsiSizeToKubernetes(snapshot.SizeBytes),
+				RestoreSize:    utils.CSISizeToKubernetes(snapshot.SizeBytes),
 			})
 		}
 
@@ -632,9 +632,9 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 				newStatus.VolumeSnapshotInfoList = append(newStatus.VolumeSnapshotInfoList, crdv1beta2.VolumeSnapshotInfo{
 					VolumeHandle:   snapshot.SourceVolumeId,
 					SnapshotHandle: snapshot.SnapshotId,
-					CreationTime:   utils.CsiTimestampToKubernetes(snapshot.CreationTime),
+					CreationTime:   utils.CSITimestampToKubernetes(snapshot.CreationTime),
 					ReadyToUse:     &snapshot.ReadyToUse,
-					RestoreSize:    utils.CsiSizeToKubernetes(snapshot.SizeBytes),
+					RestoreSize:    utils.CSISizeToKubernetes(snapshot.SizeBytes),
 				})
 			}
 			updated = true
