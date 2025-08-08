@@ -43,37 +43,26 @@ func convertGroupSnapshotCRD(obj *unstructured.Unstructured, toVersion string) (
 		return nil, statusErrorWithMessage("conversion from a version to itself should not call the webhook: %s", toVersion)
 	}
 
-	switch obj.GetAPIVersion() {
-	case "groupsnapshot.storage.k8s.io/v1beta1":
-		switch toVersion {
-		case "groupsnapshot.storage.k8s.io/v1beta2":
-			switch kind {
-			case "VolumeGroupSnapshotContent":
-				if err := convertVolumeGroupSnapshotContentFromV1beta1ToV1beta2(convertedObject); err != nil {
-					return nil, statusErrorWithMessage("%s", err.Error())
-				}
-			default:
-				return nil, statusErrorWithMessage("unexpected conversion kind %q", kind)
-			}
-		default:
-			return nil, statusErrorWithMessage("unexpected conversion version %q", toVersion)
+	if kind != "VolumeGroupSnapshotContent" {
+		return nil, statusErrorWithMessage("unexpected conversion kind %q", kind)
+	}
+
+	const v1beta1Version = "groupsnapshot.storage.k8s.io/v1beta1"
+	const v1beta2Version = "groupsnapshot.storage.k8s.io/v1beta2"
+
+	switch {
+	case fromVersion == v1beta1Version && toVersion == v1beta2Version:
+		if err := convertVolumeGroupSnapshotContentFromV1beta1ToV1beta2(convertedObject); err != nil {
+			return nil, statusErrorWithMessage("%s", err.Error())
 		}
-	case "groupsnapshot.storage.k8s.io/v1beta2":
-		switch toVersion {
-		case "groupsnapshot.storage.k8s.io/v1beta1":
-			switch kind {
-			case "VolumeGroupSnapshotContent":
-				if err := convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(convertedObject); err != nil {
-					return nil, statusErrorWithMessage("%s", err.Error())
-				}
-			default:
-				return nil, statusErrorWithMessage("unexpected conversion kind %q", kind)
-			}
-		default:
-			return nil, statusErrorWithMessage("unexpected conversion version %q", toVersion)
+
+	case fromVersion == v1beta2Version && toVersion == v1beta1Version:
+		if err := convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(convertedObject); err != nil {
+			return nil, statusErrorWithMessage("%s", err.Error())
 		}
+
 	default:
-		return nil, statusErrorWithMessage("unexpected conversion version %q", fromVersion)
+		return nil, statusErrorWithMessage("unexpected conversion version from %q to %q", fromVersion, toVersion)
 	}
 
 	return convertedObject, statusSucceed()
@@ -151,7 +140,7 @@ func convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(obj *unstructured.Uns
 				delete(mapEntry, "readyToUse")
 				delete(mapEntry, "restoreSize")
 			} else {
-				return fmt.Errorf("unexpected content in .status.volumeSnapshotInfoList[%q]: expected map", i)
+				return fmt.Errorf("unexpected content in .status.volumeSnapshotInfoList[%d]: expected map", i)
 			}
 		}
 

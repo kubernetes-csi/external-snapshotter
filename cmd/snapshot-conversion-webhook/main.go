@@ -21,11 +21,12 @@ import (
 	"crypto/tls"
 	"flag"
 
-	"github.com/kubernetes-csi/csi-lib-utils/standardflags"
-	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/webhook"
 	"k8s.io/component-base/logs"
 	logsapi "k8s.io/component-base/logs/api/v1"
 	"k8s.io/klog/v2"
+
+	"github.com/kubernetes-csi/csi-lib-utils/standardflags"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/webhook"
 )
 
 var (
@@ -63,9 +64,6 @@ func main() {
 	}
 
 	// Create new cert watcher
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel() // stops certwatcher
-
 	cw, err := webhook.NewCertWatcher(*certFile, *keyFile)
 	if err != nil {
 		klog.Fatalf("failed to initialize new cert watcher: %v", err)
@@ -75,6 +73,9 @@ func main() {
 	}
 
 	// Start the webhook server
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // stops certwatcher
+
 	if err := webhook.StartServer(ctx, tlsConfig, cw, *port); err != nil {
 		klog.Fatalf("server stopped: %v", err)
 	}

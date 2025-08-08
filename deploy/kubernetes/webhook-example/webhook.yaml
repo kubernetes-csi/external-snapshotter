@@ -23,7 +23,6 @@ spec:
         args:
         - '--tls-cert-file=/etc/snapshot-conversion-webhook/certs/tls.crt'
         - '--tls-private-key-file=/etc/snapshot-conversion-webhook/certs/tls.key'
-        # uncomment the following line to enable webhook for VolumeGroupSnapshot, VolumeGroupSnapshotContent and VolumeGroupSnapshotClass.
         ports:
         - containerPort: 443 # change the port as needed
         volumeMounts:

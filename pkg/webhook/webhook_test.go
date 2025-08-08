@@ -28,13 +28,14 @@ import (
 	"math/big"
 	"net"
 	"os"
+	"path"
 	"testing"
 	"time"
 )
 
 func TestWebhookCertReload(t *testing.T) {
 	// Initialize test space
-	tmpDir := os.TempDir() + "/webhook-cert-tests"
+	tmpDir := path.Join(t.TempDir(), "/webhook-cert-tests")
 	certFile := tmpDir + "/tls.crt"
 	keyFile := tmpDir + "/tls.key"
 	port := 30443
