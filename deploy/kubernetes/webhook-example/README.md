@@ -43,8 +43,6 @@ ensure the security of your cluster.
 TLS certificates and private keys should be handled with care and you may not want to keep them in plain
 Kubernetes secrets.
 
-This method was heavily adapted from [banzai cloud](https://banzaicloud.com/blog/k8s-admission-webhooks/).
-
 #### Method
 
 These commands should be run from the top level directory.

@@ -1,5 +1,4 @@
 #!/bin/bash
-# File originally from https://github.com/banzaicloud/admission-webhook-example/blob/blog/deployment/webhook-create-signed-cert.sh
 
 set -e
 
