@@ -98,8 +98,7 @@ func NewCSISnapshotSideCarController(
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.CoreV1().Events(v1.NamespaceAll)})
-	var eventRecorder record.EventRecorder
-	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", driverName)})
+	var eventRecorder record.EventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("csi-snapshotter %s", driverName)})
 
 	ctrl := &csiSnapshotSideCarController{
 		clientset:     clientset,
@@ -117,15 +116,15 @@ func NewCSISnapshotSideCarController(
 
 	volumeSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
-			UpdateFunc: func(oldObj, newObj interface{}) {
+			AddFunc: func(obj any) { ctrl.enqueueContentWork(obj) },
+			UpdateFunc: func(oldObj, newObj any) {
 				// Only enqueue updated VolumeSnapshotContent object if it contains a change that may need resync
 				// Ignore changes that cannot necessitate a sync and/or are caused by the sidecar itself
 				if utils.ShouldEnqueueContentChange(oldObj.(*crdv1.VolumeSnapshotContent), newObj.(*crdv1.VolumeSnapshotContent)) {
 					ctrl.enqueueContentWork(newObj)
 				}
 			},
-			DeleteFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
+			DeleteFunc: func(obj any) { ctrl.enqueueContentWork(obj) },
 		},
 		ctrl.resyncPeriod,
 	)
@@ -144,14 +143,14 @@ func NewCSISnapshotSideCarController(
 
 		volumeGroupSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) {
+				AddFunc: func(obj any) { ctrl.enqueueGroupSnapshotContentWork(obj) },
+				UpdateFunc: func(oldObj, newObj any) {
 					/*
 						TODO: Determine if we need to skip requeueing in case of CSI driver failure.
 					*/
 					ctrl.enqueueGroupSnapshotContentWork(newObj)
 				},
-				DeleteFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
+				DeleteFunc: func(obj any) { ctrl.enqueueGroupSnapshotContentWork(obj) },
 			},
 			ctrl.resyncPeriod,
 		)
@@ -185,7 +184,7 @@ func (ctrl *csiSnapshotSideCarController) Run(workers int, stopCh <-chan struct{
 
 	ctrl.initializeCaches()
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go wait.Until(ctrl.contentWorker, 0, stopCh)
 		if ctrl.enableVolumeGroupSnapshots {
 			go wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
@@ -196,7 +195,7 @@ func (ctrl *csiSnapshotSideCarController) Run(workers int, stopCh <-chan struct{
 }
 
 // enqueueContentWork adds snapshot content to given work queue.
-func (ctrl *csiSnapshotSideCarController) enqueueContentWork(obj interface{}) {
+func (ctrl *csiSnapshotSideCarController) enqueueContentWork(obj any) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -313,7 +312,7 @@ func (ctrl *csiSnapshotSideCarController) syncContentByKey(key string) (requeue 
 
 // isDriverMatch verifies whether the driver specified in VolumeSnapshotContent
 // or VolumeGroupSnapshotContent matches the controller's driver name
-func (ctrl *csiSnapshotSideCarController) isDriverMatch(object interface{}) bool {
+func (ctrl *csiSnapshotSideCarController) isDriverMatch(object any) bool {
 	if content, ok := object.(*crdv1.VolumeSnapshotContent); ok {
 		if content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil {
 			// Skip this snapshot content if it does not have a valid source

@@ -131,7 +131,7 @@ func (s *snapshot) GetSnapshotStatus(ctx context.Context, snapshotID string, sna
 		return false, time.Time{}, 0, "", err
 	}
 
-	if rsp.Entries == nil || len(rsp.Entries) == 0 {
+	if len(rsp.Entries) == 0 {
 		return false, time.Time{}, 0, "", fmt.Errorf("can not find snapshot for snapshotID %s", snapshotID)
 	}
 

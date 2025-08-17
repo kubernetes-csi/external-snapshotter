@@ -117,8 +117,7 @@ func NewCSISnapshotCommonController(
 	broadcaster := record.NewBroadcaster()
 	broadcaster.StartLogging(klog.Infof)
 	broadcaster.StartRecordingToSink(&corev1.EventSinkImpl{Interface: client.CoreV1().Events(v1.NamespaceAll)})
-	var eventRecorder record.EventRecorder
-	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
+	var eventRecorder record.EventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "snapshot-controller"})
 
 	ctrl := &csiSnapshotCommonController{
 		clientset:     clientset,
@@ -143,7 +142,7 @@ func NewCSISnapshotCommonController(
 	ctrl.pvListerSynced = pvInformer.Informer().HasSynced
 
 	pvInformer.Informer().AddIndexers(map[string]cache.IndexFunc{
-		utils.CSIDriverHandleIndexName: func(obj interface{}) ([]string, error) {
+		utils.CSIDriverHandleIndexName: func(obj any) ([]string, error) {
 			if pv, ok := obj.(*v1.PersistentVolume); ok {
 				if key := utils.PersistentVolumeKeyFunc(pv); key != "" {
 					return []string{key}, nil
@@ -157,14 +156,14 @@ func NewCSISnapshotCommonController(
 
 	volumeSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { ctrl.enqueueSnapshotWork(obj) },
-			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueSnapshotWork(newObj) },
-			DeleteFunc: func(obj interface{}) { ctrl.enqueueSnapshotWork(obj) },
+			AddFunc:    func(obj any) { ctrl.enqueueSnapshotWork(obj) },
+			UpdateFunc: func(oldObj, newObj any) { ctrl.enqueueSnapshotWork(newObj) },
+			DeleteFunc: func(obj any) { ctrl.enqueueSnapshotWork(obj) },
 		},
 		ctrl.resyncPeriod,
 	)
 	volumeSnapshotInformer.Informer().AddIndexers(map[string]cache.IndexFunc{
-		utils.VolumeSnapshotParentGroupIndex: func(obj interface{}) ([]string, error) {
+		utils.VolumeSnapshotParentGroupIndex: func(obj any) ([]string, error) {
 			if snapshot, ok := obj.(*crdv1.VolumeSnapshot); ok {
 				if key := utils.VolumeSnapshotParentGroupKeyFunc(snapshot); key != "" {
 					return []string{key}, nil
@@ -180,9 +179,9 @@ func NewCSISnapshotCommonController(
 
 	volumeSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    func(obj interface{}) { ctrl.enqueueContentWork(obj) },
-			UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueContentWork(newObj) },
-			DeleteFunc: func(obj interface{}) { ctrl.enqueueContentWork(obj) },
+			AddFunc:    func(obj any) { ctrl.enqueueContentWork(obj) },
+			UpdateFunc: func(oldObj, newObj any) { ctrl.enqueueContentWork(newObj) },
+			DeleteFunc: func(obj any) { ctrl.enqueueContentWork(obj) },
 		},
 		ctrl.resyncPeriod,
 	)
@@ -216,9 +215,9 @@ func NewCSISnapshotCommonController(
 
 		volumeGroupSnapshotInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctrl.enqueueGroupSnapshotWork(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueGroupSnapshotWork(newObj) },
-				DeleteFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotWork(obj) },
+				AddFunc:    func(obj any) { ctrl.enqueueGroupSnapshotWork(obj) },
+				UpdateFunc: func(oldObj, newObj any) { ctrl.enqueueGroupSnapshotWork(newObj) },
+				DeleteFunc: func(obj any) { ctrl.enqueueGroupSnapshotWork(obj) },
 			},
 			ctrl.resyncPeriod,
 		)
@@ -227,9 +226,9 @@ func NewCSISnapshotCommonController(
 
 		volumeGroupSnapshotContentInformer.Informer().AddEventHandlerWithResyncPeriod(
 			cache.ResourceEventHandlerFuncs{
-				AddFunc:    func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
-				UpdateFunc: func(oldObj, newObj interface{}) { ctrl.enqueueGroupSnapshotContentWork(newObj) },
-				DeleteFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
+				AddFunc:    func(obj any) { ctrl.enqueueGroupSnapshotContentWork(obj) },
+				UpdateFunc: func(oldObj, newObj any) { ctrl.enqueueGroupSnapshotContentWork(newObj) },
+				DeleteFunc: func(obj any) { ctrl.enqueueGroupSnapshotContentWork(obj) },
 			},
 			ctrl.resyncPeriod,
 		)
@@ -276,7 +275,7 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 
 	ctrl.initializeCaches()
 
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go wait.Until(ctrl.snapshotWorker, 0, stopCh)
 		go wait.Until(ctrl.contentWorker, 0, stopCh)
 		if ctrl.enableVolumeGroupSnapshots {
@@ -289,7 +288,7 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 }
 
 // enqueueSnapshotWork adds snapshot to given work queue.
-func (ctrl *csiSnapshotCommonController) enqueueSnapshotWork(obj interface{}) {
+func (ctrl *csiSnapshotCommonController) enqueueSnapshotWork(obj any) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -306,7 +305,7 @@ func (ctrl *csiSnapshotCommonController) enqueueSnapshotWork(obj interface{}) {
 }
 
 // enqueueContentWork adds snapshot content to given work queue.
-func (ctrl *csiSnapshotCommonController) enqueueContentWork(obj interface{}) {
+func (ctrl *csiSnapshotCommonController) enqueueContentWork(obj any) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -370,7 +369,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
 		}
 		return err
 	}
-	if err != nil && !errors.IsNotFound(err) {
+	if !errors.IsNotFound(err) {
 		klog.V(2).Infof("error getting snapshot %q from informer: %v", key, err)
 		return err
 	}
@@ -653,7 +652,7 @@ func (ctrl *csiSnapshotCommonController) initializeCaches() {
 }
 
 // enqueueGroupSnapshotWork adds group snapshot to given work queue.
-func (ctrl *csiSnapshotCommonController) enqueueGroupSnapshotWork(obj interface{}) {
+func (ctrl *csiSnapshotCommonController) enqueueGroupSnapshotWork(obj any) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -670,7 +669,7 @@ func (ctrl *csiSnapshotCommonController) enqueueGroupSnapshotWork(obj interface{
 }
 
 // enqueueGroupSnapshotContentWork adds group snapshot content to given work queue.
-func (ctrl *csiSnapshotCommonController) enqueueGroupSnapshotContentWork(obj interface{}) {
+func (ctrl *csiSnapshotCommonController) enqueueGroupSnapshotContentWork(obj any) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -753,7 +752,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotByKey(ctx context.Cont
 		}
 		return err
 	}
-	if err != nil && !errors.IsNotFound(err) {
+	if !errors.IsNotFound(err) {
 		klog.V(2).Infof("error getting group snapshot %q from informer: %v", key, err)
 		return err
 	}
