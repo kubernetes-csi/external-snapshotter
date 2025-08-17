@@ -51,11 +51,6 @@ var class5Parameters = map[string]string{
 
 var timeNowMetav1 = metav1.Now()
 
-var (
-	content31 = "content3-1"
-	claim31   = "claim3-1"
-)
-
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 	{
 		TypeMeta: metav1.TypeMeta{

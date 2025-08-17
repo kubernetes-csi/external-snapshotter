@@ -13,9 +13,9 @@ import (
 
 // PatchOp represents a json patch operation
 type PatchOp struct {
-	Op    string      `json:"op"`
-	Path  string      `json:"path"`
-	Value interface{} `json:"value,omitempty"`
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value any    `json:"value,omitempty"`
 }
 
 // PatchVolumeSnapshotContent patches a volume snapshot content object

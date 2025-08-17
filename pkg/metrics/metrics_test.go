@@ -303,10 +303,10 @@ func TestConcurrency(t *testing.T) {
 		statusCode: 1,
 	}
 	ops := []struct {
-		op               OperationKey
-		desiredLatencyMs time.Duration
-		status           OperationStatus
-		drop             bool
+		op             OperationKey
+		desiredLatency time.Duration
+		status         OperationStatus
+		drop           bool
 	}{
 		{
 			OperationKey{
@@ -386,8 +386,8 @@ func TestConcurrency(t *testing.T) {
 		wgMetrics.Add(1)
 		go func(i int) {
 			defer wgMetrics.Done()
-			if ops[i].desiredLatencyMs > 0 {
-				time.Sleep(ops[i].desiredLatencyMs * time.Millisecond)
+			if ops[i].desiredLatency > 0 {
+				time.Sleep(ops[i].desiredLatency * time.Millisecond)
 			}
 			if ops[i].drop {
 				mgr.DropOperation(ops[i].op)
@@ -530,7 +530,7 @@ func TestInFlightMetric(t *testing.T) {
 	}
 
 	//  Start 50 operations, should be 51
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		opKey := OperationKey{
 			Name:       fmt.Sprintf("op%d", i),
 			ResourceID: types.UID("uid%d"),
@@ -657,7 +657,7 @@ func containsMetrics(expectedMfs, gotMfs []*cmg.MetricFamily) bool {
 			return false
 		}
 		for i := 0; i < len(got.Metric); i++ {
-			for j := 0; j < numRecords; j++ {
+			for j := range numRecords {
 				if got.Metric[i].Histogram == nil && expected.Metric[j].Histogram != nil ||
 					got.Metric[i].Histogram != nil && expected.Metric[j].Histogram == nil {
 					fmt.Printf("got metric and expected metric histogram type mismatch")

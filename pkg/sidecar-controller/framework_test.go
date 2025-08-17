@@ -36,7 +36,6 @@ import (
 	storagelisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -134,7 +133,7 @@ type snapshotReactor struct {
 	secrets              map[string]*v1.Secret
 	snapshotClasses      map[string]*crdv1.VolumeSnapshotClass
 	contents             map[string]*crdv1.VolumeSnapshotContent
-	changedObjects       []interface{}
+	changedObjects       []any
 	changedSinceLastSync int
 	ctrl                 *csiSnapshotSideCarController
 	fakeContentWatch     *watch.FakeWatcher
@@ -387,7 +386,7 @@ func checkEvents(t *testing.T, expectedEvents []string, ctrl *csiSnapshotSideCar
 				klog.V(5).Infof("event recorder finished")
 				finished = true
 			}
-		case _, _ = <-timer.C:
+		case <-timer.C:
 			klog.V(5).Infof("event recorder timeout")
 			finished = true
 		}
@@ -413,51 +412,6 @@ func checkEvents(t *testing.T, expectedEvents []string, ctrl *csiSnapshotSideCar
 	return err
 }
 
-// popChange returns one recorded updated object, either *crdv1.VolumeSnapshotContent
-// or *crdv1.VolumeSnapshot. Returns nil when there are no changes.
-func (r *snapshotReactor) popChange() interface{} {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	if len(r.changedObjects) == 0 {
-		return nil
-	}
-
-	// For debugging purposes, print the queue
-	for _, obj := range r.changedObjects {
-		switch obj.(type) {
-		case *crdv1.VolumeSnapshotContent:
-			vol, _ := obj.(*crdv1.VolumeSnapshotContent)
-			klog.V(4).Infof("reactor queue: %s", vol.Name)
-		}
-	}
-
-	// Pop the first item from the queue and return it
-	obj := r.changedObjects[0]
-	r.changedObjects = r.changedObjects[1:]
-	return obj
-}
-
-// syncAll simulates the controller periodic sync of contents. It
-// simply adds all these objects to the internal queue of updates. This method
-// should be used when the test manually calls syncContent. Test that
-// use real controller loop (ctrl.Run()) will get periodic sync automatically.
-func (r *snapshotReactor) syncAll() {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	for _, v := range r.contents {
-		r.changedObjects = append(r.changedObjects, v)
-	}
-	r.changedSinceLastSync = 0
-}
-
-func (r *snapshotReactor) getChangeCount() int {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-	return r.changedSinceLastSync
-}
-
 // waitTest waits until all tests, controllers and other goroutines do their
 // job and list of current contents/snapshots is equal to list of expected
 // contents/snapshots (with ~10 second timeout).
@@ -480,51 +434,7 @@ func (r *snapshotReactor) waitTest(test controllerTest) error {
 	return err
 }
 
-// deleteContentEvent simulates that a content has been deleted in etcd and
-// the controller receives 'content deleted' event.
-func (r *snapshotReactor) deleteContentEvent(content *crdv1.VolumeSnapshotContent) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	// Remove the content from list of resulting contents.
-	delete(r.contents, content.Name)
-
-	// Generate deletion event. Cloned content is needed to prevent races (and we
-	// would get a clone from etcd too).
-	if r.fakeContentWatch != nil {
-		r.fakeContentWatch.Delete(content.DeepCopy())
-	}
-}
-
-// addContentEvent simulates that a content has been added in etcd and the
-// controller receives 'content added' event.
-func (r *snapshotReactor) addContentEvent(content *crdv1.VolumeSnapshotContent) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	r.contents[content.Name] = content
-	// Generate event. No cloning is needed, this snapshot is not stored in the
-	// controller cache yet.
-	if r.fakeContentWatch != nil {
-		r.fakeContentWatch.Add(content)
-	}
-}
-
-// modifyContentEvent simulates that a content has been modified in etcd and the
-// controller receives 'content modified' event.
-func (r *snapshotReactor) modifyContentEvent(content *crdv1.VolumeSnapshotContent) {
-	r.lock.Lock()
-	defer r.lock.Unlock()
-
-	r.contents[content.Name] = content
-	// Generate deletion event. Cloned content is needed to prevent races (and we
-	// would get a clone from etcd too).
-	if r.fakeContentWatch != nil {
-		r.fakeContentWatch.Modify(content.DeepCopy())
-	}
-}
-
-func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, ctrl *csiSnapshotSideCarController, fakeVolumeWatch, fakeClaimWatch *watch.FakeWatcher, errors []reactorError) *snapshotReactor {
+func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, ctrl *csiSnapshotSideCarController, fakeVolumeWatch *watch.FakeWatcher, errors []reactorError) *snapshotReactor {
 	reactor := &snapshotReactor{
 		secrets:          make(map[string]*v1.Secret),
 		snapshotClasses:  make(map[string]*crdv1.VolumeSnapshotClass),
@@ -704,28 +614,13 @@ func testSyncContent(ctrl *csiSnapshotSideCarController, reactor *snapshotReacto
 	return ctrl.syncContent(test.initialContents[0])
 }
 
-func testSyncContentError(ctrl *csiSnapshotSideCarController, reactor *snapshotReactor, test controllerTest) (bool, error) {
-	requeue, err := ctrl.syncContent(test.initialContents[0])
-	if err != nil {
-		return requeue, nil
-	}
-	return requeue, fmt.Errorf("syncSnapshotContent succeeded when failure was expected")
-}
-
 var (
-	classEmpty         string
 	classGold          = "gold"
 	classSilver        = "silver"
-	classNonExisting   = "non-existing"
 	defaultClass       = "default-class"
 	emptySecretClass   = "empty-secret-class"
 	invalidSecretClass = "invalid-secret-class"
 	validSecretClass   = "valid-secret-class"
-	sameDriver         = "sameDriver"
-	diffDriver         = "diffDriver"
-	noClaim            = ""
-	noBoundUID         = ""
-	noVolume           = ""
 )
 
 // wrapTestWithInjectedOperation returns a testCall that:
@@ -794,7 +689,7 @@ func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses [
 			t.Fatalf("Test %q construct persistent content failed: %v", test.name, err)
 		}
 
-		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, nil, test.errors)
+		reactor := newSnapshotReactor(kubeClient, client, ctrl, nil, test.errors)
 		for _, content := range test.initialContents {
 			if ctrl.isDriverMatch(test.initialContents[0]) {
 				ctrl.contentStore.Add(content)
@@ -840,19 +735,6 @@ func runSyncContentTests(t *testing.T, tests []controllerTest, snapshotClasses [
 	}
 }
 
-func getSize(size int64) *resource.Quantity {
-	return resource.NewQuantity(size, resource.BinarySI)
-}
-
-func emptySecret() *v1.Secret {
-	return &v1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "emptysecret",
-			Namespace: "default",
-		},
-	}
-}
-
 func secret() *v1.Secret {
 	return &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -862,28 +744,6 @@ func secret() *v1.Secret {
 		Data: map[string][]byte{
 			"foo": []byte("bar"),
 		},
-	}
-}
-
-func secretAnnotations() map[string]string {
-	return map[string]string{
-		utils.AnnDeletionSecretRefName:      "secret",
-		utils.AnnDeletionSecretRefNamespace: "default",
-	}
-}
-
-func emptyNamespaceSecretAnnotations() map[string]string {
-	return map[string]string{
-		utils.AnnDeletionSecretRefName:      "name",
-		utils.AnnDeletionSecretRefNamespace: "",
-	}
-}
-
-// this refers to emptySecret(), which is missing data.
-func emptyDataSecretAnnotations() map[string]string {
-	return map[string]string{
-		utils.AnnDeletionSecretRefName:      "emptysecret",
-		utils.AnnDeletionSecretRefNamespace: "default",
 	}
 }
 

@@ -38,11 +38,11 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 )
 
-func (ctrl *csiSnapshotCommonController) storeGroupSnapshotUpdate(groupsnapshot interface{}) (bool, error) {
+func (ctrl *csiSnapshotCommonController) storeGroupSnapshotUpdate(groupsnapshot any) (bool, error) {
 	return utils.StoreObjectUpdate(ctrl.groupSnapshotStore, groupsnapshot, "groupsnapshot")
 }
 
-func (ctrl *csiSnapshotCommonController) storeGroupSnapshotContentUpdate(groupsnapshotcontent interface{}) (bool, error) {
+func (ctrl *csiSnapshotCommonController) storeGroupSnapshotContentUpdate(groupsnapshotcontent any) (bool, error) {
 	return utils.StoreObjectUpdate(ctrl.groupSnapshotContentStore, groupsnapshotcontent, "groupsnapshotcontent")
 }
 
@@ -207,7 +207,7 @@ func (ctrl *csiSnapshotCommonController) getVolumesFromVolumeGroupSnapshot(group
 
 		// Verify binding between PV/PVC is still valid
 		bound := ctrl.isVolumeBoundToClaim(pv, &pvc)
-		if bound == false {
+		if !bound {
 			klog.Warningf("binding between PV %s and PVC %s is broken", pvName, pvc.Name)
 			return nil, fmt.Errorf("claim in dataSource not bound or invalid")
 		}
@@ -308,7 +308,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, 
 	klog.V(5).Infof("syncGroupSnapshot[%s]: validate group snapshot to make sure source has been correctly specified", utils.GroupSnapshotKey(groupSnapshot))
 	if (groupSnapshot.Spec.Source.Selector == nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil) ||
 		(groupSnapshot.Spec.Source.Selector != nil && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil) {
-		err := fmt.Errorf("Exactly one of Selector and VolumeGroupSnapshotContentName should be specified")
+		err := fmt.Errorf("exactly one of Selector and VolumeGroupSnapshotContentName should be specified")
 		klog.Errorf("syncGroupSnapshot[%s]: validation error, %s", utils.GroupSnapshotKey(groupSnapshot), err.Error())
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotValidationError", err.Error())
 		return err
@@ -804,9 +804,9 @@ func (ctrl *csiSnapshotCommonController) getPreprovisionedGroupSnapshotContentFr
 // groupSnapshotContent.Spec.VolumeGroupSnapshotRef.
 func (ctrl *csiSnapshotCommonController) checkAndBindGroupSnapshotContent(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	if groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name != groupSnapshot.Name {
-		return nil, fmt.Errorf("Could not bind group snapshot %s and group snapshot content %s, the VolumeGroupSnapshotRef does not match", groupSnapshot.Name, groupSnapshotContent.Name)
+		return nil, fmt.Errorf("could not bind group snapshot %s and group snapshot content %s, the VolumeGroupSnapshotRef does not match", groupSnapshot.Name, groupSnapshotContent.Name)
 	} else if groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID != "" && groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID != groupSnapshot.UID {
-		return nil, fmt.Errorf("Could not bind group snapshot %s and group snapshot content %s, the VolumeGroupSnapshotRef does not match", groupSnapshot.Name, groupSnapshotContent.Name)
+		return nil, fmt.Errorf("could not bind group snapshot %s and group snapshot content %s, the VolumeGroupSnapshotRef does not match", groupSnapshot.Name, groupSnapshotContent.Name)
 	} else if groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID != "" && groupSnapshotContent.Spec.VolumeGroupSnapshotClassName != nil {
 		return groupSnapshotContent, nil
 	}
@@ -1177,7 +1177,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotC
 
 	if (groupSnapshotContent.Spec.Source.GroupSnapshotHandles == nil && len(groupSnapshotContent.Spec.Source.VolumeHandles) == 0) ||
 		(groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil && len(groupSnapshotContent.Spec.Source.VolumeHandles) > 0) {
-		err := fmt.Errorf("Exactly one of GroupSnapshotHandles and VolumeHandles should be specified")
+		err := fmt.Errorf("exactly one of GroupSnapshotHandles and VolumeHandles should be specified")
 		klog.Errorf("syncGroupSnapshotContent[%s]: validation error, %s", groupSnapshotContent.Name, err.Error())
 		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupContentValidationError", err.Error())
 		return err
@@ -1415,11 +1415,11 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 		groupSnapshotContentName = *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName
 	}
 	// for a dynamically created group snapshot, it's possible that a group snapshot
-	// content has been created however the Status of the group snapshot has not
+	// content has been created even though the Status of the group snapshot has not
 	// been updated yet, i.e., failed right after group snapshot content creation.
 	// In this case, use the fixed naming scheme to get the group snapshot content
 	// name and search
-	if groupSnapshotContentName == "" && &groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil {
+	if groupSnapshotContentName == "" && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil {
 		groupSnapshotContentName = utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
 	}
 	// find a group snapshot content from cache store, note that it's completely legit
@@ -1451,7 +1451,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 		return nil
 	}
 
-	// Look up for members of this volume group snapshot
+	// Look for members of this volume group snapshot
 	snapshotMembers, err := ctrl.findGroupSnapshotMembers(
 		types.NamespacedName{
 			Name:      groupSnapshot.Name,
@@ -1520,7 +1520,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	for _, snapshot := range snapshotMembers {
 		err := ctrl.clientset.SnapshotV1().
 			VolumeSnapshots(groupSnapshot.Namespace).
-			Delete(context.TODO(), snapshot.Name, metav1.DeleteOptions{})
+			Delete(ctx, snapshot.Name, metav1.DeleteOptions{})
 		if err != nil && !apierrs.IsNotFound(err) {
 			msg := fmt.Sprintf(
 				"failed to delete snapshot API object %s/%s part of group snapshot %s: %v",

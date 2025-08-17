@@ -30,14 +30,13 @@ import (
 
 var (
 	defaultSize       int64 = 1000
-	emptySize         int64
-	deletePolicy      = crdv1.VolumeSnapshotContentDelete
-	retainPolicy      = crdv1.VolumeSnapshotContentRetain
-	timeNow           = time.Now()
-	timeNowMetav1     = metav1.Now()
-	nonFractionalTime = metav1.NewTime(time.Now().Truncate(time.Second))
-	False             = false
-	True              = true
+	deletePolicy            = crdv1.VolumeSnapshotContentDelete
+	retainPolicy            = crdv1.VolumeSnapshotContentRetain
+	timeNow                 = time.Now()
+	timeNowMetav1           = metav1.Now()
+	nonFractionalTime       = metav1.NewTime(time.Now().Truncate(time.Second))
+	False                   = false
+	True                    = true
 )
 
 var class1Parameters = map[string]string{
@@ -49,28 +48,23 @@ var class2Parameters = map[string]string{
 }
 
 var class3Parameters = map[string]string{
-	"param3":                       "value3",
-	utils.AnnDeletionSecretRefName: "name",
-}
-
-var class4Parameters = map[string]string{
 	utils.AnnDeletionSecretRefName:      "emptysecret",
 	utils.AnnDeletionSecretRefNamespace: "default",
 }
 
-var class5Parameters = map[string]string{
+var class4Parameters = map[string]string{
 	utils.AnnDeletionSecretRefName:      "secret",
 	utils.AnnDeletionSecretRefNamespace: "default",
 }
 
-var class6Parameters = map[string]string{
+var class5Parameters = map[string]string{
 	utils.PrefixedSnapshotterSecretNameKey:          "secret",
 	utils.PrefixedSnapshotterSecretNamespaceKey:     "default",
 	utils.PrefixedSnapshotterListSecretNameKey:      "secret",
 	utils.PrefixedSnapshotterListSecretNamespaceKey: "default",
 }
 
-var class7Annotations = map[string]string{
+var class6Annotations = map[string]string{
 	utils.AnnDeletionSecretRefName:      "secret-x",
 	utils.AnnDeletionSecretRefNamespace: "default-x",
 }
@@ -106,7 +100,7 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Name: emptySecretClass,
 		},
 		Driver:         mockDriverName,
-		Parameters:     class4Parameters,
+		Parameters:     class3Parameters,
 		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
@@ -115,7 +109,7 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        invalidSecretClass,
-			Annotations: class7Annotations,
+			Annotations: class6Annotations,
 		},
 		Driver:         mockDriverName,
 		Parameters:     class2Parameters,
@@ -129,7 +123,7 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Name: validSecretClass,
 		},
 		Driver:         mockDriverName,
-		Parameters:     class5Parameters,
+		Parameters:     class4Parameters,
 		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 	{
@@ -141,7 +135,7 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Annotations: map[string]string{utils.IsDefaultSnapshotClassAnnotation: "true"},
 		},
 		Driver:         mockDriverName,
-		Parameters:     class6Parameters,
+		Parameters:     class5Parameters,
 		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
 }

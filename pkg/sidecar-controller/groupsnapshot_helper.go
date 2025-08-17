@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -43,12 +44,12 @@ type snapshotContentNameVolumeHandlePair struct {
 	volumeHandle   string
 }
 
-func (ctrl *csiSnapshotSideCarController) storeGroupSnapshotContentUpdate(groupSnapshotContent interface{}) (bool, error) {
+func (ctrl *csiSnapshotSideCarController) storeGroupSnapshotContentUpdate(groupSnapshotContent any) (bool, error) {
 	return utils.StoreObjectUpdate(ctrl.groupSnapshotContentStore, groupSnapshotContent, "groupsnapshotcontent")
 }
 
 // enqueueGroupSnapshotContentWork adds group snapshot content to given work queue.
-func (ctrl *csiSnapshotSideCarController) enqueueGroupSnapshotContentWork(obj interface{}) {
+func (ctrl *csiSnapshotSideCarController) enqueueGroupSnapshotContentWork(obj any) {
 	// Beware of "xxx deleted" events
 	if unknown, ok := obj.(cache.DeletedFinalStateUnknown); ok && unknown.Obj != nil {
 		obj = unknown.Obj
@@ -84,7 +85,6 @@ func (ctrl *csiSnapshotSideCarController) groupSnapshotContentWorker() {
 	// Finally, if no error occurs we forget this item so it does not
 	// get queued again until another change happens.
 	ctrl.groupSnapshotContentQueue.Forget(key)
-	return
 }
 
 func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContentByKey(key string) error {
@@ -200,7 +200,7 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshot
 	// true. We don't want to keep calling CreateGroupSnapshot CSI methods over
 	// and over again for performance reasons.
 	var err error
-	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.ReadyToUse != nil && *groupSnapshotContent.Status.ReadyToUse == true {
+	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.ReadyToUse != nil && *groupSnapshotContent.Status.ReadyToUse {
 		// Try to remove AnnVolumeGroupSnapshotBeingCreated if it is not removed yet for some reason
 		_, err = ctrl.removeAnnVolumeGroupSnapshotBeingCreated(groupSnapshotContent)
 		return err
@@ -520,9 +520,7 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeGroupSnapshotBeingCreated(
 	// If there are no existing annotations, we create a new map.
 	klog.V(5).Infof("setAnnVolumeGroupSnapshotBeingCreated: set annotation [%s:yes] on groupSnapshotContent [%s].", utils.AnnVolumeGroupSnapshotBeingCreated, groupSnapshotContent.Name)
 	patchedAnnotations := make(map[string]string)
-	for k, v := range groupSnapshotContent.GetAnnotations() {
-		patchedAnnotations[k] = v
-	}
+	maps.Copy(patchedAnnotations, groupSnapshotContent.GetAnnotations())
 	patchedAnnotations[utils.AnnVolumeGroupSnapshotBeingCreated] = "yes"
 
 	var patches []utils.PatchOp

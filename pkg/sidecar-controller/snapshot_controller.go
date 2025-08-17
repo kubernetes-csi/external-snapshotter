@@ -19,6 +19,7 @@ package sidecar_controller
 import (
 	"context"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -114,7 +115,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshot(content *crdv1.Volum
 	return ctrl.deleteCSISnapshotOperation(content)
 }
 
-func (ctrl *csiSnapshotSideCarController) storeContentUpdate(content interface{}) (bool, error) {
+func (ctrl *csiSnapshotSideCarController) storeContentUpdate(content any) (bool, error) {
 	return utils.StoreObjectUpdate(ctrl.contentStore, content, "content")
 }
 
@@ -561,15 +562,6 @@ func (e controllerUpdateError) Error() string {
 	return e.message
 }
 
-func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
-	if err != nil {
-		if strings.Contains(*err.Message, controllerUpdateFailMsg) {
-			return true
-		}
-	}
-	return false
-}
-
 func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *crdv1.VolumeSnapshotContent) (map[string]string, error) {
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
@@ -673,9 +665,7 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 	// If there are no existing annotations, we create a new map.
 	klog.V(5).Infof("setAnnVolumeSnapshotBeingCreated: set annotation [%s:yes] on content [%s].", utils.AnnVolumeSnapshotBeingCreated, content.Name)
 	patchedAnnotations := make(map[string]string)
-	for k, v := range content.GetAnnotations() {
-		patchedAnnotations[k] = v
-	}
+	maps.Copy(patchedAnnotations, content.GetAnnotations())
 	patchedAnnotations[utils.AnnVolumeSnapshotBeingCreated] = "yes"
 
 	var patches []utils.PatchOp

@@ -23,7 +23,6 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var (
@@ -33,14 +32,9 @@ var (
 	True         = true
 )
 
-var metaTimeNowUnix = &metav1.Time{
-	Time: timeNow,
-}
-
 var (
-	defaultSize  int64 = 1000
-	deletePolicy       = crdv1.VolumeSnapshotContentDelete
-	retainPolicy       = crdv1.VolumeSnapshotContentRetain
+	deletePolicy = crdv1.VolumeSnapshotContentDelete
+	retainPolicy = crdv1.VolumeSnapshotContentRetain
 )
 
 // Test single call to SyncSnapshot, expecting create snapshot to happen.
