@@ -315,12 +315,11 @@ type VolumeGroupSnapshotContentSpec struct {
 // The VolumeSnapshotInfo struct is added in v1beta2
 // VolumeSnapshotInfo contains information for a snapshot
 type VolumeSnapshotInfo struct {
-	// VolumeHandle is a unique id returned by the CSI driver to identify a volume
-	// on the storage system
+	// VolumeHandle specifies the CSI "volume_id" of the volume from which this snapshot
+	// was taken from.
 	VolumeHandle string `json:"volumeHandle,omitempty" protobuf:"bytes,1,opt,name=volumeHandle"`
 
-	// SnapshotHandle is a unique id returned by the CSI driver to identify a volume
-	// snapshot on the storage system
+	// SnapshotHandle is the CSI "snapshot_id" of this snapshot on the underlying storage system.
 	SnapshotHandle string `json:"snapshotHandle,omitempty" protobuf:"bytes,2,opt,name=snapshotHandle"`
 
 	// creationTime is the timestamp when the point-in-time snapshot is taken
@@ -332,7 +331,8 @@ type VolumeSnapshotInfo struct {
 	// +optional
 	ReadyToUse *bool `json:"readyToUse,omitempty" protobuf:"varint,4,opt,name=readyToUse"`
 
-	// RestoreSize represents the complete size of the snapshot in bytes.
+	// RestoreSize represents the minimum size of volume required to create a volume
+	// from this snapshot.
 	// +optional
 	RestoreSize *int64 `json:"restoreSize,omitempty" protobuf:"bytes,5,opt,name=restoreSize"`
 }
