@@ -1050,7 +1050,12 @@ func (ctrl *csiSnapshotCommonController) isPVCBeingUsed(pvc *v1.PersistentVolume
 			klog.V(4).Infof("Skipping static bound snapshot %s when checking PVC %s/%s", snap.Name, pvc.Namespace, pvc.Name)
 			continue
 		}
-		if snap.Spec.Source.PersistentVolumeClaimName != nil && pvc.Name == *snap.Spec.Source.PersistentVolumeClaimName && !utils.IsSnapshotReady(snap) {
+
+		if snap.Spec.Source.PersistentVolumeClaimName != nil &&
+			pvc.Name == *snap.Spec.Source.PersistentVolumeClaimName &&
+			!utils.IsSnapshotReady(snap) &&
+			utils.HasSnapshotFinalizer(snap, utils.PVCFinalizer) {
+
 			klog.V(2).Infof("Keeping PVC %s/%s, it is used by snapshot %s/%s", pvc.Namespace, pvc.Name, snap.Namespace, snap.Name)
 			return true
 		}
