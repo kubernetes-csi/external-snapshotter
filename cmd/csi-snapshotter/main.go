@@ -296,8 +296,8 @@ func main() {
 		*extraCreateMetadata,
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](*retryIntervalStart, *retryIntervalMax),
 		utilfeature.DefaultFeatureGate.Enabled(features.VolumeGroupSnapshot),
-		snapshotContentfactory.Groupsnapshot().V1beta1().VolumeGroupSnapshotContents(),
-		snapshotContentfactory.Groupsnapshot().V1beta1().VolumeGroupSnapshotClasses(),
+		snapshotContentfactory.Groupsnapshot().V1beta2().VolumeGroupSnapshotContents(),
+		snapshotContentfactory.Groupsnapshot().V1beta2().VolumeGroupSnapshotClasses(),
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](*retryIntervalStart, *retryIntervalMax),
 	)
 

@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/group_snapshotter"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -35,9 +35,9 @@ type Handler interface {
 	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
-	CreateGroupSnapshot(content *crdv1beta1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
-	GetGroupSnapshotStatus(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error)
-	DeleteGroupSnapshot(content *crdv1beta1.VolumeGroupSnapshotContent, SnapshotID []string, snapshotterCredentials map[string]string) error
+	CreateGroupSnapshot(content *crdv1beta2.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
+	GetGroupSnapshotStatus(groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error)
+	DeleteGroupSnapshot(content *crdv1beta2.VolumeGroupSnapshotContent, SnapshotID []string, snapshotterCredentials map[string]string) error
 }
 
 // csiHandler is a handler that calls CSI to create/delete volume snapshot.
@@ -148,7 +148,7 @@ func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (s
 	return fmt.Sprintf("%s-%s", prefix, strings.Replace(snapshotUID, "-", "", -1)[0:snapshotNameUUIDLength]), nil
 }
 
-func (handler *csiHandler) CreateGroupSnapshot(content *crdv1beta1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
+func (handler *csiHandler) CreateGroupSnapshot(content *crdv1beta2.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
@@ -167,7 +167,7 @@ func (handler *csiHandler) CreateGroupSnapshot(content *crdv1beta1.VolumeGroupSn
 	return handler.groupSnapshotter.CreateGroupSnapshot(ctx, groupSnapshotName, content.Spec.Source.VolumeHandles, parameters, snapshotterCredentials)
 }
 
-func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1beta1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) error {
+func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1beta2.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
@@ -188,7 +188,7 @@ func (handler *csiHandler) DeleteGroupSnapshot(content *crdv1beta1.VolumeGroupSn
 	return handler.groupSnapshotter.DeleteGroupSnapshot(ctx, groupSnapshotHandle, snapshotIDs, snapshotterCredentials)
 }
 
-func (handler *csiHandler) GetGroupSnapshotStatus(content *crdv1beta1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error) {
+func (handler *csiHandler) GetGroupSnapshotStatus(content *crdv1beta2.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 

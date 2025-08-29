@@ -35,7 +35,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	klog "k8s.io/klog/v2"
 
-	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 )
 
@@ -403,7 +403,7 @@ func GetSecretReference(secretParams secretParamsMap, snapshotClassParams map[st
 }
 
 // GetSecretReference for the group snapshot
-func GetGroupSnapshotSecretReference(secretParams secretParamsMap, volumeGroupSnapshotClassParams map[string]string, groupSnapContentName string, volumeGroupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*v1.SecretReference, error) {
+func GetGroupSnapshotSecretReference(secretParams secretParamsMap, volumeGroupSnapshotClassParams map[string]string, groupSnapContentName string, volumeGroupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*v1.SecretReference, error) {
 	nameTemplate, namespaceTemplate, err := verifyAndGetSecretNameAndNamespaceTemplate(secretParams, volumeGroupSnapshotClassParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get name and namespace template from params: %v", err)
@@ -502,7 +502,7 @@ func NeedToAddContentFinalizer(content *crdv1.VolumeSnapshotContent) bool {
 }
 
 // NeedToAddGroupSnapshotContentFinalizer checks if a Finalizer needs to be added for the volume group snapshot content.
-func NeedToAddGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) bool {
+func NeedToAddGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) bool {
 	return groupSnapshotContent.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshotContent.ObjectMeta.Finalizers, VolumeGroupSnapshotContentFinalizer)
 }
 
@@ -514,7 +514,7 @@ func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
 
 // IsGroupSnapshotDeletionCandidate checks if a volume group snapshot deletionTimestamp
 // is set and any finalizer is on the group snapshot.
-func IsGroupSnapshotDeletionCandidate(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) bool {
+func IsGroupSnapshotDeletionCandidate(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) bool {
 	return groupSnapshot.ObjectMeta.DeletionTimestamp != nil && slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer)
 }
 
@@ -529,7 +529,7 @@ func NeedToAddSnapshotBoundFinalizer(snapshot *crdv1.VolumeSnapshot) bool {
 }
 
 // NeedToAddGroupSnapshotBoundFinalizer checks if a Finalizer needs to be added for the bound volume group snapshot.
-func NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) bool {
+func NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) bool {
 	return groupSnapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer) && IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot)
 }
 
@@ -583,7 +583,7 @@ func GetSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
 	return fmt.Sprintf("bound to: %q, Completed: %v", snapshotContentName, ready)
 }
 
-func GetGroupSnapshotStatusForLogging(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) string {
+func GetGroupSnapshotStatusForLogging(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) string {
 	groupSnapshotContentName := ""
 	if groupSnapshot.Status != nil && groupSnapshot.Status.BoundVolumeGroupSnapshotContentName != nil {
 		groupSnapshotContentName = *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName
@@ -623,7 +623,7 @@ func IsSnapshotCreated(snapshot *crdv1.VolumeSnapshot) bool {
 	return snapshot.Status != nil && snapshot.Status.CreationTime != nil
 }
 
-func GroupSnapshotKey(vgs *crdv1beta1.VolumeGroupSnapshot) string {
+func GroupSnapshotKey(vgs *crdv1beta2.VolumeGroupSnapshot) string {
 	return fmt.Sprintf("%s/%s", vgs.Namespace, vgs.Name)
 }
 
@@ -631,21 +631,21 @@ func GroupSnapshotRefKey(vgsref *v1.ObjectReference) string {
 	return fmt.Sprintf("%s/%s", vgsref.Namespace, vgsref.Name)
 }
 
-func IsGroupSnapshotReady(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) bool {
+func IsGroupSnapshotReady(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) bool {
 	if groupSnapshot.Status == nil || groupSnapshot.Status.ReadyToUse == nil || *groupSnapshot.Status.ReadyToUse == false {
 		return false
 	}
 	return true
 }
 
-func IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) bool {
+func IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) bool {
 	if groupSnapshot.Status == nil || groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == nil || *groupSnapshot.Status.BoundVolumeGroupSnapshotContentName == "" {
 		return false
 	}
 	return true
 }
 
-func IsVolumeGroupSnapshotRefSet(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, content *crdv1beta1.VolumeGroupSnapshotContent) bool {
+func IsVolumeGroupSnapshotRefSet(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, content *crdv1beta2.VolumeGroupSnapshotContent) bool {
 	if content.Spec.VolumeGroupSnapshotRef.Name == groupSnapshot.Name &&
 		content.Spec.VolumeGroupSnapshotRef.Namespace == groupSnapshot.Namespace &&
 		content.Spec.VolumeGroupSnapshotRef.UID == groupSnapshot.UID {
@@ -655,13 +655,13 @@ func IsVolumeGroupSnapshotRefSet(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, 
 }
 
 // IsGroupSnapshotCreated indicates that the group snapshot has been cut on a storage system
-func IsGroupSnapshotCreated(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) bool {
+func IsGroupSnapshotCreated(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) bool {
 	return groupSnapshot.Status != nil && groupSnapshot.Status.CreationTime != nil
 }
 
 // GetDynamicSnapshotContentNameFoGrouprSnapshot returns a unique content name for the
 // passed in VolumeGroupSnapshot to dynamically provision a group snapshot.
-func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) string {
+func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) string {
 	return "groupsnapcontent-" + string(groupSnapshot.UID)
 }
 

@@ -23,6 +23,7 @@ jobs:
           make
           docker build -t test/csi-snapshotter:latest -f ./cmd/csi-snapshotter/Dockerfile --output=type=docker --label revision=latest .
           docker build -t test/snapshot-controller:latest -f ./cmd/snapshot-controller/Dockerfile --output=type=docker --label revision=latest .
+          docker build -t test/snapshot-conversion-webhook:latest -f ./cmd/snapshot-conversion-webhook/Dockerfile --output=type=docker --label revision=latest .
 
       - name: Run Trivy vulnerability scanner on csi-snapshotter image
         uses: aquasecurity/trivy-action@master
@@ -42,6 +43,18 @@ jobs:
           TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db:2"
         with:
           image-ref: 'test/snapshot-controller:latest'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW,UNKNOWN'
+
+      - name: Run Trivy vulnerability scanner on snapshot-conversion-webhook image
+        uses: aquasecurity/trivy-action@master
+        env:
+          TRIVY_DB_REPOSITORY: "public.ecr.aws/aquasecurity/trivy-db:2"
+        with:
+          image-ref: 'test/snapshot-conversion-webhook:latest'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true

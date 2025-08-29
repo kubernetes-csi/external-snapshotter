@@ -32,7 +32,7 @@ import (
 	ref "k8s.io/client-go/tools/reference"
 	klog "k8s.io/klog/v2"
 
-	crdv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
@@ -47,7 +47,7 @@ func (ctrl *csiSnapshotCommonController) storeGroupSnapshotContentUpdate(groupsn
 }
 
 // getGroupSnapshotClass is a helper function to get group snapshot class from the group snapshot class name.
-func (ctrl *csiSnapshotCommonController) getGroupSnapshotClass(className string) (*crdv1beta1.VolumeGroupSnapshotClass, error) {
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotClass(className string) (*crdv1beta2.VolumeGroupSnapshotClass, error) {
 	klog.V(5).Infof("getGroupSnapshotClass: VolumeGroupSnapshotClassName [%s]", className)
 
 	groupSnapshotClass, err := ctrl.groupSnapshotClassLister.Get(className)
@@ -72,7 +72,7 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotClass(className string)
 //     if true, ReadyToUse will be set to false;
 //     otherwise, ReadyToUse will not be changed.
 //   - eventtype, reason, message - event to send, see EventRecorder.Event()
-func (ctrl *csiSnapshotCommonController) updateGroupSnapshotErrorStatusWithEvent(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, setReadyToFalse bool, eventtype, reason, message string) error {
+func (ctrl *csiSnapshotCommonController) updateGroupSnapshotErrorStatusWithEvent(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, setReadyToFalse bool, eventtype, reason, message string) error {
 	klog.V(5).Infof("updateGroupSnapshotErrorStatusWithEvent[%s]", utils.GroupSnapshotKey(groupSnapshot))
 
 	if groupSnapshot.Status != nil && groupSnapshot.Status.Error != nil && *groupSnapshot.Status.Error.Message == message {
@@ -81,7 +81,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotErrorStatusWithEvent
 	}
 	groupSnapshotClone := groupSnapshot.DeepCopy()
 	if groupSnapshotClone.Status == nil {
-		groupSnapshotClone.Status = &crdv1beta1.VolumeGroupSnapshotStatus{}
+		groupSnapshotClone.Status = &crdv1beta2.VolumeGroupSnapshotStatus{}
 	}
 	statusError := &crdv1.VolumeSnapshotError{
 		Time: &metav1.Time{
@@ -95,7 +95,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotErrorStatusWithEvent
 		ready := false
 		groupSnapshotClone.Status.ReadyToUse = &ready
 	}
-	newSnapshot, err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+	newSnapshot, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 
 	// Emit the event even if the status update fails so that user can see the error
 	ctrl.eventRecorder.Event(newSnapshot, eventtype, reason, message)
@@ -120,7 +120,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotErrorStatusWithEvent
 // For dynamic provisioning, it gets the default GroupSnapshotClasses in the
 // system if there is any (could be multiple), and finds the one with the same
 // CSI Driver as a PV from which a group snapshot will be taken.
-func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*crdv1beta1.VolumeGroupSnapshotClass, *crdv1beta1.VolumeGroupSnapshot, error) {
+func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*crdv1beta2.VolumeGroupSnapshotClass, *crdv1beta2.VolumeGroupSnapshot, error) {
 	klog.V(5).Infof("SetDefaultGroupSnapshotClass for group snapshot [%s]", groupSnapshot.Name)
 
 	if groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil {
@@ -141,7 +141,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnaps
 		return nil, groupSnapshot, err
 	}
 
-	defaultClasses := []*crdv1beta1.VolumeGroupSnapshotClass{}
+	defaultClasses := []*crdv1beta2.VolumeGroupSnapshotClass{}
 	for _, groupSnapshotClass := range list {
 		if utils.IsVolumeGroupSnapshotClassDefaultAnnotation(groupSnapshotClass.ObjectMeta) && pvDriver == groupSnapshotClass.Driver {
 			defaultClasses = append(defaultClasses, groupSnapshotClass)
@@ -158,7 +158,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnaps
 	klog.V(5).Infof("setDefaultGroupSnapshotClass [%s]: default VolumeGroupSnapshotClassName [%s]", groupSnapshot.Name, defaultClasses[0].Name)
 	groupSnapshotClone := groupSnapshot.DeepCopy()
 	groupSnapshotClone.Spec.VolumeGroupSnapshotClassName = &(defaultClasses[0].Name)
-	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 	if err != nil {
 		klog.V(4).Infof("updating VolumeGroupSnapshot[%s] default group snapshot class failed %v", utils.GroupSnapshotKey(groupSnapshot), err)
 	}
@@ -175,7 +175,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnaps
 // It looks up every PVC from which the group snapshot is specified to be created from, and looks for the PVC's
 // corresponding PV. Bi-directional binding will be verified between PVC and PV before the PV's CSI driver is returned.
 // For an non-CSI volume, it returns an error immediately as it's not supported.
-func (ctrl *csiSnapshotCommonController) pvDriverFromGroupSnapshot(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (string, error) {
+func (ctrl *csiSnapshotCommonController) pvDriverFromGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (string, error) {
 	pvs, err := ctrl.getVolumesFromVolumeGroupSnapshot(groupSnapshot)
 	if err != nil {
 		return "", err
@@ -188,7 +188,7 @@ func (ctrl *csiSnapshotCommonController) pvDriverFromGroupSnapshot(groupSnapshot
 }
 
 // getVolumesFromVolumeGroupSnapshot returns the list of PersistentVolume from a VolumeGroupSnapshot.
-func (ctrl *csiSnapshotCommonController) getVolumesFromVolumeGroupSnapshot(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) ([]*v1.PersistentVolume, error) {
+func (ctrl *csiSnapshotCommonController) getVolumesFromVolumeGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) ([]*v1.PersistentVolume, error) {
 	var pvReturnList []*v1.PersistentVolume
 	pvcs, err := ctrl.getClaimsFromVolumeGroupSnapshot(groupSnapshot)
 	if err != nil {
@@ -219,7 +219,7 @@ func (ctrl *csiSnapshotCommonController) getVolumesFromVolumeGroupSnapshot(group
 }
 
 // getClaimsFromVolumeGroupSnapshot is a helper function to get a list of PVCs from VolumeGroupSnapshot.
-func (ctrl *csiSnapshotCommonController) getClaimsFromVolumeGroupSnapshot(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) ([]v1.PersistentVolumeClaim, error) {
+func (ctrl *csiSnapshotCommonController) getClaimsFromVolumeGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) ([]v1.PersistentVolumeClaim, error) {
 	labelSelector := groupSnapshot.Spec.Source.Selector
 
 	// Get PVC that has group snapshot label applied.
@@ -235,7 +235,7 @@ func (ctrl *csiSnapshotCommonController) getClaimsFromVolumeGroupSnapshot(groupS
 
 // updateGroupSnapshot runs in worker thread and handles "groupsnapshot added",
 // "groupsnapshot updated" and "periodic sync" events.
-func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(ctx context.Context, groupSnapshot *crdv1beta1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(ctx context.Context, groupSnapshot *crdv1beta2.VolumeGroupSnapshot) error {
 	// Store the new group snapshot version in the cache and do not process it
 	// if this is an old version.
 	klog.V(5).Infof("updateGroupSnapshot %q", utils.GroupSnapshotKey(groupSnapshot))
@@ -262,7 +262,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshot(ctx context.Context
 }
 
 // deleteGroupSnapshot runs in worker thread and handles "groupsnapshot deleted" event.
-func (ctrl *csiSnapshotCommonController) deleteGroupSnapshot(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) {
+func (ctrl *csiSnapshotCommonController) deleteGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) {
 	_ = ctrl.groupSnapshotStore.Delete(groupSnapshot)
 	klog.V(4).Infof("group snapshot %q deleted", utils.GroupSnapshotKey(groupSnapshot))
 
@@ -295,7 +295,7 @@ func (ctrl *csiSnapshotCommonController) deleteGroupSnapshot(groupSnapshot *crdv
 // a group snapshot is created, updated or periodically synced. We do not
 // differentiate between these events.
 // For easier readability, it is split into syncUnreadyGroupSnapshot and syncReadyGroupSnapshot
-func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, groupSnapshot *crdv1beta1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, groupSnapshot *crdv1beta2.VolumeGroupSnapshot) error {
 	klog.V(5).Infof("synchronizing VolumeGroupSnapshot[%s]", utils.GroupSnapshotKey(groupSnapshot))
 
 	klog.V(5).Infof("syncGroupSnapshot [%s]: check if we should remove finalizer on group snapshot PVC source and remove it if we can", utils.GroupSnapshotKey(groupSnapshot))
@@ -336,7 +336,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshot(ctx context.Context, 
 // snapshot content successfully before.
 // If there is any problem with the binding (e.g., group snapshot points to a
 // non-existent group snapshot content), update the group snapshot status and emit event.
-func (ctrl *csiSnapshotCommonController) syncReadyGroupSnapshot(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) syncReadyGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) error {
 	if !utils.IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot) {
 		return fmt.Errorf("group snapshot %s is not bound to a group snapshot content", utils.GroupSnapshotKey(groupSnapshot))
 	}
@@ -364,7 +364,7 @@ func (ctrl *csiSnapshotCommonController) syncReadyGroupSnapshot(groupSnapshot *c
 // snapshot content cache store by name.
 // Note that if no VolumeGroupSnapshotContent exists in the cache store and no error
 // encountered, it returns (nil, nil)
-func (ctrl *csiSnapshotCommonController) getGroupSnapshotContentFromStore(contentName string) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotContentFromStore(contentName string) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	obj, exist, err := ctrl.groupSnapshotContentStore.GetByKey(contentName)
 	if err != nil {
 		// should never reach here based on implementation at:
@@ -375,7 +375,7 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotContentFromStore(conten
 		// not able to find a matching group snapshot content
 		return nil, nil
 	}
-	groupSnapshotContent, ok := obj.(*crdv1beta1.VolumeGroupSnapshotContent)
+	groupSnapshotContent, ok := obj.(*crdv1beta2.VolumeGroupSnapshotContent)
 	if !ok {
 		return nil, fmt.Errorf("expected VolumeGroupSnapshotContent, got %+v", obj)
 	}
@@ -384,7 +384,7 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotContentFromStore(conten
 
 // syncUnreadyGroupSnapshot is the main controller method to decide what to do
 // with a group snapshot which is not set to ready.
-func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Context, groupSnapshot *crdv1beta1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Context, groupSnapshot *crdv1beta2.VolumeGroupSnapshot) error {
 	uniqueGroupSnapshotName := utils.GroupSnapshotKey(groupSnapshot)
 	klog.V(5).Infof("syncUnreadyGroupSnapshot %s", uniqueGroupSnapshotName)
 	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
@@ -478,7 +478,7 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Co
 	}
 
 	// If reach here, it is a dynamically provisioned group snapshot, and the VolumeGroupSnapshotContent object is not yet created.
-	var groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent
+	var groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent
 	if groupSnapshotContent, err = ctrl.createGroupSnapshotContent(groupSnapshot); err != nil {
 		ctrl.updateGroupSnapshotErrorStatusWithEvent(groupSnapshot, true, v1.EventTypeWarning, "GroupSnapshotContentCreationFailed", fmt.Sprintf("failed to create group snapshot content with error %v", err))
 		return err
@@ -496,12 +496,12 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Co
 
 func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 	ctx context.Context,
-	groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent,
-	groupSnapshot *crdv1beta1.VolumeGroupSnapshot,
-) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+	groupSnapshot *crdv1beta2.VolumeGroupSnapshot,
+) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	// No status is present, or no volume snapshot was provisioned.
 	// Let's wait for the snapshotter sidecar to fill it.
-	if groupSnapshotContent.Status == nil || len(groupSnapshotContent.Status.VolumeSnapshotHandlePairList) == 0 {
+	if groupSnapshotContent.Status == nil || len(groupSnapshotContent.Status.VolumeSnapshotInfoList) == 0 {
 		return groupSnapshotContent, nil
 	}
 
@@ -540,7 +540,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		"createSnapshotsForGroupSnapshotContent[%s]: creating volumesnapshots and volumesnapshotcontent for group snapshot content",
 		groupSnapshotContent.Name)
 
-	for _, snapshot := range groupSnapshotContent.Status.VolumeSnapshotHandlePairList {
+	for _, snapshot := range groupSnapshotContent.Status.VolumeSnapshotInfoList {
 		snapshotHandle := snapshot.SnapshotHandle
 		volumeHandle := snapshot.VolumeHandle
 
@@ -580,8 +580,9 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 					VolumeHandle: &volumeHandle,
 				},
 			},
-			// The status will be set by VolumeSnapshotContent reconciler
-			// in the CSI snapshotter sidecar.
+			// The status will be set in a separate patch request by
+			// common snapshot controller, using the information from
+			// the VolumeGroupSnapshotContent object.
 		}
 
 		if pv != nil {
@@ -682,6 +683,21 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 				Path:  "/status/volumeGroupSnapshotHandle",
 				Value: groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
 			},
+			{
+				Op:    "replace",
+				Path:  "/status/creationTime",
+				Value: snapshot.CreationTime,
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/restoreSize",
+				Value: snapshot.RestoreSize,
+			},
+			{
+				Op:    "replace",
+				Path:  "/status/readyToUse",
+				Value: snapshot.ReadyToUse,
+			},
 		}, ctrl.clientset, "status")
 		if err != nil {
 			return groupSnapshotContent, fmt.Errorf(
@@ -749,7 +765,7 @@ func getSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotUUID, volu
 // VolumeGroupSnapshot, it updates the status of the group snapshot with an event
 // and returns an error.
 // Otherwise, the found group snapshot content will be returned.
-func (ctrl *csiSnapshotCommonController) getPreprovisionedGroupSnapshotContentFromStore(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+func (ctrl *csiSnapshotCommonController) getPreprovisionedGroupSnapshotContentFromStore(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	contentName := *groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName
 	if contentName == "" {
 		return nil, fmt.Errorf("empty VolumeGroupSnapshotContentName for group snapshot %s", utils.GroupSnapshotKey(groupSnapshot))
@@ -786,7 +802,7 @@ func (ctrl *csiSnapshotCommonController) getPreprovisionedGroupSnapshotContentFr
 // the group snapshot content with the group snapshot. This is for static binding where
 // user has specified group snapshot name but not UID of the group snapshot in
 // groupSnapshotContent.Spec.VolumeGroupSnapshotRef.
-func (ctrl *csiSnapshotCommonController) checkAndBindGroupSnapshotContent(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+func (ctrl *csiSnapshotCommonController) checkAndBindGroupSnapshotContent(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	if groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Name != groupSnapshot.Name {
 		return nil, fmt.Errorf("Could not bind group snapshot %s and group snapshot content %s, the VolumeGroupSnapshotRef does not match", groupSnapshot.Name, groupSnapshotContent.Name)
 	} else if groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID != "" && groupSnapshotContent.Spec.VolumeGroupSnapshotRef.UID != groupSnapshot.UID {
@@ -826,7 +842,7 @@ func (ctrl *csiSnapshotCommonController) checkAndBindGroupSnapshotContent(groupS
 }
 
 // updateGroupSnapshotStatus updates group snapshot status based on group snapshot content status
-func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) (*crdv1beta1.VolumeGroupSnapshot, error) {
+func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) (*crdv1beta2.VolumeGroupSnapshot, error) {
 	klog.V(5).Infof("updateGroupSnapshotStatus[%s]", utils.GroupSnapshotKey(groupSnapshot))
 
 	boundContentName := groupSnapshotContent.Name
@@ -845,15 +861,15 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 
 	klog.V(5).Infof("updateGroupSnapshotStatus: updating VolumeGroupSnapshot [%+v] based on VolumeGroupSnapshotContentStatus [%+v]", groupSnapshot, groupSnapshotContent.Status)
 
-	groupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshot.Namespace).Get(context.TODO(), groupSnapshot.Name, metav1.GetOptions{})
+	groupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshot.Namespace).Get(context.TODO(), groupSnapshot.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error get group snapshot %s from api server: %v", utils.GroupSnapshotKey(groupSnapshot), err)
 	}
 
-	var newStatus *crdv1beta1.VolumeGroupSnapshotStatus
+	var newStatus *crdv1beta2.VolumeGroupSnapshotStatus
 	updated := false
 	if groupSnapshotObj.Status == nil {
-		newStatus = &crdv1beta1.VolumeGroupSnapshotStatus{
+		newStatus = &crdv1beta2.VolumeGroupSnapshotStatus{
 			BoundVolumeGroupSnapshotContentName: &boundContentName,
 			ReadyToUse:                          &readyToUse,
 		}
@@ -918,7 +934,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 			ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
 		}
 
-		newGroupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+		newGroupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 		if err != nil {
 			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
 		}
@@ -942,7 +958,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 // If a group snapshot content is found but it does not point to the passed in VolumeGroupSnapshot,
 // the passed in group snapshot will be updated with an error along with an event,
 // and an error will be returned.
-func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedGroupContentFromStore(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedGroupContentFromStore(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	contentName := utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
 	groupSnapshotContent, err := ctrl.getGroupSnapshotContentFromStore(contentName)
 	if err != nil {
@@ -974,9 +990,9 @@ func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedGroupContentFr
 }
 
 // This routine sets snapshot.Spec.Source.VolumeGroupSnapshotContentName
-func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeGroupSnapshot(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent, groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*crdv1beta1.VolumeGroupSnapshot, error) {
+func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeGroupSnapshot(groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent, groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*crdv1beta2.VolumeGroupSnapshot, error) {
 	klog.V(5).Infof("bindandUpdateVolumeGroupSnapshot for group snapshot [%s]: groupSnapshotContent [%s]", groupSnapshot.Name, groupSnapshotContent.Name)
-	groupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshot.Namespace).Get(context.TODO(), groupSnapshot.Name, metav1.GetOptions{})
+	groupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshot.Namespace).Get(context.TODO(), groupSnapshot.Name, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("error get group snapshot %s from api server: %v", utils.GroupSnapshotKey(groupSnapshot), err)
 	}
@@ -984,7 +1000,7 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeGroupSnapshot(groupS
 	// Copy the group snapshot object before updating it
 	groupSnapshotCopy := groupSnapshotObj.DeepCopy()
 	// update group snapshot status
-	var updateGroupSnapshot *crdv1beta1.VolumeGroupSnapshot
+	var updateGroupSnapshot *crdv1beta2.VolumeGroupSnapshot
 	klog.V(5).Infof("bindandUpdateVolumeGroupSnapshot [%s]: trying to update group snapshot status", utils.GroupSnapshotKey(groupSnapshotCopy))
 	updateGroupSnapshot, err = ctrl.updateGroupSnapshotStatus(groupSnapshotCopy, groupSnapshotContent)
 	if err == nil {
@@ -1007,7 +1023,7 @@ func (ctrl *csiSnapshotCommonController) bindandUpdateVolumeGroupSnapshot(groupS
 }
 
 // createGroupSnapshotContent will only be called for dynamic provisioning
-func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	klog.Infof("createGroupSnapshotContent: Creating group snapshot content for group snapshot %s through the plugin ...", utils.GroupSnapshotKey(groupSnapshot))
 
 	/*
@@ -1058,13 +1074,13 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		volumeHandles = append(volumeHandles, pv.Spec.CSI.VolumeHandle)
 	}
 
-	groupSnapshotContent := &crdv1beta1.VolumeGroupSnapshotContent{
+	groupSnapshotContent := &crdv1beta2.VolumeGroupSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: contentName,
 		},
-		Spec: crdv1beta1.VolumeGroupSnapshotContentSpec{
+		Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
 			VolumeGroupSnapshotRef: *snapshotRef,
-			Source: crdv1beta1.VolumeGroupSnapshotContentSource{
+			Source: crdv1beta2.VolumeGroupSnapshotContentSource{
 				VolumeHandles: volumeHandles,
 			},
 			VolumeGroupSnapshotClassName: &(groupSnapshotClass.Name),
@@ -1084,11 +1100,11 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		metav1.SetMetaDataAnnotation(&groupSnapshotContent.ObjectMeta, utils.AnnDeletionGroupSecretRefNamespace, snapshotterSecretRef.Namespace)
 	}
 
-	var updateGroupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent
+	var updateGroupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent
 	klog.V(5).Infof("volume group snapshot content %#v", groupSnapshotContent)
 	// Try to create the VolumeGroupSnapshotContent object
 	klog.V(5).Infof("createGroupSnapshotContent [%s]: trying to save volume group snapshot content %s", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
-	if updateGroupSnapshotContent, err = ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshotContents().Create(context.TODO(), groupSnapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
+	if updateGroupSnapshotContent, err = ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Create(context.TODO(), groupSnapshotContent, metav1.CreateOptions{}); err == nil || apierrs.IsAlreadyExists(err) {
 		// Save succeeded.
 		if err != nil {
 			klog.V(3).Infof("volume group snapshot content %q for group snapshot %q already exists, reusing", groupSnapshotContent.Name, utils.GroupSnapshotKey(groupSnapshot))
@@ -1118,10 +1134,10 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 	return updateGroupSnapshotContent, nil
 }
 
-func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) (*crdv1beta1.VolumeGroupSnapshotClass, []*v1.PersistentVolume, string, *v1.SecretReference, error) {
+func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) (*crdv1beta2.VolumeGroupSnapshotClass, []*v1.PersistentVolume, string, *v1.SecretReference, error) {
 	className := groupSnapshot.Spec.VolumeGroupSnapshotClassName
 	klog.V(5).Infof("getCreateGroupSnapshotInput [%s]", groupSnapshot.Name)
-	var groupSnapshotClass *crdv1beta1.VolumeGroupSnapshotClass
+	var groupSnapshotClass *crdv1beta2.VolumeGroupSnapshotClass
 	var err error
 	if className != nil {
 		groupSnapshotClass, err = ctrl.getGroupSnapshotClass(*className)
@@ -1153,7 +1169,7 @@ func (ctrl *csiSnapshotCommonController) getCreateGroupSnapshotInput(groupSnapsh
 }
 
 // syncGroupSnapshotContent deals with one key off the queue
-func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) error {
+func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) error {
 	groupSnapshotName := utils.GroupSnapshotRefKey(&groupSnapshotContent.Spec.VolumeGroupSnapshotRef)
 	klog.V(4).Infof("synchronizing VolumeGroupSnapshotContent[%s]: group snapshot content is bound to group snapshot %s", groupSnapshotContent.Name, groupSnapshotName)
 
@@ -1185,7 +1201,7 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotC
 	// If getGroupSnapshotFromStore returns (nil, nil), it means group snapshot not found
 	// and it may have already been deleted, and it will fall into the
 	// group snapshot == nil case below
-	var groupSnapshot *crdv1beta1.VolumeGroupSnapshot
+	var groupSnapshot *crdv1beta2.VolumeGroupSnapshot
 	groupSnapshot, err := ctrl.getGroupSnapshotFromStore(groupSnapshotName)
 	if err != nil {
 		return err
@@ -1214,9 +1230,9 @@ func (ctrl *csiSnapshotCommonController) syncGroupSnapshotContent(groupSnapshotC
 // getGroupSnapshotFromStore finds group snapshot from the cache store.
 // If getGroupSnapshotFromStore returns (nil, nil), it means group snapshot not
 // found and it may have already been deleted.
-func (ctrl *csiSnapshotCommonController) getGroupSnapshotFromStore(groupSnapshotName string) (*crdv1beta1.VolumeGroupSnapshot, error) {
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotFromStore(groupSnapshotName string) (*crdv1beta2.VolumeGroupSnapshot, error) {
 	// Get the VolumeGroupSnapshot by _name_
-	var groupSnapshot *crdv1beta1.VolumeGroupSnapshot
+	var groupSnapshot *crdv1beta2.VolumeGroupSnapshot
 	obj, found, err := ctrl.groupSnapshotStore.GetByKey(groupSnapshotName)
 	if err != nil {
 		return nil, err
@@ -1227,7 +1243,7 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotFromStore(groupSnapshot
 		return nil, nil
 	}
 	var ok bool
-	groupSnapshot, ok = obj.(*crdv1beta1.VolumeGroupSnapshot)
+	groupSnapshot, ok = obj.(*crdv1beta2.VolumeGroupSnapshot)
 	if !ok {
 		return nil, fmt.Errorf("cannot convert object from group snapshot cache to group snapshot %q!?: %#v", groupSnapshotName, obj)
 	}
@@ -1239,7 +1255,7 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotFromStore(groupSnapshot
 // needsUpdateGroupSnapshotStatus compares group snapshot status with the group snapshot content
 // status and decide if group snapshot status needs to be updated based on group snapshot content
 // status
-func (ctrl *csiSnapshotCommonController) needsUpdateGroupSnapshotStatus(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) bool {
+func (ctrl *csiSnapshotCommonController) needsUpdateGroupSnapshotStatus(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) bool {
 	klog.V(5).Infof("needsUpdateGroupSnapshotStatus[%s]", utils.GroupSnapshotKey(groupSnapshot))
 
 	if groupSnapshot.Status == nil && groupSnapshotContent.Status != nil {
@@ -1265,7 +1281,7 @@ func (ctrl *csiSnapshotCommonController) needsUpdateGroupSnapshotStatus(groupSna
 }
 
 // addGroupSnapshotContentFinalizer adds a Finalizer for VolumeGroupSnapshotContent.
-func (ctrl *csiSnapshotCommonController) addGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) error {
+func (ctrl *csiSnapshotCommonController) addGroupSnapshotContentFinalizer(groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) error {
 	var patches []utils.PatchOp
 	if len(groupSnapshotContent.Finalizers) > 0 {
 		// Add to the end of the finalizers if we have any other finalizers
@@ -1297,10 +1313,10 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotContentFinalizer(groupS
 }
 
 // checkandAddGroupSnapshotFinalizers checks and adds group snapshot finailzers when needed
-func (ctrl *csiSnapshotCommonController) checkandAddGroupSnapshotFinalizers(groupSnapshot *crdv1beta1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) checkandAddGroupSnapshotFinalizers(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) error {
 	// get the group snapshot content for this group snapshot
 	var (
-		groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent
+		groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent
 		err                  error
 	)
 	if groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName != nil {
@@ -1326,8 +1342,8 @@ func (ctrl *csiSnapshotCommonController) checkandAddGroupSnapshotFinalizers(grou
 }
 
 // addGroupSnapshotFinalizer adds a Finalizer to a VolumeGroupSnapshot.
-func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, addBoundFinalizer bool) error {
-	var updatedGroupSnapshot *crdv1beta1.VolumeGroupSnapshot
+func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, addBoundFinalizer bool) error {
+	var updatedGroupSnapshot *crdv1beta2.VolumeGroupSnapshot
 	var err error
 
 	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
@@ -1337,7 +1353,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 		if addBoundFinalizer {
 			groupSnapshotClone.ObjectMeta.Finalizers = append(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
 		}
-		updatedGroupSnapshot, err = ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+		updatedGroupSnapshot, err = ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 		if err != nil {
 			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
 		}
@@ -1376,7 +1392,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 // with information obtained from step 1. This function name is very long but the
 // name suggests what it does. It determines whether to remove finalizers on group
 // snapshot and whether to delete group snapshot content.
-func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimestamp(ctx context.Context, groupSnapshot *crdv1beta1.VolumeGroupSnapshot) error {
+func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimestamp(ctx context.Context, groupSnapshot *crdv1beta2.VolumeGroupSnapshot) error {
 	klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp VolumeGroupSnapshot[%s]: %s", utils.GroupSnapshotKey(groupSnapshot), utils.GetGroupSnapshotStatusForLogging(groupSnapshot))
 
 	driverName, err := ctrl.getGroupSnapshotDriverName(groupSnapshot)
@@ -1491,7 +1507,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	// VolumeGroupSnapshotContent won't be deleted immediately due to the VolumeGroupSnapshotContentFinalizer
 	if groupSnapshotContent != nil && deleteGroupSnapshotContent {
 		klog.V(5).Infof("processGroupSnapshotWithDeletionTimestamp[%s]: set DeletionTimeStamp on group snapshot content [%s].", utils.GroupSnapshotKey(groupSnapshot), groupSnapshotContent.Name)
-		err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshotContents().Delete(ctx, groupSnapshotContent.Name, metav1.DeleteOptions{})
+		err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Delete(ctx, groupSnapshotContent.Name, metav1.DeleteOptions{})
 		if err != nil {
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "GroupSnapshotContentObjectDeleteError", "Failed to delete group snapshot content API object")
 			return fmt.Errorf("failed to delete VolumeGroupSnapshotContent %s from API server: %q", groupSnapshotContent.Name, err)
@@ -1530,7 +1546,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	return ctrl.removeGroupSnapshotFinalizer(groupSnapshot, removeBoundFinalizer)
 }
 
-func (ctrl *csiSnapshotCommonController) setAnnVolumeGroupSnapshotBeingDeleted(groupSnapshotContent *crdv1beta1.VolumeGroupSnapshotContent) (*crdv1beta1.VolumeGroupSnapshotContent, error) {
+func (ctrl *csiSnapshotCommonController) setAnnVolumeGroupSnapshotBeingDeleted(groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
 	if groupSnapshotContent == nil {
 		return groupSnapshotContent, nil
 	}
@@ -1590,7 +1606,7 @@ func (ctrl *csiSnapshotCommonController) findGroupSnapshotMembers(groupSnapshotN
 }
 
 // removeGroupSnapshotFinalizer removes a Finalizer for VolumeGroupSnapshot.
-func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnapshot *crdv1beta1.VolumeGroupSnapshot, removeBoundFinalizer bool) error {
+func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnapshot *crdv1beta2.VolumeGroupSnapshot, removeBoundFinalizer bool) error {
 	if !removeBoundFinalizer {
 		return nil
 	}
@@ -1599,7 +1615,7 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 
 	groupSnapshotClone := groupSnapshot.DeepCopy()
 	groupSnapshotClone.ObjectMeta.Finalizers = utils.RemoveString(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
-	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1beta1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
+	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 	if err != nil {
 		return newControllerUpdateError(groupSnapshot.Name, err.Error())
 	}
@@ -1615,7 +1631,7 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 
 // getGroupSnapshotDriverName is a helper function to get driver from the VolumeGroupSnapshot.
 // We try to get the driverName in multiple ways, as snapshot controller metrics depend on the correct driverName.
-func (ctrl *csiSnapshotCommonController) getGroupSnapshotDriverName(vgs *crdv1beta1.VolumeGroupSnapshot) (string, error) {
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotDriverName(vgs *crdv1beta2.VolumeGroupSnapshot) (string, error) {
 	klog.V(5).Infof("getGroupSnapshotDriverName: VolumeGroupSnapshot[%s]", vgs.Name)
 	var driverName string
 

@@ -6,8 +6,6 @@ The volume snapshot feature supports CSI v1.0 and higher. It was introduced as a
 
 The volume group snapshot feature supports CSI v1.10.0 and higher, and have been introduced in [Kubernetes 1.27 as an alpha feature](https://kubernetes.io/blog/2023/05/08/kubernetes-1-27-volume-group-snapshot-alpha/).
 
-> :warning: **WARNING**: The validation webhook was deprecated in v8.0.0 and it is now removed. The validation webhook would prevent creating multiple default volume snapshot classes and multiple default volume group snapshot classes for the same CSI driver. With the removal of the validation webhook, an error will still be raised when dynamically provisioning a VolumeSnapshot or VolumeGroupSnapshot when multiple default volume snapshot classes or multiple default volume group snapshot classes for the same CSI driver exist.
-
 ## Overview
 
 With the promotion of Volume Snapshot to GA, the feature is enabled by default on standard Kubernetes deployments and cannot be turned off.
@@ -22,15 +20,15 @@ Blog post for the Volume Group Snapshot Alpha feature can be found [here](https:
 
 This information reflects the head of this branch.
 
-| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image             | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version) |
-| ------------------------------------------------------------------------------------------ | ----------------------------| --------------- | --------------- |  --------------- |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/csi-snapshotter | 1.20         | 1.20         |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-controller  | 1.20     | 1.20         |
-| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-validation-webhook  | 1.20     | 1.20         |
+| Minimum CSI Version                                                                | Recommended CSI Version                                                                | Container Image                                    | [Min K8s Version](https://kubernetes-csi.github.io/docs/kubernetes-compatibility.html#minimum-version) | [Recommended K8s Version](https://kubernetes-csi.github.io/docs/project-policies.html#recommended-version) |
+| ------------------------------------------------------------------------------------------ | ----------------------------|----------------------------------------------------| --------------- |  --------------- |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/csi-snapshotter             | 1.20         | 1.20         |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-controller         | 1.20     | 1.20         |
+| [CSI Spec v1.0.0](https://github.com/container-storage-interface/spec/releases/tag/v1.0.0) | [CSI Spec v1.5.0](https://github.com/container-storage-interface/spec/releases/tag/v1.5.0) | k8s.gcr.io/sig-storage/snapshot-conversion-webhook | 1.20     | 1.20         |
 
-Note: snapshot-controller, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
+Note: snapshot-controller, snapshot-conversion-webhook, csi-snapshotter v4.1 requires v1 snapshot CRDs to be installed, but it serves both v1 and v1beta1 snapshot objects. Storage version is changed from v1beta1 to v1 in 4.1.0 so v1beta1 is deprecated and will be removed in a future release.
 
-Note: when the volume group snapshot feature is enabled, snapshot-controller, csi-snapshotter require the v1alpha1 volumegroupsnapshot CRDs to be installed.
+Note: when the volume group snapshot feature is enabled, snapshot-controller, snapshot-conversion-webhook, csi-snapshotter require the v1beta2 volumegroupsnapshot CRDs to be installed.
 
 ## Feature Status
 
@@ -48,9 +46,9 @@ The CSI external-snapshotter sidecar talks to CSI over socket (/run/csi/socket b
 
 In the current release, both v1 and v1beta1 APIs are served while the stored API version is changed from v1beta1 to v1. v1beta1 APIs is deprecated and will be removed in a future release. It is recommended for users to switch to v1 APIs as soon as possible. Any previously created invalid v1beta1 objects have to be deleted before upgrading to version 4.1.
 
-### Volume Group Snapshot v1alpha1 APIs
+### Volume Group Snapshot v1beta2 APIs
 
-When enabled, the VolumeGroupSnapshot v1alpha1 APIs are being served.
+When enabled, the VolumeGroupSnapshot v1beta2 APIs are being served.
 
 ## Usage
 
@@ -58,6 +56,7 @@ Volume Snapshot feature contains the following components:
 
 * [Kubernetes Volume Snapshot and Volume Group Snapshot CRDs](https://github.com/kubernetes-csi/external-snapshotter/tree/master/client/config/crd)
 * [Volume snapshot and volume group snapshot controller](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/common-controller)
+* [Volume group snapshot conversion webhook](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/webhook)
 * CSI Driver along with [CSI Snapshotter sidecar](https://github.com/kubernetes-csi/external-snapshotter/tree/master/pkg/sidecar-controller)
 
 The Volume Snapshot feature depends on a volume snapshot controller and the volume snapshot CRDs. Both the controller and the CRDs are independent of any CSI driver. The CSI Snapshotter sidecar must run once per CSI driver. The single snapshot controller deployment works for all CSI drivers in a cluster. With leader election configured, the CSI sidecars and snapshot controller elect one leader per deployment. If deployed with two or more pods and leader election is enabled, the non-leader containers will attempt to get the lease. If the leader container dies, a non-leader will take over.
@@ -65,6 +64,8 @@ The Volume Snapshot feature depends on a volume snapshot controller and the volu
 Therefore, it is strongly recommended that Kubernetes distributors bundle and deploy the controller and CRDs as part of their Kubernetes cluster management process (independent of any CSI Driver).
 
 If your Kubernetes distribution does not bundle the snapshot controller, you may manually install these components by executing the following steps. Note that the snapshot controller YAML files in the git repository deploy into the default namespace for system testing purposes. For general use, update the snapshot controller YAMLs with an appropriate namespace prior to installing. For example, on a Vanilla Kubernetes cluster update the namespace from 'default' to 'kube-system' prior to issuing the kubectl create command.
+
+There is a new conversion webhook server which provides conversion between v1beta1 and v1beta2 group snapshot objects. The cluster admin or Kubernetes distribution admin should install the webhook alongside the snapshot controllers and CRDs if they want to provide group snapshot v1beta1 API. More details [below](#conversion-webhook).).
 
 Install Snapshot and Volume Group Snapshot CRDs:
 * With the repo cloned locally: `kubectl kustomize client/config/crd | kubectl create -f -`
@@ -82,23 +83,22 @@ Install CSI Driver:
   * With the repo cloned locally: `kubectl kustomize deploy/kubernetes/csi-snapshotter | kubectl create -f -`
   * From the repo remotely: `kubectl kustomize https://github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/csi-snapshotter | kubectl create -f -`
 
-##### Volume Snapshot
+### Conversion Webhook
 
-* Spec.VolumeSnapshotClassName must not be an empty string or nil on creation
-* Spec.Source.PersistentVolumeClaimName must not be changed on update requests
-* Spec.Source.VolumeSnapshotContentName must not be changed on update requests
 
-##### Volume Snapshot Content
+The snapshot conversion webhook is an HTTP callback which responds to
+[conversion requests](https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/#webhook-conversion),
+allowing the API server to convert between the VolumeGroupSnapshotContent v1beta1 API to and from the v1beta2 API.
 
-* Spec.VolumeSnapshotRef.Name must not be an empty string on creation
-* Spec.VolumeSnapshotRef.Namespace must not be an empty string on creation
-* Spec.Source.VolumeHandle must not be changed on update requests
-* Spec.Source.SnapshotHandle must not be changed on update requests
-* Spec.SourceVolumeMode must not be changes on update requests
+Read more about how to install the example webhook [here](deploy/kubernetes/webhook-example/README.md).
 
-##### Volume Snapshot Classes
+####  Conversion Webhook Command Line Options
 
-* There can only be a single default volume snapshot class for a particular driver.
+* `--tls-cert-file`: File containing the x509 Certificate for HTTPS. (CA cert, if any, concatenated after server cert). Required.
+
+* `--tls-private-key-file`: File containing the x509 private key matching --tls-cert-file. Required.
+
+* `--port`: Secure port that the webhook listens on (default 443)
 
 ### Distributed Snapshotting
 
@@ -241,6 +241,8 @@ If you have already deployed v1alpha1 snapshot APIs and external-snapshotter sid
 3. Install v1beta1 snapshot CRDs, snapshot controller, CSI external-snapshotter sidecar and CSI driver.
 
 ### Upgrade from v1beta1 to v1
+
+Validation webhook should be installed before upgrading to v1. Potential impacts of not installing the validation webhook before upgrading to v1 include being unable to delete invalid snapshot objects. See the section on Validation Webhook for details.
 
 * When upgrading to 4.0, change from v1beta1 to v1 is backward compatible because both v1 and v1beta1 are served while the stored API version is still v1beta1. Future releases will switch the stored version to v1 and gradually remove v1beta1 support.
 * When upgrading from 3.x to 4.1, change from v1beta1 to v1 is no longer backward compatible because stored API version is changed to v1 although both v1 and v1beta1 are still served. v1beta1 is deprecated in 4.1.

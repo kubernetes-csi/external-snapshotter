@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snapshot-conversion-webhook-deployment
+  namespace: default # NOTE: change the namespace
+  labels:
+    app.kubernetes.io/name: snapshot-conversion-webhook
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: snapshot-conversion-webhook
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: snapshot-conversion-webhook
+    spec:
+      containers:
+      - name: snapshot-conversion-webhook
+        image: registry.k8s.io/sig-storage/snapshot-conversion-webhook:v8.0.1 # change the image if you wish to use your own custom conversion server image
+        imagePullPolicy: IfNotPresent
+        args:
+        - '--tls-cert-file=/etc/snapshot-conversion-webhook/certs/tls.crt'
+        - '--tls-private-key-file=/etc/snapshot-conversion-webhook/certs/tls.key'
+        ports:
+        - containerPort: 443 # change the port as needed
+        volumeMounts:
+          - name: snapshot-conversion-webhook-certs
+            mountPath: /etc/snapshot-conversion-webhook/certs
+            readOnly: true
+      volumes:
+        - name: snapshot-conversion-webhook-certs
+          secret:
+            secretName: snapshot-conversion-webhook-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: snapshot-conversion-webhook-service
+  namespace: default # NOTE: change the namespace
+spec:
+  selector:
+    app.kubernetes.io/name: snapshot-conversion-webhook
+  ports:
+    - protocol: TCP
+      port: 443 # Change if needed
+      targetPort: 443 # Change if the webserver image expects a different port
