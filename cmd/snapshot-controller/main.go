@@ -39,6 +39,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	server "k8s.io/apiserver/pkg/server"
 
 	klog "k8s.io/klog/v2"
 
@@ -259,18 +260,55 @@ func main() {
 		os.Exit(1)
 	}
 
-	run := func(context.Context) {
-		// run...
-		stopCh := make(chan struct{})
-		factory.Start(stopCh)
-		coreFactory.Start(stopCh)
-		go ctrl.Run(*threads, stopCh)
+	ctx := context.Background()
 
-		// ...until SIGINT
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
-		close(stopCh)
+	// handle SIGTERM and SIGINT by cancelling the context.
+	var (
+		terminate       func()          // called when all controllers are finished
+		controllerCtx   context.Context // shuts down all controllers on a signal
+		shutdownHandler <-chan struct{} // called when the signal is received
+	)
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+		// ctx waits for all controllers to finish, then shuts down the whole process, incl. leader election
+		ctx, terminate = context.WithCancel(ctx)
+		var cancelControllerCtx context.CancelFunc
+		controllerCtx, cancelControllerCtx = context.WithCancel(ctx)
+		shutdownHandler = server.SetupSignalHandler()
+
+		defer terminate()
+
+		go func() {
+			defer cancelControllerCtx()
+			<-shutdownHandler
+			klog.Info("Received SIGTERM or SIGINT signal, shutting down controller.")
+		}()
+	}
+
+	run := func(ctx context.Context) {
+		if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+			// run...
+			stopCh := controllerCtx.Done()
+			factory.Start(stopCh)
+			coreFactory.Start(stopCh)
+			var controllerWg sync.WaitGroup
+			go ctrl.Run(*threads, stopCh, &controllerWg)
+			<-shutdownHandler
+			controllerWg.Wait()
+			terminate()
+		} else {
+			// run...
+			stopCh := make(chan struct{})
+			factory.Start(stopCh)
+			coreFactory.Start(stopCh)
+			go ctrl.Run(*threads, stopCh, nil)
+
+			// ...until SIGINT
+			c := make(chan os.Signal, 1)
+			signal.Notify(c, os.Interrupt)
+			<-c
+			close(stopCh)
+		}
 	}
 
 	// start listening & serving http endpoint if set
@@ -289,7 +327,7 @@ func main() {
 		klog.Infof("Metrics http server successfully started on %s, %s", *httpEndpoint, *metricsPath)
 
 		defer func() {
-			err := srv.Shutdown(context.Background())
+			err := srv.Shutdown(ctx)
 			if err != nil {
 				klog.Errorf("Failed to shutdown metrics server: %s", err.Error())
 			}
@@ -300,7 +338,7 @@ func main() {
 	}
 
 	if !*leaderElection {
-		run(context.TODO())
+		run(ctx)
 	} else {
 		lockName := "snapshot-controller-leader"
 		// Create a new clientset for leader election to prevent throttling
@@ -320,6 +358,11 @@ func main() {
 		le.WithLeaseDuration(*leaderElectionLeaseDuration)
 		le.WithRenewDeadline(*leaderElectionRenewDeadline)
 		le.WithRetryPeriod(*leaderElectionRetryPeriod)
+		if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+			le.WithReleaseOnCancel(true)
+			le.WithContext(ctx)
+		}
+
 		if err := le.Run(); err != nil {
 			klog.Fatalf("failed to initialize leader election: %v", err)
 		}

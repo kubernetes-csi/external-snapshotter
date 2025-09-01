@@ -24,6 +24,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"time"
 
 	"google.golang.org/grpc"
@@ -31,6 +32,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	server "k8s.io/apiserver/pkg/server"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	coreinformers "k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -301,19 +303,55 @@ func main() {
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](*retryIntervalStart, *retryIntervalMax),
 	)
 
-	run := func(context.Context) {
-		// run...
-		stopCh := make(chan struct{})
-		snapshotContentfactory.Start(stopCh)
-		factory.Start(stopCh)
-		coreFactory.Start(stopCh)
-		go ctrl.Run(*threads, stopCh)
+	// handle SIGTERM and SIGINT by cancelling the context.
+	var (
+		terminate       func()          // called when all controllers are finished
+		controllerCtx   context.Context // shuts down all controllers on a signal
+		shutdownHandler <-chan struct{} // called when the signal is received
+	)
 
-		// ...until SIGINT
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		<-c
-		close(stopCh)
+	if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+		// ctx waits for all controllers to finish, then shuts down the whole process, incl. leader election
+		ctx, terminate = context.WithCancel(ctx)
+		var cancelControllerCtx context.CancelFunc
+		controllerCtx, cancelControllerCtx = context.WithCancel(ctx)
+		shutdownHandler = server.SetupSignalHandler()
+
+		defer terminate()
+
+		go func() {
+			defer cancelControllerCtx()
+			<-shutdownHandler
+			klog.Info("Received SIGTERM or SIGINT signal, shutting down controller.")
+		}()
+	}
+
+	run := func(ctx context.Context) {
+		if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+			// run...
+			stopCh := controllerCtx.Done()
+			snapshotContentfactory.Start(stopCh)
+			factory.Start(stopCh)
+			coreFactory.Start(stopCh)
+			var controllerWg sync.WaitGroup
+			go ctrl.Run(*threads, stopCh, &controllerWg)
+			<-shutdownHandler
+			controllerWg.Wait()
+			terminate()
+		} else {
+			// run...
+			stopCh := make(chan struct{})
+			snapshotContentfactory.Start(stopCh)
+			factory.Start(stopCh)
+			coreFactory.Start(stopCh)
+			go ctrl.Run(*threads, stopCh, nil)
+
+			// ...until SIGINT
+			c := make(chan os.Signal, 1)
+			signal.Notify(c, os.Interrupt)
+			<-c
+			close(stopCh)
+		}
 	}
 
 	if !*leaderElection {
@@ -338,6 +376,10 @@ func main() {
 		le.WithLeaseDuration(*leaderElectionLeaseDuration)
 		le.WithRenewDeadline(*leaderElectionRenewDeadline)
 		le.WithRetryPeriod(*leaderElectionRetryPeriod)
+		if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+			le.WithReleaseOnCancel(true)
+			le.WithContext(ctx)
+		}
 
 		if err := le.Run(); err != nil {
 			klog.Fatalf("failed to initialize leader election: %v", err)

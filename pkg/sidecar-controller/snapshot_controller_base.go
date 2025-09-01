@@ -18,14 +18,17 @@ package sidecar_controller
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/features"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/group_snapshotter"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -167,7 +170,7 @@ func NewCSISnapshotSideCarController(
 	return ctrl
 }
 
-func (ctrl *csiSnapshotSideCarController) Run(workers int, stopCh <-chan struct{}) {
+func (ctrl *csiSnapshotSideCarController) Run(workers int, stopCh <-chan struct{}, wg *sync.WaitGroup) {
 	defer ctrl.contentQueue.ShutDown()
 
 	klog.Infof("Starting CSI snapshotter")
@@ -185,10 +188,27 @@ func (ctrl *csiSnapshotSideCarController) Run(workers int, stopCh <-chan struct{
 
 	ctrl.initializeCaches()
 
-	for i := 0; i < workers; i++ {
-		go wait.Until(ctrl.contentWorker, 0, stopCh)
-		if ctrl.enableVolumeGroupSnapshots {
-			go wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+	if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				wait.Until(ctrl.contentWorker, 0, stopCh)
+			}()
+			if ctrl.enableVolumeGroupSnapshots {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+				}()
+			}
+		}
+	} else {
+		for i := 0; i < workers; i++ {
+			go wait.Until(ctrl.contentWorker, 0, stopCh)
+			if ctrl.enableVolumeGroupSnapshots {
+				go wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+			}
 		}
 	}
 
