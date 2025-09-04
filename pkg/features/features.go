@@ -24,6 +24,12 @@ import (
 const (
 	// Enable usage of volume group snapshot
 	VolumeGroupSnapshot featuregate.Feature = "CSIVolumeGroupSnapshot"
+
+	// owner: @rhrmo
+	// alpha: v1.34
+	//
+	// Releases leader election lease on sigterm / sigint.
+	ReleaseLeaderElectionOnExit featuregate.Feature = "ReleaseLeaderElectionOnExit"
 )
 
 func init() {
@@ -33,5 +39,6 @@ func init() {
 // defaultKubernetesFeatureGates consists of all known feature keys specific to external-snapshotter.
 // To add a new feature, define a key for it above and add it here.
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	VolumeGroupSnapshot: {Default: false, PreRelease: featuregate.Beta},
+	VolumeGroupSnapshot:         {Default: false, PreRelease: featuregate.Beta},
+	ReleaseLeaderElectionOnExit: {Default: false, PreRelease: featuregate.Alpha},
 }

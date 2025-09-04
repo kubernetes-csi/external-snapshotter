@@ -19,6 +19,7 @@ package common_controller
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
@@ -28,6 +29,7 @@ import (
 	snapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumesnapshot/v1"
 	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta2"
 	snapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/features"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 
@@ -35,6 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 	coreinformers "k8s.io/client-go/informers/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -244,7 +247,7 @@ func NewCSISnapshotCommonController(
 	return ctrl
 }
 
-func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}) {
+func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}, wg *sync.WaitGroup) {
 	defer ctrl.snapshotQueue.ShutDown()
 	defer ctrl.contentQueue.ShutDown()
 	if ctrl.enableVolumeGroupSnapshots {
@@ -276,12 +279,40 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 
 	ctrl.initializeCaches()
 
-	for i := 0; i < workers; i++ {
-		go wait.Until(ctrl.snapshotWorker, 0, stopCh)
-		go wait.Until(ctrl.contentWorker, 0, stopCh)
-		if ctrl.enableVolumeGroupSnapshots {
-			go wait.Until(ctrl.groupSnapshotWorker, 0, stopCh)
-			go wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+	if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				wait.Until(ctrl.snapshotWorker, 0, stopCh)
+			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				wait.Until(ctrl.contentWorker, 0, stopCh)
+			}()
+
+			if ctrl.enableVolumeGroupSnapshots {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					wait.Until(ctrl.groupSnapshotWorker, 0, stopCh)
+				}()
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+				}()
+			}
+		}
+	} else {
+		for i := 0; i < workers; i++ {
+			go wait.Until(ctrl.snapshotWorker, 0, stopCh)
+			go wait.Until(ctrl.contentWorker, 0, stopCh)
+			if ctrl.enableVolumeGroupSnapshots {
+				go wait.Until(ctrl.groupSnapshotWorker, 0, stopCh)
+				go wait.Until(ctrl.groupSnapshotContentWorker, 0, stopCh)
+			}
 		}
 	}
 
