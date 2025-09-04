@@ -1,0 +1,108 @@
+# Default values for snapshot-controller.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -- Number of replicas in the deployment
+replicaCount: 2
+
+image:
+  # -- Image to use for deploying
+  repository: gcr.io/k8s-staging-sig-storage/snapshot-controller
+  # -- Image pull policy strategy when the kubelet attempts to pull(download) the specified image
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag whose default is the chart appVersion.
+  tag: "v5.0.0-rc1"
+
+# -- Add image pull secrets if requires
+imagePullSecrets: []
+# -- Naming override
+nameOverride: ""
+# -- Full name override
+fullnameOverride: ""
+
+# -- Possible arguments can be found in the [Snapshot Controller command-line options](https://github.com/kubernetes-csi/external-snapshotter#snapshot-controller-command-line-options)
+args: 
+  - "--v=5"
+  - "--leader-election=true"
+  - "--http-endpoint=:8080"
+
+# -- The snapshot controller won't be marked as ready
+# if the v1 CRDs are unavailable in [#504](https://github.com/kubernetes-csi/external-snapshotter/pull/504)
+# the snapshot-controller will exit after around 7.5 seconds if it can't find the v1 CRDs
+# so this value should be greater than that
+minReadySeconds: 15
+
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8080
+
+
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  # -- Enabling if requires 
+  enabled: false
+  # -- HPA Min Replicas
+  minReplicas: 1
+  # -- HPA Max Replicas
+  maxReplicas: 100
+  # -- HPA action
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# -- Rolling update configuration
+rollingUpdate:              
+  # -- Enable/disable rolling updates (default: true)
+  enabled: true           
+  # -- Max number of pods that can be created above the desired number of replicas
+  maxSurge: 0         
+  # -- Max number of pods that can be unavailable during rolling update
+  maxUnavailable: 1   
+
+# -- Node selection constraint 
+
+nodeSelector: {}
+
+# -- Allow the pods to schedule onto nodes with matching taints
+tolerations: []
+
+# -- Node Affinity and inter-pod affinity/anti-affinity
+
+affinity: {}
+
+rbac: 
+  # -- Create all the RBAC resources needed
+  create: true
