@@ -34,6 +34,7 @@ import (
 	"time"
 
 	jsonpatch "github.com/evanphx/json-patch"
+	"github.com/google/go-cmp/cmp"
 	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
@@ -50,7 +51,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	coreinformers "k8s.io/client-go/informers"
@@ -789,7 +789,7 @@ func (r *snapshotReactor) checkContents(expectedContents []*crdv1.VolumeSnapshot
 	if !reflect.DeepEqual(expectedMap, gotMap) {
 		// Print ugly but useful diff of expected and received objects for
 		// easier debugging.
-		return fmt.Errorf("content check failed [A-expected, B-got]: %s", diff.ObjectDiff(expectedMap, gotMap))
+		return fmt.Errorf("content check failed [A-expected, B-got]: %s", cmp.Diff(expectedMap, gotMap))
 	}
 	return nil
 }
@@ -828,7 +828,7 @@ func (r *snapshotReactor) checkGroupContents(expectedGroupContents []*crdv1beta2
 	if !reflect.DeepEqual(expectedMap, gotMap) {
 		// Print ugly but useful diff of expected and received objects for
 		// easier debugging.
-		return fmt.Errorf("content check failed [A-expected, B-got]: %s", diff.ObjectDiff(expectedMap, gotMap))
+		return fmt.Errorf("content check failed [A-expected, B-got]: %s", cmp.Diff(expectedMap, gotMap))
 	}
 	return nil
 }
@@ -863,7 +863,7 @@ func (r *snapshotReactor) checkSnapshots(expectedSnapshots []*crdv1.VolumeSnapsh
 	if !reflect.DeepEqual(expectedMap, gotMap) {
 		// Print ugly but useful diff of expected and received objects for
 		// easier debugging.
-		return fmt.Errorf("snapshot check failed [A-expected, B-got result]: %s", diff.ObjectDiff(expectedMap, gotMap))
+		return fmt.Errorf("snapshot check failed [A-expected, B-got result]: %s", cmp.Diff(expectedMap, gotMap))
 	}
 	return nil
 }
@@ -898,7 +898,7 @@ func (r *snapshotReactor) checkGroupSnapshots(expectedGroupSnapshots []*crdv1bet
 	if !reflect.DeepEqual(expectedMap, gotMap) {
 		// Print ugly but useful diff of expected and received objects for
 		// easier debugging.
-		return fmt.Errorf("snapshot check failed [A-expected, B-got result]: %s", diff.ObjectDiff(expectedMap, gotMap))
+		return fmt.Errorf("snapshot check failed [A-expected, B-got result]: %s", cmp.Diff(expectedMap, gotMap))
 	}
 	return nil
 }
@@ -1762,7 +1762,7 @@ func testUpdateSnapshotErrorStatus(ctrl *csiSnapshotCommonController, reactor *s
 		return fmt.Errorf("update snapshot status failed: expected: %v but got nil", expected)
 	}
 	if expected != nil && got != nil && !reflect.DeepEqual(expected, got) {
-		return fmt.Errorf("update snapshot status failed [A-expected, B-got]: %s", diff.ObjectDiff(expected, got))
+		return fmt.Errorf("update snapshot status failed [A-expected, B-got]: %s", cmp.Diff(expected, got))
 	}
 	return nil
 }
