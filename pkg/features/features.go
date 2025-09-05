@@ -39,6 +39,6 @@ func init() {
 // defaultKubernetesFeatureGates consists of all known feature keys specific to external-snapshotter.
 // To add a new feature, define a key for it above and add it here.
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
-	VolumeGroupSnapshot:         {Default: false, PreRelease: featuregate.Beta},
+	VolumeGroupSnapshot:         {Default: true, PreRelease: featuregate.Beta},
 	ReleaseLeaderElectionOnExit: {Default: false, PreRelease: featuregate.Alpha},
 }
