@@ -37,6 +37,8 @@
 # - kind (https://github.com/kubernetes-sigs/kind) installed
 # - optional: Go already installed
 
+set -x
+
 RELEASE_TOOLS_ROOT="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 REPO_DIR="$(pwd)"
 
@@ -380,6 +382,9 @@ default_csi_snapshotter_version () {
 	fi
 }
 configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external-snapshotter version tag"
+
+# Enable installing VolumeGroupSnapshot CRDs (off by default, can be set to true in prow jobs)
+configvar CSI_PROW_ENABLE_GROUP_SNAPSHOT "true" "Enable the VolumeGroupSnapshot tests"
 
 # Some tests are known to be unusable in a KinD cluster. For example,
 # stopping kubelet with "ssh <node IP> systemctl stop kubelet" simply
@@ -794,6 +799,37 @@ install_snapshot_crds() {
   done
 }
 
+# Installs VolumeGroupSnapshot CRDs (VolumeGroupSnapshot, VolumeGroupSnapshotContent, VolumeGroupSnapshotClass)
+install_volumegroupsnapshot_crds() {
+  local crd_base_dir="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
+
+  # If we are running inside the external-snapshotter repo, use local files instead of GitHub
+  if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
+    crd_base_dir="${REPO_DIR}/client/config/crd"
+  fi
+
+  echo "Installing VolumeGroupSnapshot CRDs from ${crd_base_dir}"
+  kubectl apply -f "${crd_base_dir}/groupsnapshot.storage.k8s.io_volumegroupsnapshotclasses.yaml" --validate=false
+  kubectl apply -f "${crd_base_dir}/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml" --validate=false
+  kubectl apply -f "${crd_base_dir}/groupsnapshot.storage.k8s.io_volumegroupsnapshots.yaml" --validate=false
+
+  local cnt=0
+  until kubectl get volumegroupsnapshotclasses.groupsnapshot.storage.k8s.io \
+    && kubectl get volumegroupsnapshots.groupsnapshot.storage.k8s.io \
+    && kubectl get volumegroupsnapshotcontents.groupsnapshot.storage.k8s.io; do
+    if [ $cnt -gt 30 ]; then
+      echo >&2 "ERROR: VolumeGroupSnapshot CRDs not ready after 60s"
+      exit 1
+    fi
+    echo "$(date +%H:%M:%S)" "waiting for VolumeGroupSnapshot CRDs, attempt #$cnt"
+    cnt=$((cnt + 1))
+    sleep 2
+  done
+
+  echo "VolumeGroupSnapshot CRDs installed and ready"
+}
+
+
 # Install snapshot controller and associated RBAC, retrying until the pod is running.
 install_snapshot_controller() {
   CONTROLLER_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}"
@@ -880,8 +916,15 @@ install_snapshot_controller() {
           exit 1
       fi
   else
-      echo "kubectl apply -f $SNAPSHOT_CONTROLLER_YAML"
-      kubectl apply -f "$SNAPSHOT_CONTROLLER_YAML"
+      if [ "${CSI_PROW_ENABLE_GROUP_SNAPSHOT}" = "true" ]; then
+          echo "Deploying snapshot-controller with CSIVolumeGroupSnapshot feature gate enabled"
+          curl -s "$SNAPSHOT_CONTROLLER_YAML" | \
+            awk '/--leader-election=true/ {print; print "            - \"--feature-gates=CSIVolumeGroupSnapshot=true\""; next}1' | \
+            kubectl apply -f - || die "failed to deploy snapshot-controller with feature gate"
+      else
+          echo "kubectl apply -f $SNAPSHOT_CONTROLLER_YAML"
+          kubectl apply -f "$SNAPSHOT_CONTROLLER_YAML"
+      fi
   fi
 
   cnt=0
@@ -1037,6 +1080,10 @@ run_e2e () (
         fi
     }
     trap move_junit EXIT
+
+    if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+        sed -i '/Capabilities:/a\  groupSnapshot: true' "${CSI_PROW_WORK}/test-driver.yaml"
+    fi
 
     if [ "${name}" == "local" ]; then
         cd "${GOPATH}/src/${CSI_PROW_SIDECAR_E2E_PATH}" &&
@@ -1382,6 +1429,12 @@ main () {
             # Install necessary snapshot CRDs and snapshot controller
             install_snapshot_crds
             install_snapshot_controller
+
+            # TODO: Remove the condition after the vgs GA
+            if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+                install_volumegroupsnapshot_crds
+            fi
+
 
             # Installing the driver might be disabled.
             if ${CSI_PROW_DRIVER_INSTALL} "$images"; then
