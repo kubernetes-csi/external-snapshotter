@@ -564,7 +564,7 @@ list_api_groups () (
         echo '   "api/ga": "true"'
         echo '   "storage.k8s.io/v1alpha1": "true"'
         echo '   "storage.k8s.io/v1beta1": "true"'
-        echo '   "storage.k8s.io/v1beta2": "true"'
+        # echo '   "storage.k8s.io/v1beta2": "true"'
     fi
 
     # Ignore: Double quote to prevent globbing and word splitting.
@@ -1382,11 +1382,18 @@ main () {
 
                 # Temporarily hack will handle it in e2e golang codes later
                 if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
-                    kubectl patch sts csi-hostpathplugin -n default --type='json' -p='[{
-                    "op": "add",
-                    "path": "/spec/template/spec/containers/5/args/-",
-                    "value": "--feature-gates=CSIVolumeGroupSnapshot=true"
-                    }]'
+                    index=$(kubectl get sts csi-hostpathplugin -n default -o json \
+                        | jq -r '.spec.template.spec.containers
+                                | to_entries[]
+                                | select(.value.name=="csi-snapshotter")
+                                | .key')
+
+                    kubectl patch sts csi-hostpathplugin -n default --type='json' \
+                    -p="[{
+                        \"op\": \"add\",
+                        \"path\": \"/spec/template/spec/containers/$index/args/-\",
+                        \"value\": \"--feature-gates=CSIVolumeGroupSnapshot=true\"
+                    }]"
                     kubectl rollout status sts/csi-hostpathplugin -n default
                 fi
 
