@@ -37,6 +37,8 @@
 # - kind (https://github.com/kubernetes-sigs/kind) installed
 # - optional: Go already installed
 
+set -x
+
 RELEASE_TOOLS_ROOT="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 REPO_DIR="$(pwd)"
 
@@ -323,7 +325,7 @@ configvar CSI_PROW_E2E_MOCK "$(if [ "${CSI_PROW_DRIVER_CANARY}" = "canary" ] && 
 
 # Regex for non-alpha, feature-tagged tests that should be run.
 #
-configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:VolumeSnapshotDataSource\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
+configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:VolumeSnapshotDataSource\]|\[Feature:volumegroupsnapshot\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
 configvar CSI_PROW_E2E_FOCUS "$(get_versioned_variable CSI_PROW_E2E_FOCUS "${csi_prow_kubernetes_version_suffix}")" "non-alpha, feature-tagged tests"
 
 # Serial vs. parallel is always determined by these regular expressions.
@@ -379,7 +381,11 @@ default_csi_snapshotter_version () {
 		echo "v4.0.0"
 	fi
 }
+export CSI_SNAPSHOTTER_HACK_VERSION="master"
 configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external-snapshotter version tag"
+
+# Enable installing VolumeGroupSnapshot CRDs (off by default, can be set to true in prow jobs)
+configvar CSI_PROW_ENABLE_GROUP_SNAPSHOT "true" "Enable the VolumeGroupSnapshot tests"
 
 # Some tests are known to be unusable in a KinD cluster. For example,
 # stopping kubelet with "ssh <node IP> systemctl stop kubelet" simply
@@ -552,6 +558,15 @@ list_gates () (
 # with https://kind.sigs.k8s.io/docs/user/configuration/#runtime-config
 list_api_groups () (
     set -f; IFS=','
+    
+    # If the volumegroupsnapshot gate is enabled, output required API groups
+    if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+        echo '   "api/ga": "true"'
+        echo '   "storage.k8s.io/v1alpha1": "true"'
+        echo '   "storage.k8s.io/v1beta1": "true"'
+        echo '   "storage.k8s.io/v1beta2": "true"'
+    fi
+
     # Ignore: Double quote to prevent globbing and word splitting.
     # shellcheck disable=SC2086
     set -- $1
@@ -772,7 +787,7 @@ install_csi_driver () {
 # Installs all necessary snapshotter CRDs
 install_snapshot_crds() {
   # Wait until volumesnapshot CRDs are in place.
-  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
+  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_HACK_VERSION}/client/config/crd"
   if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
       CRD_BASE_DIR="${REPO_DIR}/client/config/crd"
   fi
@@ -792,11 +807,32 @@ install_snapshot_crds() {
 	cnt=$((cnt + 1))
     sleep 2
   done
+
+  if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+    echo "Installing VolumeGroupSnapshot CRDs from ${CRD_BASE_DIR}"
+    kubectl apply -f "${CRD_BASE_DIR}/groupsnapshot.storage.k8s.io_volumegroupsnapshotclasses.yaml" --validate=false
+    kubectl apply -f "${CRD_BASE_DIR}/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml" --validate=false
+    kubectl apply -f "${CRD_BASE_DIR}/groupsnapshot.storage.k8s.io_volumegroupsnapshots.yaml" --validate=false
+
+    local cnt=0
+    until kubectl get volumegroupsnapshotclasses.groupsnapshot.storage.k8s.io \
+        && kubectl get volumegroupsnapshots.groupsnapshot.storage.k8s.io \
+        && kubectl get volumegroupsnapshotcontents.groupsnapshot.storage.k8s.io; do
+        if [ $cnt -gt 30 ]; then
+        echo >&2 "ERROR: VolumeGroupSnapshot CRDs not ready after 60s"
+        exit 1
+        fi
+        echo "$(date +%H:%M:%S)" "waiting for VolumeGroupSnapshot CRDs, attempt #$cnt"
+        cnt=$((cnt + 1))
+        sleep 2
+    done
+    echo "VolumeGroupSnapshot CRDs installed and ready"
+  fi
 }
 
 # Install snapshot controller and associated RBAC, retrying until the pod is running.
 install_snapshot_controller() {
-  CONTROLLER_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}"
+  CONTROLLER_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_HACK_VERSION}"
   if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
       CONTROLLER_DIR="${REPO_DIR}"
   fi
@@ -859,6 +895,14 @@ install_snapshot_controller() {
                   line="$(echo "$nocomments" | sed -e "s;$image;${name}:${NEW_TAG};")"
 	          echo "        using $line" >&2
               fi
+              if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+                # inject feature gate after leader election arg
+                if echo "$nocomments" | grep -q '^[[:space:]]*- "--leader-election=true"'; then
+                    echo "$line"
+                    echo "            - \"--feature-gates=CSIVolumeGroupSnapshot=true\""
+                    continue
+                fi
+              fi
               echo "$line"
           done)"
           if ! echo "$modified" | kubectl apply -f -; then
@@ -880,8 +924,15 @@ install_snapshot_controller() {
           exit 1
       fi
   else
-      echo "kubectl apply -f $SNAPSHOT_CONTROLLER_YAML"
-      kubectl apply -f "$SNAPSHOT_CONTROLLER_YAML"
+      if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+          echo "Deploying snapshot-controller with CSIVolumeGroupSnapshot feature gate enabled"
+          curl -s "$SNAPSHOT_CONTROLLER_YAML" | \
+            awk '/--leader-election=true/ {print; print "            - \"--feature-gates=CSIVolumeGroupSnapshot=true\""; next}1' | \
+            kubectl apply -f - || die "failed to deploy snapshot-controller with feature gate"
+      else
+          echo "kubectl apply -f $SNAPSHOT_CONTROLLER_YAML"
+          kubectl apply -f "$SNAPSHOT_CONTROLLER_YAML"
+      fi
   fi
 
   cnt=0
@@ -1028,6 +1079,7 @@ run_e2e () (
     # Rename, merge and filter JUnit files. Necessary in case that we run the E2E suite again
     # and to avoid the large number of "skipped" tests that we get from using
     # the full Kubernetes E2E testsuite while only running a few tests.
+    # shellcheck disable=SC2329
     move_junit () {
         if ls "${ARTIFACTS}"/junit_[0-9]*.xml 2>/dev/null >/dev/null; then
             mkdir -p "${ARTIFACTS}/junit/${name}" &&
@@ -1037,6 +1089,11 @@ run_e2e () (
         fi
     }
     trap move_junit EXIT
+
+    if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+        yq -i '.DriverInfo.Capabilities.groupSnapshot = true' "${CSI_PROW_WORK}"/test-driver.yaml
+        cat "${CSI_PROW_WORK}"/test-driver.yaml
+    fi
 
     if [ "${name}" == "local" ]; then
         cd "${GOPATH}/src/${CSI_PROW_SIDECAR_E2E_PATH}" &&
@@ -1322,6 +1379,17 @@ main () {
             # Installing the driver might be disabled.
             if ${CSI_PROW_DRIVER_INSTALL} "$images"; then
                 collect_cluster_info
+
+                # Temporarily hack will handle it in e2e golang codes later
+                if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+                    kubectl patch sts csi-hostpathplugin -n default --type='json' -p='[{
+                    "op": "add",
+                    "path": "/spec/template/spec/containers/5/args/-",
+                    "value": "--feature-gates=CSIVolumeGroupSnapshot=true"
+                    }]'
+                    kubectl rollout status sts/csi-hostpathplugin -n default
+                fi
+
 
                 if sanity_enabled; then
                     if ! run_sanity; then
