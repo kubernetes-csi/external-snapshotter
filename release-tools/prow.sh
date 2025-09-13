@@ -325,7 +325,7 @@ configvar CSI_PROW_E2E_MOCK "$(if [ "${CSI_PROW_DRIVER_CANARY}" = "canary" ] && 
 
 # Regex for non-alpha, feature-tagged tests that should be run.
 #
-configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:VolumeSnapshotDataSource\]|\[Feature:volumegroupsnapshot\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
+configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:volumegroupsnapshot\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
 configvar CSI_PROW_E2E_FOCUS "$(get_versioned_variable CSI_PROW_E2E_FOCUS "${csi_prow_kubernetes_version_suffix}")" "non-alpha, feature-tagged tests"
 
 # Serial vs. parallel is always determined by these regular expressions.
@@ -1032,6 +1032,7 @@ install_e2e () {
         run_with_go "${CSI_PROW_GO_VERSION_BUILD}" go test -c -o "${CSI_PROW_WORK}/e2e-local.test" "${CSI_PROW_SIDECAR_E2E_IMPORT_PATH}"
     fi
     git_checkout "${CSI_PROW_E2E_REPO}" "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" "${CSI_PROW_E2E_VERSION}" --depth=1 &&
+    cp /home/prow/go/src/k8s.io/kubernetes/test/e2e/testing-manifests/storage-csi/external-snapshotter/volume-group-snapshots/csi-hostpath-plugin.yaml /home/prow/go/src/k8s.io/kubernetes/test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-plugin.yaml
     if [ "${CSI_PROW_E2E_IMPORT_PATH}" = "k8s.io/kubernetes" ]; then
         patch_kubernetes "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" "${CSI_PROW_WORK}" &&
         go_version="${CSI_PROW_GO_VERSION_E2E:-$(go_version_for_kubernetes "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" "${CSI_PROW_E2E_VERSION}")}" &&
@@ -1098,6 +1099,9 @@ run_e2e () (
     if [ "${name}" == "local" ]; then
         cd "${GOPATH}/src/${CSI_PROW_SIDECAR_E2E_PATH}" &&
         run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e-local.test" -- -report-dir "${ARTIFACTS}" -report-prefix local
+    elif [ "${CSI_PROW_ENABLE_GROUP_SNAPSHOT}" = "true" ]; then
+        cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
+        run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}"
     else
         cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
         run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
