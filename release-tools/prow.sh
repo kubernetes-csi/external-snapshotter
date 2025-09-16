@@ -381,7 +381,9 @@ default_csi_snapshotter_version () {
 		echo "v4.0.0"
 	fi
 }
-export CSI_SNAPSHOTTER_HACK_VERSION="master"
+# export CSI_SNAPSHOTTER_HACK_VERSION="master"
+# Hack to be consistent with 1.33 job
+export CSI_SNAPSHOTTER_HACK_VERSION="v8.2.0"
 configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external-snapshotter version tag"
 
 # Enable installing VolumeGroupSnapshot CRDs (off by default, can be set to true in prow jobs)
@@ -787,9 +789,10 @@ install_csi_driver () {
 install_snapshot_crds() {
   # Wait until volumesnapshot CRDs are in place.
   CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_HACK_VERSION}/client/config/crd"
-  if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
-      CRD_BASE_DIR="${REPO_DIR}/client/config/crd"
-  fi
+#   Hack v1beta2 needs webhook while tests does not deployed
+#   if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
+#       CRD_BASE_DIR="${REPO_DIR}/client/config/crd"
+#   fi
   echo "Installing snapshot CRDs from ${CRD_BASE_DIR}"
   kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotclasses.yaml" --validate=false
   kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshots.yaml" --validate=false
@@ -831,7 +834,7 @@ install_snapshot_crds() {
 
 # Install snapshot controller and associated RBAC, retrying until the pod is running.
 install_snapshot_controller() {
-  CONTROLLER_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_HACK_VERSION}"
+  CONTROLLER_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}"
   if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
       CONTROLLER_DIR="${REPO_DIR}"
   fi
@@ -892,6 +895,9 @@ install_snapshot_controller() {
                   # Now replace registry and/or tag
                   NEW_TAG="csiprow"
                   line="$(echo "$nocomments" | sed -e "s;$image;${name}:${NEW_TAG};")"
+                  
+                  # Hack the snapshot controller version for test
+                  line="$(echo "$nocomments" | sed -E "s|(image:[[:space:]]*registry.k8s.io/sig-storage/snapshot-controller:).*|\1${CSI_SNAPSHOTTER_HACK_VERSION}|")"
 	          echo "        using $line" >&2
               fi
               if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
@@ -1017,6 +1023,7 @@ EOF
         echo "Enabling VolumeGroupSnapshot: replacing hostpath csi-hostpath-plugin.yaml"
         cp "${source}/test/e2e/testing-manifests/storage-csi/external-snapshotter/volume-group-snapshots/csi-hostpath-plugin.yaml" \
         "${source}/test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-plugin.yaml"
+        cat "${source}"/test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-plugin.yaml
     fi
 
 }
