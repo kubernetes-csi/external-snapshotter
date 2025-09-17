@@ -135,7 +135,7 @@ func convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(obj *unstructured.Uns
 
 		// Step 2: convert volumeSnapshotInfoList to volumeSnapshotHandlePairList
 		for i, entry := range volumeSnapshotInfoList {
-			if mapEntry, ok := entry.(map[string]interface{}); ok {
+			if mapEntry, ok := entry.(map[string]any); ok {
 				delete(mapEntry, "creationTime")
 				delete(mapEntry, "readyToUse")
 				delete(mapEntry, "restoreSize")

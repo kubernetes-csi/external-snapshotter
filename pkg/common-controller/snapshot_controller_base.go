@@ -279,7 +279,7 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 	ctrl.initializeCaches()
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.ReleaseLeaderElectionOnExit) {
-		for i := 0; i < workers; i++ {
+		for range workers {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -305,7 +305,7 @@ func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}
 			}
 		}
 	} else {
-		for i := 0; i < workers; i++ {
+		for range workers {
 			go wait.Until(ctrl.snapshotWorker, 0, stopCh)
 			go wait.Until(ctrl.contentWorker, 0, stopCh)
 			if ctrl.enableVolumeGroupSnapshots {

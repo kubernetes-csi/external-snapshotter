@@ -39,7 +39,7 @@ if [ "$majorminor" != "$expected" ]; then
 ======================================================
                   WARNING
 
-  This projects is tested with Go v$expected.
+  This project is tested with Go v$expected.
   Your current Go version is v$majorminor.
   This may or may not be close enough.
 
