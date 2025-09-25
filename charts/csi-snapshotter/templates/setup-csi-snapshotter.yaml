@@ -1,0 +1,105 @@
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-snapshotter-provisioner-role
+subjects:
+  - kind: ServiceAccount
+    name: csi-snapshotter
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: ClusterRole
+  name: external-provisioner-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: csi-snapshotter-provisioner-role-cfg
+  namespace: {{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: csi-snapshotter
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  kind: Role
+  name: external-provisioner-cfg
+  apiGroup: rbac.authorization.k8s.io
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: csi-snapshotter
+  labels:
+    app.kubernetes.io/name: csi-snapshotter
+spec:
+  selector:
+    app.kubernetes.io/name: csi-snapshotter
+  ports:
+    - name: dummy
+      port: 12345
+---
+kind: StatefulSet
+apiVersion: apps/v1
+metadata:
+  name: csi-snapshotter
+spec:
+  serviceName: csi-snapshotter
+  replicas: {{ .Values.csiSnapshotter.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: csi-snapshotter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: csi-snapshotter
+    spec:
+      serviceAccountName: csi-snapshotter
+      containers:
+        - name: csi-provisioner
+          image: {{ .Values.csiSnapshotter.csiProvisioner.image.repository }}:{{ .Values.csiSnapshotter.csiProvisioner.image.tag }}
+          args:
+            - --v=5
+            - --csi-address=$(ADDRESS)
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          imagePullPolicy: {{ .Values.csiSnapshotter.csiProvisioner.image.pullPolicy }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: csi-snapshotter
+          image: {{ .Values.csiSnapshotter.csiSnapshotter.image.repository }}:{{ .Values.csiSnapshotter.csiSnapshotter.image.tag }}
+          args:
+            - --v=5
+            - --csi-address=$(ADDRESS)
+            - --leader-election=false
+          env:
+            - name: ADDRESS
+              value: /csi/csi.sock
+          imagePullPolicy: {{ .Values.csiSnapshotter.csiSnapshotter.image.pullPolicy }}
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+        - name: hostpath
+          image: {{ .Values.csiSnapshotter.hostpath.image.repository }}:{{ .Values.csiSnapshotter.hostpath.image.tag }}
+          args:
+            - --v=5
+            - --endpoint=$(CSI_ENDPOINT)
+            - --nodeid=$(NODE_NAME)
+          env:
+            - name: CSI_ENDPOINT
+              value: unix:///csi/csi.sock
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+          imagePullPolicy: {{ .Values.csiSnapshotter.hostpath.image.pullPolicy }}
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: socket-dir
+              mountPath: /csi
+      volumes:
+        - name: socket-dir
+          emptyDir: {}
