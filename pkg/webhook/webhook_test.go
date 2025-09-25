@@ -17,7 +17,6 @@ limitations under the License.
 package webhook
 
 import (
-	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/tls"
@@ -55,8 +54,7 @@ func TestWebhookCertReload(t *testing.T) {
 	}
 
 	// Start test server
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	cw, err := NewCertWatcher(certFile, keyFile)
 	if err != nil {
 		t.Errorf("failed to initialize new cert watcher: %v", err)
@@ -97,7 +95,7 @@ func TestWebhookCertReload(t *testing.T) {
 	}
 
 	// TC: Certificate should consistently change with a file change
-	for i := 0; i < 5; i++ {
+	for range 5 {
 		// Generate new key/cert
 		err = generateTestCertKeyPair(t, certFile, keyFile)
 		if err != nil {
@@ -134,7 +132,7 @@ func generateTestCertKeyPair(t *testing.T, certPath, keyPath string) error {
 		return fmt.Errorf("Failed to generate serial number: %v", err)
 	}
 
-	var priv interface{}
+	var priv any
 	priv, err = rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return fmt.Errorf("Failed to generate key: %v", err)

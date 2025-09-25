@@ -378,6 +378,6 @@ func buildConfig(kubeconfig string) (*rest.Config, error) {
 
 type promklog struct{}
 
-func (pl promklog) Println(v ...interface{}) {
+func (pl promklog) Println(v ...any) {
 	klog.Error(v...)
 }
