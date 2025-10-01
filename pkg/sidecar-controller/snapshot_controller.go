@@ -744,12 +744,19 @@ func isCSIFinalError(err error) bool {
 	}
 	switch st.Code() {
 	case codes.Canceled, // gRPC: Client Application cancelled the request
-		codes.DeadlineExceeded,  // gRPC: Timeout
-		codes.Unavailable,       // gRPC: Server shutting down, TCP connection broken - previous CreateSnapshot() may be still in progress.
-		codes.ResourceExhausted, // gRPC: Server temporarily out of resources - previous CreateSnapshot() may be still in progress.
-		codes.Aborted:           // CSI: Operation pending for Snapshot
+		codes.DeadlineExceeded, // gRPC: Timeout
+		codes.Unavailable,      // gRPC: Server shutting down, TCP connection broken - previous CreateSnapshot() may be still in progress.
+		codes.Aborted:          // CSI: Operation pending for Snapshot
 		return false
 	}
+	// Note: codes.ResourceExhausted is treated as a final error.
+	// gRPC: Server out of resources.
+	// However, it also could be from the transport layer for "message size exceeded".
+	// Cannot be decided properly here and needs to be resolved in the spec
+	// https://github.com/container-storage-interface/spec/issues/419.
+	// What we assume here for now is that message size limits are large enough that
+	// the error really comes from the CSI driver.
+
 	// All other errors mean that creating snapshot either did not
 	// even start or failed. It is for sure not in progress.
 	return true
