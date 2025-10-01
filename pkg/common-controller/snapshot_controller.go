@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -95,7 +94,7 @@ func (ctrl *csiSnapshotCommonController) syncContent(content *crdv1.VolumeSnapsh
 
 	if (content.Spec.Source.VolumeHandle == nil && content.Spec.Source.SnapshotHandle == nil) ||
 		(content.Spec.Source.VolumeHandle != nil && content.Spec.Source.SnapshotHandle != nil) {
-		err := fmt.Errorf("Exactly one of VolumeHandle and SnapshotHandle should be specified")
+		err := fmt.Errorf("exactly one of VolumeHandle and SnapshotHandle should be specified")
 		klog.Errorf("syncContent[%s]: validation error, %s", content.Name, err.Error())
 		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "ContentValidationError", err.Error())
 		return err
@@ -196,7 +195,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshot(ctx context.Context, snaps
 	klog.V(5).Infof("syncSnapshot[%s]: validate snapshot to make sure source has been correctly specified", utils.SnapshotKey(snapshot))
 	if (snapshot.Spec.Source.PersistentVolumeClaimName == nil && snapshot.Spec.Source.VolumeSnapshotContentName == nil) ||
 		(snapshot.Spec.Source.PersistentVolumeClaimName != nil && snapshot.Spec.Source.VolumeSnapshotContentName != nil) {
-		err := fmt.Errorf("Exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified")
+		err := fmt.Errorf("exactly one of PersistentVolumeClaimName and VolumeSnapshotContentName should be specified")
 		klog.Errorf("syncSnapshot[%s]: validation error, %s", utils.SnapshotKey(snapshot), err.Error())
 		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotValidationError", err.Error())
 		return err
@@ -856,11 +855,11 @@ func (ctrl *csiSnapshotCommonController) getCreateSnapshotInput(snapshot *crdv1.
 	return class, volume, contentName, snapshotterSecretRef, nil
 }
 
-func (ctrl *csiSnapshotCommonController) storeSnapshotUpdate(snapshot interface{}) (bool, error) {
+func (ctrl *csiSnapshotCommonController) storeSnapshotUpdate(snapshot any) (bool, error) {
 	return utils.StoreObjectUpdate(ctrl.snapshotStore, snapshot, "snapshot")
 }
 
-func (ctrl *csiSnapshotCommonController) storeContentUpdate(content interface{}) (bool, error) {
+func (ctrl *csiSnapshotCommonController) storeContentUpdate(content any) (bool, error) {
 	return utils.StoreObjectUpdate(ctrl.contentStore, content, "content")
 }
 
@@ -1102,9 +1101,9 @@ func (ctrl *csiSnapshotCommonController) checkandRemovePVCFinalizer(snapshot *cr
 // in content.Spec.VolumeSnapshotRef.
 func (ctrl *csiSnapshotCommonController) checkandBindSnapshotContent(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) (*crdv1.VolumeSnapshotContent, error) {
 	if content.Spec.VolumeSnapshotRef.Name != snapshot.Name {
-		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
+		return nil, fmt.Errorf("could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotRef.UID != snapshot.UID {
-		return nil, fmt.Errorf("Could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
+		return nil, fmt.Errorf("could not bind snapshot %s and content %s, the VolumeSnapshotRef does not match", snapshot.Name, content.Name)
 	} else if content.Spec.VolumeSnapshotRef.UID != "" && content.Spec.VolumeSnapshotClassName != nil {
 		return content, nil
 	}
@@ -1362,7 +1361,7 @@ func (ctrl *csiSnapshotCommonController) getVolumeFromVolumeSnapshot(snapshot *c
 
 	// Verify binding between PV/PVC is still valid
 	bound := ctrl.isVolumeBoundToClaim(pv, pvc)
-	if bound == false {
+	if !bound {
 		klog.Warningf("binding between PV %s and PVC %s is broken", pvName, pvc.Name)
 		return nil, fmt.Errorf("claim in dataSource not bound or invalid")
 	}
@@ -1556,15 +1555,6 @@ func newControllerUpdateError(name, message string) error {
 
 func (e controllerUpdateError) Error() string {
 	return e.message
-}
-
-func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
-	if err != nil {
-		if strings.Contains(*err.Message, controllerUpdateFailMsg) {
-			return true
-		}
-	}
-	return false
 }
 
 // addSnapshotFinalizer adds a Finalizer for VolumeSnapshot.

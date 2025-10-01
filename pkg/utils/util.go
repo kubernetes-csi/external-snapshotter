@@ -226,14 +226,14 @@ func SnapshotRefKey(vsref *v1.ObjectReference) string {
 // callback (i.e. with events from etcd) or with an object modified by the
 // controller itself. Returns "true", if the cache was updated, false if the
 // object is an old version and should be ignored.
-func StoreObjectUpdate(store cache.Store, obj interface{}, className string) (bool, error) {
+func StoreObjectUpdate(store cache.Store, obj any, className string) (bool, error) {
 	objName, err := keyFunc(obj)
 	if err != nil {
-		return false, fmt.Errorf("Couldn't get key for object %+v: %v", obj, err)
+		return false, fmt.Errorf("couldn't get key for object %+v: %v", obj, err)
 	}
 	oldObj, found, err := store.Get(obj)
 	if err != nil {
-		return false, fmt.Errorf("Error finding %s %q in controller cache: %v", className, objName, err)
+		return false, fmt.Errorf("error finding %s %q in controller cache: %v", className, objName, err)
 	}
 
 	objAccessor, err := meta.Accessor(obj)
@@ -533,22 +533,11 @@ func NeedToAddGroupSnapshotBoundFinalizer(groupSnapshot *crdv1beta2.VolumeGroupS
 	return groupSnapshot.ObjectMeta.DeletionTimestamp == nil && !slices.Contains(groupSnapshot.ObjectMeta.Finalizers, VolumeGroupSnapshotBoundFinalizer) && IsBoundVolumeGroupSnapshotContentNameSet(groupSnapshot)
 }
 
-func deprecationWarning(deprecatedParam, newParam, removalVersion string) string {
-	if removalVersion == "" {
-		removalVersion = "a future release"
-	}
-	newParamPhrase := ""
-	if len(newParam) != 0 {
-		newParamPhrase = fmt.Sprintf(", please use \"%s\" instead", newParam)
-	}
-	return fmt.Sprintf("\"%s\" is deprecated and will be removed in %s%s", deprecatedParam, removalVersion, newParamPhrase)
-}
-
 func RemovePrefixedParameters(param map[string]string) (map[string]string, error) {
 	newParam := map[string]string{}
 	for k, v := range param {
 		if strings.HasPrefix(k, csiParameterPrefix) {
-			// Check if its well known
+			// Check if it's well known
 			switch k {
 			case PrefixedSnapshotterSecretNameKey:
 			case PrefixedSnapshotterSecretNamespaceKey:
@@ -580,7 +569,7 @@ func GetSnapshotStatusForLogging(snapshot *crdv1.VolumeSnapshot) string {
 	if snapshot.Status != nil && snapshot.Status.ReadyToUse != nil {
 		ready = *snapshot.Status.ReadyToUse
 	}
-	return fmt.Sprintf("bound to: %q, Completed: %v", snapshotContentName, ready)
+	return fmt.Sprintf("bound to: %q, completed: %v", snapshotContentName, ready)
 }
 
 func GetGroupSnapshotStatusForLogging(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) string {
@@ -592,7 +581,7 @@ func GetGroupSnapshotStatusForLogging(groupSnapshot *crdv1beta2.VolumeGroupSnaps
 	if groupSnapshot.Status != nil && groupSnapshot.Status.ReadyToUse != nil {
 		ready = *groupSnapshot.Status.ReadyToUse
 	}
-	return fmt.Sprintf("bound to: %q, Completed: %v", groupSnapshotContentName, ready)
+	return fmt.Sprintf("bound to: %q, completed: %v", groupSnapshotContentName, ready)
 }
 
 func IsVolumeSnapshotRefSet(snapshot *crdv1.VolumeSnapshot, content *crdv1.VolumeSnapshotContent) bool {
@@ -612,7 +601,7 @@ func IsBoundVolumeSnapshotContentNameSet(snapshot *crdv1.VolumeSnapshot) bool {
 }
 
 func IsSnapshotReady(snapshot *crdv1.VolumeSnapshot) bool {
-	if snapshot.Status == nil || snapshot.Status.ReadyToUse == nil || *snapshot.Status.ReadyToUse == false {
+	if snapshot.Status == nil || snapshot.Status.ReadyToUse == nil || !*snapshot.Status.ReadyToUse {
 		return false
 	}
 	return true
@@ -659,13 +648,13 @@ func IsGroupSnapshotCreated(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) bool 
 	return groupSnapshot.Status != nil && groupSnapshot.Status.CreationTime != nil
 }
 
-// GetDynamicSnapshotContentNameFoGrouprSnapshot returns a unique content name for the
+// GetDynamicSnapshotContentNameForGroupSnapshot returns a unique content name for the
 // passed in VolumeGroupSnapshot to dynamically provision a group snapshot.
 func GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot *crdv1beta2.VolumeGroupSnapshot) string {
 	return "groupsnapcontent-" + string(groupSnapshot.UID)
 }
 
-// ShouldEnqueueContentChange indicated whether or not a change to a VolumeSnapshotContent object
+// ShouldEnqueueContentChange indicates whether or not a change to a VolumeSnapshotContent object
 // is a change that should be enqueued for sync
 //
 // The following changes are sanitized (and thus, not considered for determining whether to sync)
