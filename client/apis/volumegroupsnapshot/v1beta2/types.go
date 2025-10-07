@@ -80,6 +80,7 @@ type VolumeGroupSnapshotStatus struct {
 	// VolumeGroupSnapshot and VolumeGroupSnapshotContent objects is successful
 	// (by validating that both VolumeGroupSnapshot and VolumeGroupSnapshotContent
 	// point at each other) before using this object.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="boundVolumeGroupSnapshotContentName is immutable once set"
 	// +optional
 	BoundVolumeGroupSnapshotContentName *string `json:"boundVolumeGroupSnapshotContentName,omitempty" protobuf:"bytes,1,opt,name=boundVolumeGroupSnapshotContentName"`
 
@@ -87,9 +88,6 @@ type VolumeGroupSnapshotStatus struct {
 	// by the underlying storage system.
 	// If not specified, it may indicate that the creation time of the group snapshot
 	// is unknown.
-	// The format of this field is a Unix nanoseconds time encoded as an int64.
-	// On Unix, the command date +%s%N returns the current time in nanoseconds
-	// since 1970-01-01 00:00:00 UTC.
 	// This field is updated based on the CreationTime field in VolumeGroupSnapshotContentStatus
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`
@@ -177,11 +175,13 @@ type VolumeGroupSnapshotClass struct {
 
 	// Driver is the name of the storage driver expected to handle this VolumeGroupSnapshotClass.
 	// Required.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="driver is immutable once set"
 	Driver string `json:"driver" protobuf:"bytes,2,opt,name=driver"`
 
 	// Parameters is a key-value map with storage driver specific parameters for
 	// creating group snapshots.
 	// These values are opaque to Kubernetes and are passed directly to the driver.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="parameters are immutable once set"
 	// +optional
 	Parameters map[string]string `json:"parameters,omitempty" protobuf:"bytes,3,rep,name=parameters"`
 
@@ -194,6 +194,7 @@ type VolumeGroupSnapshotClass struct {
 	// "Delete" means that the VolumeGroupSnapshotContent and its physical group
 	// snapshot on underlying storage system are deleted.
 	// Required.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="deletionPolicy is immutable once set"
 	DeletionPolicy snapshotv1.DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,4,opt,name=deletionPolicy"`
 }
 
@@ -293,6 +294,7 @@ type VolumeGroupSnapshotContentSpec struct {
 	// This MUST be the same as the name returned by the CSI GetPluginName() call for
 	// that driver.
 	// Required.
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="driver is immutable once set"
 	Driver string `json:"driver" protobuf:"bytes,3,opt,name=driver"`
 
 	// VolumeGroupSnapshotClassName is the name of the VolumeGroupSnapshotClass from
@@ -303,6 +305,7 @@ type VolumeGroupSnapshotContentSpec struct {
 	// For dynamic provisioning, this field must be set.
 	// This field may be unset for pre-provisioned snapshots.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="volumeGroupSnapshotClassName is immutable once set"
 	VolumeGroupSnapshotClassName *string `json:"volumeGroupSnapshotClassName,omitempty" protobuf:"bytes,4,opt,name=volumeGroupSnapshotClassName"`
 
 	// Source specifies whether the snapshot is (or should be) dynamically provisioned
@@ -344,15 +347,13 @@ type VolumeGroupSnapshotContentStatus struct {
 	// If a storage system does not provide such an id, the
 	// CSI driver can choose to return the VolumeGroupSnapshot name.
 	// +optional
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="volumeGroupSnapshotHandle is immutable once set"
 	VolumeGroupSnapshotHandle *string `json:"volumeGroupSnapshotHandle,omitempty" protobuf:"bytes,1,opt,name=volumeGroupSnapshotHandle"`
 
 	// CreationTime is the timestamp when the point-in-time group snapshot is taken
 	// by the underlying storage system.
 	// If not specified, it indicates the creation time is unknown.
 	// If not specified, it means the readiness of a group snapshot is unknown.
-	// The format of this field is a Unix nanoseconds time encoded as an int64.
-	// On Unix, the command date +%s%N returns the current time in nanoseconds
-	// since 1970-01-01 00:00:00 UTC.
 	// This field is the source for the CreationTime field in VolumeGroupSnapshotStatus
 	// +optional
 	CreationTime *metav1.Time `json:"creationTime,omitempty" protobuf:"bytes,2,opt,name=creationTime"`

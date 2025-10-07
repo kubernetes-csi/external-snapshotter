@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/1150"
+    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/1337"
     controller-gen.kubebuilder.io/version: v0.15.0
   name: volumegroupsnapshots.groupsnapshot.storage.k8s.io
 spec:
@@ -235,6 +235,7 @@ spec:
         type: object
     served: true
     storage: false
+    deprecated: true
     subresources:
       status: {}
   - additionalPrinterColumns:
@@ -409,15 +410,15 @@ spec:
                   (by validating that both VolumeGroupSnapshot and VolumeGroupSnapshotContent
                   point at each other) before using this object.
                 type: string
+                x-kubernetes-validations:
+                - message: boundVolumeGroupSnapshotContentName is immutable once set
+                  rule: self == oldSelf
               creationTime:
                 description: |-
                   CreationTime is the timestamp when the point-in-time group snapshot is taken
                   by the underlying storage system.
                   If not specified, it may indicate that the creation time of the group snapshot
                   is unknown.
-                  The format of this field is a Unix nanoseconds time encoded as an int64.
-                  On Unix, the command date +%s%N returns the current time in nanoseconds
-                  since 1970-01-01 00:00:00 UTC.
                   This field is updated based on the CreationTime field in VolumeGroupSnapshotContentStatus
                 format: date-time
                 type: string

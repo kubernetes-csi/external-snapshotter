@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/1150"
+    api-approved.kubernetes.io: "https://github.com/kubernetes-csi/external-snapshotter/pull/1337"
     controller-gen.kubebuilder.io/version: v0.15.0
   name: volumegroupsnapshotclasses.groupsnapshot.storage.k8s.io
 spec:
@@ -91,6 +91,7 @@ spec:
         type: object
     served: true
     storage: false
+    deprecated: true
     subresources: {}
   - additionalPrinterColumns:
     - jsonPath: .driver
@@ -136,11 +137,17 @@ spec:
             - Delete
             - Retain
             type: string
+            x-kubernetes-validations:
+            - message: deletionPolicy is immutable once set
+              rule: self == oldSelf
           driver:
             description: |-
               Driver is the name of the storage driver expected to handle this VolumeGroupSnapshotClass.
               Required.
             type: string
+            x-kubernetes-validations:
+            - message: driver is immutable once set
+              rule: self == oldSelf
           kind:
             description: |-
               Kind is a string value representing the REST resource this object represents.
@@ -159,6 +166,9 @@ spec:
               creating group snapshots.
               These values are opaque to Kubernetes and are passed directly to the driver.
             type: object
+            x-kubernetes-validations:
+            - message: parameters are immutable once set
+              rule: self == oldSelf
         required:
         - deletionPolicy
         - driver
