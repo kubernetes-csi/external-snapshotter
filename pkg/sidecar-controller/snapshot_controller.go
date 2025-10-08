@@ -561,15 +561,6 @@ func (e controllerUpdateError) Error() string {
 	return e.message
 }
 
-func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
-	if err != nil {
-		if strings.Contains(*err.Message, controllerUpdateFailMsg) {
-			return true
-		}
-	}
-	return false
-}
-
 func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *crdv1.VolumeSnapshotContent) (map[string]string, error) {
 	// get secrets if VolumeSnapshotClass specifies it
 	var snapshotterCredentials map[string]string
