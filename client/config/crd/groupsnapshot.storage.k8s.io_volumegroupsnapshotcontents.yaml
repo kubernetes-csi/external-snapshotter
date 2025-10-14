@@ -557,6 +557,11 @@ spec:
                 - message: both volumeGroupSnapshotRef.name and volumeGroupSnapshotRef.namespace
                     must be set
                   rule: has(self.name) && has(self.__namespace__)
+                - message: volumeGroupSnapshotRef.name and volumeGroupSnapshotRef.namespace
+                    are immutable
+                  rule: self.name == oldSelf.name && self.__namespace__ == oldSelf.__namespace__
+                - message: volumeGroupSnapshotRef.uid is immutable once set
+                  rule: '!has(oldSelf.uid) || (has(self.uid) && self.uid == oldSelf.uid)'
             required:
             - deletionPolicy
             - driver
