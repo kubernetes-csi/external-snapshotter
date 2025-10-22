@@ -280,6 +280,21 @@ func (mr *MockControllerServerMockRecorder) GetCapacity(arg0, arg1 interface{}) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCapacity", reflect.TypeOf((*MockControllerServer)(nil).GetCapacity), arg0, arg1)
 }
 
+// GetSnapshot mocks base method.
+func (m *MockControllerServer) GetSnapshot(arg0 context.Context, arg1 *csi.GetSnapshotRequest) (*csi.GetSnapshotResponse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSnapshot", arg0, arg1)
+	ret0, _ := ret[0].(*csi.GetSnapshotResponse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSnapshot indicates an expected call of GetSnapshot.
+func (mr *MockControllerServerMockRecorder) GetSnapshot(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSnapshot", reflect.TypeOf((*MockControllerServer)(nil).GetSnapshot), arg0, arg1)
+}
+
 // ListSnapshots mocks base method.
 func (m *MockControllerServer) ListSnapshots(arg0 context.Context, arg1 *csi.ListSnapshotsRequest) (*csi.ListSnapshotsResponse, error) {
 	m.ctrl.T.Helper()
