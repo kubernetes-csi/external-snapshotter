@@ -165,7 +165,7 @@ func (ctrl *csiSnapshotCommonController) SetDefaultGroupSnapshotClass(groupSnaps
 	_, updateErr := ctrl.storeGroupSnapshotUpdate(newGroupSnapshot)
 	if updateErr != nil {
 		// We will get a "group snapshot update" event soon, this is not a big error
-		klog.V(4).Infof("setDefaultSnapshotClass [%s]: cannot update internal cache: %v", utils.GroupSnapshotKey(groupSnapshot), updateErr)
+		klog.V(4).Infof("setDefaultGroupSnapshotClass [%s]: cannot update internal cache: %v", utils.GroupSnapshotKey(groupSnapshot), updateErr)
 	}
 
 	return defaultClasses[0], newGroupSnapshot, nil
