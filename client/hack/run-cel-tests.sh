@@ -7,6 +7,20 @@ successes=0
 
 cd "$(dirname "$0")"
 
+VERBOSE=""
+while [[ $# -gt 0 ]]; do
+	case $1 in
+	-v|--verbose)
+		VERBOSE="1"
+		shift
+		;;
+	*)
+		echo "Unexpected argument '$1'"
+		exit 1
+		;;
+	esac
+done
+
 exec_case() {
 	local test_case="$1"
 	local test_case_err="$1.err"
@@ -26,7 +40,7 @@ exec_case() {
 		err=$(cat "$test_case_err")
 		if grep "$err" "$test_case_out" > /dev/null 2>&1; then
 			((++successes))
-			echo "$test_case: SUCCESS (expected failure)"
+			if [ ! -z "$VERBOSE" ]; then echo "$test_case: SUCCESS (expected failure)"; fi
 		else
 			echo "$test_case: FAIL (unexpected msg): $output"
 			((++failures))
@@ -35,7 +49,7 @@ exec_case() {
 		echo "$test_case: FAIL (unexpected success): $output"
 		((++failures))
 	elif [ $ret == 0 ] && [ ! -f "$test_case_err" ]; then
-		echo "$test_case: SUCCESS"
+		if [ ! -z "$VERBOSE" ]; then echo "$test_case: SUCCESS"; fi
 		((++successes))
 	fi
 }
@@ -66,7 +80,7 @@ exec_tx_case() {
 		local err
 		err=$(cat "$test_case_err")
 		if grep "$err" "$test_case_out" > /dev/null 2>&1; then
-			echo "$test_header SUCCESS (expected failure)"
+			if [ ! -z "$VERBOSE" ]; then echo "$test_header SUCCESS (expected failure)"; fi
 			((++successes))
 		else
 			echo "$test_header FAIL (unexpected msg): $output"
@@ -76,7 +90,7 @@ exec_tx_case() {
 		echo "$test_header FAIL (unexpected success): $output"
 		((++failures))
 	elif [ $ret == 0 ] && [ ! -f "$test_case_err" ]; then
-		echo "$test_header SUCCESS"
+		if [ ! -z "$VERBOSE" ]; then echo "$test_header SUCCESS"; fi
 		((++successes))
 	fi
 }
