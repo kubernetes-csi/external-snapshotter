@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"slices"
-	"strings"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -1556,15 +1555,6 @@ func newControllerUpdateError(name, message string) error {
 
 func (e controllerUpdateError) Error() string {
 	return e.message
-}
-
-func isControllerUpdateFailError(err *crdv1.VolumeSnapshotError) bool {
-	if err != nil {
-		if strings.Contains(*err.Message, controllerUpdateFailMsg) {
-			return true
-		}
-	}
-	return false
 }
 
 // addSnapshotFinalizer adds a Finalizer for VolumeSnapshot.
