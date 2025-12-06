@@ -1,0 +1,18 @@
+---
+csiSnapshotter:
+  replicaCount: 1
+  csiProvisioner:
+    image:
+      repository: registry.k8s.io/sig-storage/csi-provisioner
+      pullPolicy: IfNotPresent
+      tag: v5.2.0
+  csiSnapshotter:
+    image:
+      repository: registry.k8s.io/sig-storage/csi-snapshotter
+      pullPolicy: IfNotPresent
+      tag: v8.4.0
+  hostpath:
+    image:
+      repository: registry.k8s.io/sig-storage/hostpathplugin
+      pullPolicy: IfNotPresent
+      tag: v1.11.0
