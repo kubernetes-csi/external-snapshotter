@@ -625,9 +625,20 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		}
 
 		createdVolumeSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(ctx, volumeSnapshot, metav1.CreateOptions{})
-		if err != nil && !apierrs.IsAlreadyExists(err) {
+		if apierrs.IsAlreadyExists(err) {
+			createdVolumeSnapshot, err = ctrl.clientset.SnapshotV1().
+				VolumeSnapshots(volumeSnapshotNamespace).
+				Get(ctx, volumeSnapshot.Name, metav1.GetOptions{})
+		}
+		if err != nil {
 			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: creating volumesnapshot %w", err)
+				"createSnapshotsForGroupSnapshotContent: error creating or fetching volumesnapshot %w", err)
+		}
+
+		// FIX for cases where the UID might be empty
+		if createdVolumeSnapshot.GetUID() == "" {
+			return groupSnapshotContent, fmt.Errorf(
+				"createSnapshotsForGroupSnapshotContent: created snapshot %s has an empty UID", createdVolumeSnapshot.Name)
 		}
 
 		// bind the volume snapshot content to the volume snapshot
