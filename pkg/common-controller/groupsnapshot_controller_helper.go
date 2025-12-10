@@ -618,7 +618,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &emptyString
 		}
 
-		createdVolumeSnapshotContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
+		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil && !apierrs.IsAlreadyExists(err) {
 			return groupSnapshotContent, fmt.Errorf(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshotcontent %w", err)
@@ -667,7 +667,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		// set the snapshot handle and the group snapshot handle
 		// inside the volume snapshot content to allow
 		// the CSI Snapshotter sidecar to reconcile its status
-		_, err = utils.PatchVolumeSnapshotContent(createdVolumeSnapshotContent, []utils.PatchOp{
+		_, err = utils.PatchVolumeSnapshotContent(volumeSnapshotContent, []utils.PatchOp{
 			{
 				Op:    "replace",
 				Path:  "/status",
