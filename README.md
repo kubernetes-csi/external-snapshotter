@@ -74,7 +74,8 @@ Install Snapshot and Volume Group Snapshot CRDs:
 
 Install Common Snapshot Controller:
 * Update the namespace to an appropriate value for your environment (e.g. kube-system)
-* `kubectl -n kube-system kustomize deploy/kubernetes/snapshot-controller | kubectl create -f -`
+* With the repo cloned locally: `kubectl -n kube-system kustomize deploy/kubernetes/snapshot-controller | kubectl create -f -`
+* From the repo remotely: `kubectl -n kube-system kustomize https://github.com/kubernetes-csi/external-snapshotter/deploy/kubernetes/snapshot-controller | kubectl create -f -`
 * Do this once per cluster
 
 Install CSI Driver:
