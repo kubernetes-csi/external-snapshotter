@@ -618,16 +618,27 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 			volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &emptyString
 		}
 
-		createdVolumeSnapshotContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
+		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
 		if err != nil && !apierrs.IsAlreadyExists(err) {
 			return groupSnapshotContent, fmt.Errorf(
 				"createSnapshotsForGroupSnapshotContent: creating volumesnapshotcontent %w", err)
 		}
 
 		createdVolumeSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(ctx, volumeSnapshot, metav1.CreateOptions{})
-		if err != nil && !apierrs.IsAlreadyExists(err) {
+		if apierrs.IsAlreadyExists(err) {
+			createdVolumeSnapshot, err = ctrl.clientset.SnapshotV1().
+				VolumeSnapshots(volumeSnapshotNamespace).
+				Get(ctx, volumeSnapshot.Name, metav1.GetOptions{})
+		}
+		if err != nil {
 			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: creating volumesnapshot %w", err)
+				"createSnapshotsForGroupSnapshotContent: error creating or fetching volumesnapshot %w", err)
+		}
+
+		// FIX for cases where the UID might be empty
+		if createdVolumeSnapshot.GetUID() == "" {
+			return groupSnapshotContent, fmt.Errorf(
+				"createSnapshotsForGroupSnapshotContent: created snapshot %s has an empty UID", createdVolumeSnapshot.Name)
 		}
 
 		// bind the volume snapshot content to the volume snapshot
@@ -667,7 +678,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		// set the snapshot handle and the group snapshot handle
 		// inside the volume snapshot content to allow
 		// the CSI Snapshotter sidecar to reconcile its status
-		_, err = utils.PatchVolumeSnapshotContent(createdVolumeSnapshotContent, []utils.PatchOp{
+		_, err = utils.PatchVolumeSnapshotContent(volumeSnapshotContent, []utils.PatchOp{
 			{
 				Op:    "replace",
 				Path:  "/status",
