@@ -1,8 +1,6 @@
 module github.com/kubernetes-csi/external-snapshotter/v8
 
-go 1.24.0
-
-toolchain go1.24.6
+go 1.24.11
 
 require (
 	github.com/container-storage-interface/spec v1.12.0
@@ -10,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.7.0
-	github.com/kubernetes-csi/csi-lib-utils v0.22.0
+	github.com/kubernetes-csi/csi-lib-utils v0.23.0
 	github.com/kubernetes-csi/csi-test/v5 v5.4.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.2.0
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
@@ -19,13 +17,13 @@ require (
 	github.com/prometheus/common v0.62.0
 	google.golang.org/grpc v1.72.1
 	google.golang.org/protobuf v1.36.5
-	k8s.io/api v0.34.0
-	k8s.io/apiextensions-apiserver v0.34.0
-	k8s.io/apimachinery v0.34.0
-	k8s.io/apiserver v0.34.0
-	k8s.io/client-go v0.34.0
-	k8s.io/component-base v0.34.0
-	k8s.io/component-helpers v0.34.0
+	k8s.io/api v0.34.1
+	k8s.io/apiextensions-apiserver v0.34.1
+	k8s.io/apimachinery v0.34.1
+	k8s.io/apiserver v0.34.1
+	k8s.io/client-go v0.34.1
+	k8s.io/component-base v0.34.1
+	k8s.io/component-helpers v0.34.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	sigs.k8s.io/yaml v1.6.0
