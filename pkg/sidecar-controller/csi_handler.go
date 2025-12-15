@@ -139,7 +139,7 @@ func makeSnapshotName(prefix, snapshotUID string, snapshotNameUUIDLength int) (s
 	// create persistent name based on a volumeNamePrefix and volumeNameUUIDLength
 	// of PVC's UID
 	if len(snapshotUID) == 0 {
-		return "", fmt.Errorf("Corrupted snapshot object, it is missing UID")
+		return "", fmt.Errorf("corrupted snapshot object, it is missing UID")
 	}
 	if snapshotNameUUIDLength == -1 {
 		// Default behavior is to not truncate or remove dashes
