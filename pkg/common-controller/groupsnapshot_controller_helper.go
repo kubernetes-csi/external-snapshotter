@@ -494,34 +494,70 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Co
 	return nil
 }
 
+// createSnapshotsForGroupSnapshotContent creates individual VolumeSnapshot and VolumeSnapshotContent
+// resources for each snapshot in a VolumeGroupSnapshotContent.
 func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 	ctx context.Context,
 	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
 	groupSnapshot *crdv1beta2.VolumeGroupSnapshot,
 ) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
-	// No status is present, or no volume snapshot was provisioned.
-	// Let's wait for the snapshotter sidecar to fill it.
-	if groupSnapshotContent.Status == nil || len(groupSnapshotContent.Status.VolumeSnapshotInfoList) == 0 {
+	// Check if the group snapshot content is ready for processing
+	if !ctrl.isGroupSnapshotContentReadyForSnapshotCreation(groupSnapshotContent) {
 		return groupSnapshotContent, nil
+	}
+
+	// Get the group snapshot class and secret reference
+	groupSnapshotSecret, err := ctrl.getGroupSnapshotSecret(groupSnapshot, groupSnapshotContent)
+	if err != nil {
+		return groupSnapshotContent, err
+	}
+
+	klog.V(4).Infof(
+		"createSnapshotsForGroupSnapshotContent[%s]: creating volumesnapshots and volumesnapshotcontent for group snapshot content",
+		groupSnapshotContent.Name)
+
+	// Create individual snapshots for each volume in the group
+	for _, snapshotInfo := range groupSnapshotContent.Status.VolumeSnapshotInfoList {
+		if err := ctrl.createIndividualSnapshotForGroupSnapshot(ctx, snapshotInfo, groupSnapshotContent, groupSnapshot, groupSnapshotSecret); err != nil {
+			return groupSnapshotContent, err
+		}
+	}
+
+	return groupSnapshotContent, nil
+}
+
+// isGroupSnapshotContentReadyForSnapshotCreation checks if the group snapshot content
+// has all required information to create individual snapshots.
+func (ctrl *csiSnapshotCommonController) isGroupSnapshotContentReadyForSnapshotCreation(
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+) bool {
+	// No status is present, or no volume snapshot was provisioned.
+	if groupSnapshotContent.Status == nil || len(groupSnapshotContent.Status.VolumeSnapshotInfoList) == 0 {
+		return false
 	}
 
 	// No volume group snapshot handle is present.
-	// Let's wait for the snapshotter sidecar to fill it.
 	if groupSnapshotContent.Status.VolumeGroupSnapshotHandle == nil {
-		return groupSnapshotContent, nil
+		return false
 	}
 
-	// The contents of the volume group snapshot class are needed to set the
-	// metadata containing the secrets to recover the snapshots
+	return true
+}
+
+// getGroupSnapshotSecret retrieves the secret reference for the group snapshot.
+func (ctrl *csiSnapshotCommonController) getGroupSnapshotSecret(
+	groupSnapshot *crdv1beta2.VolumeGroupSnapshot,
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+) (*v1.SecretReference, error) {
 	if groupSnapshot.Spec.VolumeGroupSnapshotClassName == nil {
-		return groupSnapshotContent, fmt.Errorf(
-			"createSnapshotsForGroupSnapshotContent: internal error: cannot find reference to volume group snapshot class")
+		return nil, fmt.Errorf(
+			"getGroupSnapshotSecret: internal error: cannot find reference to volume group snapshot class")
 	}
 
 	groupSnapshotClass, err := ctrl.groupSnapshotClassLister.Get(*groupSnapshot.Spec.VolumeGroupSnapshotClassName)
 	if err != nil {
-		return groupSnapshotContent, fmt.Errorf(
-			"createSnapshotsForGroupSnapshotContent: failed to get volume snapshot class %s: %q",
+		return nil, fmt.Errorf(
+			"getGroupSnapshotSecret: failed to get volume snapshot class %s: %q",
 			*groupSnapshot.Spec.VolumeGroupSnapshotClassName, err)
 	}
 
@@ -530,194 +566,277 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 		groupSnapshotClass.Parameters,
 		groupSnapshotContent.GetObjectMeta().GetName(), nil)
 	if err != nil {
-		return groupSnapshotContent, fmt.Errorf(
-			"createSnapshotsForGroupSnapshotContent: failed to get secret reference for group snapshot content %s: %v",
+		return nil, fmt.Errorf(
+			"getGroupSnapshotSecret: failed to get secret reference for group snapshot content %s: %v",
 			groupSnapshotContent.Name, err)
 	}
 
-	// Phase 1: create the VolumeSnapshotContent and VolumeSnapshot objects
-	klog.V(4).Infof(
-		"createSnapshotsForGroupSnapshotContent[%s]: creating volumesnapshots and volumesnapshotcontent for group snapshot content",
-		groupSnapshotContent.Name)
+	return groupSnapshotSecret, nil
+}
 
-	for _, snapshot := range groupSnapshotContent.Status.VolumeSnapshotInfoList {
-		snapshotHandle := snapshot.SnapshotHandle
-		volumeHandle := snapshot.VolumeHandle
+// createIndividualSnapshotForGroupSnapshot creates a VolumeSnapshot and VolumeSnapshotContent for a single
+// snapshot within a group snapshot. This handles the full lifecycle: building specs, creating resources,
+// and binding them together.
+func (ctrl *csiSnapshotCommonController) createIndividualSnapshotForGroupSnapshot(
+	ctx context.Context,
+	snapshotInfo crdv1beta2.VolumeSnapshotInfo,
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+	groupSnapshot *crdv1beta2.VolumeGroupSnapshot,
+	groupSnapshotSecret *v1.SecretReference,
+) error {
+	volumeHandle := snapshotInfo.VolumeHandle
 
-		pv, err := ctrl.findPersistentVolumeByCSIDriverHandle(groupSnapshotContent.Spec.Driver, volumeHandle)
-		if err != nil {
-			klog.Errorf(
-				"updateGroupSnapshotContentStatus: error while finding PV for volumeHandle:[%s] and CSI driver:[%s]: %s",
-				volumeHandle,
-				groupSnapshotContent.Spec.Driver,
-				err)
-		}
-
-		volumeSnapshotContentName := getSnapshotContentNameForVolumeGroupSnapshotContent(
-			string(groupSnapshot.UID), volumeHandle)
-
-		volumeSnapshotName := getSnapshotNameForVolumeGroupSnapshotContent(
-			string(groupSnapshot.UID), volumeHandle)
-
-		volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
-
-		volumeSnapshotContent := &crdv1.VolumeSnapshotContent{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: volumeSnapshotContentName,
-				Annotations: map[string]string{
-					utils.VolumeGroupSnapshotHandleAnnotation: *groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
-				},
-			},
-			Spec: crdv1.VolumeSnapshotContentSpec{
-				VolumeSnapshotRef: v1.ObjectReference{
-					Kind:      "VolumeSnapshot",
-					Name:      volumeSnapshotName,
-					Namespace: volumeSnapshotNamespace,
-				},
-				DeletionPolicy: groupSnapshotContent.Spec.DeletionPolicy,
-				Driver:         groupSnapshotContent.Spec.Driver,
-				Source: crdv1.VolumeSnapshotContentSource{
-					VolumeHandle: &volumeHandle,
-				},
-			},
-			// The status will be set in a separate patch request by
-			// common snapshot controller, using the information from
-			// the VolumeGroupSnapshotContent object.
-		}
-
-		if pv != nil {
-			volumeSnapshotContent.Spec.SourceVolumeMode = pv.Spec.VolumeMode
-		}
-
-		if groupSnapshotSecret != nil {
-			klog.V(5).Infof("createSnapshotsForGroupSnapshotContent: set annotation [%s] on volume snapshot content [%s].", utils.AnnDeletionSecretRefName, volumeSnapshotContent.Name)
-			metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName, groupSnapshotSecret.Name)
-
-			klog.V(5).Infof("createSnapshotsForGroupSnapshotContent: set annotation [%s] on volume snapshot content [%s].", utils.AnnDeletionSecretRefNamespace, volumeSnapshotContent.Name)
-			metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, groupSnapshotSecret.Namespace)
-		}
-
-		volumeSnapshot := &crdv1.VolumeSnapshot{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      volumeSnapshotName,
-				Namespace: volumeSnapshotNamespace,
-				OwnerReferences: []metav1.OwnerReference{
-					utils.BuildVolumeGroupSnapshotOwnerReference(groupSnapshot),
-				},
-				Finalizers: []string{utils.VolumeSnapshotInGroupFinalizer},
-			},
-			// The spec stanza is set immediately
-			// The status will be set by VolumeSnapshot reconciler
-		}
-
-		if pv != nil {
-			volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &pv.Spec.ClaimRef.Name
-		} else {
-			// If no persistent volume was found, set the PVC name to empty
-			var emptyString string
-			volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &emptyString
-		}
-
-		_, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
-		if err != nil && !apierrs.IsAlreadyExists(err) {
-			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: creating volumesnapshotcontent %w", err)
-		}
-
-		createdVolumeSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshotNamespace).Create(ctx, volumeSnapshot, metav1.CreateOptions{})
-		if apierrs.IsAlreadyExists(err) {
-			createdVolumeSnapshot, err = ctrl.clientset.SnapshotV1().
-				VolumeSnapshots(volumeSnapshotNamespace).
-				Get(ctx, volumeSnapshot.Name, metav1.GetOptions{})
-		}
-		if err != nil {
-			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: error creating or fetching volumesnapshot %w", err)
-		}
-
-		// FIX for cases where the UID might be empty
-		if createdVolumeSnapshot.GetUID() == "" {
-			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: created snapshot %s has an empty UID", createdVolumeSnapshot.Name)
-		}
-
-		// bind the volume snapshot content to the volume snapshot
-		// like a dynamically provisioned snapshot would do
-		volumeSnapshotContent.Spec.VolumeSnapshotRef.UID = createdVolumeSnapshot.UID
-		_, err = utils.PatchVolumeSnapshotContent(volumeSnapshotContent, []utils.PatchOp{
-			{
-				Op:    "replace",
-				Path:  "/spec/volumeSnapshotRef/uid",
-				Value: volumeSnapshotContent.Spec.VolumeSnapshotRef.UID,
-			},
-		}, ctrl.clientset)
-		if err != nil {
-			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: binding volumesnapshotcontent to volumesnapshot %w", err)
-		}
-
-		// bind the volume snapshot to the volume snapshot content
-		// like a dynamically provisioned snapshot would do
-		_, err = utils.PatchVolumeSnapshot(createdVolumeSnapshot, []utils.PatchOp{
-			{
-				Op:    "replace",
-				Path:  "/status",
-				Value: &crdv1.VolumeSnapshotStatus{},
-			},
-			{
-				Op:    "replace",
-				Path:  "/status/boundVolumeSnapshotContentName",
-				Value: volumeSnapshotContentName,
-			},
-		}, ctrl.clientset, "status")
-		if err != nil {
-			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: binding volumesnapshot to volumesnapshotcontent %w", err)
-		}
-
-		// set the snapshot handle and the group snapshot handle
-		// inside the volume snapshot content to allow
-		// the CSI Snapshotter sidecar to reconcile its status
-		_, err = utils.PatchVolumeSnapshotContent(volumeSnapshotContent, []utils.PatchOp{
-			{
-				Op:    "replace",
-				Path:  "/status",
-				Value: &crdv1.VolumeSnapshotContentStatus{},
-			},
-			{
-				Op:    "replace",
-				Path:  "/status/snapshotHandle",
-				Value: snapshotHandle,
-			},
-			{
-				Op:    "replace",
-				Path:  "/status/volumeGroupSnapshotHandle",
-				Value: groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
-			},
-			{
-				Op:    "replace",
-				Path:  "/status/creationTime",
-				Value: snapshot.CreationTime,
-			},
-			{
-				Op:    "replace",
-				Path:  "/status/restoreSize",
-				Value: snapshot.RestoreSize,
-			},
-			{
-				Op:    "replace",
-				Path:  "/status/readyToUse",
-				Value: snapshot.ReadyToUse,
-			},
-		}, ctrl.clientset, "status")
-		if err != nil {
-			return groupSnapshotContent, fmt.Errorf(
-				"createSnapshotsForGroupSnapshotContent: setting snapshotHandle in volumesnapshotcontent %w", err)
-		}
-
+	// Find the PV for this volume handle
+	pv, err := ctrl.findPersistentVolumeByCSIDriverHandle(groupSnapshotContent.Spec.Driver, volumeHandle)
+	if err != nil {
+		klog.Errorf(
+			"createIndividualSnapshotForGroupSnapshot: error while finding PV for volumeHandle:[%s] and CSI driver:[%s]: %s",
+			volumeHandle,
+			groupSnapshotContent.Spec.Driver,
+			err)
 	}
 
-	return groupSnapshotContent, nil
+	// Build the VolumeSnapshotContent and VolumeSnapshot specs
+	volumeSnapshotContent := ctrl.buildVolumeSnapshotContentSpecForGroupSnapshot(
+		groupSnapshot, groupSnapshotContent, volumeHandle, pv, groupSnapshotSecret)
+	volumeSnapshot := ctrl.buildVolumeSnapshotSpecForGroupSnapshot(
+		groupSnapshot, groupSnapshotContent, volumeHandle, pv)
+
+	// Create the VolumeSnapshotContent and get the created object from the API
+	createdVolumeSnapshotContent, err := ctrl.createOrGetVolumeSnapshotContent(ctx, volumeSnapshotContent)
+	if err != nil {
+		return fmt.Errorf("createIndividualSnapshotForGroupSnapshot: creating volumesnapshotcontent %w", err)
+	}
+
+	// Create the VolumeSnapshot and get the created object from the API
+	createdVolumeSnapshot, err := ctrl.createOrGetVolumeSnapshot(ctx, volumeSnapshot)
+	if err != nil {
+		return fmt.Errorf("createIndividualSnapshotForGroupSnapshot: error creating or fetching volumesnapshot %w", err)
+	}
+
+	if createdVolumeSnapshot.GetUID() == "" {
+		return fmt.Errorf(
+			"createIndividualSnapshotForGroupSnapshot: created snapshot %s has an empty UID", createdVolumeSnapshot.Name)
+	}
+
+	// Bind the resources together using the CREATED objects from the API
+	if err := ctrl.bindSnapshotContentToSnapshot(createdVolumeSnapshotContent, createdVolumeSnapshot); err != nil {
+		return fmt.Errorf("createIndividualSnapshotForGroupSnapshot: binding volumesnapshotcontent to volumesnapshot %w", err)
+	}
+
+	if err := ctrl.bindSnapshotToSnapshotContent(createdVolumeSnapshot, createdVolumeSnapshotContent.Name); err != nil {
+		return fmt.Errorf("createIndividualSnapshotForGroupSnapshot: binding volumesnapshot to volumesnapshotcontent %w", err)
+	}
+
+	// Update the VolumeSnapshotContent status
+	if err := ctrl.updateVolumeSnapshotContentStatus(createdVolumeSnapshotContent, snapshotInfo, groupSnapshotContent); err != nil {
+		return fmt.Errorf("createIndividualSnapshotForGroupSnapshot: setting snapshotHandle in volumesnapshotcontent %w", err)
+	}
+
+	return nil
+}
+
+// buildVolumeSnapshotContentSpecForGroupSnapshot constructs a VolumeSnapshotContent spec for an individual snapshot within a group snapshot.
+func (ctrl *csiSnapshotCommonController) buildVolumeSnapshotContentSpecForGroupSnapshot(
+	groupSnapshot *crdv1beta2.VolumeGroupSnapshot,
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+	volumeHandle string,
+	pv *v1.PersistentVolume,
+	groupSnapshotSecret *v1.SecretReference,
+) *crdv1.VolumeSnapshotContent {
+	volumeSnapshotContentName := getSnapshotContentNameForVolumeGroupSnapshotContent(
+		string(groupSnapshot.UID), volumeHandle)
+	volumeSnapshotName := getSnapshotNameForVolumeGroupSnapshotContent(
+		string(groupSnapshot.UID), volumeHandle)
+	volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
+
+	volumeSnapshotContent := &crdv1.VolumeSnapshotContent{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: volumeSnapshotContentName,
+			Annotations: map[string]string{
+				utils.VolumeGroupSnapshotHandleAnnotation: *groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
+			},
+		},
+		Spec: crdv1.VolumeSnapshotContentSpec{
+			VolumeSnapshotRef: v1.ObjectReference{
+				Kind:      "VolumeSnapshot",
+				Name:      volumeSnapshotName,
+				Namespace: volumeSnapshotNamespace,
+			},
+			DeletionPolicy: groupSnapshotContent.Spec.DeletionPolicy,
+			Driver:         groupSnapshotContent.Spec.Driver,
+			Source: crdv1.VolumeSnapshotContentSource{
+				VolumeHandle: &volumeHandle,
+			},
+		},
+	}
+
+	if pv != nil {
+		volumeSnapshotContent.Spec.SourceVolumeMode = pv.Spec.VolumeMode
+	}
+
+	if groupSnapshotSecret != nil {
+		klog.V(5).Infof("buildVolumeSnapshotContentSpecForGroupSnapshot: set annotation [%s] on volume snapshot content [%s].",
+			utils.AnnDeletionSecretRefName, volumeSnapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefName, groupSnapshotSecret.Name)
+
+		klog.V(5).Infof("buildVolumeSnapshotContentSpecForGroupSnapshot: set annotation [%s] on volume snapshot content [%s].",
+			utils.AnnDeletionSecretRefNamespace, volumeSnapshotContent.Name)
+		metav1.SetMetaDataAnnotation(&volumeSnapshotContent.ObjectMeta, utils.AnnDeletionSecretRefNamespace, groupSnapshotSecret.Namespace)
+	}
+
+	return volumeSnapshotContent
+}
+
+// buildVolumeSnapshotSpecForGroupSnapshot constructs a VolumeSnapshot spec for an individual snapshot within a group snapshot.
+func (ctrl *csiSnapshotCommonController) buildVolumeSnapshotSpecForGroupSnapshot(
+	groupSnapshot *crdv1beta2.VolumeGroupSnapshot,
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+	volumeHandle string,
+	pv *v1.PersistentVolume,
+) *crdv1.VolumeSnapshot {
+	volumeSnapshotName := getSnapshotNameForVolumeGroupSnapshotContent(
+		string(groupSnapshot.UID), volumeHandle)
+	volumeSnapshotNamespace := groupSnapshotContent.Spec.VolumeGroupSnapshotRef.Namespace
+
+	volumeSnapshot := &crdv1.VolumeSnapshot{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      volumeSnapshotName,
+			Namespace: volumeSnapshotNamespace,
+			OwnerReferences: []metav1.OwnerReference{
+				utils.BuildVolumeGroupSnapshotOwnerReference(groupSnapshot),
+			},
+			Finalizers: []string{utils.VolumeSnapshotInGroupFinalizer},
+		},
+	}
+
+	if pv != nil {
+		volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &pv.Spec.ClaimRef.Name
+	} else {
+		// If no persistent volume was found, set the PVC name to empty
+		var emptyString string
+		volumeSnapshot.Spec.Source.PersistentVolumeClaimName = &emptyString
+	}
+
+	return volumeSnapshot
+}
+
+// createOrGetVolumeSnapshotContent creates a VolumeSnapshotContent or retrieves it if it already exists.
+// Returns the CREATED object from the API server (not the local spec).
+func (ctrl *csiSnapshotCommonController) createOrGetVolumeSnapshotContent(
+	ctx context.Context,
+	volumeSnapshotContent *crdv1.VolumeSnapshotContent,
+) (*crdv1.VolumeSnapshotContent, error) {
+	createdVolumeSnapshotContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Create(ctx, volumeSnapshotContent, metav1.CreateOptions{})
+
+	if apierrs.IsAlreadyExists(err) {
+		createdVolumeSnapshotContent, err = ctrl.clientset.
+			SnapshotV1().
+			VolumeSnapshotContents().
+			Get(ctx, volumeSnapshotContent.Name, metav1.GetOptions{})
+	}
+	if err != nil {
+		return nil, err
+	}
+	return createdVolumeSnapshotContent, nil
+}
+
+// createOrGetVolumeSnapshot creates a VolumeSnapshot or retrieves it if it already exists.
+// Returns the CREATED object from the API server (not the local spec).
+func (ctrl *csiSnapshotCommonController) createOrGetVolumeSnapshot(
+	ctx context.Context,
+	volumeSnapshot *crdv1.VolumeSnapshot,
+) (*crdv1.VolumeSnapshot, error) {
+	createdVolumeSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(volumeSnapshot.Namespace).Create(ctx, volumeSnapshot, metav1.CreateOptions{})
+	if apierrs.IsAlreadyExists(err) {
+		createdVolumeSnapshot, err = ctrl.clientset.SnapshotV1().
+			VolumeSnapshots(volumeSnapshot.Namespace).
+			Get(ctx, volumeSnapshot.Name, metav1.GetOptions{})
+	}
+	if err != nil {
+		return nil, err
+	}
+	return createdVolumeSnapshot, nil
+}
+
+// bindSnapshotContentToSnapshot binds a VolumeSnapshotContent to a VolumeSnapshot by setting the UID.
+// IMPORTANT: Must use the createdVolumeSnapshotContent object returned from the API, not the local spec.
+func (ctrl *csiSnapshotCommonController) bindSnapshotContentToSnapshot(
+	createdVolumeSnapshotContent *crdv1.VolumeSnapshotContent,
+	createdVolumeSnapshot *crdv1.VolumeSnapshot,
+) error {
+	createdVolumeSnapshotContent.Spec.VolumeSnapshotRef.UID = createdVolumeSnapshot.UID
+	_, err := utils.PatchVolumeSnapshotContent(createdVolumeSnapshotContent, []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/spec/volumeSnapshotRef/uid",
+			Value: createdVolumeSnapshotContent.Spec.VolumeSnapshotRef.UID,
+		},
+	}, ctrl.clientset)
+	return err
+}
+
+// bindSnapshotToSnapshotContent binds a VolumeSnapshot to a VolumeSnapshotContent.
+// IMPORTANT: Must use the createdVolumeSnapshot object returned from the API, not the local spec.
+func (ctrl *csiSnapshotCommonController) bindSnapshotToSnapshotContent(
+	createdVolumeSnapshot *crdv1.VolumeSnapshot,
+	volumeSnapshotContentName string,
+) error {
+	_, err := utils.PatchVolumeSnapshot(createdVolumeSnapshot, []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/status",
+			Value: &crdv1.VolumeSnapshotStatus{},
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/boundVolumeSnapshotContentName",
+			Value: volumeSnapshotContentName,
+		},
+	}, ctrl.clientset, "status")
+	return err
+}
+
+// updateVolumeSnapshotContentStatus sets the status fields on a VolumeSnapshotContent.
+// IMPORTANT: Must use the createdVolumeSnapshotContent object returned from the API, not the local spec.
+func (ctrl *csiSnapshotCommonController) updateVolumeSnapshotContentStatus(
+	createdVolumeSnapshotContent *crdv1.VolumeSnapshotContent,
+	snapshotInfo crdv1beta2.VolumeSnapshotInfo,
+	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
+) error {
+	_, err := utils.PatchVolumeSnapshotContent(createdVolumeSnapshotContent, []utils.PatchOp{
+		{
+			Op:    "replace",
+			Path:  "/status",
+			Value: &crdv1.VolumeSnapshotContentStatus{},
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/snapshotHandle",
+			Value: snapshotInfo.SnapshotHandle,
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/volumeGroupSnapshotHandle",
+			Value: groupSnapshotContent.Status.VolumeGroupSnapshotHandle,
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/creationTime",
+			Value: snapshotInfo.CreationTime,
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/restoreSize",
+			Value: snapshotInfo.RestoreSize,
+		},
+		{
+			Op:    "replace",
+			Path:  "/status/readyToUse",
+			Value: snapshotInfo.ReadyToUse,
+		},
+	}, ctrl.clientset, "status")
+	return err
 }
 
 // findPersistentVolumeByCSIDriverHandle looks at an existing PersistentVolume
