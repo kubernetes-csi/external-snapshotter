@@ -49,7 +49,7 @@ var Configuration = SidecarConfiguration{}
 func RegisterCommonFlags(flags *flag.FlagSet) {
 	flags.BoolVar(&Configuration.ShowVersion, "version", false, "Show version.")
 	flags.StringVar(&Configuration.KubeConfig, "kubeconfig", "", "Absolute path to the kubeconfig file. Required only when running out of cluster.")
-	flags.StringVar(&Configuration.CSIAddress, "csi-address", "/run/csi/socket", "The gRPC endpoint for Target CSI Volume.")
+	flags.StringVar(&Configuration.CSIAddress, "csi-address", "/run/csi/socket", "Address of the CSI driver socket.")
 	flags.BoolVar(&Configuration.LeaderElection, "leader-election", false, "Enable leader election.")
 	flags.StringVar(&Configuration.LeaderElectionNamespace, "leader-election-namespace", "", "Namespace where the leader election resource lives. Defaults to the pod namespace if not set.")
 	flags.DurationVar(&Configuration.LeaderElectionLeaseDuration, "leader-election-lease-duration", 15*time.Second, "Duration, in seconds, that non-leader candidates will wait to force acquire leadership. Defaults to 15 seconds.")
