@@ -42,7 +42,7 @@ import (
 // template that can be used for any CR conversion given this function.
 type convertFunc func(Object *unstructured.Unstructured, version string) (*unstructured.Unstructured, metav1.Status)
 
-func statusErrorWithMessage(msg string, params ...interface{}) metav1.Status {
+func statusErrorWithMessage(msg string, params ...any) metav1.Status {
 	return metav1.Status{
 		Message: fmt.Sprintf(msg, params...),
 		Status:  metav1.StatusFailure,
