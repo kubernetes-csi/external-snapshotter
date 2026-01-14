@@ -37,6 +37,8 @@
 # - kind (https://github.com/kubernetes-sigs/kind) installed
 # - optional: Go already installed
 
+set -x
+
 RELEASE_TOOLS_ROOT="$(realpath "$(dirname "${BASH_SOURCE[0]}")")"
 REPO_DIR="$(pwd)"
 
@@ -320,7 +322,7 @@ configvar CSI_PROW_E2E_MOCK "$(if [ "${CSI_PROW_DRIVER_CANARY}" = "canary" ] && 
 
 # Regex for non-alpha, feature-tagged tests that should be run.
 #
-configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:VolumeSnapshotDataSource\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
+configvar CSI_PROW_E2E_FOCUS_LATEST '\[Feature:volumegroupsnapshot\]' "non-alpha, feature-tagged tests for latest Kubernetes version"
 configvar CSI_PROW_E2E_FOCUS "$(get_versioned_variable CSI_PROW_E2E_FOCUS "${csi_prow_kubernetes_version_suffix}")" "non-alpha, feature-tagged tests"
 
 # Serial vs. parallel is always determined by these regular expressions.
@@ -376,7 +378,13 @@ default_csi_snapshotter_version () {
 		echo "v4.0.0"
 	fi
 }
+# export CSI_SNAPSHOTTER_HACK_VERSION="master"
+# Hack to be consistent with 1.33 job
+export CSI_SNAPSHOTTER_HACK_VERSION="v8.2.0"
 configvar CSI_SNAPSHOTTER_VERSION "$(default_csi_snapshotter_version)" "external-snapshotter version tag"
+
+# Enable installing VolumeGroupSnapshot CRDs (off by default, can be set to true in prow jobs)
+configvar CSI_PROW_ENABLE_GROUP_SNAPSHOT "true" "Enable the VolumeGroupSnapshot tests"
 
 # Some tests are known to be unusable in a KinD cluster. For example,
 # stopping kubelet with "ssh <node IP> systemctl stop kubelet" simply
@@ -549,6 +557,15 @@ list_gates () (
 # with https://kind.sigs.k8s.io/docs/user/configuration/#runtime-config
 list_api_groups () (
     set -f; IFS=','
+    
+    # If the volumegroupsnapshot gate is enabled, output required API groups
+    if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+        echo '   "api/ga": "true"'
+        echo '   "storage.k8s.io/v1alpha1": "true"'
+        echo '   "storage.k8s.io/v1beta1": "true"'
+        # echo '   "storage.k8s.io/v1beta2": "true"'
+    fi
+
     # Ignore: Double quote to prevent globbing and word splitting.
     # shellcheck disable=SC2086
     set -- $1
@@ -618,7 +635,6 @@ start_cluster () {
                 version=master
             fi
             git_clone https://github.com/kubernetes/kubernetes "${CSI_PROW_WORK}/src/kubernetes" "$(version_to_git "$version")" || die "checking out Kubernetes $version failed"
-
             go_version="$(go_version_for_kubernetes "${CSI_PROW_WORK}/src/kubernetes" "$version")" || die "cannot proceed without knowing Go version for Kubernetes"
             # Changing into the Kubernetes source code directory is a workaround for https://github.com/kubernetes-sigs/kind/issues/1910
             # shellcheck disable=SC2046
@@ -769,10 +785,11 @@ install_csi_driver () {
 # Installs all necessary snapshotter CRDs
 install_snapshot_crds() {
   # Wait until volumesnapshot CRDs are in place.
-  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_VERSION}/client/config/crd"
-  if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
-      CRD_BASE_DIR="${REPO_DIR}/client/config/crd"
-  fi
+  CRD_BASE_DIR="https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/${CSI_SNAPSHOTTER_HACK_VERSION}/client/config/crd"
+#   Hack v1beta2 needs webhook while tests does not deployed
+#   if [[ ${REPO_DIR} == *"external-snapshotter"* ]]; then
+#       CRD_BASE_DIR="${REPO_DIR}/client/config/crd"
+#   fi
   echo "Installing snapshot CRDs from ${CRD_BASE_DIR}"
   kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshotclasses.yaml" --validate=false
   kubectl apply -f "${CRD_BASE_DIR}/snapshot.storage.k8s.io_volumesnapshots.yaml" --validate=false
@@ -789,6 +806,27 @@ install_snapshot_crds() {
 	cnt=$((cnt + 1))
     sleep 2
   done
+
+  if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+    echo "Installing VolumeGroupSnapshot CRDs from ${CRD_BASE_DIR}"
+    kubectl apply -f "${CRD_BASE_DIR}/groupsnapshot.storage.k8s.io_volumegroupsnapshotclasses.yaml" --validate=false
+    kubectl apply -f "${CRD_BASE_DIR}/groupsnapshot.storage.k8s.io_volumegroupsnapshotcontents.yaml" --validate=false
+    kubectl apply -f "${CRD_BASE_DIR}/groupsnapshot.storage.k8s.io_volumegroupsnapshots.yaml" --validate=false
+
+    local cnt=0
+    until kubectl get volumegroupsnapshotclasses.groupsnapshot.storage.k8s.io \
+        && kubectl get volumegroupsnapshots.groupsnapshot.storage.k8s.io \
+        && kubectl get volumegroupsnapshotcontents.groupsnapshot.storage.k8s.io; do
+        if [ $cnt -gt 30 ]; then
+        echo >&2 "ERROR: VolumeGroupSnapshot CRDs not ready after 60s"
+        exit 1
+        fi
+        echo "$(date +%H:%M:%S)" "waiting for VolumeGroupSnapshot CRDs, attempt #$cnt"
+        cnt=$((cnt + 1))
+        sleep 2
+    done
+    echo "VolumeGroupSnapshot CRDs installed and ready"
+  fi
 }
 
 # Install snapshot controller and associated RBAC, retrying until the pod is running.
@@ -854,7 +892,18 @@ install_snapshot_controller() {
                   # Now replace registry and/or tag
                   NEW_TAG="csiprow"
                   line="$(echo "$nocomments" | sed -e "s;$image;${name}:${NEW_TAG};")"
+                  
+                  # Hack the snapshot controller version for test
+                  line="$(echo "$nocomments" | sed -E "s|(image:[[:space:]]*registry.k8s.io/sig-storage/snapshot-controller:).*|\1${CSI_SNAPSHOTTER_HACK_VERSION}|")"
 	          echo "        using $line" >&2
+              fi
+              if ${CSI_PROW_ENABLE_GROUP_SNAPSHOT}; then
+                # inject feature gate after leader election arg
+                if echo "$nocomments" | grep -q '^[[:space:]]*- "--leader-election=true"'; then
+                    echo "$line"
+                    echo "            - \"--feature-gates=CSIVolumeGroupSnapshot=true\""
+                    continue
+                fi
               fi
               echo "$line"
           done)"
@@ -966,6 +1015,14 @@ $(cd "$source" && git diff 2>&1)
 
 EOF
     fi
+
+    if [ "${CSI_PROW_ENABLE_GROUP_SNAPSHOT}" = "true" ]; then
+        echo "Enabling VolumeGroupSnapshot: replacing hostpath csi-hostpath-plugin.yaml"
+        cp "${source}/test/e2e/testing-manifests/storage-csi/external-snapshotter/volume-group-snapshots/csi-hostpath-plugin.yaml" \
+        "${source}/test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-plugin.yaml"
+        cat "${source}"/test/e2e/testing-manifests/storage-csi/hostpath/hostpath/csi-hostpath-plugin.yaml
+    fi
+
 }
 
 # Makes the E2E test suite binary available as "${CSI_PROW_WORK}/e2e.test".
@@ -1025,6 +1082,7 @@ run_e2e () (
     # Rename, merge and filter JUnit files. Necessary in case that we run the E2E suite again
     # and to avoid the large number of "skipped" tests that we get from using
     # the full Kubernetes E2E testsuite while only running a few tests.
+    # shellcheck disable=SC2329
     move_junit () {
         if ls "${ARTIFACTS}"/junit_[0-9]*.xml 2>/dev/null >/dev/null; then
             mkdir -p "${ARTIFACTS}/junit/${name}" &&
@@ -1038,6 +1096,9 @@ run_e2e () (
     if [ "${name}" == "local" ]; then
         cd "${GOPATH}/src/${CSI_PROW_SIDECAR_E2E_PATH}" &&
         run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e-local.test" -- -report-dir "${ARTIFACTS}" -report-prefix local
+    elif [ "${CSI_PROW_ENABLE_GROUP_SNAPSHOT}" = "true" ]; then
+        cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
+        run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}"
     else
         cd "${GOPATH}/src/${CSI_PROW_E2E_IMPORT_PATH}" &&
         run_with_loggers env KUBECONFIG="$KUBECONFIG" KUBE_TEST_REPO_LIST="$(if [ -e "${CSI_PROW_WORK}/e2e-repo-list" ]; then echo "${CSI_PROW_WORK}/e2e-repo-list"; fi)" ginkgo --timeout="${CSI_PROW_GINKGO_TIMEOUT}" -v "$@" "${CSI_PROW_WORK}/e2e.test" -- -report-dir "${ARTIFACTS}" -storage.testdriver="${CSI_PROW_WORK}/test-driver.yaml"
@@ -1340,7 +1401,7 @@ main () {
                     # Ignore: Double quote to prevent globbing and word splitting.
                     # shellcheck disable=SC2086
                     if ! run_e2e parallel-features ${CSI_PROW_GINKGO_PARALLEL} \
-                         -focus="$focus.*($(regex_join "${CSI_PROW_E2E_FOCUS}"))" \
+                         -focus="${CSI_PROW_E2E_FOCUS}" \
                          -skip="$(regex_join "${CSI_PROW_E2E_SERIAL}")"; then
                         warn "E2E parallel features failed"
                         ret=1
