@@ -189,13 +189,16 @@ github.com/kubernetes-csi/csi-lib-utils/standardflags
 github.com/kubernetes-csi/csi-test/v5/driver
 github.com/kubernetes-csi/csi-test/v5/utils
 # github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0 => ./client
-## explicit; go 1.22.0
+## explicit; go 1.25.5
+github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1
 github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2
 github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned
 github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake
 github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/scheme
+github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1/fake
 github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1beta1
 github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1beta1/fake
 github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumegroupsnapshot/v1beta2
@@ -205,10 +208,12 @@ github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typ
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/internalinterfaces
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot
+github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot/v1beta1
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot/v1beta2
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumesnapshot
 github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumesnapshot/v1
+github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1
 github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1
 github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta2
 github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1
