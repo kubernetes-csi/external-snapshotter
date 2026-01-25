@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	volumegroupsnapshotv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // VolumeGroupSnapshotClassLister helps list VolumeGroupSnapshotClasses.
@@ -30,39 +30,19 @@ import (
 type VolumeGroupSnapshotClassLister interface {
 	// List lists all VolumeGroupSnapshotClasses in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1beta2.VolumeGroupSnapshotClass, err error)
+	List(selector labels.Selector) (ret []*volumegroupsnapshotv1beta2.VolumeGroupSnapshotClass, err error)
 	// Get retrieves the VolumeGroupSnapshotClass from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1beta2.VolumeGroupSnapshotClass, error)
+	Get(name string) (*volumegroupsnapshotv1beta2.VolumeGroupSnapshotClass, error)
 	VolumeGroupSnapshotClassListerExpansion
 }
 
 // volumeGroupSnapshotClassLister implements the VolumeGroupSnapshotClassLister interface.
 type volumeGroupSnapshotClassLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*volumegroupsnapshotv1beta2.VolumeGroupSnapshotClass]
 }
 
 // NewVolumeGroupSnapshotClassLister returns a new VolumeGroupSnapshotClassLister.
 func NewVolumeGroupSnapshotClassLister(indexer cache.Indexer) VolumeGroupSnapshotClassLister {
-	return &volumeGroupSnapshotClassLister{indexer: indexer}
-}
-
-// List lists all VolumeGroupSnapshotClasses in the indexer.
-func (s *volumeGroupSnapshotClassLister) List(selector labels.Selector) (ret []*v1beta2.VolumeGroupSnapshotClass, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.VolumeGroupSnapshotClass))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeGroupSnapshotClass from the index for a given name.
-func (s *volumeGroupSnapshotClassLister) Get(name string) (*v1beta2.VolumeGroupSnapshotClass, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("volumegroupsnapshotclass"), name)
-	}
-	return obj.(*v1beta2.VolumeGroupSnapshotClass), nil
+	return &volumeGroupSnapshotClassLister{listers.New[*volumegroupsnapshotv1beta2.VolumeGroupSnapshotClass](indexer, volumegroupsnapshotv1beta2.Resource("volumegroupsnapshotclass"))}
 }
