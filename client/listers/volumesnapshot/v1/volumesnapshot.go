@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // VolumeSnapshotLister helps list VolumeSnapshots.
@@ -30,7 +30,7 @@ import (
 type VolumeSnapshotLister interface {
 	// List lists all VolumeSnapshots in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.VolumeSnapshot, err error)
+	List(selector labels.Selector) (ret []*volumesnapshotv1.VolumeSnapshot, err error)
 	// VolumeSnapshots returns an object that can list and get VolumeSnapshots.
 	VolumeSnapshots(namespace string) VolumeSnapshotNamespaceLister
 	VolumeSnapshotListerExpansion
@@ -38,25 +38,17 @@ type VolumeSnapshotLister interface {
 
 // volumeSnapshotLister implements the VolumeSnapshotLister interface.
 type volumeSnapshotLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*volumesnapshotv1.VolumeSnapshot]
 }
 
 // NewVolumeSnapshotLister returns a new VolumeSnapshotLister.
 func NewVolumeSnapshotLister(indexer cache.Indexer) VolumeSnapshotLister {
-	return &volumeSnapshotLister{indexer: indexer}
-}
-
-// List lists all VolumeSnapshots in the indexer.
-func (s *volumeSnapshotLister) List(selector labels.Selector) (ret []*v1.VolumeSnapshot, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.VolumeSnapshot))
-	})
-	return ret, err
+	return &volumeSnapshotLister{listers.New[*volumesnapshotv1.VolumeSnapshot](indexer, volumesnapshotv1.Resource("volumesnapshot"))}
 }
 
 // VolumeSnapshots returns an object that can list and get VolumeSnapshots.
 func (s *volumeSnapshotLister) VolumeSnapshots(namespace string) VolumeSnapshotNamespaceLister {
-	return volumeSnapshotNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return volumeSnapshotNamespaceLister{listers.NewNamespaced[*volumesnapshotv1.VolumeSnapshot](s.ResourceIndexer, namespace)}
 }
 
 // VolumeSnapshotNamespaceLister helps list and get VolumeSnapshots.
@@ -64,36 +56,15 @@ func (s *volumeSnapshotLister) VolumeSnapshots(namespace string) VolumeSnapshotN
 type VolumeSnapshotNamespaceLister interface {
 	// List lists all VolumeSnapshots in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.VolumeSnapshot, err error)
+	List(selector labels.Selector) (ret []*volumesnapshotv1.VolumeSnapshot, err error)
 	// Get retrieves the VolumeSnapshot from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.VolumeSnapshot, error)
+	Get(name string) (*volumesnapshotv1.VolumeSnapshot, error)
 	VolumeSnapshotNamespaceListerExpansion
 }
 
 // volumeSnapshotNamespaceLister implements the VolumeSnapshotNamespaceLister
 // interface.
 type volumeSnapshotNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all VolumeSnapshots in the indexer for a given namespace.
-func (s volumeSnapshotNamespaceLister) List(selector labels.Selector) (ret []*v1.VolumeSnapshot, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.VolumeSnapshot))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeSnapshot from the indexer for a given namespace and name.
-func (s volumeSnapshotNamespaceLister) Get(name string) (*v1.VolumeSnapshot, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("volumesnapshot"), name)
-	}
-	return obj.(*v1.VolumeSnapshot), nil
+	listers.ResourceIndexer[*volumesnapshotv1.VolumeSnapshot]
 }

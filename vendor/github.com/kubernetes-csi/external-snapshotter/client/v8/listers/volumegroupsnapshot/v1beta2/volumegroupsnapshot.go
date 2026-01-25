@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ limitations under the License.
 package v1beta2
 
 import (
-	v1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	volumegroupsnapshotv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // VolumeGroupSnapshotLister helps list VolumeGroupSnapshots.
@@ -30,7 +30,7 @@ import (
 type VolumeGroupSnapshotLister interface {
 	// List lists all VolumeGroupSnapshots in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1beta2.VolumeGroupSnapshot, err error)
+	List(selector labels.Selector) (ret []*volumegroupsnapshotv1beta2.VolumeGroupSnapshot, err error)
 	// VolumeGroupSnapshots returns an object that can list and get VolumeGroupSnapshots.
 	VolumeGroupSnapshots(namespace string) VolumeGroupSnapshotNamespaceLister
 	VolumeGroupSnapshotListerExpansion
@@ -38,25 +38,17 @@ type VolumeGroupSnapshotLister interface {
 
 // volumeGroupSnapshotLister implements the VolumeGroupSnapshotLister interface.
 type volumeGroupSnapshotLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*volumegroupsnapshotv1beta2.VolumeGroupSnapshot]
 }
 
 // NewVolumeGroupSnapshotLister returns a new VolumeGroupSnapshotLister.
 func NewVolumeGroupSnapshotLister(indexer cache.Indexer) VolumeGroupSnapshotLister {
-	return &volumeGroupSnapshotLister{indexer: indexer}
-}
-
-// List lists all VolumeGroupSnapshots in the indexer.
-func (s *volumeGroupSnapshotLister) List(selector labels.Selector) (ret []*v1beta2.VolumeGroupSnapshot, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.VolumeGroupSnapshot))
-	})
-	return ret, err
+	return &volumeGroupSnapshotLister{listers.New[*volumegroupsnapshotv1beta2.VolumeGroupSnapshot](indexer, volumegroupsnapshotv1beta2.Resource("volumegroupsnapshot"))}
 }
 
 // VolumeGroupSnapshots returns an object that can list and get VolumeGroupSnapshots.
 func (s *volumeGroupSnapshotLister) VolumeGroupSnapshots(namespace string) VolumeGroupSnapshotNamespaceLister {
-	return volumeGroupSnapshotNamespaceLister{indexer: s.indexer, namespace: namespace}
+	return volumeGroupSnapshotNamespaceLister{listers.NewNamespaced[*volumegroupsnapshotv1beta2.VolumeGroupSnapshot](s.ResourceIndexer, namespace)}
 }
 
 // VolumeGroupSnapshotNamespaceLister helps list and get VolumeGroupSnapshots.
@@ -64,36 +56,15 @@ func (s *volumeGroupSnapshotLister) VolumeGroupSnapshots(namespace string) Volum
 type VolumeGroupSnapshotNamespaceLister interface {
 	// List lists all VolumeGroupSnapshots in the indexer for a given namespace.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1beta2.VolumeGroupSnapshot, err error)
+	List(selector labels.Selector) (ret []*volumegroupsnapshotv1beta2.VolumeGroupSnapshot, err error)
 	// Get retrieves the VolumeGroupSnapshot from the indexer for a given namespace and name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1beta2.VolumeGroupSnapshot, error)
+	Get(name string) (*volumegroupsnapshotv1beta2.VolumeGroupSnapshot, error)
 	VolumeGroupSnapshotNamespaceListerExpansion
 }
 
 // volumeGroupSnapshotNamespaceLister implements the VolumeGroupSnapshotNamespaceLister
 // interface.
 type volumeGroupSnapshotNamespaceLister struct {
-	indexer   cache.Indexer
-	namespace string
-}
-
-// List lists all VolumeGroupSnapshots in the indexer for a given namespace.
-func (s volumeGroupSnapshotNamespaceLister) List(selector labels.Selector) (ret []*v1beta2.VolumeGroupSnapshot, err error) {
-	err = cache.ListAllByNamespace(s.indexer, s.namespace, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1beta2.VolumeGroupSnapshot))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeGroupSnapshot from the indexer for a given namespace and name.
-func (s volumeGroupSnapshotNamespaceLister) Get(name string) (*v1beta2.VolumeGroupSnapshot, error) {
-	obj, exists, err := s.indexer.GetByKey(s.namespace + "/" + name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1beta2.Resource("volumegroupsnapshot"), name)
-	}
-	return obj.(*v1beta2.VolumeGroupSnapshot), nil
+	listers.ResourceIndexer[*volumegroupsnapshotv1beta2.VolumeGroupSnapshot]
 }
