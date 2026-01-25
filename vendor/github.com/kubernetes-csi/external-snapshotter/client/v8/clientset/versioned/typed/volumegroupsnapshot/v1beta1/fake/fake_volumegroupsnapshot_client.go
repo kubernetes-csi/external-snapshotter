@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,15 +29,15 @@ type FakeGroupsnapshotV1beta1 struct {
 }
 
 func (c *FakeGroupsnapshotV1beta1) VolumeGroupSnapshots(namespace string) v1beta1.VolumeGroupSnapshotInterface {
-	return &FakeVolumeGroupSnapshots{c, namespace}
+	return newFakeVolumeGroupSnapshots(c, namespace)
 }
 
 func (c *FakeGroupsnapshotV1beta1) VolumeGroupSnapshotClasses() v1beta1.VolumeGroupSnapshotClassInterface {
-	return &FakeVolumeGroupSnapshotClasses{c}
+	return newFakeVolumeGroupSnapshotClasses(c)
 }
 
 func (c *FakeGroupsnapshotV1beta1) VolumeGroupSnapshotContents() v1beta1.VolumeGroupSnapshotContentInterface {
-	return &FakeVolumeGroupSnapshotContents{c}
+	return newFakeVolumeGroupSnapshotContents(c)
 }
 
 // RESTClient returns a RESTClient that is used to communicate
