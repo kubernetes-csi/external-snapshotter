@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,114 +19,34 @@ limitations under the License.
 package fake
 
 import (
-	"context"
-
 	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	labels "k8s.io/apimachinery/pkg/labels"
-	types "k8s.io/apimachinery/pkg/types"
-	watch "k8s.io/apimachinery/pkg/watch"
-	testing "k8s.io/client-go/testing"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/typed/volumesnapshot/v1"
+	gentype "k8s.io/client-go/gentype"
 )
 
-// FakeVolumeSnapshotContents implements VolumeSnapshotContentInterface
-type FakeVolumeSnapshotContents struct {
+// fakeVolumeSnapshotContents implements VolumeSnapshotContentInterface
+type fakeVolumeSnapshotContents struct {
+	*gentype.FakeClientWithList[*v1.VolumeSnapshotContent, *v1.VolumeSnapshotContentList]
 	Fake *FakeSnapshotV1
 }
 
-var volumesnapshotcontentsResource = v1.SchemeGroupVersion.WithResource("volumesnapshotcontents")
-
-var volumesnapshotcontentsKind = v1.SchemeGroupVersion.WithKind("VolumeSnapshotContent")
-
-// Get takes name of the volumeSnapshotContent, and returns the corresponding volumeSnapshotContent object, and an error if there is any.
-func (c *FakeVolumeSnapshotContents) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.VolumeSnapshotContent, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootGetAction(volumesnapshotcontentsResource, name), &v1.VolumeSnapshotContent{})
-	if obj == nil {
-		return nil, err
+func newFakeVolumeSnapshotContents(fake *FakeSnapshotV1) volumesnapshotv1.VolumeSnapshotContentInterface {
+	return &fakeVolumeSnapshotContents{
+		gentype.NewFakeClientWithList[*v1.VolumeSnapshotContent, *v1.VolumeSnapshotContentList](
+			fake.Fake,
+			"",
+			v1.SchemeGroupVersion.WithResource("volumesnapshotcontents"),
+			v1.SchemeGroupVersion.WithKind("VolumeSnapshotContent"),
+			func() *v1.VolumeSnapshotContent { return &v1.VolumeSnapshotContent{} },
+			func() *v1.VolumeSnapshotContentList { return &v1.VolumeSnapshotContentList{} },
+			func(dst, src *v1.VolumeSnapshotContentList) { dst.ListMeta = src.ListMeta },
+			func(list *v1.VolumeSnapshotContentList) []*v1.VolumeSnapshotContent {
+				return gentype.ToPointerSlice(list.Items)
+			},
+			func(list *v1.VolumeSnapshotContentList, items []*v1.VolumeSnapshotContent) {
+				list.Items = gentype.FromPointerSlice(items)
+			},
+		),
+		fake,
 	}
-	return obj.(*v1.VolumeSnapshotContent), err
-}
-
-// List takes label and field selectors, and returns the list of VolumeSnapshotContents that match those selectors.
-func (c *FakeVolumeSnapshotContents) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VolumeSnapshotContentList, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootListAction(volumesnapshotcontentsResource, volumesnapshotcontentsKind, opts), &v1.VolumeSnapshotContentList{})
-	if obj == nil {
-		return nil, err
-	}
-
-	label, _, _ := testing.ExtractFromListOptions(opts)
-	if label == nil {
-		label = labels.Everything()
-	}
-	list := &v1.VolumeSnapshotContentList{ListMeta: obj.(*v1.VolumeSnapshotContentList).ListMeta}
-	for _, item := range obj.(*v1.VolumeSnapshotContentList).Items {
-		if label.Matches(labels.Set(item.Labels)) {
-			list.Items = append(list.Items, item)
-		}
-	}
-	return list, err
-}
-
-// Watch returns a watch.Interface that watches the requested volumeSnapshotContents.
-func (c *FakeVolumeSnapshotContents) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	return c.Fake.
-		InvokesWatch(testing.NewRootWatchAction(volumesnapshotcontentsResource, opts))
-}
-
-// Create takes the representation of a volumeSnapshotContent and creates it.  Returns the server's representation of the volumeSnapshotContent, and an error, if there is any.
-func (c *FakeVolumeSnapshotContents) Create(ctx context.Context, volumeSnapshotContent *v1.VolumeSnapshotContent, opts metav1.CreateOptions) (result *v1.VolumeSnapshotContent, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootCreateAction(volumesnapshotcontentsResource, volumeSnapshotContent), &v1.VolumeSnapshotContent{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1.VolumeSnapshotContent), err
-}
-
-// Update takes the representation of a volumeSnapshotContent and updates it. Returns the server's representation of the volumeSnapshotContent, and an error, if there is any.
-func (c *FakeVolumeSnapshotContents) Update(ctx context.Context, volumeSnapshotContent *v1.VolumeSnapshotContent, opts metav1.UpdateOptions) (result *v1.VolumeSnapshotContent, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateAction(volumesnapshotcontentsResource, volumeSnapshotContent), &v1.VolumeSnapshotContent{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1.VolumeSnapshotContent), err
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeVolumeSnapshotContents) UpdateStatus(ctx context.Context, volumeSnapshotContent *v1.VolumeSnapshotContent, opts metav1.UpdateOptions) (*v1.VolumeSnapshotContent, error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootUpdateSubresourceAction(volumesnapshotcontentsResource, "status", volumeSnapshotContent), &v1.VolumeSnapshotContent{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1.VolumeSnapshotContent), err
-}
-
-// Delete takes name of the volumeSnapshotContent and deletes it. Returns an error if one occurs.
-func (c *FakeVolumeSnapshotContents) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteActionWithOptions(volumesnapshotcontentsResource, name, opts), &v1.VolumeSnapshotContent{})
-	return err
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *FakeVolumeSnapshotContents) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewRootDeleteCollectionAction(volumesnapshotcontentsResource, listOpts)
-
-	_, err := c.Fake.Invokes(action, &v1.VolumeSnapshotContentList{})
-	return err
-}
-
-// Patch applies the patch and returns the patched volumeSnapshotContent.
-func (c *FakeVolumeSnapshotContents) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VolumeSnapshotContent, err error) {
-	obj, err := c.Fake.
-		Invokes(testing.NewRootPatchSubresourceAction(volumesnapshotcontentsResource, name, pt, data, subresources...), &v1.VolumeSnapshotContent{})
-	if obj == nil {
-		return nil, err
-	}
-	return obj.(*v1.VolumeSnapshotContent), err
 }

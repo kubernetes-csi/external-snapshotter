@@ -1,5 +1,5 @@
 /*
-Copyright 2025 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,11 +19,12 @@ limitations under the License.
 package externalversions
 
 import (
-	"fmt"
+	fmt "fmt"
 
+	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
 	v1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	cache "k8s.io/client-go/tools/cache"
 )
@@ -54,7 +55,15 @@ func (f *genericInformer) Lister() cache.GenericLister {
 // TODO extend this to unknown resources with a client pool
 func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource) (GenericInformer, error) {
 	switch resource {
-	// Group=groupsnapshot.storage.k8s.io, Version=v1beta1
+	// Group=groupsnapshot.storage.k8s.io, Version=v1
+	case v1.SchemeGroupVersion.WithResource("volumegroupsnapshots"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1().VolumeGroupSnapshots().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1().VolumeGroupSnapshotClasses().Informer()}, nil
+	case v1.SchemeGroupVersion.WithResource("volumegroupsnapshotcontents"):
+		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1().VolumeGroupSnapshotContents().Informer()}, nil
+
+		// Group=groupsnapshot.storage.k8s.io, Version=v1beta1
 	case v1beta1.SchemeGroupVersion.WithResource("volumegroupsnapshots"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1beta1().VolumeGroupSnapshots().Informer()}, nil
 	case v1beta1.SchemeGroupVersion.WithResource("volumegroupsnapshotclasses"):
@@ -71,11 +80,11 @@ func (f *sharedInformerFactory) ForResource(resource schema.GroupVersionResource
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Groupsnapshot().V1beta2().VolumeGroupSnapshotContents().Informer()}, nil
 
 		// Group=snapshot.storage.k8s.io, Version=v1
-	case v1.SchemeGroupVersion.WithResource("volumesnapshots"):
+	case volumesnapshotv1.SchemeGroupVersion.WithResource("volumesnapshots"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Snapshot().V1().VolumeSnapshots().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("volumesnapshotclasses"):
+	case volumesnapshotv1.SchemeGroupVersion.WithResource("volumesnapshotclasses"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Snapshot().V1().VolumeSnapshotClasses().Informer()}, nil
-	case v1.SchemeGroupVersion.WithResource("volumesnapshotcontents"):
+	case volumesnapshotv1.SchemeGroupVersion.WithResource("volumesnapshotcontents"):
 		return &genericInformer{resource: resource.GroupResource(), informer: f.Snapshot().V1().VolumeSnapshotContents().Informer()}, nil
 
 	}

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,10 +19,10 @@ limitations under the License.
 package v1
 
 import (
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/tools/cache"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	labels "k8s.io/apimachinery/pkg/labels"
+	listers "k8s.io/client-go/listers"
+	cache "k8s.io/client-go/tools/cache"
 )
 
 // VolumeSnapshotClassLister helps list VolumeSnapshotClasses.
@@ -30,39 +30,19 @@ import (
 type VolumeSnapshotClassLister interface {
 	// List lists all VolumeSnapshotClasses in the indexer.
 	// Objects returned here must be treated as read-only.
-	List(selector labels.Selector) (ret []*v1.VolumeSnapshotClass, err error)
+	List(selector labels.Selector) (ret []*volumesnapshotv1.VolumeSnapshotClass, err error)
 	// Get retrieves the VolumeSnapshotClass from the index for a given name.
 	// Objects returned here must be treated as read-only.
-	Get(name string) (*v1.VolumeSnapshotClass, error)
+	Get(name string) (*volumesnapshotv1.VolumeSnapshotClass, error)
 	VolumeSnapshotClassListerExpansion
 }
 
 // volumeSnapshotClassLister implements the VolumeSnapshotClassLister interface.
 type volumeSnapshotClassLister struct {
-	indexer cache.Indexer
+	listers.ResourceIndexer[*volumesnapshotv1.VolumeSnapshotClass]
 }
 
 // NewVolumeSnapshotClassLister returns a new VolumeSnapshotClassLister.
 func NewVolumeSnapshotClassLister(indexer cache.Indexer) VolumeSnapshotClassLister {
-	return &volumeSnapshotClassLister{indexer: indexer}
-}
-
-// List lists all VolumeSnapshotClasses in the indexer.
-func (s *volumeSnapshotClassLister) List(selector labels.Selector) (ret []*v1.VolumeSnapshotClass, err error) {
-	err = cache.ListAll(s.indexer, selector, func(m interface{}) {
-		ret = append(ret, m.(*v1.VolumeSnapshotClass))
-	})
-	return ret, err
-}
-
-// Get retrieves the VolumeSnapshotClass from the index for a given name.
-func (s *volumeSnapshotClassLister) Get(name string) (*v1.VolumeSnapshotClass, error) {
-	obj, exists, err := s.indexer.GetByKey(name)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		return nil, errors.NewNotFound(v1.Resource("volumesnapshotclass"), name)
-	}
-	return obj.(*v1.VolumeSnapshotClass), nil
+	return &volumeSnapshotClassLister{listers.New[*volumesnapshotv1.VolumeSnapshotClass](indexer, volumesnapshotv1.Resource("volumesnapshotclass"))}
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,15 +19,14 @@ limitations under the License.
 package v1
 
 import (
-	"context"
-	"time"
+	context "context"
 
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	scheme "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
-	rest "k8s.io/client-go/rest"
+	gentype "k8s.io/client-go/gentype"
 )
 
 // VolumeSnapshotsGetter has a method to return a VolumeSnapshotInterface.
@@ -38,158 +37,34 @@ type VolumeSnapshotsGetter interface {
 
 // VolumeSnapshotInterface has methods to work with VolumeSnapshot resources.
 type VolumeSnapshotInterface interface {
-	Create(ctx context.Context, volumeSnapshot *v1.VolumeSnapshot, opts metav1.CreateOptions) (*v1.VolumeSnapshot, error)
-	Update(ctx context.Context, volumeSnapshot *v1.VolumeSnapshot, opts metav1.UpdateOptions) (*v1.VolumeSnapshot, error)
-	UpdateStatus(ctx context.Context, volumeSnapshot *v1.VolumeSnapshot, opts metav1.UpdateOptions) (*v1.VolumeSnapshot, error)
+	Create(ctx context.Context, volumeSnapshot *volumesnapshotv1.VolumeSnapshot, opts metav1.CreateOptions) (*volumesnapshotv1.VolumeSnapshot, error)
+	Update(ctx context.Context, volumeSnapshot *volumesnapshotv1.VolumeSnapshot, opts metav1.UpdateOptions) (*volumesnapshotv1.VolumeSnapshot, error)
+	// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
+	UpdateStatus(ctx context.Context, volumeSnapshot *volumesnapshotv1.VolumeSnapshot, opts metav1.UpdateOptions) (*volumesnapshotv1.VolumeSnapshot, error)
 	Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error
 	DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error
-	Get(ctx context.Context, name string, opts metav1.GetOptions) (*v1.VolumeSnapshot, error)
-	List(ctx context.Context, opts metav1.ListOptions) (*v1.VolumeSnapshotList, error)
+	Get(ctx context.Context, name string, opts metav1.GetOptions) (*volumesnapshotv1.VolumeSnapshot, error)
+	List(ctx context.Context, opts metav1.ListOptions) (*volumesnapshotv1.VolumeSnapshotList, error)
 	Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error)
-	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VolumeSnapshot, err error)
+	Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *volumesnapshotv1.VolumeSnapshot, err error)
 	VolumeSnapshotExpansion
 }
 
 // volumeSnapshots implements VolumeSnapshotInterface
 type volumeSnapshots struct {
-	client rest.Interface
-	ns     string
+	*gentype.ClientWithList[*volumesnapshotv1.VolumeSnapshot, *volumesnapshotv1.VolumeSnapshotList]
 }
 
 // newVolumeSnapshots returns a VolumeSnapshots
 func newVolumeSnapshots(c *SnapshotV1Client, namespace string) *volumeSnapshots {
 	return &volumeSnapshots{
-		client: c.RESTClient(),
-		ns:     namespace,
+		gentype.NewClientWithList[*volumesnapshotv1.VolumeSnapshot, *volumesnapshotv1.VolumeSnapshotList](
+			"volumesnapshots",
+			c.RESTClient(),
+			scheme.ParameterCodec,
+			namespace,
+			func() *volumesnapshotv1.VolumeSnapshot { return &volumesnapshotv1.VolumeSnapshot{} },
+			func() *volumesnapshotv1.VolumeSnapshotList { return &volumesnapshotv1.VolumeSnapshotList{} },
+		),
 	}
-}
-
-// Get takes name of the volumeSnapshot, and returns the corresponding volumeSnapshot object, and an error if there is any.
-func (c *volumeSnapshots) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.VolumeSnapshot, err error) {
-	result = &v1.VolumeSnapshot{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		Name(name).
-		VersionedParams(&options, scheme.ParameterCodec).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// List takes label and field selectors, and returns the list of VolumeSnapshots that match those selectors.
-func (c *volumeSnapshots) List(ctx context.Context, opts metav1.ListOptions) (result *v1.VolumeSnapshotList, err error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	result = &v1.VolumeSnapshotList{}
-	err = c.client.Get().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Watch returns a watch.Interface that watches the requested volumeSnapshots.
-func (c *volumeSnapshots) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
-	var timeout time.Duration
-	if opts.TimeoutSeconds != nil {
-		timeout = time.Duration(*opts.TimeoutSeconds) * time.Second
-	}
-	opts.Watch = true
-	return c.client.Get().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Watch(ctx)
-}
-
-// Create takes the representation of a volumeSnapshot and creates it.  Returns the server's representation of the volumeSnapshot, and an error, if there is any.
-func (c *volumeSnapshots) Create(ctx context.Context, volumeSnapshot *v1.VolumeSnapshot, opts metav1.CreateOptions) (result *v1.VolumeSnapshot, err error) {
-	result = &v1.VolumeSnapshot{}
-	err = c.client.Post().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(volumeSnapshot).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Update takes the representation of a volumeSnapshot and updates it. Returns the server's representation of the volumeSnapshot, and an error, if there is any.
-func (c *volumeSnapshots) Update(ctx context.Context, volumeSnapshot *v1.VolumeSnapshot, opts metav1.UpdateOptions) (result *v1.VolumeSnapshot, err error) {
-	result = &v1.VolumeSnapshot{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		Name(volumeSnapshot.Name).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(volumeSnapshot).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// UpdateStatus was generated because the type contains a Status member.
-// Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *volumeSnapshots) UpdateStatus(ctx context.Context, volumeSnapshot *v1.VolumeSnapshot, opts metav1.UpdateOptions) (result *v1.VolumeSnapshot, err error) {
-	result = &v1.VolumeSnapshot{}
-	err = c.client.Put().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		Name(volumeSnapshot.Name).
-		SubResource("status").
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(volumeSnapshot).
-		Do(ctx).
-		Into(result)
-	return
-}
-
-// Delete takes name of the volumeSnapshot and deletes it. Returns an error if one occurs.
-func (c *volumeSnapshots) Delete(ctx context.Context, name string, opts metav1.DeleteOptions) error {
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		Name(name).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// DeleteCollection deletes a collection of objects.
-func (c *volumeSnapshots) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	var timeout time.Duration
-	if listOpts.TimeoutSeconds != nil {
-		timeout = time.Duration(*listOpts.TimeoutSeconds) * time.Second
-	}
-	return c.client.Delete().
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		VersionedParams(&listOpts, scheme.ParameterCodec).
-		Timeout(timeout).
-		Body(&opts).
-		Do(ctx).
-		Error()
-}
-
-// Patch applies the patch and returns the patched volumeSnapshot.
-func (c *volumeSnapshots) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.VolumeSnapshot, err error) {
-	result = &v1.VolumeSnapshot{}
-	err = c.client.Patch(pt).
-		Namespace(c.ns).
-		Resource("volumesnapshots").
-		Name(name).
-		SubResource(subresources...).
-		VersionedParams(&opts, scheme.ParameterCodec).
-		Body(data).
-		Do(ctx).
-		Into(result)
-	return
 }

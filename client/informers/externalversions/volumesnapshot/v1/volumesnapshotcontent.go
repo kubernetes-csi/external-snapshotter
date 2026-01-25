@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ limitations under the License.
 package v1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	apisvolumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	versioned "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/internalinterfaces"
-	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
+	volumesnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // VolumeSnapshotContents.
 type VolumeSnapshotContentInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1.VolumeSnapshotContentLister
+	Lister() volumesnapshotv1.VolumeSnapshotContentLister
 }
 
 type volumeSnapshotContentInformer struct {
@@ -56,21 +56,33 @@ func NewVolumeSnapshotContentInformer(client versioned.Interface, resyncPeriod t
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredVolumeSnapshotContentInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1().VolumeSnapshotContents().List(context.TODO(), options)
+				return client.SnapshotV1().VolumeSnapshotContents().List(context.Background(), options)
 			},
 			WatchFunc: func(options metav1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.SnapshotV1().VolumeSnapshotContents().Watch(context.TODO(), options)
+				return client.SnapshotV1().VolumeSnapshotContents().Watch(context.Background(), options)
 			},
-		},
-		&volumesnapshotv1.VolumeSnapshotContent{},
+			ListWithContextFunc: func(ctx context.Context, options metav1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.SnapshotV1().VolumeSnapshotContents().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options metav1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.SnapshotV1().VolumeSnapshotContents().Watch(ctx, options)
+			},
+		}, client),
+		&apisvolumesnapshotv1.VolumeSnapshotContent{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,9 +93,9 @@ func (f *volumeSnapshotContentInformer) defaultInformer(client versioned.Interfa
 }
 
 func (f *volumeSnapshotContentInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&volumesnapshotv1.VolumeSnapshotContent{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisvolumesnapshotv1.VolumeSnapshotContent{}, f.defaultInformer)
 }
 
-func (f *volumeSnapshotContentInformer) Lister() v1.VolumeSnapshotContentLister {
-	return v1.NewVolumeSnapshotContentLister(f.Informer().GetIndexer())
+func (f *volumeSnapshotContentInformer) Lister() volumesnapshotv1.VolumeSnapshotContentLister {
+	return volumesnapshotv1.NewVolumeSnapshotContentLister(f.Informer().GetIndexer())
 }
