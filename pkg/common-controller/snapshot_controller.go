@@ -992,18 +992,33 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	if pvc.ObjectMeta.DeletionTimestamp != nil {
 		klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: claim is being deleted", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name)
 		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
-	} else {
-		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
-		pvcClone := pvc.DeepCopy()
-		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
-		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
-		if err != nil {
-			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
-			return newControllerUpdateError(pvcClone.Name, err.Error())
-		}
-		klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
 	}
 
+	// Retry on conflict when adding PVC finalizer
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		newPvc, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if slices.Contains(newPvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
+			klog.V(5).Infof("Protection finalizer already exists for persistent volume claim %s/%s", newPvc.Namespace, newPvc.Name)
+			return nil
+		}
+
+		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
+		pvcClone := newPvc.DeepCopy()
+		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
+		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
+		return err
+	})
+
+	if err != nil {
+		klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
+		return newControllerUpdateError(pvc.Name, err.Error())
+	}
+
+	klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
 	return nil
 }
 
@@ -1560,46 +1575,70 @@ func (e controllerUpdateError) Error() string {
 // addSnapshotFinalizer adds a Finalizer for VolumeSnapshot.
 func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.VolumeSnapshot, addSourceFinalizer bool, addBoundFinalizer bool) error {
 	var updatedSnapshot *crdv1.VolumeSnapshot
-	var err error
 
-	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
-	// Unable to find a patch that correctly updated the finalizers if none currently exist.
-	if len(snapshot.ObjectMeta.Finalizers) == 0 {
-		snapshotClone := snapshot.DeepCopy()
-		if addSourceFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
-		}
-		if addBoundFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
-		}
-		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		currentSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
 		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
-		}
-	} else {
-		// Otherwise, perform a patch
-		var patches []utils.PatchOp
-
-		// If finalizers exist already, add new ones to the end of the array
-		if addSourceFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeSnapshotAsSourceFinalizer,
-			})
-		}
-		if addBoundFinalizer {
-			patches = append(patches, utils.PatchOp{
-				Op:    "add",
-				Path:  "/metadata/finalizers/-",
-				Value: utils.VolumeSnapshotBoundFinalizer,
-			})
+			return err
 		}
 
-		updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
-		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+		hasSourceFinalizer := slices.Contains(currentSnapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+		hasBoundFinalizer := slices.Contains(currentSnapshot.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+
+		if (!addSourceFinalizer || hasSourceFinalizer) && (!addBoundFinalizer || hasBoundFinalizer) {
+			updatedSnapshot = currentSnapshot
+			klog.V(5).Infof("Protection finalizers already exist on volume snapshot %s", utils.SnapshotKey(currentSnapshot))
+			return nil
 		}
+
+		// NOTE(ggriffiths): Must perform an update if no finalizers exist.
+		// Unable to find a patch that correctly updated the finalizers if none currently exist.
+		if len(currentSnapshot.ObjectMeta.Finalizers) == 0 {
+			snapshotClone := currentSnapshot.DeepCopy()
+			if addSourceFinalizer && !hasSourceFinalizer {
+				snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+			}
+			if addBoundFinalizer && !hasBoundFinalizer {
+				snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+			}
+			updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+			if err != nil {
+				return err
+			}
+		} else {
+			// Otherwise, perform a patch
+			var patches []utils.PatchOp
+
+			// If finalizers exist already, add new ones to the end of the array
+			if addSourceFinalizer && !hasSourceFinalizer {
+				patches = append(patches, utils.PatchOp{
+					Op:    "add",
+					Path:  "/metadata/finalizers/-",
+					Value: utils.VolumeSnapshotAsSourceFinalizer,
+				})
+			}
+			if addBoundFinalizer && !hasBoundFinalizer {
+				patches = append(patches, utils.PatchOp{
+					Op:    "add",
+					Path:  "/metadata/finalizers/-",
+					Value: utils.VolumeSnapshotBoundFinalizer,
+				})
+			}
+
+			if len(patches) > 0 {
+				updatedSnapshot, err = utils.PatchVolumeSnapshot(currentSnapshot, patches, ctrl.clientset)
+				if err != nil {
+					return err
+				}
+			} else {
+				updatedSnapshot = currentSnapshot
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
 	_, err = ctrl.storeSnapshotUpdate(updatedSnapshot)
