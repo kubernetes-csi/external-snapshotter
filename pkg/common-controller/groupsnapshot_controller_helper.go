@@ -461,10 +461,23 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Co
 			return fmt.Errorf("VolumeGroupSnapshotHandle should not be set in the group snapshot content for dynamic provisioning for group snapshot %s", uniqueGroupSnapshotName)
 		}
 
-		newGroupSnapshotContentObj, err := ctrl.createSnapshotsForGroupSnapshotContent(ctx, contentObj, groupSnapshot)
+		// Re-fetch the VolumeGroupSnapshotContent from the API server to get the latest status.
+		// The cached version might be stale if the sidecar controller recently updated the status.
+		// This prevents race conditions where we process incomplete status data (e.g., VolumeSnapshotInfoList
+		// with entries but empty volumeHandle/snapshotHandle fields).
+		latestContentObj, err := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(ctx, contentObj.Name, metav1.GetOptions{})
+		if err != nil {
+			klog.V(4).Infof("syncUnreadyGroupSnapshot[%s]: failed to fetch latest group snapshot content %s from API: %v",
+				uniqueGroupSnapshotName, contentObj.Name, err)
+			return err
+		}
+		klog.V(5).Infof("syncUnreadyGroupSnapshot[%s]: re-fetched latest group snapshot content from API: %+v",
+			uniqueGroupSnapshotName, latestContentObj)
+
+		newGroupSnapshotContentObj, err := ctrl.createSnapshotsForGroupSnapshotContent(ctx, latestContentObj, groupSnapshot)
 		if err != nil {
 			klog.V(4).Infof("createSnapshotsForGroupSnapshotContent[%s]: failed to create snapshots and snapshotcontents for group snapshot %v: %v",
-				contentObj.Name, groupSnapshot.Name, err.Error())
+				latestContentObj.Name, groupSnapshot.Name, err.Error())
 			return err
 		}
 
@@ -531,16 +544,52 @@ func (ctrl *csiSnapshotCommonController) createSnapshotsForGroupSnapshotContent(
 func (ctrl *csiSnapshotCommonController) isGroupSnapshotContentReadyForSnapshotCreation(
 	groupSnapshotContent *crdv1beta2.VolumeGroupSnapshotContent,
 ) bool {
+	// Log the entire status structure for debugging
+	klog.V(5).Infof(
+		"isGroupSnapshotContentReadyForSnapshotCreation[%s]: checking readiness, status=%+v",
+		groupSnapshotContent.Name, groupSnapshotContent.Status)
+
 	// No status is present, or no volume snapshot was provisioned.
 	if groupSnapshotContent.Status == nil || len(groupSnapshotContent.Status.VolumeSnapshotInfoList) == 0 {
+		klog.V(4).Infof(
+			"isGroupSnapshotContentReadyForSnapshotCreation[%s]: status is nil or VolumeSnapshotInfoList is empty",
+			groupSnapshotContent.Name)
 		return false
 	}
 
 	// No volume group snapshot handle is present.
 	if groupSnapshotContent.Status.VolumeGroupSnapshotHandle == nil {
+		klog.V(4).Infof(
+			"isGroupSnapshotContentReadyForSnapshotCreation[%s]: VolumeGroupSnapshotHandle is nil",
+			groupSnapshotContent.Name)
 		return false
 	}
 
+	// Check that all individual snapshot handles and volume handles are populated.
+	// This prevents race conditions where the CSI driver hasn't yet populated
+	// all the required fields for all volumes in the group.
+	for i, snapshotInfo := range groupSnapshotContent.Status.VolumeSnapshotInfoList {
+		klog.V(5).Infof(
+			"isGroupSnapshotContentReadyForSnapshotCreation[%s]: checking VolumeSnapshotInfo[%d]: volumeHandle=%q, snapshotHandle=%q",
+			groupSnapshotContent.Name, i, snapshotInfo.VolumeHandle, snapshotInfo.SnapshotHandle)
+
+		if snapshotInfo.VolumeHandle == "" {
+			klog.V(4).Infof(
+				"isGroupSnapshotContentReadyForSnapshotCreation[%s]: volume handle not yet populated at index %d, will retry. Full info: %+v",
+				groupSnapshotContent.Name, i, snapshotInfo)
+			return false
+		}
+		if snapshotInfo.SnapshotHandle == "" {
+			klog.V(4).Infof(
+				"isGroupSnapshotContentReadyForSnapshotCreation[%s]: snapshot handle not yet populated for volume %s at index %d, will retry. Full info: %+v",
+				groupSnapshotContent.Name, snapshotInfo.VolumeHandle, i, snapshotInfo)
+			return false
+		}
+	}
+
+	klog.V(4).Infof(
+		"isGroupSnapshotContentReadyForSnapshotCreation[%s]: ready for snapshot creation with %d snapshots",
+		groupSnapshotContent.Name, len(groupSnapshotContent.Status.VolumeSnapshotInfoList))
 	return true
 }
 
