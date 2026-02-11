@@ -8,7 +8,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.7.0
-	github.com/kubernetes-csi/csi-lib-utils v0.23.1
+	github.com/kubernetes-csi/csi-lib-utils v0.23.2
 	github.com/kubernetes-csi/csi-test/v5 v5.4.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
@@ -112,7 +112,7 @@ require (
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.34.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.3.1 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.3.2 // indirect
 )
 
 replace github.com/kubernetes-csi/external-snapshotter/client/v8 => ./client

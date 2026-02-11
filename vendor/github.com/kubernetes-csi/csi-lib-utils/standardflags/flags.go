@@ -44,7 +44,7 @@ type SidecarConfiguration struct {
 	MetricsPath    string
 }
 
-var Configuration = SidecarConfiguration{}
+var Configuration = SidecarConfiguration{LeaderElectionLabels: make(stringMap)}
 
 func RegisterCommonFlags(flags *flag.FlagSet) {
 	flags.BoolVar(&Configuration.ShowVersion, "version", false, "Show version.")
