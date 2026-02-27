@@ -253,6 +253,15 @@ func withGroupSnapshotFinalizers(groupSnapshots []*crdv1beta2.VolumeGroupSnapsho
 	return groupSnapshots
 }
 
+func withGroupSnapshotContentFinalizers(groupSnapshotContents []*crdv1beta2.VolumeGroupSnapshotContent, finalizers ...string) []*crdv1beta2.VolumeGroupSnapshotContent {
+	for i := range groupSnapshotContents {
+		for _, f := range finalizers {
+			groupSnapshotContents[i].ObjectMeta.Finalizers = append(groupSnapshotContents[i].ObjectMeta.Finalizers, f)
+		}
+	}
+	return groupSnapshotContents
+}
+
 func withPVCFinalizer(pvc *v1.PersistentVolumeClaim) *v1.PersistentVolumeClaim {
 	pvc.ObjectMeta.Finalizers = append(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer)
 	return pvc
@@ -1733,6 +1742,10 @@ func testSyncSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReacto
 
 func testSyncGroupSnapshot(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
 	return ctrl.syncGroupSnapshot(context.TODO(), test.initialGroupSnapshots[0])
+}
+
+func testSyncGroupSnapshotContent(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+	return ctrl.syncGroupSnapshotContent(test.initialGroupContents[0])
 }
 
 func testSyncSnapshotError(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
