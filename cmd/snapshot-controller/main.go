@@ -116,20 +116,20 @@ func ensureCustomResourceDefinitionsExist(client *clientset.Clientset, enableVol
 			return false, nil
 		}
 		if enableVolumeGroupSnapshots {
-			_, err = client.GroupsnapshotV1beta2().VolumeGroupSnapshots("").List(ctx, listOptions)
+			_, err = client.GroupsnapshotV1().VolumeGroupSnapshots("").List(ctx, listOptions)
 			if err != nil {
-				klog.Errorf("Failed to list v1beta2 volumegroupsnapshots with error=%+v", err)
+				klog.Errorf("Failed to list v1 volumegroupsnapshots with error=%+v", err)
 				return false, nil
 			}
 
-			_, err = client.GroupsnapshotV1beta2().VolumeGroupSnapshotClasses().List(ctx, listOptions)
+			_, err = client.GroupsnapshotV1().VolumeGroupSnapshotClasses().List(ctx, listOptions)
 			if err != nil {
-				klog.Errorf("Failed to list v1beta2 volumegroupsnapshotclasses with error=%+v", err)
+				klog.Errorf("Failed to list v1 volumegroupsnapshotclasses with error=%+v", err)
 				return false, nil
 			}
-			_, err = client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().List(ctx, listOptions)
+			_, err = client.GroupsnapshotV1().VolumeGroupSnapshotContents().List(ctx, listOptions)
 			if err != nil {
-				klog.Errorf("Failed to list v1beta2 volumegroupsnapshotcontents with error=%+v", err)
+				klog.Errorf("Failed to list v1 volumegroupsnapshotcontents with error=%+v", err)
 				return false, nil
 			}
 		}
@@ -238,9 +238,9 @@ func main() {
 		factory.Snapshot().V1().VolumeSnapshots(),
 		factory.Snapshot().V1().VolumeSnapshotContents(),
 		factory.Snapshot().V1().VolumeSnapshotClasses(),
-		factory.Groupsnapshot().V1beta2().VolumeGroupSnapshots(),
-		factory.Groupsnapshot().V1beta2().VolumeGroupSnapshotContents(),
-		factory.Groupsnapshot().V1beta2().VolumeGroupSnapshotClasses(),
+		factory.Groupsnapshot().V1().VolumeGroupSnapshots(),
+		factory.Groupsnapshot().V1().VolumeGroupSnapshotContents(),
+		factory.Groupsnapshot().V1().VolumeGroupSnapshotClasses(),
 		coreFactory.Core().V1().PersistentVolumeClaims(),
 		coreFactory.Core().V1().PersistentVolumes(),
 		nodeInformer,
