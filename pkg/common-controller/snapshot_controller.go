@@ -299,7 +299,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 			msg := fmt.Sprintf("deletion of the individual volume snapshot %s is not allowed as it belongs to group snapshot %s. Deleting the group snapshot will trigger the deletion of all the individual volume snapshots that are part of the group.", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
 			klog.Error(msg)
 			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeletePending", msg)
-			return fmt.Errorf(msg)
+			return fmt.Errorf("%s", msg)
 		}
 		if !apierrs.IsNotFound(err) {
 			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
@@ -645,7 +645,7 @@ func (ctrl *csiSnapshotCommonController) getPreprovisionedContentFromStore(snaps
 		klog.V(4).Infof("sync snapshot[%s]: VolumeSnapshotContent %s is bound to another snapshot %v", utils.SnapshotKey(snapshot), contentName, ref)
 		msg := fmt.Sprintf("VolumeSnapshotContent [%s] is bound to a different snapshot", contentName)
 		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMisbound", msg)
-		return nil, fmt.Errorf(msg)
+		return nil, fmt.Errorf("%s", msg)
 	}
 	return content, nil
 }
@@ -691,7 +691,7 @@ func (ctrl *csiSnapshotCommonController) getDynamicallyProvisionedContentFromSto
 		klog.V(4).Infof("sync snapshot[%s]: VolumeSnapshotContent %s is bound to another snapshot %v", utils.SnapshotKey(snapshot), contentName, ref)
 		msg := fmt.Sprintf("VolumeSnapshotContent [%s] is bound to a different snapshot", contentName)
 		ctrl.updateSnapshotErrorStatusWithEvent(snapshot, true, v1.EventTypeWarning, "SnapshotContentMisbound", msg)
-		return nil, fmt.Errorf(msg)
+		return nil, fmt.Errorf("%s", msg)
 	}
 	return content, nil
 }
