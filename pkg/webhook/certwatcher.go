@@ -19,6 +19,7 @@ package webhook
 import (
 	"context"
 	"crypto/tls"
+	"path/filepath"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -34,7 +35,9 @@ import (
 // changes, it reads and parses both and calls an optional callback with the new
 // certificate.
 type CertWatcher struct {
-	sync.Mutex
+	// We will have too many reads and fewer writes
+	// RWMutex will help avoid the serialization bottleneck
+	sync.RWMutex
 
 	currentCert *tls.Certificate
 	watcher     *fsnotify.Watcher
@@ -53,7 +56,7 @@ func NewCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
 	}
 
 	// Initial read of certificate and key.
-	if err := cw.ReadCertificate(); err != nil {
+	if err := cw.readCertificate(); err != nil {
 		return nil, err
 	}
 
@@ -65,16 +68,24 @@ func NewCertWatcher(certPath, keyPath string) (*CertWatcher, error) {
 	return cw, nil
 }
 
-// GetCertificate fetches the currently loaded certificate, which may be nil.
+// GetCertificate fetches the currently loaded certificate from the memory, it might be nil
+// if called before readCertificate.
 func (cw *CertWatcher) GetCertificate(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
-	cw.Lock()
-	defer cw.Unlock()
+	cw.RLock()
+	defer cw.RUnlock()
 	return cw.currentCert, nil
 }
 
 // Start starts the watch on the certificate and key files.
 func (cw *CertWatcher) Start(ctx context.Context) error {
-	files := []string{cw.certPath, cw.keyPath}
+	// Many editors write to a temp dir and then rename the file
+	// watch the directory instead to remediate
+	files := []string{filepath.Dir(cw.certPath)}
+
+	// Might be possible that the cert key is in a different dir
+	if keyDir := filepath.Dir(cw.keyPath); keyDir != files[0] {
+		files = append(files, keyDir)
+	}
 
 	for _, f := range files {
 		if err := cw.watcher.Add(f); err != nil {
@@ -113,10 +124,10 @@ func (cw *CertWatcher) Watch() {
 	}
 }
 
-// ReadCertificate reads the certificate and key files from disk, parses them,
+// readCertificate reads the certificate and key files from disk, parses them,
 // and updates the current certificate on the watcher.  If a callback is set, it
 // is invoked with the new certificate.
-func (cw *CertWatcher) ReadCertificate() error {
+func (cw *CertWatcher) readCertificate() error {
 	cert, err := tls.LoadX509KeyPair(cw.certPath, cw.keyPath)
 	if err != nil {
 		return err
@@ -132,33 +143,22 @@ func (cw *CertWatcher) ReadCertificate() error {
 }
 
 func (cw *CertWatcher) handleEvent(event fsnotify.Event) {
-	// Only care about events which may modify the contents of the file.
-	if !(isWrite(event) || isRemove(event) || isCreate(event)) {
+	// Return if the event is for neither cert nor key
+	if event.Name != cw.certPath && event.Name != cw.keyPath {
+		return
+	}
+
+	// If event is not write, create or rename, return
+	if !(event.Op&fsnotify.Write == fsnotify.Write ||
+		event.Op&fsnotify.Create == fsnotify.Create ||
+		event.Op&fsnotify.Rename == fsnotify.Rename) { // Important for atomic write eg. vi/similar
 		return
 	}
 
 	klog.V(1).Info("certificate event", "event", event)
 
-	// If the file was removed, re-add the watch.
-	if isRemove(event) {
-		if err := cw.watcher.Add(event.Name); err != nil {
-			klog.Error(err, "error re-watching file")
-		}
-	}
-
-	if err := cw.ReadCertificate(); err != nil {
+	// Re-read and update our copy of the certificate
+	if err := cw.readCertificate(); err != nil {
 		klog.Error(err, "error re-reading certificate")
 	}
-}
-
-func isWrite(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Write == fsnotify.Write
-}
-
-func isCreate(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Create == fsnotify.Create
-}
-
-func isRemove(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Remove == fsnotify.Remove
 }
