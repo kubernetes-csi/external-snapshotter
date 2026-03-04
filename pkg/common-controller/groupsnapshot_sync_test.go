@@ -21,7 +21,7 @@ import (
 	"strings"
 	"testing"
 
-	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
@@ -210,7 +210,7 @@ func TestGroupSnapshotContentSync(t *testing.T) {
 // TestSetDefaultGroupSnapshotClass tests the SetDefaultGroupSnapshotClass function
 func TestSetDefaultGroupSnapshotClass(t *testing.T) {
 	// Use only one default class
-	singleDefaultClass := []*crdv1beta2.VolumeGroupSnapshotClass{
+	singleDefaultClass := []*groupsnapshotv1.VolumeGroupSnapshotClass{
 		{
 			TypeMeta: metav1.TypeMeta{
 				Kind: "VolumeGroupSnapshotClass",
@@ -283,7 +283,7 @@ func TestSetDefaultGroupSnapshotClass(t *testing.T) {
 // TestSetDefaultGroupSnapshotClassMultipleDefaults tests error handling when multiple default classes exist
 func TestSetDefaultGroupSnapshotClassMultipleDefaults(t *testing.T) {
 	// Create multiple default classes with the same driver - this should cause an error
-	multipleDefaultClasses := []*crdv1beta2.VolumeGroupSnapshotClass{
+	multipleDefaultClasses := []*groupsnapshotv1.VolumeGroupSnapshotClass{
 		{
 			TypeMeta: metav1.TypeMeta{
 				Kind: "VolumeGroupSnapshotClass",
@@ -429,17 +429,17 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 				),
 				utils.VolumeGroupSnapshotBoundFinalizer,
 			),
-			initialGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			initialGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-1", "group-snapuid8-1", "group-snap-8-1",
 					"", classGold, []string{"pv-handle8-1", "pv-handle8-2"}, "", deletionPolicy, nil, false, false,
 				)
 				// Add status with VolumeSnapshotInfoList and VolumeGroupSnapshotHandle
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-8-1"),
-					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+					VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 						{
 							VolumeHandle:   "pv-handle8-1",
 							SnapshotHandle: "snapshot-handle-8-1",
@@ -454,18 +454,18 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 						},
 					},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
-			expectedGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			expectedGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-1", "group-snapuid8-1", "group-snap-8-1",
 					"", classGold, []string{"pv-handle8-1", "pv-handle8-2"}, "", deletionPolicy, nil, false, false,
 				)
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-8-1"),
-					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+					VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 						{
 							VolumeHandle:   "pv-handle8-1",
 							SnapshotHandle: "snapshot-handle-8-1",
@@ -480,7 +480,7 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 						},
 					},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim8-1", "pvc-uid8-1", "1Gi", "volume8-1", v1.ClaimBound, &classGold),
@@ -514,14 +514,14 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 				),
 				utils.VolumeGroupSnapshotBoundFinalizer,
 			),
-			initialGroupContents: []*crdv1beta2.VolumeGroupSnapshotContent{
+			initialGroupContents: []*groupsnapshotv1.VolumeGroupSnapshotContent{
 				newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-2", "group-snapuid8-2", "group-snap-8-2",
 					"", classGold, []string{"pv-handle8-2"}, "", deletionPolicy, nil, false, false,
 				),
 				// Status is nil
 			},
-			expectedGroupContents: []*crdv1beta2.VolumeGroupSnapshotContent{
+			expectedGroupContents: []*groupsnapshotv1.VolumeGroupSnapshotContent{
 				newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-2", "group-snapuid8-2", "group-snap-8-2",
 					"", classGold, []string{"pv-handle8-2"}, "", deletionPolicy, nil, false, false,
@@ -559,32 +559,32 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 				),
 				utils.VolumeGroupSnapshotBoundFinalizer,
 			),
-			initialGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			initialGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-3", "group-snapuid8-3", "group-snap-8-3",
 					"", classGold, []string{"pv-handle8-3"}, "", deletionPolicy, nil, false, false,
 				)
 				// Add status but with empty VolumeSnapshotInfoList
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-8-3"),
-					VolumeSnapshotInfoList:    []crdv1beta2.VolumeSnapshotInfo{}, // Empty list
+					VolumeSnapshotInfoList:    []groupsnapshotv1.VolumeSnapshotInfo{}, // Empty list
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
-			expectedGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			expectedGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-3", "group-snapuid8-3", "group-snap-8-3",
 					"", classGold, []string{"pv-handle8-3"}, "", deletionPolicy, nil, false, false,
 				)
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-8-3"),
-					VolumeSnapshotInfoList:    []crdv1beta2.VolumeSnapshotInfo{},
+					VolumeSnapshotInfoList:    []groupsnapshotv1.VolumeSnapshotInfo{},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim8-3", "pvc-uid8-3", "1Gi", "volume8-3", v1.ClaimBound, &classGold),
@@ -618,17 +618,17 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 				),
 				utils.VolumeGroupSnapshotBoundFinalizer,
 			),
-			initialGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			initialGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-4", "group-snapuid8-4", "group-snap-8-4",
 					"", classGold, []string{"pv-handle8-4"}, "", deletionPolicy, nil, false, false,
 				)
 				// Add status with VolumeSnapshotInfoList but no VolumeGroupSnapshotHandle
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: nil, // Missing handle
-					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+					VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 						{
 							VolumeHandle:   "pv-handle8-4",
 							SnapshotHandle: "snapshot-handle-8-4",
@@ -637,18 +637,18 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 						},
 					},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
-			expectedGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			expectedGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid8-4", "group-snapuid8-4", "group-snap-8-4",
 					"", classGold, []string{"pv-handle8-4"}, "", deletionPolicy, nil, false, false,
 				)
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: nil,
-					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+					VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 						{
 							VolumeHandle:   "pv-handle8-4",
 							SnapshotHandle: "snapshot-handle-8-4",
@@ -657,7 +657,7 @@ func TestIndividualSnapshotCreation(t *testing.T) {
 						},
 					},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim8-4", "pvc-uid8-4", "1Gi", "volume8-4", v1.ClaimBound, &classGold),
