@@ -86,7 +86,7 @@ configvar CSI_PROW_BUILD_PLATFORMS "linux amd64 amd64; linux ppc64le ppc64le -pp
 # which is disabled with GOFLAGS=-mod=vendor).
 configvar GOFLAGS_VENDOR "$( [ -d vendor ] && echo '-mod=vendor' )" "Go flags for using the vendor directory"
 
-configvar CSI_PROW_GO_VERSION_BUILD "1.24.0" "Go version for building the component" # depends on component's source code
+configvar CSI_PROW_GO_VERSION_BUILD "1.25.8" "Go version for building the component" # depends on component's source code
 configvar CSI_PROW_GO_VERSION_E2E "" "override Go version for building the Kubernetes E2E test suite" # normally doesn't need to be set, see install_e2e
 configvar CSI_PROW_GO_VERSION_SANITY "${CSI_PROW_GO_VERSION_BUILD}" "Go version for building the csi-sanity test suite" # depends on CSI_PROW_SANITY settings below
 configvar CSI_PROW_GO_VERSION_KIND "${CSI_PROW_GO_VERSION_BUILD}" "Go version for building 'kind'" # depends on CSI_PROW_KIND_VERSION below
@@ -124,7 +124,7 @@ configvar CSI_PROW_BUILD_JOB true "building code in repo enabled"
 # use the same settings as for "latest" Kubernetes. This works
 # as long as there are no breaking changes in Kubernetes, like
 # deprecating or changing the implementation of an alpha feature.
-configvar CSI_PROW_KUBERNETES_VERSION 1.22.0 "Kubernetes"
+configvar CSI_PROW_KUBERNETES_VERSION 1.34.0 "Kubernetes"
 
 # CSI_PROW_KUBERNETES_VERSION reduced to first two version numbers and
 # with underscore (1_13 instead of 1.13.3) and in uppercase (LATEST
@@ -144,7 +144,7 @@ kind_version_default () {
         latest|master)
             echo main;;
         *)
-            echo v0.14.0;;
+            echo v0.30.0;;
     esac
 }
 
@@ -155,13 +155,10 @@ configvar CSI_PROW_KIND_VERSION "$(kind_version_default)" "kind"
 
 # kind images to use. Must match the kind version.
 # The release notes of each kind release list the supported images.
-configvar CSI_PROW_KIND_IMAGES "kindest/node:v1.24.0@sha256:0866296e693efe1fed79d5e6c7af8df71fc73ae45e3679af05342239cdc5bc8e
-kindest/node:v1.23.6@sha256:b1fa224cc6c7ff32455e0b1fd9cbfd3d3bc87ecaa8fcb06961ed1afb3db0f9ae
-kindest/node:v1.22.9@sha256:8135260b959dfe320206eb36b3aeda9cffcb262f4b44cda6b33f7bb73f453105
-kindest/node:v1.21.12@sha256:f316b33dd88f8196379f38feb80545ef3ed44d9197dca1bfd48bcb1583210207
-kindest/node:v1.20.15@sha256:6f2d011dffe182bad80b85f6c00e8ca9d86b5b8922cdf433d53575c4c5212248
-kindest/node:v1.19.16@sha256:d9c819e8668de8d5030708e484a9fdff44d95ec4675d136ef0a0a584e587f65c
-kindest/node:v1.18.20@sha256:738cdc23ed4be6cc0b7ea277a2ebcc454c8373d7d8fb991a7fcdbd126188e6d7" "kind images"
+configvar CSI_PROW_KIND_IMAGES "kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
+kindest/node:v1.33.4@sha256:25a6018e48dfcaee478f4a59af81157a437f15e6e140bf103f85a2e7cd0cbbf2
+kindest/node:v1.32.8@sha256:abd489f042d2b644e2d033f5c2d900bc707798d075e8186cb65e3f1367a9d5a1
+kindest/node:v1.31.12@sha256:0f5cc49c5e73c0c2bb6e2df56e7df189240d83cf94edfa30946482eb08ec57d2" "kind images"
 
 # By default, this script tests sidecars with the CSI hostpath driver,
 # using the install_csi_driver function. That function depends on
@@ -199,7 +196,7 @@ kindest/node:v1.18.20@sha256:738cdc23ed4be6cc0b7ea277a2ebcc454c8373d7d8fb991a7fc
 # If the deployment script is called with CSI_PROW_TEST_DRIVER=<file name> as
 # environment variable, then it must write a suitable test driver configuration
 # into that file in addition to installing the driver.
-configvar CSI_PROW_DRIVER_VERSION "v1.15.0" "CSI driver version"
+configvar CSI_PROW_DRIVER_VERSION "v1.17.0" "CSI driver version"
 configvar CSI_PROW_DRIVER_REPO https://github.com/kubernetes-csi/csi-driver-host-path "CSI driver repo"
 configvar CSI_PROW_DEPLOYMENT "" "deployment"
 configvar CSI_PROW_DEPLOYMENT_SUFFIX "" "additional suffix in kubernetes-x.yy[suffix].yaml files"
