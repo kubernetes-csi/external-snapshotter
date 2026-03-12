@@ -684,6 +684,15 @@ func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.Vol
 	if old.ResourceVersion == new.ResourceVersion {
 		return true
 	}
+	// Always enqueue VSC that just changed to "readyToUse".
+	// This will process any deletionTimestamp on the VSC that was added while the snapshot was being created.
+	// See https://github.com/kubernetes-csi/external-snapshotter/issues/1388
+	oldReadyToUse := old.Status != nil && old.Status.ReadyToUse != nil && *old.Status.ReadyToUse
+	newReadyToUse := new.Status != nil && new.Status.ReadyToUse != nil && *new.Status.ReadyToUse
+	if !oldReadyToUse && newReadyToUse {
+		return true
+	}
+
 	sanitized := new.DeepCopy()
 	// ResourceVersion always changes between revisions
 	sanitized.ResourceVersion = old.ResourceVersion
