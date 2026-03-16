@@ -1,5 +1,5 @@
 /*
-Copyright 2024 The Kubernetes Authors.
+Copyright 2026 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,13 +19,13 @@ limitations under the License.
 package v1beta1
 
 import (
-	"context"
+	context "context"
 	time "time"
 
-	volumegroupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
+	apisvolumegroupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta1"
 	versioned "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	internalinterfaces "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/internalinterfaces"
-	v1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1"
+	volumegroupsnapshotv1beta1 "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	watch "k8s.io/apimachinery/pkg/watch"
@@ -36,7 +36,7 @@ import (
 // VolumeGroupSnapshotClasses.
 type VolumeGroupSnapshotClassInformer interface {
 	Informer() cache.SharedIndexInformer
-	Lister() v1beta1.VolumeGroupSnapshotClassLister
+	Lister() volumegroupsnapshotv1beta1.VolumeGroupSnapshotClassLister
 }
 
 type volumeGroupSnapshotClassInformer struct {
@@ -56,21 +56,33 @@ func NewVolumeGroupSnapshotClassInformer(client versioned.Interface, resyncPerio
 // one. This reduces memory footprint and number of connections to the server.
 func NewFilteredVolumeGroupSnapshotClassInformer(client versioned.Interface, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
-		&cache.ListWatch{
+		cache.ToListWatcherWithWatchListSemantics(&cache.ListWatch{
 			ListFunc: func(options v1.ListOptions) (runtime.Object, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().List(context.TODO(), options)
+				return client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().List(context.Background(), options)
 			},
 			WatchFunc: func(options v1.ListOptions) (watch.Interface, error) {
 				if tweakListOptions != nil {
 					tweakListOptions(&options)
 				}
-				return client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().Watch(context.TODO(), options)
+				return client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().Watch(context.Background(), options)
 			},
-		},
-		&volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{},
+			ListWithContextFunc: func(ctx context.Context, options v1.ListOptions) (runtime.Object, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().List(ctx, options)
+			},
+			WatchFuncWithContext: func(ctx context.Context, options v1.ListOptions) (watch.Interface, error) {
+				if tweakListOptions != nil {
+					tweakListOptions(&options)
+				}
+				return client.GroupsnapshotV1beta1().VolumeGroupSnapshotClasses().Watch(ctx, options)
+			},
+		}, client),
+		&apisvolumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{},
 		resyncPeriod,
 		indexers,
 	)
@@ -81,9 +93,9 @@ func (f *volumeGroupSnapshotClassInformer) defaultInformer(client versioned.Inte
 }
 
 func (f *volumeGroupSnapshotClassInformer) Informer() cache.SharedIndexInformer {
-	return f.factory.InformerFor(&volumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{}, f.defaultInformer)
+	return f.factory.InformerFor(&apisvolumegroupsnapshotv1beta1.VolumeGroupSnapshotClass{}, f.defaultInformer)
 }
 
-func (f *volumeGroupSnapshotClassInformer) Lister() v1beta1.VolumeGroupSnapshotClassLister {
-	return v1beta1.NewVolumeGroupSnapshotClassLister(f.Informer().GetIndexer())
+func (f *volumeGroupSnapshotClassInformer) Lister() volumegroupsnapshotv1beta1.VolumeGroupSnapshotClassLister {
+	return volumegroupsnapshotv1beta1.NewVolumeGroupSnapshotClassLister(f.Informer().GetIndexer())
 }
