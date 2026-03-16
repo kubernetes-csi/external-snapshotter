@@ -99,7 +99,7 @@ spec:
         - driver
         type: object
     served: true
-    storage: true
+    storage: false
     subresources: {}
   - additionalPrinterColumns:
     - jsonPath: .driver
@@ -257,5 +257,5 @@ spec:
         - driver
         type: object
     served: true
-    storage: false
+    storage: true
     subresources: {}
