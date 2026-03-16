@@ -1611,8 +1611,8 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 			msg := fmt.Sprintf("Snapshot %s belonging to VolumeGroupSnapshot %s is being used to restore a PVC", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
 			klog.V(4).Info(msg)
 			ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "SnapshotDeletePending", msg)
-			// TODO(@xiangqian): should requeue this?
-			return nil
+			// Return error so the workqueue will requeue and retry deletion when the PVC is no longer in use.
+			return fmt.Errorf("%s, will retry deletion", msg)
 		}
 
 	}
