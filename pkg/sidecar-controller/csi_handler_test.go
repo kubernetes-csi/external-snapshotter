@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/group_snapshotter"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -71,11 +71,11 @@ func TestCreateGroupSnapshot(t *testing.T) {
 	handler := newCSIHandlerWithFakeGroupSnapshotter(&fakeGroupSnapshotter{})
 
 	t.Run("empty VolumeGroupSnapshotRef.UID", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-1"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 				VolumeGroupSnapshotRef: corev1.ObjectReference{UID: ""},
-				Source:                 crdv1beta2.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1"}},
+				Source:                 groupsnapshotv1.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1"}},
 			},
 		}
 		_, _, _, _, _, err := handler.CreateGroupSnapshot(content, nil, nil)
@@ -88,11 +88,11 @@ func TestCreateGroupSnapshot(t *testing.T) {
 	})
 
 	t.Run("empty VolumeHandles", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-2"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 				VolumeGroupSnapshotRef: corev1.ObjectReference{UID: "uid-123"},
-				Source:                 crdv1beta2.VolumeGroupSnapshotContentSource{VolumeHandles: nil},
+				Source:                 groupsnapshotv1.VolumeGroupSnapshotContentSource{VolumeHandles: nil},
 			},
 		}
 		_, _, _, _, _, err := handler.CreateGroupSnapshot(content, nil, nil)
@@ -105,11 +105,11 @@ func TestCreateGroupSnapshot(t *testing.T) {
 	})
 
 	t.Run("makeGroupSnapshotName error with empty UID", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-3"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 				VolumeGroupSnapshotRef: corev1.ObjectReference{UID: ""},
-				Source:                 crdv1beta2.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1"}},
+				Source:                 groupsnapshotv1.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1"}},
 			},
 		}
 		_, _, _, _, _, err := handler.CreateGroupSnapshot(content, nil, nil)
@@ -119,11 +119,11 @@ func TestCreateGroupSnapshot(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-4"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 				VolumeGroupSnapshotRef: corev1.ObjectReference{UID: "12345678-1234"},
-				Source:                 crdv1beta2.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1", "vol-2"}},
+				Source:                 groupsnapshotv1.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1", "vol-2"}},
 			},
 		}
 		driverName, groupID, snapshots, ts, ready, err := handler.CreateGroupSnapshot(content, map[string]string{"key": "val"}, nil)
@@ -144,11 +144,11 @@ func TestCreateGroupSnapshot(t *testing.T) {
 
 	t.Run("makeGroupSnapshotName with UUIDLength -1", func(t *testing.T) {
 		h := NewCSIHandler(nil, &fakeGroupSnapshotter{}, 5*time.Second, "snap", 8, "grp-snap", -1)
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-5"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 				VolumeGroupSnapshotRef: corev1.ObjectReference{UID: "my-uid-with-dashes"},
-				Source:                 crdv1beta2.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1"}},
+				Source:                 groupsnapshotv1.VolumeGroupSnapshotContentSource{VolumeHandles: []string{"vol-1"}},
 			},
 		}
 		_, groupID, _, _, _, err := h.CreateGroupSnapshot(content, nil, nil)
@@ -166,9 +166,9 @@ func TestDeleteGroupSnapshot(t *testing.T) {
 	handler := newCSIHandlerWithFakeGroupSnapshotter(&fakeGroupSnapshotter{})
 
 	t.Run("empty snapshotIDs", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-del-1"},
-			Status:     &crdv1beta2.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-1")},
+			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-1")},
 		}
 		err := handler.DeleteGroupSnapshot(content, nil, nil)
 		if err == nil {
@@ -180,9 +180,9 @@ func TestDeleteGroupSnapshot(t *testing.T) {
 	})
 
 	t.Run("handle from Status", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-del-2"},
-			Status:     &crdv1beta2.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-from-status")},
+			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-from-status")},
 		}
 		err := handler.DeleteGroupSnapshot(content, []string{"snap-1"}, nil)
 		if err != nil {
@@ -191,11 +191,11 @@ func TestDeleteGroupSnapshot(t *testing.T) {
 	})
 
 	t.Run("handle from GroupSnapshotHandles", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-del-3"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
-				Source: crdv1beta2.VolumeGroupSnapshotContentSource{
-					GroupSnapshotHandles: &crdv1beta2.GroupSnapshotHandles{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
+				Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{
+					GroupSnapshotHandles: &groupsnapshotv1.GroupSnapshotHandles{
 						VolumeGroupSnapshotHandle: "handle-from-spec",
 						VolumeSnapshotHandles:     []string{"snap-1"},
 					},
@@ -209,9 +209,9 @@ func TestDeleteGroupSnapshot(t *testing.T) {
 	})
 
 	t.Run("missing handle", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-del-4"},
-			Spec:       crdv1beta2.VolumeGroupSnapshotContentSpec{Source: crdv1beta2.VolumeGroupSnapshotContentSource{}},
+			Spec:       groupsnapshotv1.VolumeGroupSnapshotContentSpec{Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{}},
 		}
 		err := handler.DeleteGroupSnapshot(content, []string{"snap-1"}, nil)
 		if err == nil {
@@ -224,9 +224,9 @@ func TestDeleteGroupSnapshot(t *testing.T) {
 
 	t.Run("groupSnapshotter returns error", func(t *testing.T) {
 		handlerErr := newCSIHandlerWithFakeGroupSnapshotter(&fakeGroupSnapshotter{deleteGroupSnapshotErr: errors.New("driver error")})
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-del-5"},
-			Status:     &crdv1beta2.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
+			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
 		}
 		err := handlerErr.DeleteGroupSnapshot(content, []string{"s1"}, nil)
 		if err == nil {
@@ -243,9 +243,9 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 	handler := newCSIHandlerWithFakeGroupSnapshotter(&fakeGroupSnapshotter{})
 
 	t.Run("empty snapshotIDs", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-1"},
-			Status:     &crdv1beta2.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
+			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
 		}
 		_, _, err := handler.GetGroupSnapshotStatus(content, nil, nil)
 		if err == nil {
@@ -257,9 +257,9 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 	})
 
 	t.Run("handle from Status", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-2"},
-			Status:     &crdv1beta2.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-status")},
+			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-status")},
 		}
 		ready, ts, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
 		if err != nil {
@@ -271,11 +271,11 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 	})
 
 	t.Run("handle from GroupSnapshotHandles", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-3"},
-			Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
-				Source: crdv1beta2.VolumeGroupSnapshotContentSource{
-					GroupSnapshotHandles: &crdv1beta2.GroupSnapshotHandles{
+			Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
+				Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{
+					GroupSnapshotHandles: &groupsnapshotv1.GroupSnapshotHandles{
 						VolumeGroupSnapshotHandle: "handle-spec",
 						VolumeSnapshotHandles:     []string{"snap-1"},
 					},
@@ -292,9 +292,9 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 	})
 
 	t.Run("missing handle", func(t *testing.T) {
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-4"},
-			Spec:       crdv1beta2.VolumeGroupSnapshotContentSpec{Source: crdv1beta2.VolumeGroupSnapshotContentSource{}},
+			Spec:       groupsnapshotv1.VolumeGroupSnapshotContentSpec{Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{}},
 		}
 		_, _, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
 		if err == nil {
@@ -309,9 +309,9 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 		handlerErr := newCSIHandlerWithFakeGroupSnapshotter(&fakeGroupSnapshotter{
 			getGroupSnapshotStatus: func() (bool, time.Time, error) { return false, time.Time{}, errors.New("driver list error") },
 		})
-		content := &crdv1beta2.VolumeGroupSnapshotContent{
+		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-5"},
-			Status:     &crdv1beta2.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
+			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
 		}
 		_, _, err := handlerErr.GetGroupSnapshotStatus(content, []string{"s1"}, nil)
 		if err == nil {

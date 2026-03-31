@@ -21,10 +21,10 @@ import (
 	"slices"
 	"testing"
 
-	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta2"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -50,17 +50,17 @@ func newGroupSnapshotContent(
 	creationTime *metav1.Time,
 	withFinalizer bool,
 	deletionTime *metav1.Time,
-) *crdv1beta2.VolumeGroupSnapshotContent {
+) *groupsnapshotv1.VolumeGroupSnapshotContent {
 	var annotations map[string]string
 
-	content := &crdv1beta2.VolumeGroupSnapshotContent{
+	content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              contentName,
 			ResourceVersion:   "1",
 			DeletionTimestamp: deletionTime,
 			Annotations:       annotations,
 		},
-		Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+		Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 			Driver:         mockDriverName,
 			DeletionPolicy: deletionPolicy,
 			VolumeGroupSnapshotRef: v1.ObjectReference{
@@ -71,7 +71,7 @@ func newGroupSnapshotContent(
 				Name:       boundToGroupSnapshotName,
 			},
 		},
-		Status: &crdv1beta2.VolumeGroupSnapshotContentStatus{
+		Status: &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 			CreationTime: creationTime,
 		},
 	}
@@ -89,7 +89,7 @@ func newGroupSnapshotContent(
 	}
 
 	if len(volumeHandles) > 0 {
-		content.Spec.Source = crdv1beta2.VolumeGroupSnapshotContentSource{
+		content.Spec.Source = groupsnapshotv1.VolumeGroupSnapshotContentSource{
 			VolumeHandles: volumeHandles,
 		}
 	}
@@ -115,7 +115,7 @@ func newGroupSnapshotContentWithHandles(
 	creationTime *metav1.Time,
 	withFinalizer bool,
 	deletionTime *metav1.Time,
-) *crdv1beta2.VolumeGroupSnapshotContent {
+) *groupsnapshotv1.VolumeGroupSnapshotContent {
 	content := newGroupSnapshotContent(
 		contentName,
 		boundToGroupSnapshotUID,
@@ -130,8 +130,8 @@ func newGroupSnapshotContentWithHandles(
 		deletionTime,
 	)
 
-	content.Spec.Source = crdv1beta2.VolumeGroupSnapshotContentSource{
-		GroupSnapshotHandles: &crdv1beta2.GroupSnapshotHandles{
+	content.Spec.Source = groupsnapshotv1.VolumeGroupSnapshotContentSource{
+		GroupSnapshotHandles: &groupsnapshotv1.GroupSnapshotHandles{
 			VolumeGroupSnapshotHandle: groupSnapshotHandle,
 			VolumeSnapshotHandles:     snapshotHandles,
 		},
@@ -222,7 +222,7 @@ func TestShouldDeleteGroupSnapshotContent(t *testing.T) {
 	tests := []struct {
 		name           string
 		expectedReturn bool
-		content        *crdv1beta2.VolumeGroupSnapshotContent
+		content        *groupsnapshotv1.VolumeGroupSnapshotContent
 	}{
 		{
 			name:           "DeletionTimestamp is nil",
@@ -261,7 +261,7 @@ func TestShouldDeleteGroupSnapshotContent(t *testing.T) {
 		{
 			name:           "AnnVolumeGroupSnapshotBeingCreated annotation is set",
 			expectedReturn: false,
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"group-content-being-created",
 					"group-snap-uid-1",
@@ -282,7 +282,7 @@ func TestShouldDeleteGroupSnapshotContent(t *testing.T) {
 		{
 			name:           "AnnVolumeGroupSnapshotBeingDeleted annotation is set",
 			expectedReturn: true,
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"group-content-being-deleted",
 					"group-snap-uid-1",
@@ -303,16 +303,16 @@ func TestShouldDeleteGroupSnapshotContent(t *testing.T) {
 		{
 			name:           "If no other cases match, should not delete",
 			expectedReturn: false,
-			content: &crdv1beta2.VolumeGroupSnapshotContent{
+			content: &groupsnapshotv1.VolumeGroupSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "group-content-default",
 					DeletionTimestamp: &timeNowMetav1,
 				},
-				Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+				Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 					VolumeGroupSnapshotRef: v1.ObjectReference{
 						UID: "some-uid",
 					},
-					Source: crdv1beta2.VolumeGroupSnapshotContentSource{
+					Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{
 						VolumeHandles: []string{"vol-1"},
 					},
 				},
@@ -394,7 +394,7 @@ func TestGetSnapshotContentNameForVolumeGroupSnapshotContent(t *testing.T) {
 func TestRemoveGroupSnapshotContentFinalizer(t *testing.T) {
 	tests := []struct {
 		name        string
-		content     *crdv1beta2.VolumeGroupSnapshotContent
+		content     *groupsnapshotv1.VolumeGroupSnapshotContent
 		expectError bool
 	}{
 		{
@@ -460,7 +460,7 @@ func TestRemoveGroupSnapshotContentFinalizer(t *testing.T) {
 
 			// When we had a finalizer, verify it was removed via the API
 			if ctrl.clientset != nil && slices.Contains(test.content.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer) {
-				updated, getErr := ctrl.clientset.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(context.Background(), test.content.Name, metav1.GetOptions{})
+				updated, getErr := ctrl.clientset.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), test.content.Name, metav1.GetOptions{})
 				if getErr != nil {
 					t.Errorf("Failed to get content after patch: %v", getErr)
 				} else if slices.Contains(updated.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotContentFinalizer) {
@@ -476,7 +476,7 @@ func TestRemoveGroupSnapshotContentFinalizer(t *testing.T) {
 func TestGetCredentialsFromAnnotationForGroupSnapshot(t *testing.T) {
 	tests := []struct {
 		name           string
-		content        *crdv1beta2.VolumeGroupSnapshotContent
+		content        *groupsnapshotv1.VolumeGroupSnapshotContent
 		expectError    bool
 		withKubeSecret bool
 	}{
@@ -500,7 +500,7 @@ func TestGetCredentialsFromAnnotationForGroupSnapshot(t *testing.T) {
 		},
 		{
 			name: "Empty secret name annotation - should fail",
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"group-content-empty-secret-name",
 					"group-snap-uid-1",
@@ -522,7 +522,7 @@ func TestGetCredentialsFromAnnotationForGroupSnapshot(t *testing.T) {
 		},
 		{
 			name: "Empty secret namespace annotation - should fail",
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"group-content-empty-secret-namespace",
 					"group-snap-uid-1",
@@ -544,7 +544,7 @@ func TestGetCredentialsFromAnnotationForGroupSnapshot(t *testing.T) {
 		},
 		{
 			name: "Valid secret annotations - should succeed with credentials",
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"group-content-with-secret",
 					"group-snap-uid-1",
@@ -699,7 +699,7 @@ func TestStoreGroupSnapshotContentUpdate(t *testing.T) {
 		t.Errorf("expected content in store: found=%v, err=%v", found, err)
 	}
 	if obj != nil {
-		if gsc, ok := obj.(*crdv1beta2.VolumeGroupSnapshotContent); ok && gsc.Name != "group-content-store-test" {
+		if gsc, ok := obj.(*groupsnapshotv1.VolumeGroupSnapshotContent); ok && gsc.Name != "group-content-store-test" {
 			t.Errorf("stored content name mismatch: %s", gsc.Name)
 		}
 	}
@@ -768,7 +768,7 @@ func TestGetCSIGroupSnapshotInput(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		content      *crdv1beta2.VolumeGroupSnapshotContent
+		content      *groupsnapshotv1.VolumeGroupSnapshotContent
 		ctrl         *csiSnapshotSideCarController
 		wantClass    bool
 		wantErr      bool
@@ -857,7 +857,7 @@ func TestClearGroupSnapshotContentStatus(t *testing.T) {
 		crdv1.VolumeSnapshotContentDelete, nil, false, nil,
 	)
 	handle := "group-handle-123"
-	content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 		VolumeGroupSnapshotHandle: &handle,
 		ReadyToUse:                ptr(true),
 		CreationTime:              &metav1.Time{Time: metav1.Now().Time},
@@ -931,7 +931,7 @@ func TestUpdateGroupSnapshotContentErrorStatusWithEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("updateGroupSnapshotContentErrorStatusWithEvent failed: %v", err)
 	}
-	updated, getErr := client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(context.Background(), "error-status", metav1.GetOptions{})
+	updated, getErr := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "error-status", metav1.GetOptions{})
 	if getErr != nil {
 		t.Fatalf("Get after update failed: %v", getErr)
 	}
@@ -1027,13 +1027,13 @@ func TestSyncGroupSnapshotContent(t *testing.T) {
 	classLister := groupsnapshotlisters.NewVolumeGroupSnapshotClassLister(cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{}))
 	tests := []struct {
 		name        string
-		content     *crdv1beta2.VolumeGroupSnapshotContent
+		content     *groupsnapshotv1.VolumeGroupSnapshotContent
 		ctrl        *csiSnapshotSideCarController
 		expectError bool
 	}{
 		{
 			name: "shouldDelete with Retain policy removes finalizer",
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				c := newGroupSnapshotContent(
 					"retain-finalizer", "uid", "snap", testNamespace,
 					"group-h", "class-a", []string{"vol-1"},
@@ -1062,13 +1062,13 @@ func TestSyncGroupSnapshotContent(t *testing.T) {
 		},
 		{
 			name: "ReadyToUse true calls removeAnnVolumeGroupSnapshotBeingCreated",
-			content: func() *crdv1beta2.VolumeGroupSnapshotContent {
+			content: func() *groupsnapshotv1.VolumeGroupSnapshotContent {
 				c := newGroupSnapshotContent(
 					"ready-remove-ann", "uid", "snap", testNamespace,
 					"group-h", "class-a", []string{"vol-1"},
 					crdv1.VolumeSnapshotContentDelete, nil, false, nil,
 				)
-				c.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr(true)}
+				c.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr(true)}
 				metav1.SetMetaDataAnnotation(&c.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingCreated, "yes")
 				return c
 			}(),
@@ -1078,7 +1078,7 @@ func TestSyncGroupSnapshotContent(t *testing.T) {
 					"group-h", "class-a", []string{"vol-1"},
 					crdv1.VolumeSnapshotContentDelete, nil, false, nil,
 				)
-				c.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr(true)}
+				c.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr(true)}
 				metav1.SetMetaDataAnnotation(&c.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingCreated, "yes")
 				client := fake.NewSimpleClientset(c)
 				store := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
@@ -1109,7 +1109,7 @@ func TestUpdateGroupSnapshotContentInInformerCache(t *testing.T) {
 		"group-h", "class-a", []string{"vol-1"},
 		crdv1.VolumeSnapshotContentDelete, nil, false, nil,
 	)
-	content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr(true)}
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr(true)}
 	metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingCreated, "yes")
 	content.ResourceVersion = "2"
 	client := fake.NewSimpleClientset(content)
@@ -1131,8 +1131,8 @@ func TestUpdateGroupSnapshotContentInInformerCache(t *testing.T) {
 }
 
 // newVolumeGroupSnapshotClass creates a VolumeGroupSnapshotClass for testing.
-func newVolumeGroupSnapshotClass(name, driver string) *crdv1beta2.VolumeGroupSnapshotClass {
-	return &crdv1beta2.VolumeGroupSnapshotClass{
+func newVolumeGroupSnapshotClass(name, driver string) *groupsnapshotv1.VolumeGroupSnapshotClass {
+	return &groupsnapshotv1.VolumeGroupSnapshotClass{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
 		Driver:     driver,
 	}
@@ -1149,17 +1149,17 @@ func TestIsDriverMatchGroupSnapshotContent(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		content  *crdv1beta2.VolumeGroupSnapshotContent
+		content  *groupsnapshotv1.VolumeGroupSnapshotContent
 		ctrl     *csiSnapshotSideCarController
 		expected bool
 	}{
 		{
 			name: "no source (no VolumeHandles and no GroupSnapshotHandles)",
-			content: &crdv1beta2.VolumeGroupSnapshotContent{
+			content: &groupsnapshotv1.VolumeGroupSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{Name: "no-source"},
-				Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+				Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 					Driver: mockDriverName,
-					Source: crdv1beta2.VolumeGroupSnapshotContentSource{},
+					Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{},
 				},
 			},
 			ctrl:     &csiSnapshotSideCarController{driverName: mockDriverName},
@@ -1399,7 +1399,7 @@ func TestGroupSnapshotContentWorker(t *testing.T) {
 			"group-h", "class-a", []string{"vol-1"},
 			crdv1.VolumeSnapshotContentDelete, nil, true, &timeNowMetav1,
 		)
-		content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+		content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 			VolumeGroupSnapshotHandle: ptrString("group-handle-1"),
 		}
 		metav1.SetMetaDataAnnotation(&content.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingDeleted, "yes")
@@ -1444,18 +1444,18 @@ func ptrString(s string) *string { return &s }
 
 // fakeGroupSnapshotContentLister returns a fixed error from Get (for tests that need a non-NotFound error).
 type fakeGroupSnapshotContentLister struct {
-	content *crdv1beta2.VolumeGroupSnapshotContent
+	content *groupsnapshotv1.VolumeGroupSnapshotContent
 	getErr  error
 }
 
-func (f *fakeGroupSnapshotContentLister) List(selector labels.Selector) ([]*crdv1beta2.VolumeGroupSnapshotContent, error) {
+func (f *fakeGroupSnapshotContentLister) List(selector labels.Selector) ([]*groupsnapshotv1.VolumeGroupSnapshotContent, error) {
 	if f.content != nil {
-		return []*crdv1beta2.VolumeGroupSnapshotContent{f.content}, nil
+		return []*groupsnapshotv1.VolumeGroupSnapshotContent{f.content}, nil
 	}
 	return nil, f.getErr
 }
 
-func (f *fakeGroupSnapshotContentLister) Get(name string) (*crdv1beta2.VolumeGroupSnapshotContent, error) {
+func (f *fakeGroupSnapshotContentLister) Get(name string) (*groupsnapshotv1.VolumeGroupSnapshotContent, error) {
 	if f.getErr != nil {
 		return nil, f.getErr
 	}
