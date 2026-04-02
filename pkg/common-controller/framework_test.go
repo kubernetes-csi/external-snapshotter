@@ -46,10 +46,12 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -291,7 +293,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 	// Test did not request to inject an error, continue simulating API server.
 	switch {
 	case action.Matches("create", "volumesnapshotcontents"):
-		obj := action.(core.UpdateAction).GetObject()
+		obj := action.(core.CreateAction).GetObject()
 		content := obj.(*crdv1.VolumeSnapshotContent)
 
 		// check the content does not exist
@@ -308,7 +310,7 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		return true, content, nil
 
 	case action.Matches("create", "volumegroupsnapshotcontents"):
-		obj := action.(core.UpdateAction).GetObject()
+		obj := action.(core.CreateAction).GetObject()
 		content := obj.(*crdv1beta2.VolumeGroupSnapshotContent)
 
 		// check the content does not exist
@@ -323,6 +325,30 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(5).Infof("created group content %s", content.Name)
 		return true, content, nil
+
+	case action.Matches("create", "volumesnapshots"):
+		obj := action.(core.CreateAction).GetObject()
+		snapshot := obj.(*crdv1.VolumeSnapshot)
+
+		// Return AlreadyExists when the snapshot is already tracked.
+		if _, found := r.snapshots[snapshot.Name]; found {
+			return true, nil, apierrs.NewAlreadyExists(
+				schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"},
+				snapshot.Name,
+			)
+		}
+
+		// Assign a deterministic UID so callers can rely on a non-empty UID.
+		snapshot = snapshot.DeepCopy()
+		if snapshot.UID == "" {
+			snapshot.UID = types.UID(snapshot.Name + "-uid")
+		}
+
+		r.snapshots[snapshot.Name] = snapshot
+		r.changedObjects = append(r.changedObjects, snapshot)
+		r.changedSinceLastSync++
+		klog.V(5).Infof("created snapshot %s", snapshot.Name)
+		return true, snapshot, nil
 
 	case action.Matches("update", "volumesnapshotcontents"):
 		obj := action.(core.UpdateAction).GetObject()
@@ -625,6 +651,26 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		}
 		klog.V(4).Infof("GetVolumeGroupSnapshot: content %s not found", name)
 		return true, nil, fmt.Errorf("cannot find snapshot %s", name)
+
+	case action.Matches("list", "volumesnapshotcontents"):
+		var result []crdv1.VolumeSnapshotContent
+		for _, content := range r.contents {
+			result = append(result, *content)
+		}
+		klog.V(4).Infof("ListVolumeSnapshotContents: found %d", len(result))
+		return true, &crdv1.VolumeSnapshotContentList{
+			Items: result,
+		}, nil
+
+	case action.Matches("list", "volumesnapshots"):
+		var result []crdv1.VolumeSnapshot
+		for _, snapshot := range r.snapshots {
+			result = append(result, *snapshot)
+		}
+		klog.V(4).Infof("ListVolumeSnapshots: found %d", len(result))
+		return true, &crdv1.VolumeSnapshotList{
+			Items: result,
+		}, nil
 
 	case action.Matches("delete", "volumesnapshotcontents"):
 		name := action.(core.DeleteAction).GetName()
@@ -1150,6 +1196,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("create", "volumegroupsnapshotcontents", reactor.React)
+	client.AddReactor("create", "volumesnapshots", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshots", reactor.React)
@@ -1166,6 +1213,8 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 	client.AddReactor("get", "volumegroupsnapshots", reactor.React)
 	client.AddReactor("get", "volumesnapshotclasses", reactor.React)
 	client.AddReactor("get", "volumegroupsnapshotclasses", reactor.React)
+	client.AddReactor("list", "volumesnapshotcontents", reactor.React)
+	client.AddReactor("list", "volumesnapshots", reactor.React)
 	client.AddReactor("delete", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("delete", "volumesnapshots", reactor.React)
