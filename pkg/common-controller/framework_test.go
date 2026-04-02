@@ -46,10 +46,12 @@ import (
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/metrics"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
@@ -323,6 +325,30 @@ func (r *snapshotReactor) React(action core.Action) (handled bool, ret runtime.O
 		r.changedSinceLastSync++
 		klog.V(5).Infof("created group content %s", content.Name)
 		return true, content, nil
+
+	case action.Matches("create", "volumesnapshots"):
+		obj := action.(core.UpdateAction).GetObject()
+		snapshot := obj.(*crdv1.VolumeSnapshot)
+
+		// Return AlreadyExists when the snapshot is already tracked.
+		if _, found := r.snapshots[snapshot.Name]; found {
+			return true, nil, apierrs.NewAlreadyExists(
+				schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"},
+				snapshot.Name,
+			)
+		}
+
+		// Assign a deterministic UID so callers can rely on a non-empty UID.
+		snapshot = snapshot.DeepCopy()
+		if snapshot.UID == "" {
+			snapshot.UID = types.UID(snapshot.Name + "-uid")
+		}
+
+		r.snapshots[snapshot.Name] = snapshot
+		r.changedObjects = append(r.changedObjects, snapshot)
+		r.changedSinceLastSync++
+		klog.V(5).Infof("created snapshot %s", snapshot.Name)
+		return true, snapshot, nil
 
 	case action.Matches("update", "volumesnapshotcontents"):
 		obj := action.(core.UpdateAction).GetObject()
@@ -1150,6 +1176,7 @@ func newSnapshotReactor(kubeClient *kubefake.Clientset, client *fake.Clientset, 
 
 	client.AddReactor("create", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("create", "volumegroupsnapshotcontents", reactor.React)
+	client.AddReactor("create", "volumesnapshots", reactor.React)
 	client.AddReactor("update", "volumesnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumegroupsnapshotcontents", reactor.React)
 	client.AddReactor("update", "volumesnapshots", reactor.React)
