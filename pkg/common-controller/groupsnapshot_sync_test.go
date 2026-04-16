@@ -691,6 +691,139 @@ func testIndividualSnapshotCreationReadiness(ctrl *csiSnapshotCommonController, 
 	return nil
 }
 
+// TestSyncGroupSnapshotCreatesIndividualSnapshots tests that syncGroupSnapshot creates individual snapshots
+// when the group snapshot content is ready (has VolumeSnapshotInfoList and VolumeGroupSnapshotHandle).
+func TestSyncGroupSnapshotCreatesIndividualSnapshots(t *testing.T) {
+	sizeBytes := int64(1073741824)
+
+	tests := []controllerTest{
+		{
+			name: "9-1 - syncGroupSnapshot creates individual snapshots when content is ready",
+			initialGroupSnapshots: withGroupSnapshotFinalizers(
+				newGroupSnapshotArray(
+					"group-snap-9-1", "group-snapuid9-1", map[string]string{
+						"app.kubernetes.io/name": "postgresql",
+					},
+					"", classGold, "groupsnapcontent-group-snapuid9-1", &False, nil, nil, false, false, nil,
+				),
+				utils.VolumeGroupSnapshotBoundFinalizer,
+			),
+			expectedGroupSnapshots: withGroupSnapshotFinalizers(
+				newGroupSnapshotArray(
+					"group-snap-9-1", "group-snapuid9-1", map[string]string{
+						"app.kubernetes.io/name": "postgresql",
+					},
+					"", classGold, "groupsnapcontent-group-snapuid9-1", &True, nil, nil, false, false, nil,
+				),
+				utils.VolumeGroupSnapshotBoundFinalizer,
+			),
+			initialGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+				content := newGroupSnapshotContent(
+					"groupsnapcontent-group-snapuid9-1", "group-snapuid9-1", "group-snap-9-1",
+					"", classGold, []string{"pv-handle9-1", "pv-handle9-2"}, "", deletionPolicy, nil, false, false,
+				)
+				ready := true
+				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+					ReadyToUse:                &ready,
+					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-9-1"),
+					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+						{
+							VolumeHandle:   "pv-handle9-1",
+							SnapshotHandle: "snapshot-handle-9-1",
+							ReadyToUse:     &ready,
+							RestoreSize:    &sizeBytes,
+						},
+						{
+							VolumeHandle:   "pv-handle9-2",
+							SnapshotHandle: "snapshot-handle-9-2",
+							ReadyToUse:     &ready,
+							RestoreSize:    &sizeBytes,
+						},
+					},
+				}
+				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+			}(),
+			expectedGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+				content := newGroupSnapshotContent(
+					"groupsnapcontent-group-snapuid9-1", "group-snapuid9-1", "group-snap-9-1",
+					"", classGold, []string{"pv-handle9-1", "pv-handle9-2"}, "", deletionPolicy, nil, false, false,
+				)
+				ready := true
+				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+					ReadyToUse:                &ready,
+					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-9-1"),
+					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+						{
+							VolumeHandle:   "pv-handle9-1",
+							SnapshotHandle: "snapshot-handle-9-1",
+							ReadyToUse:     &ready,
+							RestoreSize:    &sizeBytes,
+						},
+						{
+							VolumeHandle:   "pv-handle9-2",
+							SnapshotHandle: "snapshot-handle-9-2",
+							ReadyToUse:     &ready,
+							RestoreSize:    &sizeBytes,
+						},
+					},
+				}
+				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+			}(),
+			initialClaims: withClaimLabels(
+				newClaimCoupleArray("claim9-1", "pvc-uid9-1", "1Gi", "volume9-1", v1.ClaimBound, &classGold),
+				map[string]string{
+					"app.kubernetes.io/name": "postgresql",
+				}),
+			initialVolumes: newVolumeCoupleArray("volume9-1", "pv-uid9-1", "pv-handle9-1", "1Gi", "pvc-uid9-1", "claim9-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classGold),
+			errors:         noerrors,
+			test: func(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+				err := testSyncGroupSnapshot(ctrl, reactor, test)
+				if err != nil {
+					return err
+				}
+
+				// Verify individual snapshots and contents were created
+				if len(reactor.snapshots) != 2 {
+					return fmt.Errorf("expected 2 VolumeSnapshots to be created, got %d", len(reactor.snapshots))
+				}
+				if len(reactor.contents) != 2 {
+					return fmt.Errorf("expected 2 VolumeSnapshotContents to be created, got %d", len(reactor.contents))
+				}
+
+				for _, snap := range reactor.snapshots {
+					if snap.Status == nil || snap.Status.BoundVolumeSnapshotContentName == nil {
+						return fmt.Errorf("VolumeSnapshot %s is not bound", snap.Name)
+					}
+					content, ok := reactor.contents[*snap.Status.BoundVolumeSnapshotContentName]
+					if !ok {
+						return fmt.Errorf("VolumeSnapshot %s is bound to missing content %s", snap.Name, *snap.Status.BoundVolumeSnapshotContentName)
+					}
+					if content.Spec.VolumeSnapshotRef.UID != snap.UID {
+						return fmt.Errorf("VolumeSnapshotContent %s does not point to VolumeSnapshot %s", content.Name, snap.Name)
+					}
+					if content.Status == nil || content.Status.SnapshotHandle == nil {
+						return fmt.Errorf("VolumeSnapshotContent %s is missing status or SnapshotHandle", content.Name)
+					}
+				}
+
+				// Clear individual snapshots and contents from reactor so the framework
+				// doesn't flag them as unexpected (since we don't specify them in expectedContents
+				// due to their dynamically generated hash names).
+				for k := range reactor.snapshots {
+					delete(reactor.snapshots, k)
+				}
+				for k := range reactor.contents {
+					delete(reactor.contents, k)
+				}
+
+				return nil
+			},
+			expectSuccess: true,
+		},
+	}
+	runSyncTests(t, tests, nil, groupSnapshotClasses)
+}
+
 // Helper function to create string pointer
 func stringPtr(s string) *string {
 	return &s
