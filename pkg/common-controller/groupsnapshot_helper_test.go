@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"testing"
 
-	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
@@ -65,10 +65,10 @@ func makeTestGroupSnapshotContent(
 	name, driver, snapshotNamespace string,
 	groupHandle string,
 	policy crdv1.DeletionPolicy,
-) *crdv1beta2.VolumeGroupSnapshotContent {
-	return &crdv1beta2.VolumeGroupSnapshotContent{
+) *groupsnapshotv1.VolumeGroupSnapshotContent {
+	return &groupsnapshotv1.VolumeGroupSnapshotContent{
 		ObjectMeta: metav1.ObjectMeta{Name: name},
-		Spec: crdv1beta2.VolumeGroupSnapshotContentSpec{
+		Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
 			Driver:         driver,
 			DeletionPolicy: policy,
 			VolumeGroupSnapshotRef: v1.ObjectReference{
@@ -76,15 +76,15 @@ func makeTestGroupSnapshotContent(
 				Namespace: snapshotNamespace,
 			},
 		},
-		Status: &crdv1beta2.VolumeGroupSnapshotContentStatus{
+		Status: &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 			VolumeGroupSnapshotHandle: &groupHandle,
 		},
 	}
 }
 
 // makeTestGroupSnapshot returns a VolumeGroupSnapshot ready for tests.
-func makeTestGroupSnapshot(name, namespace string, uid types.UID) *crdv1beta2.VolumeGroupSnapshot {
-	return &crdv1beta2.VolumeGroupSnapshot{
+func makeTestGroupSnapshot(name, namespace string, uid types.UID) *groupsnapshotv1.VolumeGroupSnapshot {
+	return &groupsnapshotv1.VolumeGroupSnapshot{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -397,15 +397,15 @@ func TestUpdateVolumeSnapshotContentStatus(t *testing.T) {
 		}
 		h.reactor.contents["content-status"] = content
 
-		snapshotInfo := crdv1beta2.VolumeSnapshotInfo{
+		snapshotInfo := groupsnapshotv1.VolumeSnapshotInfo{
 			SnapshotHandle: "snap-handle-1",
 			CreationTime:   &creationTime,
 			ReadyToUse:     &readyToUse,
 			RestoreSize:    &restoreSize,
 		}
-		groupContent := &crdv1beta2.VolumeGroupSnapshotContent{
+		groupContent := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-1"},
-			Status: &crdv1beta2.VolumeGroupSnapshotContentStatus{
+			Status: &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 				VolumeGroupSnapshotHandle: &groupHandle,
 			},
 		}
@@ -442,9 +442,9 @@ func TestUpdateVolumeSnapshotContentStatus(t *testing.T) {
 		content := &crdv1.VolumeSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "content-missing-status"},
 		}
-		snapshotInfo := crdv1beta2.VolumeSnapshotInfo{SnapshotHandle: "x"}
-		groupContent := &crdv1beta2.VolumeGroupSnapshotContent{
-			Status: &crdv1beta2.VolumeGroupSnapshotContentStatus{
+		snapshotInfo := groupsnapshotv1.VolumeSnapshotInfo{SnapshotHandle: "x"}
+		groupContent := &groupsnapshotv1.VolumeGroupSnapshotContent{
+			Status: &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 				VolumeGroupSnapshotHandle: &groupHandle,
 			},
 		}
@@ -464,7 +464,7 @@ func assertReactorStateAfterIndividualSnapshot(
 	h *helperSetup,
 	groupUID types.UID,
 	volumeHandle string,
-	info crdv1beta2.VolumeSnapshotInfo,
+	info groupsnapshotv1.VolumeSnapshotInfo,
 	groupHandle string,
 	wantPVC string,
 	wantSecret *v1.SecretReference,
@@ -575,14 +575,14 @@ func TestCreateIndividualSnapshotForGroupSnapshot(t *testing.T) {
 	creationTime := int64(1000)
 	restoreSize := int64(2000)
 
-	newGSC := func(driver, ns string) *crdv1beta2.VolumeGroupSnapshotContent {
+	newGSC := func(driver, ns string) *groupsnapshotv1.VolumeGroupSnapshotContent {
 		return makeTestGroupSnapshotContent("gsc-1", driver, ns, groupHandle, deletionPolicy)
 	}
-	newGS := func(ns string) *crdv1beta2.VolumeGroupSnapshot {
+	newGS := func(ns string) *groupsnapshotv1.VolumeGroupSnapshot {
 		return makeTestGroupSnapshot("gs-1", ns, "gs-uid-1")
 	}
-	newInfo := func(volHandle string) crdv1beta2.VolumeSnapshotInfo {
-		return crdv1beta2.VolumeSnapshotInfo{
+	newInfo := func(volHandle string) groupsnapshotv1.VolumeSnapshotInfo {
+		return groupsnapshotv1.VolumeSnapshotInfo{
 			VolumeHandle:   volHandle,
 			SnapshotHandle: "snap-handle-x",
 			CreationTime:   &creationTime,

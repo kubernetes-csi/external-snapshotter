@@ -717,16 +717,16 @@ func TestSyncGroupSnapshotCreatesIndividualSnapshots(t *testing.T) {
 				),
 				utils.VolumeGroupSnapshotBoundFinalizer,
 			),
-			initialGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			initialGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid9-1", "group-snapuid9-1", "group-snap-9-1",
 					"", classGold, []string{"pv-handle9-1", "pv-handle9-2"}, "", deletionPolicy, nil, false, false,
 				)
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-9-1"),
-					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+					VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 						{
 							VolumeHandle:   "pv-handle9-1",
 							SnapshotHandle: "snapshot-handle-9-1",
@@ -741,18 +741,18 @@ func TestSyncGroupSnapshotCreatesIndividualSnapshots(t *testing.T) {
 						},
 					},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
-			expectedGroupContents: func() []*crdv1beta2.VolumeGroupSnapshotContent {
+			expectedGroupContents: func() []*groupsnapshotv1.VolumeGroupSnapshotContent {
 				content := newGroupSnapshotContent(
 					"groupsnapcontent-group-snapuid9-1", "group-snapuid9-1", "group-snap-9-1",
 					"", classGold, []string{"pv-handle9-1", "pv-handle9-2"}, "", deletionPolicy, nil, false, false,
 				)
 				ready := true
-				content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+				content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 					ReadyToUse:                &ready,
 					VolumeGroupSnapshotHandle: stringPtr("group-snapshot-handle-9-1"),
-					VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+					VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 						{
 							VolumeHandle:   "pv-handle9-1",
 							SnapshotHandle: "snapshot-handle-9-1",
@@ -767,7 +767,7 @@ func TestSyncGroupSnapshotCreatesIndividualSnapshots(t *testing.T) {
 						},
 					},
 				}
-				return []*crdv1beta2.VolumeGroupSnapshotContent{content}
+				return []*groupsnapshotv1.VolumeGroupSnapshotContent{content}
 			}(),
 			initialClaims: withClaimLabels(
 				newClaimCoupleArray("claim9-1", "pvc-uid9-1", "1Gi", "volume9-1", v1.ClaimBound, &classGold),
