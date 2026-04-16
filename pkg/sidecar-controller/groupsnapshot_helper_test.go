@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	crdv1beta2 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1beta2"
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	v1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
-	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1beta2"
+	groupsnapshotlisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -47,9 +47,9 @@ func TestDeleteCSIGroupSnapshotOperation(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected deleteCSIGroupSnapshotOperation to return error when groupsnapshotContent is nil: %v", err)
 	}
-	gsc := crdv1beta2.VolumeGroupSnapshotContent{
-		Status: &crdv1beta2.VolumeGroupSnapshotContentStatus{
-			VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+	gsc := groupsnapshotv1.VolumeGroupSnapshotContent{
+		Status: &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
+			VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 				{
 					VolumeHandle:   "test-pv",
 					SnapshotHandle: "test-vsc",
@@ -81,7 +81,7 @@ func (f *fakeGroupSnapshotHandler) DeleteSnapshot(_ *v1.VolumeSnapshotContent, _
 func (f *fakeGroupSnapshotHandler) GetSnapshotStatus(_ *v1.VolumeSnapshotContent, _ map[string]string) (bool, time.Time, int64, string, error) {
 	return false, time.Time{}, 0, "", errors.NewServiceUnavailable("not implemented")
 }
-func (f *fakeGroupSnapshotHandler) CreateGroupSnapshot(_ *crdv1beta2.VolumeGroupSnapshotContent, _ map[string]string, _ map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
+func (f *fakeGroupSnapshotHandler) CreateGroupSnapshot(_ *groupsnapshotv1.VolumeGroupSnapshotContent, _ map[string]string, _ map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
 	if f.createGroupSnapshotErr != nil {
 		return "", "", nil, time.Time{}, false, f.createGroupSnapshotErr
 	}
@@ -90,7 +90,7 @@ func (f *fakeGroupSnapshotHandler) CreateGroupSnapshot(_ *crdv1beta2.VolumeGroup
 	}
 	return "driver", "group-id", nil, time.Now(), true, nil
 }
-func (f *fakeGroupSnapshotHandler) GetGroupSnapshotStatus(_ *crdv1beta2.VolumeGroupSnapshotContent, _ []string, _ map[string]string) (bool, time.Time, error) {
+func (f *fakeGroupSnapshotHandler) GetGroupSnapshotStatus(_ *groupsnapshotv1.VolumeGroupSnapshotContent, _ []string, _ map[string]string) (bool, time.Time, error) {
 	if f.getGroupSnapshotStatusErr != nil {
 		return false, time.Time{}, f.getGroupSnapshotStatusErr
 	}
@@ -99,7 +99,7 @@ func (f *fakeGroupSnapshotHandler) GetGroupSnapshotStatus(_ *crdv1beta2.VolumeGr
 	}
 	return true, time.Now(), nil
 }
-func (f *fakeGroupSnapshotHandler) DeleteGroupSnapshot(_ *crdv1beta2.VolumeGroupSnapshotContent, _ []string, _ map[string]string) error {
+func (f *fakeGroupSnapshotHandler) DeleteGroupSnapshot(_ *groupsnapshotv1.VolumeGroupSnapshotContent, _ []string, _ map[string]string) error {
 	return f.deleteGroupSnapshotErr
 }
 
@@ -128,7 +128,7 @@ func TestCreateGroupSnapshotErrorPath(t *testing.T) {
 		t.Error("createGroupSnapshot expected error when handler returns error")
 	}
 	// Error path should call updateGroupSnapshotContentErrorStatusWithEvent
-	updated, _ := client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(context.Background(), "create-err", metav1.GetOptions{})
+	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "create-err", metav1.GetOptions{})
 	if updated.Status == nil || updated.Status.Error == nil {
 		t.Error("expected error status to be set on content after createGroupSnapshot failure")
 	}
@@ -158,7 +158,7 @@ func TestCheckandUpdateGroupSnapshotContentStatusErrorPath(t *testing.T) {
 	if err == nil {
 		t.Error("checkandUpdateGroupSnapshotContentStatus expected error when GetGroupSnapshotStatus fails")
 	}
-	updated, _ := client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(context.Background(), "check-err", metav1.GetOptions{})
+	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "check-err", metav1.GetOptions{})
 	if updated.Status == nil || updated.Status.Error == nil {
 		t.Error("expected error status to be set after checkandUpdateGroupSnapshotContentStatus failure")
 	}
@@ -172,9 +172,9 @@ func TestDeleteCSIGroupSnapshotOperationSuccess(t *testing.T) {
 		"group-h", "class-a", []string{"vol-1"},
 		v1.VolumeSnapshotContentDelete, nil, true, &timeNowMetav1,
 	)
-	content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 		VolumeGroupSnapshotHandle: ptrString("group-handle-1"),
-		VolumeSnapshotInfoList: []crdv1beta2.VolumeSnapshotInfo{
+		VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
 			{VolumeHandle: "vol-1", SnapshotHandle: "snap-1"},
 		},
 	}
@@ -195,7 +195,7 @@ func TestDeleteCSIGroupSnapshotOperationSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deleteCSIGroupSnapshotOperation failed: %v", err)
 	}
-	updated, _ := client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(context.Background(), "delete-ok", metav1.GetOptions{})
+	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "delete-ok", metav1.GetOptions{})
 	if updated.Status != nil && updated.Status.VolumeGroupSnapshotHandle != nil {
 		t.Error("expected VolumeGroupSnapshotHandle to be cleared after successful delete")
 	}
@@ -208,7 +208,7 @@ func TestUpdateGroupSnapshotContentStatusExistingStatus(t *testing.T) {
 		"", "class-a", []string{"vol-1"},
 		v1.VolumeSnapshotContentDelete, nil, false, nil,
 	)
-	content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 		VolumeGroupSnapshotHandle: ptrString("old-handle"),
 		ReadyToUse:                ptr(false),
 		CreationTime:              &metav1.Time{Time: metav1.Now().Time},
@@ -240,7 +240,7 @@ func TestUpdateGroupSnapshotContentStatusNoUpdate(t *testing.T) {
 		"", "class-a", []string{"vol-1"},
 		v1.VolumeSnapshotContentDelete, nil, false, nil,
 	)
-	content.Status = &crdv1beta2.VolumeGroupSnapshotContentStatus{
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
 		VolumeGroupSnapshotHandle: &handle,
 		ReadyToUse:                &ready,
 		CreationTime:              &created,
@@ -368,7 +368,7 @@ func TestCreateGroupSnapshotWrapperFinalError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected createGroupSnapshotWrapper to fail")
 	}
-	updated, _ := client.GroupsnapshotV1beta2().VolumeGroupSnapshotContents().Get(context.Background(), "wrapper-final-err", metav1.GetOptions{})
+	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "wrapper-final-err", metav1.GetOptions{})
 	if metav1.HasAnnotation(updated.ObjectMeta, utils.AnnVolumeGroupSnapshotBeingCreated) {
 		t.Error("expected AnnVolumeGroupSnapshotBeingCreated to be removed on final error")
 	}
