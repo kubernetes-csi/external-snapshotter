@@ -24,6 +24,22 @@ You may join the discord community by clicking the invite link on the discord ba
 
 Or join our Slack channel: [![Slack Channel][slack-logo]![slack-badge]][slack-url]
 
+* **2026-04-15** : added support for trailing "-" for arrays
+  * this brings full support of [RFC6901][RFC6901]
+  * this is supported for types relying on the reflection-based implemented
+  * API semantics remain essentially unaltered. Exception: `Pointer.Set(document any,value any) (document any, err error)` 
+    can only perform a best-effort to mutate the input document in place. In the case of adding elements to an array with a
+    trailing "-", either pass a mutable array (`*[]T`) as the input document, or use the returned updated document instead.
+  * types that implement the `JSONSetable` interface may not implement the mutation implied by the trailing "-"
+
+* **2026-04-15** : added support for optional alternate JSON name providers
+  * for struct support the defaults might not suit all situations: there are known limitations
+    when it comes to handle untagged fields or embedded types.
+  * the default name provider in use is not fully aligned with go JSON stdlib
+  * exposed an option (or global setting) to change the provider that resolves a struct into json keys
+  * the default behavior is not altered
+  * a new alternate name provider is added (imported from `go-openapi/swag/jsonname`), aligned with JSON stdlib behavior
+
 ## Status
 
 API is stable.
@@ -88,7 +104,7 @@ See <https://github.com/go-openapi/jsonpointer/releases>
 
 <https://tools.ietf.org/html/draft-ietf-appsawg-json-pointer-07>
 
-also known as [RFC6901](https://www.rfc-editor.org/rfc/rfc6901)
+also known as [RFC6901][RFC6901].
 
 ## Licensing
 
@@ -99,12 +115,12 @@ on top of which it has been built.
 
 ## Limitations
 
-The 4.Evaluation part of the previous reference, starting with 'If the currently referenced value is a JSON array,
-the reference token MUST contain either...' is not implemented.
-
-That is because our implementation of the JSON pointer only supports explicit references to array elements:
-the provision in the spec to resolve non-existent members as "the last element in the array",
-using the special trailing character "-" is not implemented.
+* [RFC6901][RFC6901] is now fully supported, including trailing "-" semantics for arrays (for `Set` operations).
+* Default behavior: JSON name detection in go `struct`s
+   - Unlike go standard marshaling, untagged fields do not default to the go field name and are ignored.
+   - anonymous fields are not traversed if untagged
+   - the above limitations may be overcome by calling `UseGoNameProvider()` at initialization time.
+   - alternatively, users may inject the desired custom behavior for naming fields as an option.
 
 ## Other documentation
 
@@ -146,7 +162,7 @@ Maintainers can cut a new release by either:
 [slack-badge]: https://img.shields.io/badge/slack-blue?link=https%3A%2F%2Fgoswagger.slack.com%2Farchives%2FC04R30YM
 [slack-url]: https://goswagger.slack.com/archives/C04R30YMU
 [discord-badge]: https://img.shields.io/discord/1446918742398341256?logo=discord&label=discord&color=blue
-[discord-url]: https://discord.gg/twZ9BwT3
+[discord-url]: https://discord.gg/FfnFYaC3k5
 
 <!-- Badges: license & compliance -->
 [license-badge]: http://img.shields.io/badge/license-Apache%20v2-orange.svg
@@ -156,3 +172,4 @@ Maintainers can cut a new release by either:
 [goversion-url]: https://github.com/go-openapi/jsonpointer/blob/master/go.mod
 [top-badge]: https://img.shields.io/github/languages/top/go-openapi/jsonpointer
 [commits-badge]: https://img.shields.io/github/commits-since/go-openapi/jsonpointer/latest
+[RFC6901]: https://www.rfc-editor.org/rfc/rfc6901

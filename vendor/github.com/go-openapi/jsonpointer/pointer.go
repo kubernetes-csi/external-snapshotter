@@ -11,28 +11,12 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/go-openapi/swag/jsonname"
 )
 
 const (
 	emptyPointer     = ``
 	pointerSeparator = `/`
 )
-
-// JSONPointable is an interface for structs to implement,
-// when they need to customize the json pointer process or want to avoid the use of reflection.
-type JSONPointable interface {
-	// JSONLookup returns a value pointed at this (unescaped) key.
-	JSONLookup(key string) (any, error)
-}
-
-// JSONSetable is an interface for structs to implement,
-// when they need to customize the json pointer process or want to avoid the use of reflection.
-type JSONSetable interface {
-	// JSONSet sets the value pointed at the (unescaped) key.
-	JSONSet(key string, value any) error
-}
 
 // Pointer is a representation of a json pointer.
 //
@@ -71,16 +55,35 @@ func New(jsonPointerString string) (Pointer, error) {
 // Get uses the pointer to retrieve a value from a JSON document.
 //
 // It returns the value with its type as a [reflect.Kind] or an error.
-func (p *Pointer) Get(document any) (any, reflect.Kind, error) {
-	return p.get(document, jsonname.DefaultJSONNameProvider)
+func (p *Pointer) Get(document any, opts ...Option) (any, reflect.Kind, error) {
+	o := optionsWithDefaults(opts)
+
+	return p.get(document, o.provider)
 }
 
 // Set uses the pointer to set a value from a data type
 // that represent a JSON document.
 //
-// It returns the updated document.
-func (p *Pointer) Set(document any, value any) (any, error) {
-	return document, p.set(document, value, jsonname.DefaultJSONNameProvider)
+// # Mutation contract
+//
+// Set mutates the provided document in place whenever Go's type system allows
+// it: when document is a map, a pointer, or when the targeted value is reached
+// through an addressable ancestor (e.g. a struct field traversed via a pointer,
+// a slice element). Callers that rely on this in-place behavior may continue
+// to ignore the returned document.
+//
+// The returned document is only load-bearing when Set cannot mutate in place.
+// This happens in one specific case: appending to a top-level slice passed by
+// value (e.g. document of type []T rather than *[]T) via the RFC 6901 "-"
+// terminal token. reflect.Append produces a new slice header that the library
+// cannot rebind into the caller's variable; the updated document is returned
+// instead. Pass *[]T if you want in-place rebind for that case as well.
+//
+// See [ErrDashToken] for the semantics of the "-" token.
+func (p *Pointer) Set(document any, value any, opts ...Option) (any, error) {
+	o := optionsWithDefaults(opts)
+
+	return p.set(document, value, o.provider)
 }
 
 // DecodedTokens returns the decoded (unescaped) tokens of this JSON pointer.
@@ -157,9 +160,9 @@ func (p *Pointer) parse(jsonPointerString string) error {
 	return nil
 }
 
-func (p *Pointer) get(node any, nameProvider *jsonname.NameProvider) (any, reflect.Kind, error) {
+func (p *Pointer) get(node any, nameProvider NameProvider) (any, reflect.Kind, error) {
 	if nameProvider == nil {
-		nameProvider = jsonname.DefaultJSONNameProvider
+		nameProvider = defaultOptions.provider
 	}
 
 	kind := reflect.Invalid
@@ -185,50 +188,130 @@ func (p *Pointer) get(node any, nameProvider *jsonname.NameProvider) (any, refle
 	return node, kind, nil
 }
 
-func (p *Pointer) set(node, data any, nameProvider *jsonname.NameProvider) error {
+func (p *Pointer) set(node, data any, nameProvider NameProvider) (any, error) {
 	knd := reflect.ValueOf(node).Kind()
 
 	if knd != reflect.Pointer && knd != reflect.Struct && knd != reflect.Map && knd != reflect.Slice && knd != reflect.Array {
-		return errors.Join(
+		return node, errors.Join(
 			fmt.Errorf("unexpected type: %T", node), //nolint:err113 // err wrapping is carried out by errors.Join, not fmt.Errorf.
 			ErrUnsupportedValueType,
 			ErrPointer,
 		)
 	}
 
-	l := len(p.referenceTokens)
-
 	// full document when empty
-	if l == 0 {
-		return nil
+	if len(p.referenceTokens) == 0 {
+		return node, nil
 	}
 
 	if nameProvider == nil {
-		nameProvider = jsonname.DefaultJSONNameProvider
+		nameProvider = defaultOptions.provider
 	}
 
-	var decodedToken string
-	lastIndex := l - 1
-
-	if lastIndex > 0 { // skip if we only have one token in pointer
-		for _, token := range p.referenceTokens[:lastIndex] {
-			decodedToken = Unescape(token)
-			next, err := p.resolveNodeForToken(node, decodedToken, nameProvider)
-			if err != nil {
-				return err
-			}
-
-			node = next
-		}
-	}
-
-	// last token
-	decodedToken = Unescape(p.referenceTokens[lastIndex])
-
-	return setSingleImpl(node, data, decodedToken, nameProvider)
+	return p.setAt(node, p.referenceTokens, data, nameProvider)
 }
 
-func (p *Pointer) resolveNodeForToken(node any, decodedToken string, nameProvider *jsonname.NameProvider) (next any, err error) {
+// setAt recursively walks the token list, setting the data at the terminal
+// token and rebinding any new child reference (e.g. a slice header returned
+// by an "-" append) into its parent on the way back up.
+//
+// Returning the (possibly new) node at each level is what makes append work
+// at any depth without requiring the caller to pass a pointer to the
+// containing slice: the new slice header propagates up and each parent
+// rebinds it via the appropriate kind-specific setter.
+func (p *Pointer) setAt(node any, tokens []string, data any, nameProvider NameProvider) (any, error) {
+	decodedToken := Unescape(tokens[0])
+
+	if len(tokens) == 1 {
+		return setSingleImpl(node, data, decodedToken, nameProvider)
+	}
+
+	child, err := p.resolveNodeForToken(node, decodedToken, nameProvider)
+	if err != nil {
+		return node, err
+	}
+
+	newChild, err := p.setAt(child, tokens[1:], data, nameProvider)
+	if err != nil {
+		return node, err
+	}
+
+	return rebindChild(node, decodedToken, newChild, nameProvider)
+}
+
+// rebindChild writes newChild back into node at decodedToken.
+//
+// For cases where the child was already mutated in place (pointer aliasing,
+// addressable slice elements) the rebind is a safe no-op. For cases where
+// the child was returned by value (map entries holding a slice, slices
+// reached through a non-addressable ancestor), the rebind propagates the
+// new value into the parent.
+//
+// Parents implementing [JSONPointable] are left alone: they took ownership
+// of the child via JSONLookup and did not opt into a JSONSet-based rebind
+// on intermediate tokens.
+func rebindChild(node any, decodedToken string, newChild any, nameProvider NameProvider) (any, error) {
+	if _, ok := node.(JSONPointable); ok {
+		return node, nil
+	}
+
+	rValue := reflect.Indirect(reflect.ValueOf(node))
+
+	switch rValue.Kind() {
+	case reflect.Struct:
+		nm, ok := nameProvider.GetGoNameForType(rValue.Type(), decodedToken)
+		if !ok {
+			return node, fmt.Errorf("object has no field %q: %w", decodedToken, ErrPointer)
+		}
+		fld := rValue.FieldByName(nm)
+		if !fld.CanSet() {
+			return node, nil
+		}
+		assignReflectValue(fld, newChild)
+		return node, nil
+
+	case reflect.Map:
+		rValue.SetMapIndex(reflect.ValueOf(decodedToken), reflect.ValueOf(newChild))
+		return node, nil
+
+	case reflect.Slice:
+		if decodedToken == dashToken {
+			return node, errDashIntermediate()
+		}
+		idx, err := strconv.Atoi(decodedToken)
+		if err != nil {
+			return node, errors.Join(err, ErrPointer)
+		}
+		elem := rValue.Index(idx)
+		if !elem.CanSet() {
+			return node, nil
+		}
+		assignReflectValue(elem, newChild)
+		return node, nil
+
+	default:
+		return node, errInvalidReference(decodedToken)
+	}
+}
+
+// assignReflectValue assigns src into dst, unwrapping a pointer when dst
+// expects the pointee type. This tolerates the pointer-wrapping performed
+// by [typeFromValue] for addressable fields.
+func assignReflectValue(dst reflect.Value, src any) {
+	nv := reflect.ValueOf(src)
+	if !nv.IsValid() {
+		return
+	}
+	if nv.Type().AssignableTo(dst.Type()) {
+		dst.Set(nv)
+		return
+	}
+	if nv.Kind() == reflect.Pointer && nv.Elem().Type().AssignableTo(dst.Type()) {
+		dst.Set(nv.Elem())
+	}
+}
+
+func (p *Pointer) resolveNodeForToken(node any, decodedToken string, nameProvider NameProvider) (next any, err error) {
 	// check for nil during traversal
 	if isNil(node) {
 		return nil, fmt.Errorf("cannot traverse through nil value at %q: %w", decodedToken, ErrPointer)
@@ -272,6 +355,9 @@ func (p *Pointer) resolveNodeForToken(node any, decodedToken string, nameProvide
 		return typeFromValue(mv), nil
 
 	case reflect.Slice:
+		if decodedToken == dashToken {
+			return nil, errDashIntermediate()
+		}
 		tokenIndex, err := strconv.Atoi(decodedToken)
 		if err != nil {
 			return nil, errors.Join(err, ErrPointer)
@@ -312,16 +398,23 @@ func typeFromValue(v reflect.Value) any {
 }
 
 // GetForToken gets a value for a json pointer token 1 level deep.
-func GetForToken(document any, decodedToken string) (any, reflect.Kind, error) {
-	return getSingleImpl(document, decodedToken, jsonname.DefaultJSONNameProvider)
+func GetForToken(document any, decodedToken string, opts ...Option) (any, reflect.Kind, error) {
+	o := optionsWithDefaults(opts)
+
+	return getSingleImpl(document, decodedToken, o.provider)
 }
 
 // SetForToken sets a value for a json pointer token 1 level deep.
-func SetForToken(document any, decodedToken string, value any) (any, error) {
-	return document, setSingleImpl(document, value, decodedToken, jsonname.DefaultJSONNameProvider)
+//
+// See [Pointer.Set] for the mutation contract, in particular the handling of
+// the RFC 6901 "-" token on slices.
+func SetForToken(document any, decodedToken string, value any, opts ...Option) (any, error) {
+	o := optionsWithDefaults(opts)
+
+	return setSingleImpl(document, value, decodedToken, o.provider)
 }
 
-func getSingleImpl(node any, decodedToken string, nameProvider *jsonname.NameProvider) (any, reflect.Kind, error) {
+func getSingleImpl(node any, decodedToken string, nameProvider NameProvider) (any, reflect.Kind, error) {
 	rValue := reflect.Indirect(reflect.ValueOf(node))
 	kind := rValue.Kind()
 	if isNil(node) {
@@ -361,6 +454,9 @@ func getSingleImpl(node any, decodedToken string, nameProvider *jsonname.NamePro
 		return nil, kind, errNoKey(decodedToken)
 
 	case reflect.Slice:
+		if decodedToken == dashToken {
+			return nil, kind, errDashOnGet()
+		}
 		tokenIndex, err := strconv.Atoi(decodedToken)
 		if err != nil {
 			return nil, kind, errors.Join(err, ErrPointer)
@@ -378,14 +474,14 @@ func getSingleImpl(node any, decodedToken string, nameProvider *jsonname.NamePro
 	}
 }
 
-func setSingleImpl(node, data any, decodedToken string, nameProvider *jsonname.NameProvider) error {
+func setSingleImpl(node, data any, decodedToken string, nameProvider NameProvider) (any, error) {
 	// check for nil to prevent panic when calling rValue.Type()
 	if isNil(node) {
-		return fmt.Errorf("cannot set field %q on nil value: %w", decodedToken, ErrPointer)
+		return node, fmt.Errorf("cannot set field %q on nil value: %w", decodedToken, ErrPointer)
 	}
 
 	if ns, ok := node.(JSONSetable); ok {
-		return ns.JSONSet(decodedToken, data)
+		return node, ns.JSONSet(decodedToken, data)
 	}
 
 	rValue := reflect.Indirect(reflect.ValueOf(node))
@@ -394,12 +490,12 @@ func setSingleImpl(node, data any, decodedToken string, nameProvider *jsonname.N
 	case reflect.Struct:
 		nm, ok := nameProvider.GetGoNameForType(rValue.Type(), decodedToken)
 		if !ok {
-			return fmt.Errorf("object has no field %q: %w", decodedToken, ErrPointer)
+			return node, fmt.Errorf("object has no field %q: %w", decodedToken, ErrPointer)
 		}
 
 		fld := rValue.FieldByName(nm)
 		if !fld.CanSet() {
-			return fmt.Errorf("can't set struct field %s to %v: %w", nm, data, ErrPointer)
+			return node, fmt.Errorf("can't set struct field %s to %v: %w", nm, data, ErrPointer)
 		}
 
 		value := reflect.ValueOf(data)
@@ -407,33 +503,51 @@ func setSingleImpl(node, data any, decodedToken string, nameProvider *jsonname.N
 		assignedType := fld.Type()
 
 		if !valueType.AssignableTo(assignedType) {
-			return fmt.Errorf("can't set value with type %T to field %s with type %v: %w", data, nm, assignedType, ErrPointer)
+			return node, fmt.Errorf("can't set value with type %T to field %s with type %v: %w", data, nm, assignedType, ErrPointer)
 		}
 
 		fld.Set(value)
 
-		return nil
+		return node, nil
 
 	case reflect.Map:
 		kv := reflect.ValueOf(decodedToken)
 		rValue.SetMapIndex(kv, reflect.ValueOf(data))
 
-		return nil
+		return node, nil
 
 	case reflect.Slice:
+		if decodedToken == dashToken {
+			// RFC 6901 §4 / RFC 6902 append semantics: terminal "-" appends
+			// the value to the slice. We rebind in place when the slice is
+			// reachable via an addressable ancestor; otherwise we return the
+			// new slice header for the parent (or the public Set) to rebind.
+			value := reflect.ValueOf(data)
+			elemType := rValue.Type().Elem()
+			if !value.Type().AssignableTo(elemType) {
+				return node, fmt.Errorf("can't append value of type %T to slice of %v: %w", data, elemType, ErrPointer)
+			}
+			newSlice := reflect.Append(rValue, value)
+			if rValue.CanSet() {
+				rValue.Set(newSlice)
+				return node, nil
+			}
+			return newSlice.Interface(), nil
+		}
+
 		tokenIndex, err := strconv.Atoi(decodedToken)
 		if err != nil {
-			return errors.Join(err, ErrPointer)
+			return node, errors.Join(err, ErrPointer)
 		}
 
 		sLength := rValue.Len()
 		if tokenIndex < 0 || tokenIndex >= sLength {
-			return errOutOfBounds(sLength, tokenIndex)
+			return node, errOutOfBounds(sLength, tokenIndex)
 		}
 
 		elem := rValue.Index(tokenIndex)
 		if !elem.CanSet() {
-			return fmt.Errorf("can't set slice index %s to %v: %w", decodedToken, data, ErrPointer)
+			return node, fmt.Errorf("can't set slice index %s to %v: %w", decodedToken, data, ErrPointer)
 		}
 
 		value := reflect.ValueOf(data)
@@ -441,15 +555,15 @@ func setSingleImpl(node, data any, decodedToken string, nameProvider *jsonname.N
 		assignedType := elem.Type()
 
 		if !valueType.AssignableTo(assignedType) {
-			return fmt.Errorf("can't set value with type %T to slice element %d with type %v: %w", data, tokenIndex, assignedType, ErrPointer)
+			return node, fmt.Errorf("can't set value with type %T to slice element %d with type %v: %w", data, tokenIndex, assignedType, ErrPointer)
 		}
 
 		elem.Set(value)
 
-		return nil
+		return node, nil
 
 	default:
-		return errInvalidReference(decodedToken)
+		return node, errInvalidReference(decodedToken)
 	}
 }
 
@@ -485,6 +599,9 @@ func offsetSingleObject(dec *json.Decoder, decodedToken string) (int64, error) {
 }
 
 func offsetSingleArray(dec *json.Decoder, decodedToken string) (int64, error) {
+	if decodedToken == dashToken {
+		return 0, errDashOnOffset()
+	}
 	idx, err := strconv.Atoi(decodedToken)
 	if err != nil {
 		return 0, fmt.Errorf("token reference %q is not a number: %w: %w", decodedToken, err, ErrPointer)
