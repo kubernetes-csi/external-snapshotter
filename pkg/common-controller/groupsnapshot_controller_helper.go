@@ -1066,7 +1066,7 @@ func (ctrl *csiSnapshotCommonController) updateGroupSnapshotStatus(groupSnapshot
 
 		newGroupSnapshotObj, err := ctrl.clientset.GroupsnapshotV1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).UpdateStatus(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 		if err != nil {
-			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
+			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err)
 		}
 
 		return newGroupSnapshotObj, nil
@@ -1198,7 +1198,7 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 				"CreateGroupSnapshotContentFailed",
 				strErr,
 			)
-			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), strErr)
+			return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), errors.New(strErr))
 
 		}
 		volumeHandles = append(volumeHandles, pv.Spec.CSI.VolumeHandle)
@@ -1249,7 +1249,7 @@ func (ctrl *csiSnapshotCommonController) createGroupSnapshotContent(groupSnapsho
 		strerr := fmt.Sprintf("Error creating volume group snapshot content object for group snapshot %s: %v.", utils.GroupSnapshotKey(groupSnapshot), err)
 		klog.Error(strerr)
 		ctrl.eventRecorder.Event(groupSnapshot, v1.EventTypeWarning, "CreateGroupSnapshotContentFailed", strerr)
-		return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
+		return nil, newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err)
 	}
 
 	msg := fmt.Sprintf("Waiting for a group snapshot %s to be created by the CSI driver.", utils.GroupSnapshotKey(groupSnapshot))
@@ -1430,7 +1430,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotContentFinalizer(groupS
 	}
 	newGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset)
 	if err != nil {
-		return newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+		return newControllerUpdateError(groupSnapshotContent.Name, err)
 	}
 
 	_, err = ctrl.storeGroupSnapshotContentUpdate(newGroupSnapshotContent)
@@ -1485,7 +1485,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 		}
 		updatedGroupSnapshot, err = ctrl.clientset.GroupsnapshotV1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 		if err != nil {
-			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
+			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err)
 		}
 	} else {
 		// Otherwise, perform a patch
@@ -1501,7 +1501,7 @@ func (ctrl *csiSnapshotCommonController) addGroupSnapshotFinalizer(groupSnapshot
 
 		updatedGroupSnapshot, err = utils.PatchVolumeGroupSnapshot(groupSnapshot, patches, ctrl.clientset)
 		if err != nil {
-			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err.Error())
+			return newControllerUpdateError(utils.GroupSnapshotKey(groupSnapshot), err)
 		}
 	}
 
@@ -1693,7 +1693,7 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeGroupSnapshotBeingDeleted(g
 
 		patchedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset)
 		if err != nil {
-			return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+			return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err)
 		}
 
 		// update group snapshot content if update is successful
@@ -1747,7 +1747,7 @@ func (ctrl *csiSnapshotCommonController) removeGroupSnapshotFinalizer(groupSnaps
 	groupSnapshotClone.ObjectMeta.Finalizers = utils.RemoveString(groupSnapshotClone.ObjectMeta.Finalizers, utils.VolumeGroupSnapshotBoundFinalizer)
 	newGroupSnapshot, err := ctrl.clientset.GroupsnapshotV1().VolumeGroupSnapshots(groupSnapshotClone.Namespace).Update(context.TODO(), groupSnapshotClone, metav1.UpdateOptions{})
 	if err != nil {
-		return newControllerUpdateError(groupSnapshot.Name, err.Error())
+		return newControllerUpdateError(groupSnapshot.Name, err)
 	}
 
 	_, err = ctrl.storeGroupSnapshotUpdate(newGroupSnapshot)
