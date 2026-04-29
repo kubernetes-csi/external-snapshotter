@@ -288,7 +288,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	if content != nil && ctrl.isVolumeBeingCreatedFromSnapshot(snapshot) {
 		klog.V(4).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: snapshot is being used to restore a PVC", utils.SnapshotKey(snapshot))
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeletePending", "Snapshot is being used to restore a PVC")
-		return fmt.Errorf("snapshot %s is being used to restore a PVC, will retry deletion", utils.SnapshotKey(snapshot))
+		return fmt.Errorf("snapshot %s is in use (being used to restore a PVC), will retry deletion", utils.SnapshotKey(snapshot))
 	}
 
 	removeGroupFinalizer := false
