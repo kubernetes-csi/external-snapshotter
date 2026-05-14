@@ -171,6 +171,24 @@ func TestDeleteSync(t *testing.T) {
 			test:              testSyncContent,
 		},
 		{
+			// Snapshot is being deleted while a PVC in Pending still uses it as DataSource for restore.
+			// syncSnapshot must return an error so the workqueue retries (regression test for #1366).
+			name:              "3-1a - (dynamic) snapshot deletion returns error when a PVC is still restoring from the snapshot",
+			initialContents:   newContentArray("snapcontent-snapuid3-1a", "snapuid3-1a", "snap3-1a", "sid3-1a", validSecretClass, "", "volume3-1a", deletePolicy, nil, nil, true),
+			expectedContents:  newContentArray("snapcontent-snapuid3-1a", "snapuid3-1a", "snap3-1a", "sid3-1a", validSecretClass, "", "volume3-1a", deletePolicy, nil, nil, true),
+			initialSnapshots:  newSnapshotArray("snap3-1a", "snapuid3-1a", "claim3-1a", "", validSecretClass, "snapcontent-snapuid3-1a", &True, nil, nil, nil, false, true, &timeNowMetav1),
+			expectedSnapshots: newSnapshotArray("snap3-1a", "snapuid3-1a", "claim3-1a", "", validSecretClass, "snapcontent-snapuid3-1a", &True, nil, nil, nil, false, true, &timeNowMetav1),
+			initialClaims: []*v1.PersistentVolumeClaim{
+				newClaim("claim3-1a", "pvc-uid3-1a", "1Gi", "volume3-1a", v1.ClaimBound, &classEmpty, false),
+				newClaimPendingRestoreFromVolumeSnapshot("claim-restore-pending-1a", "pvc-uid-restore-1a", "1Gi", "snap3-1a", &classEmpty),
+			},
+			expectedEvents: []string{"Warning SnapshotDeletePending"},
+			initialSecrets: []*v1.Secret{secret()},
+			errors:         noerrors,
+			expectSuccess:  false,
+			test:           testSyncSnapshotError,
+		},
+		{
 			name:             "3-1 - (dynamic) content will be deleted if snapshot deletion timestamp is set",
 			initialContents:  newContentArray("snapcontent-snapuid3-1", "snapuid3-1", "snap3-1", "sid3-1", validSecretClass, "", "volume3-1", deletePolicy, nil, nil, true),
 			expectedContents: nocontents,
