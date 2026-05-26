@@ -853,7 +853,8 @@ install_snapshot_controller() {
 
                   # Now replace registry and/or tag
                   NEW_TAG="csiprow"
-                  line="$(echo "$nocomments" | sed -e "s;$image;${name}:${NEW_TAG};")"
+                  escaped_image=$(printf '%s\n' "$image" | sed -e 's/[\/&;]/\\&/g')
+                  line="$(echo "$nocomments" | sed -e "s;${escaped_image};${name}:${NEW_TAG};")"
 	          echo "        using $line" >&2
               fi
               echo "$line"
