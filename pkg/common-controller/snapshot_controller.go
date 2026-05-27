@@ -282,13 +282,13 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 		return nil
 	}
 
-	// check if the snapshot is being used for restore a PVC, if yes, do nothing
-	// and wait until PVC restoration finishes
+	// check if the snapshot is being used for restore a PVC, if yes, return an error
+	// so the workqueue will requeue this snapshot and retry deletion when the PVC
+	// is no longer in use (e.g., binding completed or PVC deleted).
 	if content != nil && ctrl.isVolumeBeingCreatedFromSnapshot(snapshot) {
 		klog.V(4).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent[%s]: snapshot is being used to restore a PVC", utils.SnapshotKey(snapshot))
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeletePending", "Snapshot is being used to restore a PVC")
-		// TODO(@xiangqian): should requeue this?
-		return nil
+		return fmt.Errorf("snapshot %s is in use (being used to restore a PVC), will retry deletion", utils.SnapshotKey(snapshot))
 	}
 
 	removeGroupFinalizer := false

@@ -1678,6 +1678,20 @@ func newClaimArray(name, claimUID, capacity, boundToVolume string, phase v1.Pers
 	}
 }
 
+// newClaimPendingRestoreFromVolumeSnapshot returns a PVC in Pending phase with DataSource
+// pointing at the given VolumeSnapshot name. Used to test snapshot deletion while a
+// volume is still being provisioned from that snapshot.
+func newClaimPendingRestoreFromVolumeSnapshot(name, claimUID, capacity string, volumeSnapshotName string, class *string) *v1.PersistentVolumeClaim {
+	apiGroup := crdv1.GroupName
+	claim := newClaim(name, claimUID, capacity, "", v1.ClaimPending, class, false)
+	claim.Spec.DataSource = &v1.TypedLocalObjectReference{
+		APIGroup: &apiGroup,
+		Kind:     "VolumeSnapshot",
+		Name:     volumeSnapshotName,
+	}
+	return claim
+}
+
 // newClaimCoupleArray returns array with two claims that would be returned by
 // newClaim() with "1-" and "2-" as prefix for names and UID.
 func newClaimCoupleArray(name, claimUID, capacity, boundToVolume string, phase v1.PersistentVolumeClaimPhase, class *string) []*v1.PersistentVolumeClaim {
