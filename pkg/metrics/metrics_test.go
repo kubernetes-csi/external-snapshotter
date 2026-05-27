@@ -489,7 +489,9 @@ snapshot_controller_operation_total_seconds_count{driver_name="driver5",operatio
 }
 
 func TestInFlightMetric(t *testing.T) {
+	oldInterval := inFlightCheckInterval
 	inFlightCheckInterval = time.Millisecond * 50
+	defer func() { inFlightCheckInterval = oldInterval }()
 
 	mgr, srv := initMgr()
 	defer shutdown(srv)

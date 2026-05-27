@@ -297,18 +297,18 @@ func (opMgr *operationMetricsManager) init() {
 }
 
 func (opMgr *operationMetricsManager) scheduleOpsInFlightMetric(ctx context.Context) {
+	ticker := time.NewTicker(inFlightCheckInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		default:
-			for range time.NewTicker(inFlightCheckInterval).C {
-				func() {
-					opMgr.mu.Lock()
-					defer opMgr.mu.Unlock()
-					opMgr.opInFlight.Set(float64(len(opMgr.cache)))
-				}()
-			}
+		case <-ticker.C:
+			func() {
+				opMgr.mu.Lock()
+				defer opMgr.mu.Unlock()
+				opMgr.opInFlight.Set(float64(len(opMgr.cache)))
+			}()
 		}
 	}
 }
