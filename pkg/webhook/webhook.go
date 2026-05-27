@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"time"
 
 	"k8s.io/klog/v2"
 )
@@ -43,8 +44,11 @@ func StartServer(
 	mux.HandleFunc("/convert", func(w http.ResponseWriter, req *http.Request) { serve(w, req, convertGroupSnapshotCRD) })
 
 	srv := &http.Server{
-		Handler:   mux,
-		TLSConfig: tlsConfig,
+		Handler:      mux,
+		TLSConfig:    tlsConfig,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  15 * time.Second,
 	}
 
 	// listener is always closed by srv.Serve
