@@ -10,7 +10,7 @@ require (
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/csi-lib-utils v0.24.0
 	github.com/kubernetes-csi/csi-test/v5 v5.4.0
-	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.4.0
+	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.6.0
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/prometheus/client_golang v1.23.2
 	github.com/prometheus/client_model v0.6.2
