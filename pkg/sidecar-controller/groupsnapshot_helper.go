@@ -226,7 +226,7 @@ func (ctrl csiSnapshotSideCarController) removeGroupSnapshotContentFinalizer(gro
 
 	updatedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContentClone, patches, ctrl.clientset)
 	if err != nil {
-		return newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+		return newControllerUpdateError(groupSnapshotContent.Name, err)
 	}
 
 	klog.V(5).Infof("Removed protection finalizer from volume group snapshot content %s", updatedGroupSnapshotContent.Name)
@@ -302,7 +302,7 @@ func (ctrl *csiSnapshotSideCarController) clearGroupSnapshotContentStatus(
 	}
 	newContent, err := ctrl.clientset.GroupsnapshotV1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContent, metav1.UpdateOptions{})
 	if err != nil {
-		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContentName, err.Error())
+		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContentName, err)
 	}
 	return newContent, nil
 }
@@ -534,7 +534,7 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeGroupSnapshotBeingCreated(
 
 	patchedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContent, patches, ctrl.clientset)
 	if err != nil {
-		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err)
 	}
 	// update groupSnapshotContent if update is successful
 	groupSnapshotContent = patchedGroupSnapshotContent
@@ -566,7 +566,7 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeGroupSnapshotBeingCreate
 
 	updatedGroupSnapshotContent, err := utils.PatchVolumeGroupSnapshotContent(groupSnapshotContentClone, patches, ctrl.clientset)
 	if err != nil {
-		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+		return groupSnapshotContent, newControllerUpdateError(groupSnapshotContent.Name, err)
 	}
 
 	klog.V(5).Infof("Removed VolumeGroupSnapshotBeingCreated annotation from volume group snapshot content %s", groupSnapshotContent.Name)
@@ -646,7 +646,7 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 		groupSnapshotContentClone.Status = newStatus
 		newContent, err := ctrl.clientset.GroupsnapshotV1().VolumeGroupSnapshotContents().UpdateStatus(context.TODO(), groupSnapshotContentClone, metav1.UpdateOptions{})
 		if err != nil {
-			return groupSnapshotContentObj, newControllerUpdateError(groupSnapshotContent.Name, err.Error())
+			return groupSnapshotContentObj, newControllerUpdateError(groupSnapshotContent.Name, err)
 		}
 		return newContent, nil
 	}
