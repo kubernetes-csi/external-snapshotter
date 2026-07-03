@@ -647,6 +647,17 @@ func (ctrl *csiSnapshotSideCarController) shouldDelete(content *crdv1.VolumeSnap
 	if metav1.HasAnnotation(content.ObjectMeta, utils.AnnVolumeSnapshotBeingDeleted) {
 		return true
 	}
+
+	// 4) shouldDelete returns true if the content has DeletionTimestamp set
+	// and the bound VolumeSnapshot no longer exists in the informer cache.
+	// This handles the case where the common-controller's PATCH to set
+	// AnnVolumeSnapshotBeingDeleted was throttled or failed, but the
+	// VolumeSnapshot has already been deleted. Without this fallback,
+	// the underlying storage snapshot would be leaked.
+	if content.Spec.VolumeSnapshotRef.UID != "" {
+		klog.V(5).Infof("shouldDelete[%s]: DeletionTimestamp set but AnnVolumeSnapshotBeingDeleted annotation missing, proceeding with deletion to prevent snapshot leak", content.Name)
+		return true
+	}
 	return false
 }
 
