@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/util/retry"
 	klog "k8s.io/klog/v2"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -437,18 +438,27 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *cr
 func (ctrl *csiSnapshotSideCarController) clearVolumeContentStatus(
 	contentName string) (*crdv1.VolumeSnapshotContent, error) {
 	klog.V(5).Infof("cleanVolumeSnapshotStatus content [%s]", contentName)
-	// get the latest version from API server
-	content, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), contentName, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error get snapshot content %s from api server: %v", contentName, err)
-	}
-	if content.Status != nil {
-		content.Status.SnapshotHandle = nil
-		content.Status.ReadyToUse = nil
-		content.Status.CreationTime = nil
-		content.Status.RestoreSize = nil
-	}
-	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), content, metav1.UpdateOptions{})
+	var (
+		content    *crdv1.VolumeSnapshotContent
+		newContent *crdv1.VolumeSnapshotContent
+	)
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// get the latest version from API server
+		var err error
+		content, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), contentName, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("error get snapshot content %s from api server: %v", contentName, err)
+		}
+		content = content.DeepCopy()
+		if content.Status != nil {
+			content.Status.SnapshotHandle = nil
+			content.Status.ReadyToUse = nil
+			content.Status.CreationTime = nil
+			content.Status.RestoreSize = nil
+		}
+		newContent, err = ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), content, metav1.UpdateOptions{})
+		return err
+	})
 	if err != nil {
 		return content, newControllerUpdateError(contentName, err.Error())
 	}
