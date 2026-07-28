@@ -73,11 +73,15 @@ func (ctrl *csiSnapshotSideCarController) groupSnapshotContentWorker() {
 	}
 	defer ctrl.groupSnapshotContentQueue.Done(key)
 
-	if err := ctrl.syncGroupSnapshotContentByKey(key); err != nil {
+	requeue, err := ctrl.syncGroupSnapshotContentByKey(key)
+	if err != nil {
+		klog.V(4).Infof("Failed to sync group snapshot content %q, will retry again: %v", key, err)
+		requeue = true
+	}
+	if requeue {
 		// Rather than wait for a full resync, re-add the key to the
 		// queue to be processed.
 		ctrl.groupSnapshotContentQueue.AddRateLimited(key)
-		klog.V(4).Infof("Failed to sync group snapshot content %q, will retry again: %v", key, err)
 		return
 	}
 
@@ -87,30 +91,33 @@ func (ctrl *csiSnapshotSideCarController) groupSnapshotContentWorker() {
 	return
 }
 
-func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContentByKey(key string) error {
+// syncGroupSnapshotContentByKey syncs a single group snapshot content. It returns
+// true if the controller should requeue the item again. On error, the group
+// snapshot content is always requeued.
+func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContentByKey(key string) (requeue bool, err error) {
 	klog.V(5).Infof("syncGroupSnapshotContentByKey[%s]", key)
 
 	_, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		klog.V(4).Infof("error getting name of groupSnapshotContent %q from informer: %v", key, err)
-		return nil
+		return false, nil
 	}
 	groupSnapshotContent, err := ctrl.groupSnapshotContentLister.Get(name)
 	// The group snapshot content still exists in informer cache, the event must
 	// have been add/update/sync
 	if err == nil {
 		if ctrl.isDriverMatch(groupSnapshotContent) {
-			err = ctrl.updateGroupSnapshotContentInInformerCache(groupSnapshotContent)
+			requeue, err = ctrl.updateGroupSnapshotContentInInformerCache(groupSnapshotContent)
 		}
 		if err != nil {
 			// If error occurs we add this item back to the queue
-			return err
+			return true, err
 		}
-		return nil
+		return requeue, nil
 	}
 	if !errors.IsNotFound(err) {
 		klog.V(2).Infof("error getting group snapshot content %q from informer: %v", key, err)
-		return nil
+		return false, nil
 	}
 
 	// The groupSnapshotContent is not in informer cache, the event must have been
@@ -118,27 +125,28 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContentByKey(key stri
 	groupSnapshotContentObj, found, err := ctrl.groupSnapshotContentStore.GetByKey(key)
 	if err != nil {
 		klog.V(2).Infof("error getting group snapshot content %q from cache: %v", key, err)
-		return nil
+		return false, nil
 	}
 	if !found {
 		// The controller has already processed the delete event and
 		// deleted the group snapshot content from its cache
 		klog.V(2).Infof("deletion of group snapshot content %q was already processed", key)
-		return nil
+		return false, nil
 	}
 	groupSnapshotContent, ok := groupSnapshotContentObj.(*groupsnapshotv1.VolumeGroupSnapshotContent)
 	if !ok {
 		klog.Errorf("expected group snapshot content, got %+v", groupSnapshotContent)
-		return nil
+		return false, nil
 	}
 	ctrl.deleteGroupSnapshotContentInCacheStore(groupSnapshotContent)
-	return nil
+	return false, nil
 }
 
 // updateGroupSnapshotContentInInformerCache runs in worker thread and handles
 // "group snapshot content added", "group snapshot content updated" and "periodic
-// sync" events.
-func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentInInformerCache(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) error {
+// sync" events. It returns a flag indicating if the group snapshot content should
+// be requeued. On error, the group snapshot content is always requeued.
+func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentInInformerCache(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) (requeue bool, err error) {
 	// Store the new group snapshot content version in the cache and do not process
 	// it if this is an old version.
 	new, err := ctrl.storeGroupSnapshotContentUpdate(groupSnapshotContent)
@@ -146,9 +154,9 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentInInformerCa
 		klog.Errorf("%v", err)
 	}
 	if !new {
-		return nil
+		return false, nil
 	}
-	err = ctrl.syncGroupSnapshotContent(groupSnapshotContent)
+	requeue, err = ctrl.syncGroupSnapshotContent(groupSnapshotContent)
 	if err != nil {
 		if errors.IsConflict(err) {
 			// Version conflict error happens quite often and the controller
@@ -157,9 +165,9 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentInInformerCa
 		} else {
 			klog.Errorf("could not sync group snapshot content %q: %+v", groupSnapshotContent.Name, err)
 		}
-		return err
+		return true, err
 	}
-	return nil
+	return requeue, nil
 }
 
 // deleteGroupSnapshotContentInCacheStore runs in worker thread and handles "group
@@ -169,8 +177,10 @@ func (ctrl *csiSnapshotSideCarController) deleteGroupSnapshotContentInCacheStore
 	klog.V(4).Infof("group snapshot content %q deleted", groupSnapshotContent.Name)
 }
 
-// syncGroupSnapshotContent deals with one key off the queue.  It returns false when it's time to quit.
-func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) error {
+// syncGroupSnapshotContent deals with one key off the queue. It returns a flag
+// indicating if the group snapshot content should be requeued. On error, the
+// group snapshot content is always requeued.
+func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("synchronizing VolumeGroupSnapshotContent[%s]", groupSnapshotContent.Name)
 
 	if ctrl.shouldDeleteGroupSnapshotContent(groupSnapshotContent) {
@@ -182,13 +192,19 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshot
 			// operation will update groups snapshot content's GroupSnapshotHandle
 			// to nil upon a successful deletion. At this point, the finalizer on
 			// group snapshot content should NOT be removed to avoid leaking.
-			return ctrl.deleteCSIGroupSnapshotOperation(groupSnapshotContent)
+			if err := ctrl.deleteCSIGroupSnapshotOperation(groupSnapshotContent); err != nil {
+				return true, err
+			}
+			return false, nil
 		}
 		// otherwise, either the snapshot has been deleted from the underlying
 		// storage system, or the deletion policy is Retain, remove the finalizer
 		// if there is one so that API server could delete the object if there is
 		// no other finalizer.
-		return ctrl.removeGroupSnapshotContentFinalizer(groupSnapshotContent)
+		if err := ctrl.removeGroupSnapshotContentFinalizer(groupSnapshotContent); err != nil {
+			return true, err
+		}
+		return false, nil
 	}
 
 	if len(groupSnapshotContent.Spec.Source.VolumeHandles) != 0 && groupSnapshotContent.Status == nil {
@@ -199,11 +215,12 @@ func (ctrl *csiSnapshotSideCarController) syncGroupSnapshotContent(groupSnapshot
 	// Skip checkandUpdateGroupSnapshotContentStatus() if ReadyToUse is already
 	// true. We don't want to keep calling CreateGroupSnapshot CSI methods over
 	// and over again for performance reasons.
-	var err error
-	if groupSnapshotContent.Status != nil && groupSnapshotContent.Status.ReadyToUse != nil && *groupSnapshotContent.Status.ReadyToUse == true {
+	if groupSnapshotContentIsReady(groupSnapshotContent) {
 		// Try to remove AnnVolumeGroupSnapshotBeingCreated if it is not removed yet for some reason
-		_, err = ctrl.removeAnnVolumeGroupSnapshotBeingCreated(groupSnapshotContent)
-		return err
+		if _, err := ctrl.removeAnnVolumeGroupSnapshotBeingCreated(groupSnapshotContent); err != nil {
+			return true, err
+		}
+		return false, nil
 	}
 	return ctrl.checkandUpdateGroupSnapshotContentStatus(groupSnapshotContent)
 }
@@ -278,8 +295,14 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to clear content status")
 		return err
 	}
-	// trigger syncGroupSnapshotContent
-	ctrl.updateGroupSnapshotContentInInformerCache(newContent)
+	// Trigger a re-sync of the group snapshot content, which will continue
+	// cleaning up the object (e.g. removing the finalizer). The requeue flag is
+	// not propagated: the group snapshot handle has just been cleared, so the
+	// re-sync only takes the finalizer removal path and anything that needs to be
+	// retried surfaces as an error, which the caller turns into a requeue.
+	if _, err := ctrl.updateGroupSnapshotContentInInformerCache(newContent); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -367,14 +390,16 @@ func (ctrl *csiSnapshotSideCarController) shouldDeleteGroupSnapshotContent(group
 	return false
 }
 
-// createGroupSnapshot starts new asynchronous operation to create group snapshot
-func (ctrl *csiSnapshotSideCarController) createGroupSnapshot(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) error {
+// createGroupSnapshot starts new asynchronous operation to create group snapshot.
+// It returns a flag indicating if the group snapshot content should be requeued.
+// On error, the group snapshot content is always requeued.
+func (ctrl *csiSnapshotSideCarController) createGroupSnapshot(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("createGroupSnapshot for group snapshot content [%s]: started", groupSnapshotContent.Name)
 	groupSnapshotContentObj, err := ctrl.createGroupSnapshotWrapper(groupSnapshotContent)
 	if err != nil {
 		ctrl.updateGroupSnapshotContentErrorStatusWithEvent(groupSnapshotContentObj, v1.EventTypeWarning, "GroupSnapshotCreationFailed", fmt.Sprintf("Failed to create group snapshot: %v", err))
 		klog.Errorf("createGroupSnapshot for groupSnapshotContent [%s]: error occurred in createGroupSnapshotWrapper: %v", groupSnapshotContent.Name, err)
-		return err
+		return true, err
 	}
 
 	_, updateErr := ctrl.storeGroupSnapshotContentUpdate(groupSnapshotContentObj)
@@ -383,7 +408,11 @@ func (ctrl *csiSnapshotSideCarController) createGroupSnapshot(groupSnapshotConte
 		klog.V(4).Infof("createGroupSnapshot for groupSnapshotContent [%s]: cannot update internal groupSnapshotContent cache: %v", groupSnapshotContent.Name, updateErr)
 	}
 
-	return nil
+	// The CSI driver may return success with ReadyToUse false while the group
+	// snapshot is still being completed on the storage system. Requeue with
+	// rate-limited backoff so readiness is picked up promptly instead of waiting
+	// for the next informer resync.
+	return !groupSnapshotContentIsReady(groupSnapshotContentObj), nil
 }
 
 // This is a wrapper function for the group snapshot creation process.
@@ -732,13 +761,24 @@ func GetSnapshotContentNameForVolumeGroupSnapshotContent(groupSnapshotContentUUI
 	return fmt.Sprintf("snapcontent-%x-%s", sha256.Sum256([]byte(groupSnapshotContentUUID+pvUUID)), time.Now().Format("2006-01-02-3.4.5"))
 }
 
-func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStatus(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) error {
+// groupSnapshotContentIsReady returns true if the group snapshot has been cut and
+// is ready to be used on the storage system.
+func groupSnapshotContentIsReady(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) bool {
+	return groupSnapshotContent != nil && groupSnapshotContent.Status != nil &&
+		groupSnapshotContent.Status.ReadyToUse != nil && *groupSnapshotContent.Status.ReadyToUse
+}
+
+// checkandUpdateGroupSnapshotContentStatus checks the status of the group snapshot
+// in the CSI driver and updates groupSnapshotContent.Status accordingly. It returns
+// a flag indicating if the group snapshot content should be requeued. On error, the
+// group snapshot content is always requeued.
+func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStatus(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatus[%s] started", groupSnapshotContent.Name)
 	groupSnapshotContentObj, err := ctrl.checkandUpdateGroupSnapshotContentStatusOperation(groupSnapshotContent)
 	if err != nil {
 		ctrl.updateGroupSnapshotContentErrorStatusWithEvent(groupSnapshotContentObj, v1.EventTypeWarning, "GroupSnapshotContentCheckandUpdateFailed", fmt.Sprintf("Failed to check and update group snapshot content: %v", err))
 		klog.Errorf("checkandUpdateGroupSnapshotContentStatus [%s]: error occurred %v", groupSnapshotContent.Name, err)
-		return err
+		return true, err
 	}
 	_, updateErr := ctrl.storeGroupSnapshotContentUpdate(groupSnapshotContentObj)
 	if updateErr != nil {
@@ -746,7 +786,9 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		klog.V(4).Infof("checkandUpdateGroupSnapshotContentStatus [%s]: cannot update internal cache: %v", groupSnapshotContent.Name, updateErr)
 	}
 
-	return nil
+	// Keep polling the storage system with rate-limited backoff until the group
+	// snapshot becomes ready to use.
+	return !groupSnapshotContentIsReady(groupSnapshotContentObj), nil
 }
 
 func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStatusOperation(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent) (*groupsnapshotv1.VolumeGroupSnapshotContent, error) {

@@ -17,6 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
+	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 )
@@ -123,9 +125,12 @@ func TestCreateGroupSnapshotErrorPath(t *testing.T) {
 		eventRecorder:             record.NewFakeRecorder(10),
 	}
 
-	err := ctrl.createGroupSnapshot(content)
+	requeue, err := ctrl.createGroupSnapshot(content)
 	if err == nil {
 		t.Error("createGroupSnapshot expected error when handler returns error")
+	}
+	if !requeue {
+		t.Error("expected requeue when createGroupSnapshotWrapper returns error")
 	}
 	// Error path should call updateGroupSnapshotContentErrorStatusWithEvent
 	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "create-err", metav1.GetOptions{})
@@ -154,9 +159,12 @@ func TestCheckandUpdateGroupSnapshotContentStatusErrorPath(t *testing.T) {
 		eventRecorder:             record.NewFakeRecorder(10),
 	}
 
-	err := ctrl.checkandUpdateGroupSnapshotContentStatus(content)
+	requeue, err := ctrl.checkandUpdateGroupSnapshotContentStatus(content)
 	if err == nil {
 		t.Error("checkandUpdateGroupSnapshotContentStatus expected error when GetGroupSnapshotStatus fails")
+	}
+	if !requeue {
+		t.Error("expected requeue when GetGroupSnapshotStatus fails")
 	}
 	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "check-err", metav1.GetOptions{})
 	if updated.Status == nil || updated.Status.Error == nil {
@@ -198,6 +206,54 @@ func TestDeleteCSIGroupSnapshotOperationSuccess(t *testing.T) {
 	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "delete-ok", metav1.GetOptions{})
 	if updated.Status != nil && updated.Status.VolumeGroupSnapshotHandle != nil {
 		t.Error("expected VolumeGroupSnapshotHandle to be cleared after successful delete")
+	}
+}
+
+// TestDeleteCSIGroupSnapshotOperationResyncError tests that an error from the
+// re-sync triggered after the group snapshot handle is cleared is propagated to
+// the caller, so that the worker requeues and retries the remaining cleanup
+// (finalizer removal) instead of forgetting the key until the next resync.
+func TestDeleteCSIGroupSnapshotOperationResyncError(t *testing.T) {
+	content := newGroupSnapshotContent(
+		"delete-resync-err", "uid", "snap", testNamespace,
+		"group-h", "class-a", []string{"vol-1"},
+		v1.VolumeSnapshotContentDelete, nil, true, &timeNowMetav1,
+	)
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
+		VolumeGroupSnapshotHandle: ptrString("group-handle-1"),
+		VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
+			{VolumeHandle: "vol-1", SnapshotHandle: "snap-1"},
+		},
+	}
+	client := fake.NewSimpleClientset(content)
+	// Let clearGroupSnapshotContentStatus (UpdateStatus) succeed, but fail the
+	// patch that removes the finalizer during the re-sync.
+	client.PrependReactor("patch", "volumegroupsnapshotcontents",
+		func(action k8stesting.Action) (bool, runtime.Object, error) {
+			return true, nil, errors.NewInternalError(fmt.Errorf("patch failed"))
+		})
+	store := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	_ = store.Add(content)
+	classIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	_ = classIndexer.Add(newVolumeGroupSnapshotClass("class-a", mockDriverName))
+	ctrl := &csiSnapshotSideCarController{
+		clientset:                 client,
+		groupSnapshotContentStore: store,
+		groupSnapshotClassLister:  groupsnapshotlisters.NewVolumeGroupSnapshotClassLister(classIndexer),
+		handler:                   &fakeGroupSnapshotHandler{}, // DeleteGroupSnapshot returns nil
+		eventRecorder:             record.NewFakeRecorder(10),
+	}
+
+	err := ctrl.deleteCSIGroupSnapshotOperation(content)
+	if err == nil {
+		t.Fatal("expected deleteCSIGroupSnapshotOperation to propagate the error from the triggered re-sync")
+	}
+
+	// The handle must still have been cleared: the group snapshot really is gone
+	// from the storage system, only the finalizer removal failed.
+	updated, _ := client.GroupsnapshotV1().VolumeGroupSnapshotContents().Get(context.Background(), "delete-resync-err", metav1.GetOptions{})
+	if updated.Status != nil && updated.Status.VolumeGroupSnapshotHandle != nil {
+		t.Error("expected VolumeGroupSnapshotHandle to be cleared even when the re-sync fails")
 	}
 }
 
@@ -297,13 +353,47 @@ func TestCheckandUpdateGroupSnapshotContentStatusSuccess(t *testing.T) {
 		handler:                   &fakeGroupSnapshotHandler{},
 		eventRecorder:             record.NewFakeRecorder(10),
 	}
-	err := ctrl.checkandUpdateGroupSnapshotContentStatus(content)
+	requeue, err := ctrl.checkandUpdateGroupSnapshotContentStatus(content)
 	if err != nil {
 		t.Fatalf("checkandUpdateGroupSnapshotContentStatus failed: %v", err)
+	}
+	if requeue {
+		t.Error("expected no requeue when the group snapshot became ready to use")
 	}
 	_, found, _ := store.GetByKey("check-status-ok")
 	if !found {
 		t.Error("expected content to be in store after successful checkandUpdate")
+	}
+}
+
+// TestCheckandUpdateGroupSnapshotContentStatusNotReadyRequeues verifies that a
+// successful GetGroupSnapshotStatus reporting readyToUse=false asks for a
+// rate-limited requeue instead of being forgotten until the next resync.
+func TestCheckandUpdateGroupSnapshotContentStatusNotReadyRequeues(t *testing.T) {
+	content := newGroupSnapshotContentWithHandles(
+		"check-status-not-ready", "uid", "snap", testNamespace,
+		"group-h", []string{"snap-1"}, "",
+		v1.VolumeSnapshotContentDelete, nil, false, nil,
+	)
+	content.Spec.VolumeGroupSnapshotClassName = nil
+	client := fake.NewSimpleClientset(content)
+	store := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	ctrl := &csiSnapshotSideCarController{
+		clientset:                 client,
+		groupSnapshotContentStore: store,
+		handler: &fakeGroupSnapshotHandler{
+			getGroupSnapshotStatus: func() (bool, time.Time, error) {
+				return false, time.Now(), nil
+			},
+		},
+		eventRecorder: record.NewFakeRecorder(10),
+	}
+	requeue, err := ctrl.checkandUpdateGroupSnapshotContentStatus(content)
+	if err != nil {
+		t.Fatalf("checkandUpdateGroupSnapshotContentStatus failed: %v", err)
+	}
+	if !requeue {
+		t.Error("expected requeue when the group snapshot is not ready to use yet")
 	}
 }
 
@@ -396,8 +486,46 @@ func TestCreateGroupSnapshotSuccess(t *testing.T) {
 		handler:                   &fakeGroupSnapshotHandler{},
 		eventRecorder:             record.NewFakeRecorder(10),
 	}
-	err := ctrl.createGroupSnapshot(content)
+	requeue, err := ctrl.createGroupSnapshot(content)
 	if err != nil {
 		t.Fatalf("createGroupSnapshot failed: %v", err)
+	}
+	if requeue {
+		t.Error("expected no requeue when the group snapshot is created ready to use")
+	}
+}
+
+// TestCreateGroupSnapshotNotReadyRequeues verifies that a successful
+// CreateGroupSnapshot returning readyToUse=false asks for a rate-limited requeue,
+// so that readiness is not delayed until the next informer resync.
+func TestCreateGroupSnapshotNotReadyRequeues(t *testing.T) {
+	content := newGroupSnapshotContent(
+		"create-not-ready", "uid", "snap", testNamespace,
+		"", "class-a", []string{"vol-1"},
+		v1.VolumeSnapshotContentDelete, nil, false, nil,
+	)
+	class := newVolumeGroupSnapshotClass("class-a", mockDriverName)
+	class.Parameters = nil
+	classIndexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{})
+	_ = classIndexer.Add(class)
+	client := fake.NewSimpleClientset(content)
+	ctrl := &csiSnapshotSideCarController{
+		clientset:                 client,
+		contentStore:              cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		groupSnapshotContentStore: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		groupSnapshotClassLister:  groupsnapshotlisters.NewVolumeGroupSnapshotClassLister(classIndexer),
+		handler: &fakeGroupSnapshotHandler{
+			createGroupSnapshotResult: func() (string, string, []*csi.Snapshot, time.Time, bool, error) {
+				return "driver", "group-id", nil, time.Now(), false, nil
+			},
+		},
+		eventRecorder: record.NewFakeRecorder(10),
+	}
+	requeue, err := ctrl.createGroupSnapshot(content)
+	if err != nil {
+		t.Fatalf("createGroupSnapshot failed: %v", err)
+	}
+	if !requeue {
+		t.Error("expected requeue when CreateGroupSnapshot succeeds with readyToUse=false")
 	}
 }
