@@ -330,7 +330,7 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	if content != nil && deleteContent {
 		klog.V(5).Infof("checkandRemoveSnapshotFinalizersAndCheckandDeleteContent: set DeletionTimeStamp on content [%s].", content.Name)
 		err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().Delete(context.TODO(), content.Name, metav1.DeleteOptions{})
-		if err != nil {
+		if err != nil && !apierrs.IsNotFound(err) {
 			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotContentObjectDeleteError", "Failed to delete snapshot content API object")
 			return fmt.Errorf("failed to delete VolumeSnapshotContent %s from API server: %q", content.Name, err)
 		}
