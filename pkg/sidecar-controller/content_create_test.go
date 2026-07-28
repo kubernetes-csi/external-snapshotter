@@ -21,9 +21,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/features"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	utilfeature "k8s.io/apiserver/pkg/util/feature"
 )
 
 func TestSyncContent(t *testing.T) {
@@ -288,6 +291,75 @@ func TestSyncContent(t *testing.T) {
 			errors:        noerrors,
 			expectRequeue: false,
 			expectSuccess: true,
+			test:          testSyncContent,
+		},
+	}
+
+	runSyncContentTests(t, tests, snapshotClasses)
+}
+
+func withContentNodeAffinity(contents []*crdv1.VolumeSnapshotContent, terms []v1.TopologySelectorTerm) []*crdv1.VolumeSnapshotContent {
+	for i := range contents {
+		contents[i].Spec.NodeAffinity = terms
+	}
+	return contents
+}
+
+// TestSyncContentTopology exercises the KEP-5943 end-to-end create path with the
+// feature gate on: the class's AllowedTopologies must be forwarded to the driver
+// as accessibility_requirements, and the driver's accessible_topology must be
+// persisted onto VolumeSnapshotContent.Spec.NodeAffinity.
+func TestSyncContentTopology(t *testing.T) {
+	if err := utilfeature.DefaultMutableFeatureGate.Set(string(features.VolumeSnapshotTopology) + "=true"); err != nil {
+		t.Fatalf("failed to enable VolumeSnapshotTopology feature gate: %v", err)
+	}
+	defer func() {
+		_ = utilfeature.DefaultMutableFeatureGate.Set(string(features.VolumeSnapshotTopology) + "=false")
+	}()
+
+	// topologyClass allows zones 2a and 2b, so both are forwarded as requisite.
+	requisite := []*csi.Topology{
+		{Segments: map[string]string{zoneKey: "us-west-2a"}},
+		{Segments: map[string]string{zoneKey: "us-west-2b"}},
+	}
+	// The driver reports the snapshot is accessible only from 2a.
+	driverTopology := []*csi.Topology{{Segments: map[string]string{zoneKey: "us-west-2a"}}}
+	// Which is persisted back as NodeAffinity.
+	nodeAffinity := []v1.TopologySelectorTerm{{
+		MatchLabelExpressions: []v1.TopologySelectorLabelRequirement{
+			{Key: zoneKey, Values: []string{"us-west-2a"}},
+		},
+	}}
+
+	tests := []controllerTest{
+		{
+			name: "topo-1: forwards AllowedTopologies and persists driver NodeAffinity",
+			initialContents: withContentStatus(newContentArray("content-topo", "snapuid-topo", "snap-topo", "sid-topo", topologyClass, "", "volume-handle-topo", retainPolicy, nil, &defaultSize, true),
+				nil),
+			expectedContents: withContentNodeAffinity(withContentAnnotations(withContentStatus(newContentArray("content-topo", "snapuid-topo", "snap-topo", "sid-topo", topologyClass, "", "volume-handle-topo", retainPolicy, nil, &defaultSize, true),
+				&crdv1.VolumeSnapshotContentStatus{SnapshotHandle: toStringPointer("snapuid-topo"), RestoreSize: &defaultSize, ReadyToUse: &True}),
+				map[string]string{}), nodeAffinity),
+			expectedEvents: noevents,
+			expectedCreateCalls: []createCall{
+				{
+					volumeHandle: "volume-handle-topo",
+					snapshotName: "snapshot-snapuid-topo",
+					driverName:   mockDriverName,
+					snapshotId:   "snapuid-topo",
+					parameters: map[string]string{
+						utils.PrefixedVolumeSnapshotNameKey:        "snap-topo",
+						utils.PrefixedVolumeSnapshotNamespaceKey:   "default",
+						utils.PrefixedVolumeSnapshotContentNameKey: "content-topo",
+					},
+					expectedAccessibilityRequirements: &csi.TopologyRequirement{Requisite: requisite, Preferred: requisite},
+					creationTime:                      timeNow,
+					readyToUse:                        true,
+					size:                              defaultSize,
+					accessibleTopology:                driverTopology,
+				},
+			},
+			expectSuccess: true,
+			errors:        noerrors,
 			test:          testSyncContent,
 		},
 	}

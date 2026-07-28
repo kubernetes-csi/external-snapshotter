@@ -144,6 +144,21 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 		Parameters:     class6Parameters,
 		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
 	},
+	{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "VolumeSnapshotClass",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: topologyClass,
+		},
+		Driver:         mockDriverName,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
+		AllowedTopologies: []v1.TopologySelectorTerm{{
+			MatchLabelExpressions: []v1.TopologySelectorLabelRequirement{
+				{Key: zoneKey, Values: []string{"us-west-2a", "us-west-2b"}},
+			},
+		}},
+	},
 }
 
 // Test single call to syncContent, expecting deleting to happen.

@@ -22,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/mock/gomock"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/v5/driver"
 	"github.com/kubernetes-csi/csi-test/v5/utils"
 
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 )
 
@@ -137,6 +137,107 @@ func Test_supportsControllerCreateSnapshot(t *testing.T) {
 		}
 		if err == nil && test.expectResult != ok {
 			t.Errorf("test fail expected result %t but got %t\n", test.expectResult, ok)
+		}
+	}
+}
+
+func Test_supportsSnapshotAccessibilityConstraints(t *testing.T) {
+	tests := []struct {
+		name         string
+		output       *csi.GetPluginCapabilitiesResponse
+		injectError  bool
+		expectError  bool
+		expectResult bool
+	}{
+		{
+			name: "success",
+			output: &csi.GetPluginCapabilitiesResponse{
+				Capabilities: []*csi.PluginCapability{
+					{
+						Type: &csi.PluginCapability_Service_{
+							Service: &csi.PluginCapability_Service{
+								Type: csi.PluginCapability_Service_SNAPSHOT_ACCESSIBILITY_CONSTRAINTS,
+							},
+						},
+					},
+				},
+			},
+			expectError:  false,
+			expectResult: true,
+		},
+		{
+			name:         "gRPC error",
+			output:       nil,
+			injectError:  true,
+			expectError:  true,
+			expectResult: false,
+		},
+		{
+			name: "capability absent",
+			output: &csi.GetPluginCapabilitiesResponse{
+				Capabilities: []*csi.PluginCapability{
+					{
+						Type: &csi.PluginCapability_Service_{
+							Service: &csi.PluginCapability_Service{
+								Type: csi.PluginCapability_Service_CONTROLLER_SERVICE,
+							},
+						},
+					},
+				},
+			},
+			expectError:  false,
+			expectResult: false,
+		},
+		{
+			name: "empty capability",
+			output: &csi.GetPluginCapabilitiesResponse{
+				Capabilities: []*csi.PluginCapability{
+					{
+						Type: nil,
+					},
+				},
+			},
+			expectError:  false,
+			expectResult: false,
+		},
+		{
+			name: "no capabilities",
+			output: &csi.GetPluginCapabilitiesResponse{
+				Capabilities: []*csi.PluginCapability{},
+			},
+			expectError:  false,
+			expectResult: false,
+		},
+	}
+
+	mockController, driver, identityServer, _, csiConn, err := createMockServer(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mockController.Finish()
+	defer driver.Stop()
+	defer csiConn.Close()
+
+	for _, test := range tests {
+		in := &csi.GetPluginCapabilitiesRequest{}
+
+		out := test.output
+		var injectedErr error
+		if test.injectError {
+			injectedErr = fmt.Errorf("mock error")
+		}
+
+		identityServer.EXPECT().GetPluginCapabilities(gomock.Any(), utils.Protobuf(in)).Return(out, injectedErr).Times(1)
+
+		ok, err := supportsSnapshotAccessibilityConstraints(context.Background(), csiConn)
+		if test.expectError && err == nil {
+			t.Errorf("test %q: Expected error, got none", test.name)
+		}
+		if !test.expectError && err != nil {
+			t.Errorf("test %q: got error: %v", test.name, err)
+		}
+		if err == nil && test.expectResult != ok {
+			t.Errorf("test %q: expected result %t but got %t", test.name, test.expectResult, ok)
 		}
 	}
 }
