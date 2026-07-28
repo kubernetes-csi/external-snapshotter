@@ -24,12 +24,12 @@ import (
 	"time"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/mock/gomock"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/v5/driver"
 	"github.com/kubernetes-csi/csi-test/v5/utils"
 
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -215,7 +215,7 @@ func TestCreateSnapshot(t *testing.T) {
 		}
 
 		s := NewSnapshotter(csiConn)
-		driverName, snapshotId, timestamp, size, readyToUse, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volumeHandle, test.parameters, test.secrets)
+		driverName, snapshotId, timestamp, size, readyToUse, _, err := s.CreateSnapshot(context.Background(), test.snapshotName, test.volumeHandle, test.parameters, test.secrets, nil)
 		if test.expectError && err == nil {
 			t.Errorf("test %q: Expected error, got none", test.name)
 		}

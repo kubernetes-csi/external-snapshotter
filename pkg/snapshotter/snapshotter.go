@@ -32,7 +32,7 @@ import (
 // Snapshotter implements CreateSnapshot/DeleteSnapshot operations against a remote CSI driver.
 type Snapshotter interface {
 	// CreateSnapshot creates a snapshot for a volume
-	CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string) (driverName string, snapshotId string, timestamp time.Time, size int64, readyToUse bool, err error)
+	CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string, accessibilityRequirements *csi.TopologyRequirement) (driverName string, snapshotId string, timestamp time.Time, size int64, readyToUse bool, accessibleTopology []*csi.Topology, err error)
 
 	// DeleteSnapshot deletes a snapshot from a volume
 	DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error)
@@ -51,31 +51,33 @@ func NewSnapshotter(conn *grpc.ClientConn) Snapshotter {
 	}
 }
 
-func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (s *snapshot) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string, accessibilityRequirements *csi.TopologyRequirement) (string, string, time.Time, int64, bool, []*csi.Topology, error) {
 	klog.V(5).Infof("CSI CreateSnapshot: %s", snapshotName)
 	client := csi.NewControllerClient(s.conn)
 
 	driverName, err := csirpc.GetDriverName(ctx, s.conn)
 	if err != nil {
-		return "", "", time.Time{}, 0, false, err
+		return "", "", time.Time{}, 0, false, nil, err
 	}
 
 	req := csi.CreateSnapshotRequest{
-		SourceVolumeId: volumeHandle,
-		Name:           snapshotName,
-		Parameters:     parameters,
-		Secrets:        snapshotterCredentials,
+		SourceVolumeId:            volumeHandle,
+		Name:                      snapshotName,
+		Parameters:                parameters,
+		Secrets:                   snapshotterCredentials,
+		AccessibilityRequirements: accessibilityRequirements,
 	}
 
 	rsp, err := client.CreateSnapshot(ctx, &req)
 	if err != nil {
-		return "", "", time.Time{}, 0, false, err
+		return "", "", time.Time{}, 0, false, nil, err
 	}
 
-	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%v] size [%d] readyToUse [%v]", snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse)
+	klog.V(5).Infof("CSI CreateSnapshot: %s driver name [%s] snapshot ID [%s] time stamp [%v] size [%d] readyToUse [%v] accessibleTopology [%v]",
+		snapshotName, driverName, rsp.Snapshot.SnapshotId, rsp.Snapshot.CreationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, rsp.Snapshot.AccessibleTopology)
 
 	creationTime := rsp.Snapshot.CreationTime.AsTime()
-	return driverName, rsp.Snapshot.SnapshotId, creationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, nil
+	return driverName, rsp.Snapshot.SnapshotId, creationTime, rsp.Snapshot.SizeBytes, rsp.Snapshot.ReadyToUse, rsp.Snapshot.AccessibleTopology, nil
 }
 
 func (s *snapshot) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) (err error) {

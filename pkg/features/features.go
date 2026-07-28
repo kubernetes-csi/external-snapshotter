@@ -30,6 +30,15 @@ const (
 	//
 	// Releases leader election lease on sigterm / sigint.
 	ReleaseLeaderElectionOnExit featuregate.Feature = "ReleaseLeaderElectionOnExit"
+
+	// owner: @mdzraf
+	// alpha: v1.37
+	//
+	// Populates VolumeSnapshotContent.Spec.NodeAffinity from the CSI
+	// driver's CreateSnapshotResponse and forwards
+	// VolumeSnapshotClass.AllowedTopologies to the CSI CreateSnapshotRequest
+	// as AccessibilityRequirements.
+	VolumeSnapshotTopology featuregate.Feature = "VolumeSnapshotTopology"
 )
 
 func init() {
@@ -41,4 +50,5 @@ func init() {
 var defaultKubernetesFeatureGates = map[featuregate.Feature]featuregate.FeatureSpec{
 	VolumeGroupSnapshot:         {Default: false, PreRelease: featuregate.Beta},
 	ReleaseLeaderElectionOnExit: {Default: false, PreRelease: featuregate.Alpha},
+	VolumeSnapshotTopology:      {Default: false, PreRelease: featuregate.Alpha},
 }

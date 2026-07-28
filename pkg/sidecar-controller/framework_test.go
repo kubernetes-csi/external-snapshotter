@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/google/go-cmp/cmp"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -931,10 +932,10 @@ type fakeSnapshotter struct {
 	t                 *testing.T
 }
 
-func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string, accessibilityRequirements *csi.TopologyRequirement) (string, string, time.Time, int64, bool, []*csi.Topology, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volumeHandle=%v, index: %d, calls: %+v", snapshotName, volumeHandle, f.createCallCounter, f.createCalls)
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("unexpected call")
 	}
 	call := f.createCalls[f.createCallCounter]
 	f.createCallCounter++
@@ -961,9 +962,10 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	}
 
 	if err != nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("unexpected call")
 	}
-	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
+	_ = accessibilityRequirements
+	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, nil, call.err
 }
 
 func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {

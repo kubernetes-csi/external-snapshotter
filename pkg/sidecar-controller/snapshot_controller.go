@@ -23,13 +23,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	codes "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 	klog "k8s.io/klog/v2"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/features"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 )
 
@@ -365,7 +368,19 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 		parameters[utils.PrefixedVolumeSnapshotContentNameKey] = content.Name
 	}
 
-	driverName, snapshotID, creationTime, size, readyToUse, err := ctrl.handler.CreateSnapshot(content, parameters, snapshotterCredentials)
+	var accessibilityRequirements *csi.TopologyRequirement
+	if feature.DefaultFeatureGate.Enabled(features.VolumeSnapshotTopology) && class != nil && len(class.AllowedTopologies) > 0 {
+		topologies := topologySelectorTermsToCSI(class.AllowedTopologies)
+		if len(topologies) > 0 {
+			accessibilityRequirements = &csi.TopologyRequirement{
+				Requisite: topologies,
+				Preferred: topologies,
+			}
+			klog.V(4).Infof("createSnapshotWrapper: forwarding %d topologies from VolumeSnapshotClass %q to driver", len(topologies), class.Name)
+		}
+	}
+
+	driverName, snapshotID, creationTime, size, readyToUse, accessibleTopology, err := ctrl.handler.CreateSnapshot(content, parameters, snapshotterCredentials, accessibilityRequirements)
 	if err != nil {
 		// NOTE(xyang): handle create timeout
 		// If it is a final error, remove annotation to indicate
@@ -387,6 +402,30 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 		creationTime = time.Now()
 	}
 
+	// Patch the driver-returned accessible topology onto Spec.NodeAffinity
+	// BEFORE updating status to ReadyToUse. Once the content is ready,
+	// syncContent short-circuits and createSnapshotWrapper is not re-entered,
+	// so a patch failure here must be returned (and requeued) rather than
+	// swallowed, otherwise the topology would be lost permanently.
+	if feature.DefaultFeatureGate.Enabled(features.VolumeSnapshotTopology) &&
+		len(accessibleTopology) > 0 &&
+		len(content.Spec.NodeAffinity) == 0 {
+		terms := csiTopologyToTerms(accessibleTopology)
+		if len(terms) > 0 {
+			patches := []utils.PatchOp{{
+				Op:    "add",
+				Path:  "/spec/nodeAffinity",
+				Value: terms,
+			}}
+			patched, patchErr := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset, "")
+			if patchErr != nil {
+				return content, fmt.Errorf("failed to patch NodeAffinity onto content %s: %v", content.Name, patchErr)
+			}
+			content = patched
+			klog.V(4).Infof("createSnapshotWrapper: patched %d NodeAffinity terms onto content %s", len(terms), content.Name)
+		}
+	}
+
 	newContent, err := ctrl.updateSnapshotContentStatus(content, snapshotID, readyToUse, creationTime.UnixNano(), size, "")
 	if err != nil {
 		klog.Errorf("error updating status for volume snapshot content %s: %v.", content.Name, err)
@@ -403,6 +442,115 @@ func (ctrl *csiSnapshotSideCarController) createSnapshotWrapper(content *crdv1.V
 	}
 
 	return content, nil
+}
+
+// topologySelectorTermsToCSI converts k8s TopologySelectorTerms into
+// CSI Topology segments for CreateSnapshotRequest.accessibility_requirements.
+//
+// A TopologySelectorTerm ANDs its MatchLabelExpressions, and each expression
+// ORs its Values. A single CSI Topology likewise ANDs its Segments, and the
+// entries in a TopologyRequirement are ORed. So a term must expand to the
+// cartesian product of its expressions' values: one multi-segment Topology per
+// combination. Emitting one single-segment Topology per value would flatten the
+// intra-term AND into an OR.
+func topologySelectorTermsToCSI(terms []v1.TopologySelectorTerm) []*csi.Topology {
+	var out []*csi.Topology
+	for _, term := range terms {
+		if len(term.MatchLabelExpressions) == 0 {
+			continue
+		}
+		combos := []map[string]string{{}}
+		for _, expr := range term.MatchLabelExpressions {
+			if len(expr.Values) == 0 {
+				// A term with an expression that matches nothing is unsatisfiable.
+				combos = nil
+				break
+			}
+			next := make([]map[string]string, 0, len(combos)*len(expr.Values))
+			for _, combo := range combos {
+				for _, value := range expr.Values {
+					seg := make(map[string]string, len(combo)+1)
+					for k, v := range combo {
+						seg[k] = v
+					}
+					seg[expr.Key] = value
+					next = append(next, seg)
+				}
+			}
+			combos = next
+		}
+		for _, seg := range combos {
+			out = append(out, &csi.Topology{Segments: seg})
+		}
+	}
+	return out
+}
+
+// csiTopologyToTerms is the inverse of topologySelectorTermsToCSI: it folds a
+// list of CSI Topology segments (as returned in CreateSnapshotResponse) into
+// a []TopologySelectorTerm suitable for VolumeSnapshotContent.Spec.NodeAffinity.
+//
+// Segments that share the same set of keys are collapsed into one term with
+// MatchLabelExpressions whose Values are de-duplicated and stable-sorted. This
+// keeps the shape of the field consistent across reconciles.
+func csiTopologyToTerms(topos []*csi.Topology) []v1.TopologySelectorTerm {
+	// keyOrdering preserves the order keys first appear in, so the output
+	// is deterministic even though the intermediate map is not.
+	type bucket struct {
+		keyOrdering []string
+		values      map[string]map[string]struct{} // key -> set of values
+	}
+	buckets := map[string]*bucket{}
+
+	for _, t := range topos {
+		if t == nil || len(t.Segments) == 0 {
+			continue
+		}
+		keys := make([]string, 0, len(t.Segments))
+		for k := range t.Segments {
+			keys = append(keys, k)
+		}
+		slices.Sort(keys)
+		sig := strings.Join(keys, "|")
+
+		b, ok := buckets[sig]
+		if !ok {
+			b = &bucket{values: map[string]map[string]struct{}{}}
+			for _, k := range keys {
+				b.keyOrdering = append(b.keyOrdering, k)
+				b.values[k] = map[string]struct{}{}
+			}
+			buckets[sig] = b
+		}
+		for k, v := range t.Segments {
+			b.values[k][v] = struct{}{}
+		}
+	}
+
+	sigs := make([]string, 0, len(buckets))
+	for sig := range buckets {
+		sigs = append(sigs, sig)
+	}
+	slices.Sort(sigs)
+
+	terms := make([]v1.TopologySelectorTerm, 0, len(sigs))
+	for _, sig := range sigs {
+		b := buckets[sig]
+		exprs := make([]v1.TopologySelectorLabelRequirement, 0, len(b.keyOrdering))
+		for _, k := range b.keyOrdering {
+			vals := make([]string, 0, len(b.values[k]))
+			for v := range b.values[k] {
+				vals = append(vals, v)
+			}
+			slices.Sort(vals)
+			exprs = append(exprs, v1.TopologySelectorLabelRequirement{
+				Key:    k,
+				Values: vals,
+			})
+		}
+		terms = append(terms, v1.TopologySelectorTerm{MatchLabelExpressions: exprs})
+	}
+	return terms
 }
 
 // Delete a snapshot: Ask the backend to remove the snapshot device
