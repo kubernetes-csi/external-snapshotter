@@ -32,7 +32,7 @@ import (
 
 // Handler is responsible for handling VolumeSnapshot events from informer.
 type Handler interface {
-	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error)
+	CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string, accessibilityRequirements *csi.TopologyRequirement) (string, string, time.Time, int64, bool, []*csi.Topology, error)
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
 	CreateGroupSnapshot(content *groupsnapshotv1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
@@ -72,23 +72,23 @@ func NewCSIHandler(
 	}
 }
 
-func (handler *csiHandler) CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (handler *csiHandler) CreateSnapshot(content *crdv1.VolumeSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string, accessibilityRequirements *csi.TopologyRequirement) (string, string, time.Time, int64, bool, []*csi.Topology, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
 	if content.Spec.VolumeSnapshotRef.UID == "" {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("cannot create snapshot. Snapshot content %s not bound to a snapshot", content.Name)
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("cannot create snapshot. Snapshot content %s not bound to a snapshot", content.Name)
 	}
 
 	if content.Spec.Source.VolumeHandle == nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("cannot create snapshot. Volume handle not found in snapshot content %s", content.Name)
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("cannot create snapshot. Volume handle not found in snapshot content %s", content.Name)
 	}
 
 	snapshotName, err := makeSnapshotName(handler.snapshotNamePrefix, string(content.Spec.VolumeSnapshotRef.UID), handler.snapshotNameUUIDLength)
 	if err != nil {
-		return "", "", time.Time{}, 0, false, err
+		return "", "", time.Time{}, 0, false, nil, err
 	}
-	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, *content.Spec.Source.VolumeHandle, parameters, snapshotterCredentials)
+	return handler.snapshotter.CreateSnapshot(ctx, snapshotName, *content.Spec.Source.VolumeHandle, parameters, snapshotterCredentials, accessibilityRequirements)
 }
 
 func (handler *csiHandler) DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error {

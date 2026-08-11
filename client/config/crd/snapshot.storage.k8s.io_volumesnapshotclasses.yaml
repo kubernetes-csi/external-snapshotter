@@ -39,6 +39,52 @@ spec:
           name in a VolumeSnapshot object.
           VolumeSnapshotClasses are non-namespaced
         properties:
+          allowedTopologies:
+            description: |-
+              allowedTopologies restricts the node topologies where snapshots created
+              using this class are usable from. A snapshot is usable from a location
+              if volumes created from that snapshot are guaranteed to be accessible
+              from that location. Each volume plugin defines its own supported
+              topology specifications. An empty list means there is no topology
+              restriction. This is passed to the CSI driver as
+              AccessibilityRequirements in the CreateSnapshotRequest.
+              This is an alpha field tied to the VolumeSnapshotTopology feature gate
+              (KEP-5943).
+            items:
+              description: |-
+                A topology selector term represents the result of label queries. A null
+                or empty topology selector term matches no objects. The requirements of
+                them are ANDed. It provides a subset of functionality as NodeSelectorTerm.
+                This is an alpha feature and may change in the future.
+              properties:
+                matchLabelExpressions:
+                  description: A list of topology selector requirements by labels.
+                  items:
+                    description: |-
+                      A topology selector requirement is a selector that matches given label.
+                      This is an alpha feature and may change in the future.
+                    properties:
+                      key:
+                        description: The label key that the selector applies to.
+                        type: string
+                      values:
+                        description: |-
+                          An array of string values. One value must match the label to be selected.
+                          Each entry in Values is ORed.
+                        items:
+                          type: string
+                        type: array
+                        x-kubernetes-list-type: atomic
+                    required:
+                    - key
+                    - values
+                    type: object
+                  type: array
+                  x-kubernetes-list-type: atomic
+              type: object
+              x-kubernetes-map-type: atomic
+            type: array
+            x-kubernetes-list-type: atomic
           apiVersion:
             description: |-
               APIVersion defines the versioned schema of this representation of an object.

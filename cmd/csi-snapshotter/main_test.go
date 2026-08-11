@@ -22,12 +22,12 @@ import (
 	"testing"
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
-	"github.com/golang/mock/gomock"
 	"github.com/kubernetes-csi/csi-lib-utils/connection"
 	"github.com/kubernetes-csi/csi-lib-utils/metrics"
 	"github.com/kubernetes-csi/csi-test/v5/driver"
 	"github.com/kubernetes-csi/csi-test/v5/utils"
 
+	"go.uber.org/mock/gomock"
 	"google.golang.org/grpc"
 )
 

@@ -72,8 +72,8 @@ type fakeGroupSnapshotHandler struct {
 	deleteGroupSnapshotErr    error
 }
 
-func (f *fakeGroupSnapshotHandler) CreateSnapshot(_ *v1.VolumeSnapshotContent, _, _ map[string]string) (string, string, time.Time, int64, bool, error) {
-	return "", "", time.Time{}, 0, false, errors.NewServiceUnavailable("not implemented")
+func (f *fakeGroupSnapshotHandler) CreateSnapshot(_ *v1.VolumeSnapshotContent, _, _ map[string]string, _ *csi.TopologyRequirement) (string, string, time.Time, int64, bool, []*csi.Topology, error) {
+	return "", "", time.Time{}, 0, false, nil, errors.NewServiceUnavailable("not implemented")
 }
 func (f *fakeGroupSnapshotHandler) DeleteSnapshot(_ *v1.VolumeSnapshotContent, _ map[string]string) error {
 	return errors.NewServiceUnavailable("not implemented")

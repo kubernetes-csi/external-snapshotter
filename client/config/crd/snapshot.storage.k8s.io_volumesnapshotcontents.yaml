@@ -84,6 +84,57 @@ spec:
               spec defines properties of a VolumeSnapshotContent created by the underlying storage system.
               Required.
             properties:
+              nodeAffinity:
+                description: |-
+                  nodeAffinity defines the node topologies from which a volume can
+                  be provisioned using this snapshot as a source. This is derived from the
+                  CSI driver's CreateSnapshotResponse. For WaitForFirstConsumer volume
+                  binding, the scheduler plugin compares these terms against node labels to
+                  filter candidate nodes. For Immediate volume binding, the external-provisioner
+                  intersects these terms with StorageClass.AllowedTopologies to select a
+                  compatible provisioning topology.
+                  This field is mutable to support topology changes during the snapshot
+                  lifecycle (e.g., snapshot replication to additional regions, admin
+                  corrections for statically provisioned snapshots). Changes only affect
+                  future scheduling and provisioning.
+                  This is an alpha field tied to the VolumeSnapshotTopology feature gate
+                  (KEP-5943).
+                items:
+                  description: |-
+                    A topology selector term represents the result of label queries. A null
+                    or empty topology selector term matches no objects. The requirements of
+                    them are ANDed. It provides a subset of functionality as NodeSelectorTerm.
+                    This is an alpha feature and may change in the future.
+                  properties:
+                    matchLabelExpressions:
+                      description: A list of topology selector requirements by labels.
+                      items:
+                        description: |-
+                          A topology selector requirement is a selector that matches given label.
+                          This is an alpha feature and may change in the future.
+                        properties:
+                          key:
+                            description: The label key that the selector applies
+                              to.
+                            type: string
+                          values:
+                            description: |-
+                              An array of string values. One value must match the label to be selected.
+                              Each entry in Values is ORed.
+                            items:
+                              type: string
+                            type: array
+                            x-kubernetes-list-type: atomic
+                        required:
+                        - key
+                        - values
+                        type: object
+                      type: array
+                      x-kubernetes-list-type: atomic
+                  type: object
+                  x-kubernetes-map-type: atomic
+                type: array
+                x-kubernetes-list-type: atomic
               deletionPolicy:
                 description: |-
                   deletionPolicy determines whether this VolumeSnapshotContent and its physical snapshot on
