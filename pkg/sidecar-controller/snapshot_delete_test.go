@@ -25,7 +25,9 @@ import (
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 var (
@@ -73,6 +75,10 @@ var class6Parameters = map[string]string{
 var class7Annotations = map[string]string{
 	utils.AnnDeletionSecretRefName:      "secret-x",
 	utils.AnnDeletionSecretRefNamespace: "default-x",
+}
+
+func newConflict(resource, name string) error {
+	return apierrs.NewConflict(schema.GroupResource{Resource: resource}, name, fmt.Errorf("resource version conflict"))
 }
 
 var snapshotClasses = []*crdv1.VolumeSnapshotClass{
@@ -220,6 +226,20 @@ func TestDeleteSync(t *testing.T) {
 			expectedEvents:      []string{"Warning SnapshotDeleteError"},
 			expectedListCalls:   []listCall{{"sid1-3", map[string]string{}, true, time.Now(), 1, nil, ""}},
 			test:                testSyncContent,
+		},
+		{
+			name:            "1-3b - clear content status update conflict should be retried and succeed",
+			initialContents: newContentArrayWithDeletionTimestamp("content1-3b", "snapuid1-3b", "snap1-3b", "sid1-3b", validSecretClass, "", "snap1-3b-volumehandle", deletePolicy, nil, nil, true, &nonFractionalTime),
+			// After UpdateStatus eventually succeeds, the delete flow proceeds and removes
+			// the bound finalizer for Delete policy content.
+			expectedContents:    newContentArrayWithDeletionTimestamp("content1-3b", "snapuid1-3b", "snap1-3b", "", validSecretClass, "", "snap1-3b-volumehandle", deletePolicy, nil, nil, false, &nonFractionalTime),
+			expectedDeleteCalls: []deleteCall{{"sid1-3b", nil, nil}},
+			expectedEvents:      noevents,
+			errors: []reactorError{
+				{"update", "volumesnapshotcontents", newConflict("volumesnapshotcontents", "content1-3b")},
+			},
+			expectSuccess: true,
+			test:          testSyncContent,
 		},
 		{
 			name:                "1-4 - fail to delete with a snapshot class which has invalid secret parameter, bound finalizer should remain",
