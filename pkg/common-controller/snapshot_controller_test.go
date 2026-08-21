@@ -17,13 +17,16 @@ limitations under the License.
 package common_controller
 
 import (
+	"errors"
 	"testing"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -174,5 +177,40 @@ func TestGetManagedByNode(t *testing.T) {
 	nodeName, _ = ctrl.getManagedByNode(pv)
 	if nodeName != "" {
 		t.Errorf("Expected no node, Found node(%s)", nodeName)
+	}
+}
+
+func TestControllerUpdateErrorUnwrapsConflict(t *testing.T) {
+	conflictErr := apierrs.NewConflict(
+		schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"},
+		"test-snapshot",
+		errors.New("the object has been modified; please apply your changes to the latest version"),
+	)
+
+	wrappedErr := newControllerUpdateError("test-snapshot", conflictErr)
+
+	if !apierrs.IsConflict(wrappedErr) {
+		t.Errorf("apierrs.IsConflict() returned false for controllerUpdateError wrapping a conflict error; error chain is broken")
+	}
+
+	var statusErr *apierrs.StatusError
+	if !errors.As(wrappedErr, &statusErr) {
+		t.Errorf("errors.As() could not find *StatusError in controllerUpdateError chain")
+	}
+}
+
+func TestControllerUpdateErrorPreservesNonConflict(t *testing.T) {
+	notFoundErr := apierrs.NewNotFound(
+		schema.GroupResource{Group: "snapshot.storage.k8s.io", Resource: "volumesnapshots"},
+		"test-snapshot",
+	)
+
+	wrappedErr := newControllerUpdateError("test-snapshot", notFoundErr)
+
+	if apierrs.IsConflict(wrappedErr) {
+		t.Errorf("apierrs.IsConflict() returned true for a NotFound error wrapped in controllerUpdateError")
+	}
+	if !apierrs.IsNotFound(wrappedErr) {
+		t.Errorf("apierrs.IsNotFound() returned false for controllerUpdateError wrapping a NotFound error; error chain is broken")
 	}
 }

@@ -806,7 +806,7 @@ func (ctrl *csiSnapshotCommonController) createSnapshotContent(snapshot *crdv1.V
 		strerr := fmt.Sprintf("Error creating volume snapshot content object for snapshot %s: %v.", utils.SnapshotKey(snapshot), err)
 		klog.Error(strerr)
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "CreateSnapshotContentFailed", strerr)
-		return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+		return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err)
 	}
 
 	msg := fmt.Sprintf("Waiting for a snapshot %s to be created by the CSI driver.", utils.SnapshotKey(snapshot))
@@ -935,7 +935,7 @@ func (ctrl *csiSnapshotCommonController) addContentFinalizer(content *crdv1.Volu
 	}
 	newContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
-		return newControllerUpdateError(content.Name, err.Error())
+		return newControllerUpdateError(content.Name, err)
 	}
 
 	_, err = ctrl.storeContentUpdate(newContent)
@@ -981,7 +981,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	pvc, err := ctrl.getClaimFromVolumeSnapshot(snapshot)
 	if err != nil {
 		klog.Infof("cannot get claim from snapshot [%s]: [%v] Claim may be deleted already.", snapshot.Name, err)
-		return newControllerUpdateError(snapshot.Name, "cannot get claim from snapshot")
+		return newControllerUpdateError(snapshot.Name, fmt.Errorf("cannot get claim from snapshot"))
 	}
 
 	if slices.Contains(pvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
@@ -991,7 +991,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 
 	if pvc.ObjectMeta.DeletionTimestamp != nil {
 		klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: claim is being deleted", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name)
-		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
+		return newControllerUpdateError(pvc.Name, fmt.Errorf("cannot add finalizer on claim because it is being deleted"))
 	} else {
 		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
 		pvcClone := pvc.DeepCopy()
@@ -999,7 +999,7 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
 		if err != nil {
 			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
-			return newControllerUpdateError(pvcClone.Name, err.Error())
+			return newControllerUpdateError(pvcClone.Name, err)
 		}
 		klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
 	}
@@ -1026,7 +1026,7 @@ func (ctrl *csiSnapshotCommonController) removePVCFinalizer(pvc *v1.PersistentVo
 		return nil
 	})
 	if err != nil {
-		return newControllerUpdateError(pvc.Name, err.Error())
+		return newControllerUpdateError(pvc.Name, err)
 	}
 	return nil
 }
@@ -1338,7 +1338,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 
 		newSnapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 		if err != nil {
-			return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+			return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err)
 		}
 
 		return newSnapshotObj, nil
@@ -1549,16 +1549,22 @@ var _ error = controllerUpdateError{}
 
 type controllerUpdateError struct {
 	message string
+	err     error
 }
 
-func newControllerUpdateError(name, message string) error {
+func newControllerUpdateError(name string, err error) error {
 	return controllerUpdateError{
-		message: fmt.Sprintf("%s %s on API server: %s", controllerUpdateFailMsg, name, message),
+		message: fmt.Sprintf("%s %s on API server: %s", controllerUpdateFailMsg, name, err.Error()),
+		err:     err,
 	}
 }
 
 func (e controllerUpdateError) Error() string {
 	return e.message
+}
+
+func (e controllerUpdateError) Unwrap() error {
+	return e.err
 }
 
 // addSnapshotFinalizer adds a Finalizer for VolumeSnapshot.
@@ -1578,7 +1584,7 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 		}
 		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+			return newControllerUpdateError(utils.SnapshotKey(snapshot), err)
 		}
 	} else {
 		// Otherwise, perform a patch
@@ -1602,7 +1608,7 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 
 		updatedSnapshot, err = utils.PatchVolumeSnapshot(snapshot, patches, ctrl.clientset)
 		if err != nil {
-			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+			return newControllerUpdateError(utils.SnapshotKey(snapshot), err)
 		}
 	}
 
@@ -1635,7 +1641,7 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 		klog.Errorf("removeSnapshotFinalizer: error check and remove PVC finalizer for snapshot [%s]: %v", snapshot.Name, err)
 		// Log an event and keep the original error from checkandRemovePVCFinalizer
 		ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "ErrorPVCFinalizer", "Error check and remove PVC Finalizer for VolumeSnapshot")
-		return newControllerUpdateError(snapshot.Name, err.Error())
+		return newControllerUpdateError(snapshot.Name, err)
 	}
 
 	snapshotClone := snapshot.DeepCopy()
@@ -1650,7 +1656,7 @@ func (ctrl *csiSnapshotCommonController) removeSnapshotFinalizer(snapshot *crdv1
 	}
 	newSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 	if err != nil {
-		return newControllerUpdateError(snapshot.Name, err.Error())
+		return newControllerUpdateError(snapshot.Name, err)
 	}
 
 	_, err = ctrl.storeSnapshotUpdate(newSnapshot)
@@ -1704,7 +1710,7 @@ func (ctrl *csiSnapshotCommonController) setAnnVolumeSnapshotBeingDeleted(conten
 
 		patchedContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 		if err != nil {
-			return content, newControllerUpdateError(content.Name, err.Error())
+			return content, newControllerUpdateError(content.Name, err)
 		}
 
 		// update content if update is successful
