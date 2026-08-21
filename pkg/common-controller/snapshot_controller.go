@@ -992,17 +992,29 @@ func (ctrl *csiSnapshotCommonController) ensurePVCFinalizer(snapshot *crdv1.Volu
 	if pvc.ObjectMeta.DeletionTimestamp != nil {
 		klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: claim is being deleted", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name)
 		return newControllerUpdateError(pvc.Name, "cannot add finalizer on claim because it is being deleted")
-	} else {
-		// If PVC is not being deleted and PVCFinalizer is not added yet, add the PVCFinalizer.
-		pvcClone := pvc.DeepCopy()
+	}
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		// Get the latest version from API server before attempting update.
+		newPvc, err := ctrl.client.CoreV1().PersistentVolumeClaims(pvc.Namespace).Get(context.TODO(), pvc.Name, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if slices.Contains(newPvc.ObjectMeta.Finalizers, utils.PVCFinalizer) {
+			return nil
+		}
+		if newPvc.ObjectMeta.DeletionTimestamp != nil {
+			return fmt.Errorf("cannot add finalizer on claim because it is being deleted")
+		}
+		pvcClone := newPvc.DeepCopy()
 		pvcClone.ObjectMeta.Finalizers = append(pvcClone.ObjectMeta.Finalizers, utils.PVCFinalizer)
 		_, err = ctrl.client.CoreV1().PersistentVolumeClaims(pvcClone.Namespace).Update(context.TODO(), pvcClone, metav1.UpdateOptions{})
-		if err != nil {
-			klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
-			return newControllerUpdateError(pvcClone.Name, err.Error())
-		}
-		klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
+		return err
+	})
+	if err != nil {
+		klog.Errorf("cannot add finalizer on claim [%s/%s] for snapshot [%s/%s]: [%v]", pvc.Namespace, pvc.Name, snapshot.Namespace, snapshot.Name, err)
+		return newControllerUpdateError(pvc.Name, err.Error())
 	}
+	klog.Infof("Added protection finalizer to persistent volume claim %s/%s", pvc.Namespace, pvc.Name)
 
 	return nil
 }
@@ -1254,97 +1266,106 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 
 	klog.V(5).Infof("updateSnapshotStatus: updating VolumeSnapshot [%+v] based on VolumeSnapshotContentStatus [%+v]", snapshot, content.Status)
 
-	snapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("error get snapshot %s from api server: %v", utils.SnapshotKey(snapshot), err)
-	}
+	var resultSnapshot *crdv1.VolumeSnapshot
+	emitCreatedMetricAndEvent := false
+	emitReadyMetricAndEvent := false
+	err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		snapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
+		if err != nil {
+			return fmt.Errorf("error get snapshot %s from api server: %v", utils.SnapshotKey(snapshot), err)
+		}
 
-	var newStatus *crdv1.VolumeSnapshotStatus
-	updated := false
-	if snapshotObj.Status == nil {
-		newStatus = &crdv1.VolumeSnapshotStatus{
-			BoundVolumeSnapshotContentName: &boundContentName,
-			ReadyToUse:                     &readyToUse,
-		}
-		if createdAt != nil {
-			newStatus.CreationTime = &metav1.Time{Time: *createdAt}
-		}
-		if size != nil {
-			newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
-		}
-		if volumeSnapshotErr != nil {
-			newStatus.Error = volumeSnapshotErr
-		}
-		if groupSnapshotName != "" {
-			newStatus.VolumeGroupSnapshotName = &groupSnapshotName
-		}
-		updated = true
-	} else {
-		newStatus = snapshotObj.Status.DeepCopy()
-		if newStatus.BoundVolumeSnapshotContentName == nil {
-			newStatus.BoundVolumeSnapshotContentName = &boundContentName
+		var newStatus *crdv1.VolumeSnapshotStatus
+		updated := false
+		if snapshotObj.Status == nil {
+			newStatus = &crdv1.VolumeSnapshotStatus{
+				BoundVolumeSnapshotContentName: &boundContentName,
+				ReadyToUse:                     &readyToUse,
+			}
+			if createdAt != nil {
+				newStatus.CreationTime = &metav1.Time{Time: *createdAt}
+			}
+			if size != nil {
+				newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
+			}
+			if volumeSnapshotErr != nil {
+				newStatus.Error = volumeSnapshotErr
+			}
+			if groupSnapshotName != "" {
+				newStatus.VolumeGroupSnapshotName = &groupSnapshotName
+			}
 			updated = true
-		}
-		if newStatus.CreationTime == nil && createdAt != nil {
-			newStatus.CreationTime = &metav1.Time{Time: *createdAt}
-			updated = true
-		}
-		if newStatus.ReadyToUse == nil || *newStatus.ReadyToUse != readyToUse {
-			newStatus.ReadyToUse = &readyToUse
-			updated = true
-			if readyToUse && newStatus.Error != nil {
-				newStatus.Error = nil
+		} else {
+			newStatus = snapshotObj.Status.DeepCopy()
+			if newStatus.BoundVolumeSnapshotContentName == nil {
+				newStatus.BoundVolumeSnapshotContentName = &boundContentName
+				updated = true
+			}
+			if newStatus.CreationTime == nil && createdAt != nil {
+				newStatus.CreationTime = &metav1.Time{Time: *createdAt}
+				updated = true
+			}
+			if newStatus.ReadyToUse == nil || *newStatus.ReadyToUse != readyToUse {
+				newStatus.ReadyToUse = &readyToUse
+				updated = true
+				if readyToUse && newStatus.Error != nil {
+					newStatus.Error = nil
+				}
+			}
+			if (newStatus.RestoreSize == nil && size != nil) || (newStatus.RestoreSize != nil && newStatus.RestoreSize.IsZero() && size != nil && *size > 0) {
+				newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
+				updated = true
+			}
+			if (newStatus.Error == nil && volumeSnapshotErr != nil) || (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) || (newStatus.Error != nil && volumeSnapshotErr == nil) {
+				newStatus.Error = volumeSnapshotErr
+				updated = true
+			}
+			if newStatus.VolumeGroupSnapshotName == nil && groupSnapshotName != "" {
+				newStatus.VolumeGroupSnapshotName = &groupSnapshotName
+				updated = true
 			}
 		}
-		if (newStatus.RestoreSize == nil && size != nil) || (newStatus.RestoreSize != nil && newStatus.RestoreSize.IsZero() && size != nil && *size > 0) {
-			newStatus.RestoreSize = resource.NewQuantity(*size, resource.BinarySI)
-			updated = true
-		}
-		if (newStatus.Error == nil && volumeSnapshotErr != nil) || (newStatus.Error != nil && volumeSnapshotErr != nil && newStatus.Error.Time != nil && volumeSnapshotErr.Time != nil && &newStatus.Error.Time != &volumeSnapshotErr.Time) || (newStatus.Error != nil && volumeSnapshotErr == nil) {
-			newStatus.Error = volumeSnapshotErr
-			updated = true
-		}
-		if newStatus.VolumeGroupSnapshotName == nil && groupSnapshotName != "" {
-			newStatus.VolumeGroupSnapshotName = &groupSnapshotName
-			updated = true
-		}
-	}
 
-	if updated {
+		if !updated {
+			resultSnapshot = snapshotObj
+			return nil
+		}
+
 		snapshotClone := snapshotObj.DeepCopy()
 		snapshotClone.Status = newStatus
 
-		// We need to record metrics before updating the status due to a bug causing cache entries after a failed UpdateStatus call.
-		// Must meet the following criteria to emit a successful CreateSnapshot status
-		// 1. Previous status was nil OR Previous status had a nil CreationTime
-		// 2. New status must be non-nil with a non-nil CreationTime
-		driverName := content.Spec.Driver
-		createOperationKey := metrics.NewOperationKey(metrics.CreateSnapshotOperationName, snapshot.UID)
-		if !utils.IsSnapshotCreated(snapshotObj) && utils.IsSnapshotCreated(snapshotClone) {
-			ctrl.metricsManager.RecordMetrics(createOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
-			msg := fmt.Sprintf("Snapshot %s was successfully created by the CSI driver.", utils.SnapshotKey(snapshot))
-			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotCreated", msg)
-		}
-
-		// Must meet the following criteria to emit a successful CreateSnapshotAndReady status
-		// 1. Previous status was nil OR Previous status had a nil ReadyToUse OR Previous status had a false ReadyToUse
-		// 2. New status must be non-nil with a ReadyToUse as true
-		if !utils.IsSnapshotReady(snapshotObj) && utils.IsSnapshotReady(snapshotClone) {
-			createAndReadyOperation := metrics.NewOperationKey(metrics.CreateSnapshotAndReadyOperationName, snapshot.UID)
-			ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
-			msg := fmt.Sprintf("Snapshot %s is ready to use.", utils.SnapshotKey(snapshot))
-			ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotReady", msg)
-		}
+		shouldEmitCreated := !utils.IsSnapshotCreated(snapshotObj) && utils.IsSnapshotCreated(snapshotClone)
+		shouldEmitReady := !utils.IsSnapshotReady(snapshotObj) && utils.IsSnapshotReady(snapshotClone)
 
 		newSnapshotObj, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).UpdateStatus(context.TODO(), snapshotClone, metav1.UpdateOptions{})
 		if err != nil {
-			return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
+			return err
 		}
-
-		return newSnapshotObj, nil
+		resultSnapshot = newSnapshotObj
+		emitCreatedMetricAndEvent = shouldEmitCreated
+		emitReadyMetricAndEvent = shouldEmitReady
+		return nil
+	})
+	if err != nil {
+		return nil, newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 	}
 
-	return snapshotObj, nil
+	driverName := content.Spec.Driver
+	// Emit success metrics/events only after UpdateStatus succeeds to avoid duplicate firing across conflict retries.
+	if emitCreatedMetricAndEvent {
+		createOperationKey := metrics.NewOperationKey(metrics.CreateSnapshotOperationName, snapshot.UID)
+		ctrl.metricsManager.RecordMetrics(createOperationKey, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+		msg := fmt.Sprintf("Snapshot %s was successfully created by the CSI driver.", utils.SnapshotKey(snapshot))
+		ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotCreated", msg)
+	}
+	if emitReadyMetricAndEvent {
+		createAndReadyOperation := metrics.NewOperationKey(metrics.CreateSnapshotAndReadyOperationName, snapshot.UID)
+		ctrl.metricsManager.RecordMetrics(createAndReadyOperation, metrics.NewSnapshotOperationStatus(metrics.SnapshotStatusTypeSuccess), driverName)
+		msg := fmt.Sprintf("Snapshot %s is ready to use.", utils.SnapshotKey(snapshot))
+		ctrl.eventRecorder.Event(snapshot, v1.EventTypeNormal, "SnapshotReady", msg)
+	}
+
+	return resultSnapshot, nil
 }
 
 func (ctrl *csiSnapshotCommonController) getVolumeFromVolumeSnapshot(snapshot *crdv1.VolumeSnapshot) (*v1.PersistentVolume, error) {
@@ -1569,14 +1590,21 @@ func (ctrl *csiSnapshotCommonController) addSnapshotFinalizer(snapshot *crdv1.Vo
 	// NOTE(ggriffiths): Must perform an update if no finalizers exist.
 	// Unable to find a patch that correctly updated the finalizers if none currently exist.
 	if len(snapshot.ObjectMeta.Finalizers) == 0 {
-		snapshotClone := snapshot.DeepCopy()
-		if addSourceFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
-		}
-		if addBoundFinalizer {
-			snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
-		}
-		updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			latestSnapshot, err := ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshot.Namespace).Get(context.TODO(), snapshot.Name, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			snapshotClone := latestSnapshot.DeepCopy()
+			if addSourceFinalizer && !slices.Contains(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer) {
+				snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+			}
+			if addBoundFinalizer && !slices.Contains(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer) {
+				snapshotClone.ObjectMeta.Finalizers = append(snapshotClone.ObjectMeta.Finalizers, utils.VolumeSnapshotBoundFinalizer)
+			}
+			updatedSnapshot, err = ctrl.clientset.SnapshotV1().VolumeSnapshots(snapshotClone.Namespace).Update(context.TODO(), snapshotClone, metav1.UpdateOptions{})
+			return err
+		})
 		if err != nil {
 			return newControllerUpdateError(utils.SnapshotKey(snapshot), err.Error())
 		}
