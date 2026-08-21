@@ -9,7 +9,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/google/go-cmp v0.7.0
 	github.com/kubernetes-csi/csi-lib-utils v0.24.0
-	github.com/kubernetes-csi/csi-test/v5 v5.4.0
+	github.com/kubernetes-csi/csi-test/v5 v5.5.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.6.0
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
 	github.com/prometheus/client_golang v1.23.2
@@ -17,13 +17,13 @@ require (
 	github.com/prometheus/common v0.70.0
 	google.golang.org/grpc v1.83.0
 	google.golang.org/protobuf v1.36.12
-	k8s.io/api v0.36.2
+	k8s.io/api v0.36.3
 	k8s.io/apiextensions-apiserver v0.36.1
-	k8s.io/apimachinery v0.36.2
-	k8s.io/apiserver v0.36.2
-	k8s.io/client-go v0.36.2
-	k8s.io/component-base v0.36.2
-	k8s.io/component-helpers v0.36.2
+	k8s.io/apimachinery v0.36.3
+	k8s.io/apiserver v0.36.3
+	k8s.io/client-go v0.36.3
+	k8s.io/component-base v0.36.3
+	k8s.io/component-helpers v0.36.3
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
 	sigs.k8s.io/yaml v1.6.0
@@ -90,6 +90,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.44.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
+	go.uber.org/mock v0.5.2 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.4 // indirect
@@ -108,11 +109,11 @@ require (
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
-	k8s.io/streaming v0.36.2 // indirect
+	k8s.io/streaming v0.36.3 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.36.0 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect
-	sigs.k8s.io/structured-merge-diff/v6 v6.4.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v6 v6.4.2 // indirect
 )
 
 replace github.com/kubernetes-csi/external-snapshotter/client/v8 => ./client
