@@ -97,7 +97,7 @@ spec:
             - name: socket-dir
               mountPath: /csi
         - name: hostpath
-          image: registry.k8s.io/sig-storage/hostpathplugin:v1.17.1
+          image: registry.k8s.io/sig-storage/hostpathplugin:v1.18.0
           args:
             - "--v=5"
             - "--endpoint=$(CSI_ENDPOINT)"
