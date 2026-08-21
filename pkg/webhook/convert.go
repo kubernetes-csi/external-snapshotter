@@ -30,7 +30,15 @@ const (
 	// that is used when converting data from the v1beta2 to the v1beta1
 	// API to make the conversion reversible.
 	volumeSnapshotInfoAnnotationName = "groupsnapshot.storage.kubernetes.io/volume-snapshot-info-list"
+
+	v1beta1Version = "groupsnapshot.storage.k8s.io/v1beta1"
+	v1beta2Version = "groupsnapshot.storage.k8s.io/v1beta2"
+	v1Version      = "groupsnapshot.storage.k8s.io/v1"
 )
+
+func sharesV1beta2Schema(version string) bool {
+	return version == v1beta2Version || version == v1Version
+}
 
 func convertGroupSnapshotCRD(obj *unstructured.Unstructured, toVersion string) (*unstructured.Unstructured, metav1.Status) {
 	klog.V(2).Info("converting crd")
@@ -47,16 +55,17 @@ func convertGroupSnapshotCRD(obj *unstructured.Unstructured, toVersion string) (
 		return nil, statusErrorWithMessage("unexpected conversion kind %q", kind)
 	}
 
-	const v1beta1Version = "groupsnapshot.storage.k8s.io/v1beta1"
-	const v1beta2Version = "groupsnapshot.storage.k8s.io/v1beta2"
-
 	switch {
-	case fromVersion == v1beta1Version && toVersion == v1beta2Version:
+	case sharesV1beta2Schema(fromVersion) && sharesV1beta2Schema(toVersion):
+		// v1 was promoted from v1beta2 without schema changes, so only the
+		// API version changes, and that is done by the caller.
+
+	case fromVersion == v1beta1Version && sharesV1beta2Schema(toVersion):
 		if err := convertVolumeGroupSnapshotContentFromV1beta1ToV1beta2(convertedObject); err != nil {
 			return nil, statusErrorWithMessage("%s", err.Error())
 		}
 
-	case fromVersion == v1beta2Version && toVersion == v1beta1Version:
+	case sharesV1beta2Schema(fromVersion) && toVersion == v1beta1Version:
 		if err := convertVolumeGroupSnapshotContentFromV1beta2ToV1beta1(convertedObject); err != nil {
 			return nil, statusErrorWithMessage("%s", err.Error())
 		}
