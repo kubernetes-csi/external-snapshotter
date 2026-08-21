@@ -1189,7 +1189,7 @@ func (ctrl *csiSnapshotCommonController) needsUpdateSnapshotStatus(snapshot *crd
 	if snapshot.Status.BoundVolumeSnapshotContentName == nil {
 		return true
 	}
-	if snapshot.Status.CreationTime == nil && content.Status.CreationTime != nil {
+	if snapshot.Status.CreationTime == nil && content.Status.CreationTime != nil && *content.Status.CreationTime != 0 {
 		return true
 	}
 	if snapshot.Status.ReadyToUse == nil && content.Status.ReadyToUse != nil {
@@ -1214,7 +1214,7 @@ func (ctrl *csiSnapshotCommonController) updateSnapshotStatus(snapshot *crdv1.Vo
 
 	boundContentName := content.Name
 	var createdAt *time.Time
-	if content.Status != nil && content.Status.CreationTime != nil {
+	if content.Status != nil && content.Status.CreationTime != nil && *content.Status.CreationTime != 0 {
 		unixTime := time.Unix(0, *content.Status.CreationTime)
 		createdAt = &unixTime
 	}
