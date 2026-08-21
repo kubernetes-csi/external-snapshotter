@@ -411,13 +411,13 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *cr
 
 	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotation(content)
 	if err != nil {
-		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to get snapshot credentials")
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", fmt.Sprintf("Failed to get snapshot credentials: %s", err.Error()))
 		return content, fmt.Errorf("failed to get input parameters to delete snapshot for content %s: %q", content.Name, err)
 	}
 
 	err = ctrl.handler.DeleteSnapshot(content, snapshotterCredentials)
 	if err != nil {
-		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to delete snapshot")
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", fmt.Sprintf("Failed to delete snapshot: %s", err.Error()))
 		return content, fmt.Errorf("failed to delete snapshot %#v, err: %v", content.Name, err)
 	}
 	// the snapshot has been deleted from the underlying storage system, update
@@ -425,7 +425,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSISnapshotOperation(content *cr
 	// This triggers a re-sync of the content object, which will continue cleaning the object (e.g. finalizers)
 	newContent, err := ctrl.clearVolumeContentStatus(content.Name)
 	if err != nil {
-		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", "Failed to clear content status")
+		ctrl.eventRecorder.Event(content, v1.EventTypeWarning, "SnapshotDeleteError", fmt.Sprintf("Failed to clear content status: %s", err.Error()))
 		return content, err
 	}
 	return newContent, nil
