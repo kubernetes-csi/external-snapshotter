@@ -116,13 +116,11 @@ Other than this, the NODE_NAME environment variable must be set where the CSI sn
 
 ### Volume Group Snapshot Support
 
-The following requisites must be met to enable the volume group snapshot feature:
+The `CSIVolumeGroupSnapshot` feature gate is General Availability (GA) and enabled by default.
 
-* the Volume Group Snapshot CRDs are installed in the cluster
-* the `--feature-gates=CSIVolumeGroupSnapshot=true` option is being passed to the snapshot controller
-* the `--feature-gates=CSIVolumeGroupSnapshot=true` option is being passed to the CSI snapshotter sidecar
+To use the volume group snapshot feature, install the Volume Group Snapshot CRDs in the cluster.
 
-Specifically, `deploy/kubernetes/snapshot-controller/setup-snapshot-controller.yaml` needs to be updated with `--feature-gates=CSIVolumeGroupSnapshot=true` in order to enable this feature in the snapshot controller.
+**Note:** Because the feature gate is enabled by default, both the snapshot controller and the CSI external-snapshotter sidecar check for the Volume Group Snapshot CRDs at startup. If those CRDs are not found, they log a warning and continue running with volume group snapshot support disabled for that process, rather than failing to start. This applies whether the feature gate is left at its default or explicitly set to `true` -- a CSI driver vendor or cluster admin has no control over whether a given cluster has the Volume Group Snapshot CRDs installed, so a missing CRD is never treated as a fatal startup error. To use volume group snapshots, install the CRDs; to silence the warning when you don't intend to use the feature, pass `--feature-gates=CSIVolumeGroupSnapshot=false`.
 
 ### Snapshot controller command line options
 
@@ -159,7 +157,7 @@ Specifically, `deploy/kubernetes/snapshot-controller/setup-snapshot-controller.y
 
 #### Volume Group Snapshot support
 
-* `--feature-gates=CSIVolumeGroupSnapshot=true`: Enables support for Volume Group Snapshots. If this option is enabled, the VolumeGroupSnapshots CRD should be available on the cluster.
+* `--feature-gates=CSIVolumeGroupSnapshot=true`: Enables support for Volume Group Snapshots. This feature is GA and enabled by default. If the VolumeGroupSnapshot CRDs are not available on the cluster, this is logged as a warning and volume group snapshot support is disabled, rather than causing a startup failure.
 
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the snapshot controller uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the snapshot controller does not run as a Kubernetes pod, e.g. for debugging.
@@ -207,7 +205,7 @@ Specifically, `deploy/kubernetes/snapshot-controller/setup-snapshot-controller.y
 
 #### Volume Group Snapshot support
 
-* `--feature-gates=CSIVolumeGroupSnapshot=true`: Enables support for Volume Group Snapshots. If this option is enabled, the VolumeGroupSnapshots CRD should be available on the cluster.
+* `--feature-gates=CSIVolumeGroupSnapshot=true`: Enables support for Volume Group Snapshots. This feature is GA and enabled by default. If the VolumeGroupSnapshot CRDs are not available on the cluster, this is logged as a warning and volume group snapshot support is disabled, rather than causing a startup failure.
 
 #### Other recognized arguments
 * `--kubeconfig <path>`: Path to Kubernetes client configuration that the CSI external-snapshotter uses to connect to Kubernetes API server. When omitted, default token provided by Kubernetes will be used. This option is useful only when the external-snapshotter does not run as a Kubernetes pod, e.g. for debugging.

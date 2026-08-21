@@ -64,6 +64,7 @@ import (
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
 	snapshotscheme "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/scheme"
 	informers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions"
+	groupsnapshotinformers "github.com/kubernetes-csi/external-snapshotter/client/v8/informers/externalversions/volumegroupsnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/group_snapshotter"
 	utils "github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 )
@@ -249,7 +250,25 @@ func main() {
 
 	snapShotter := snapshotter.NewSnapshotter(csiConn)
 	var groupSnapshotter group_snapshotter.GroupSnapshotter
-	if utilfeature.DefaultFeatureGate.Enabled(features.VolumeGroupSnapshot) {
+
+	// The VolumeGroupSnapshot feature is GA and enabled by default. A CSI
+	// driver vendor has little control over whether a given cluster has the
+	// VolumeGroupSnapshot CRDs installed, so if they are missing, log a
+	// warning and continue running with volume group snapshot support
+	// disabled for this run rather than failing to start.
+	enableVolumeGroupSnapshots := utilfeature.DefaultFeatureGate.Enabled(features.VolumeGroupSnapshot)
+	if enableVolumeGroupSnapshots {
+		crdCtx, crdCancel := context.WithTimeout(ctx, *csiTimeout)
+		err := ensureVolumeGroupSnapshotCRDsExist(crdCtx, snapClient)
+		crdCancel()
+		if err != nil {
+			klog.Warningf("VolumeGroupSnapshot CRDs were not found; disabling the VolumeGroupSnapshot feature for this run. "+
+				"Install the VolumeGroupSnapshot CRDs to use this feature: %v", err)
+			enableVolumeGroupSnapshots = false
+		}
+	}
+
+	if enableVolumeGroupSnapshots {
 		tctx, cancel = context.WithTimeout(ctx, *csiTimeout)
 		defer cancel()
 		supportsCreateVolumeGroupSnapshot, err := supportsGroupControllerCreateVolumeGroupSnapshot(tctx, csiConn)
@@ -263,6 +282,13 @@ func main() {
 			klog.Error("group snapshot name prefix cannot be of length 0")
 			os.Exit(1)
 		}
+	}
+
+	var volumeGroupSnapshotContentInformer groupsnapshotinformers.VolumeGroupSnapshotContentInformer
+	var volumeGroupSnapshotClassInformer groupsnapshotinformers.VolumeGroupSnapshotClassInformer
+	if enableVolumeGroupSnapshots {
+		volumeGroupSnapshotContentInformer = snapshotContentfactory.Groupsnapshot().V1().VolumeGroupSnapshotContents()
+		volumeGroupSnapshotClassInformer = snapshotContentfactory.Groupsnapshot().V1().VolumeGroupSnapshotClasses()
 	}
 
 	ctrl := controller.NewCSISnapshotSideCarController(
@@ -281,9 +307,9 @@ func main() {
 		*groupSnapshotNameUUIDLength,
 		*extraCreateMetadata,
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](*retryIntervalStart, *retryIntervalMax),
-		utilfeature.DefaultFeatureGate.Enabled(features.VolumeGroupSnapshot),
-		snapshotContentfactory.Groupsnapshot().V1().VolumeGroupSnapshotContents(),
-		snapshotContentfactory.Groupsnapshot().V1().VolumeGroupSnapshotClasses(),
+		enableVolumeGroupSnapshots,
+		volumeGroupSnapshotContentInformer,
+		volumeGroupSnapshotClassInformer,
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](*retryIntervalStart, *retryIntervalMax),
 	)
 
@@ -373,4 +399,21 @@ func supportsGroupControllerCreateVolumeGroupSnapshot(ctx context.Context, conn 
 	}
 
 	return capabilities[csi.GroupControllerServiceCapability_RPC_CREATE_DELETE_GET_VOLUME_GROUP_SNAPSHOT], nil
+}
+
+// ensureVolumeGroupSnapshotCRDsExist checks that the VolumeGroupSnapshot v1 CRDs used by
+// this sidecar (VolumeGroupSnapshotContent and VolumeGroupSnapshotClass) exist in the cluster.
+func ensureVolumeGroupSnapshotCRDsExist(ctx context.Context, client *clientset.Clientset) error {
+	// List calls should return faster with a limit of 1.
+	// We do not care about what is returned and just want to make sure the CRDs exist.
+	listOptions := v1.ListOptions{Limit: 1}
+
+	if _, err := client.GroupsnapshotV1().VolumeGroupSnapshotContents().List(ctx, listOptions); err != nil {
+		return err
+	}
+	if _, err := client.GroupsnapshotV1().VolumeGroupSnapshotClasses().List(ctx, listOptions); err != nil {
+		return err
+	}
+
+	return nil
 }
