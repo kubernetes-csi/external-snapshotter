@@ -33,8 +33,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 
-	// Force go to vendor mockgen, see https://github.com/golang/mock/issues/415#issuecomment-602547154
-	_ "github.com/golang/mock/mockgen/model"
+	// Force Go to vendor the mockgen model package used by go:generate.
+	_ "go.uber.org/mock/mockgen/model"
 )
 
 var (
@@ -70,6 +70,7 @@ type CSICreds struct {
 	DeleteSnapshotSecret                       string
 	ControllerValidateVolumeCapabilitiesSecret string
 	ListSnapshotsSecret                        string
+	GetSnapshotSecret                          string
 }
 
 type CSIDriver struct {
@@ -194,6 +195,7 @@ func setDefaultCreds(creds *CSICreds) {
 		DeleteSnapshotSecret:                       "secretval8",
 		ControllerValidateVolumeCapabilitiesSecret: "secretval9",
 		ListSnapshotsSecret:                        "secretval10",
+		GetSnapshotSecret:                          "secretval11",
 	}
 }
 
@@ -274,6 +276,8 @@ func isAuthenticated(req interface{}, creds *CSICreds) (bool, error) {
 		return authenticateControllerValidateVolumeCapabilities(r, creds)
 	case *csi.ListSnapshotsRequest:
 		return authenticateListSnapshots(r, creds)
+	case *csi.GetSnapshotRequest:
+		return authenticateGetSnapshot(r, creds)
 	default:
 		return true, nil
 	}
@@ -317,6 +321,10 @@ func authenticateControllerValidateVolumeCapabilities(req *csi.ValidateVolumeCap
 
 func authenticateListSnapshots(req *csi.ListSnapshotsRequest, creds *CSICreds) (bool, error) {
 	return credsCheck(req.GetSecrets(), creds.ListSnapshotsSecret)
+}
+
+func authenticateGetSnapshot(req *csi.GetSnapshotRequest, creds *CSICreds) (bool, error) {
+	return credsCheck(req.GetSecrets(), creds.GetSnapshotSecret)
 }
 
 func credsCheck(secrets map[string]string, secretVal string) (bool, error) {

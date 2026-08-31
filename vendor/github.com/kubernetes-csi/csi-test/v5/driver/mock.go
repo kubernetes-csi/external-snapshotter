@@ -21,6 +21,7 @@ import (
 
 	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/kubernetes-csi/csi-test/v5/utils"
 )
@@ -91,7 +92,7 @@ func (m *MockCSIDriver) Nexus() (*grpc.ClientConn, error) {
 	}
 
 	// Create a client connection
-	m.conn, err = utils.Connect(m.Address(), grpc.WithInsecure())
+	m.conn, err = utils.Connect(m.Address(), grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
