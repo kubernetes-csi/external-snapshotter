@@ -132,6 +132,8 @@ type testCall func(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, 
 const (
 	testNamespace  = "default"
 	mockDriverName = "csi-mock-plugin"
+	// otherDriverName is a CSI driver that did not provision the test PVs.
+	otherDriverName = "csi-other-plugin"
 )
 
 var (
@@ -1901,6 +1903,7 @@ var (
 	emptySecretClass   = "empty-secret-class"
 	invalidSecretClass = "invalid-secret-class"
 	validSecretClass   = "valid-secret-class"
+	classOtherDriver   = "other-driver-class"
 	sameDriver         = "sameDriver"
 	diffDriver         = "diffDriver"
 	noClaim            = ""
