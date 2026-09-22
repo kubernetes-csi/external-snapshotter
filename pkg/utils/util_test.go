@@ -20,6 +20,7 @@ import (
 	"reflect"
 	"testing"
 
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -536,6 +537,115 @@ func TestShouldEnqueueContentChange(t *testing.T) {
 			}
 			result := ShouldEnqueueContentChange(tc.old, tc.new)
 			if result != tc.expectedResult {
+				t.Fatalf("Incorrect result: Expected %v received %v", tc.expectedResult, result)
+			}
+		})
+	}
+}
+
+func TestShouldEnqueueGroupContentChange(t *testing.T) {
+	withMeta := func(rv string, annotations map[string]string, status *groupsnapshotv1.VolumeGroupSnapshotContentStatus) *groupsnapshotv1.VolumeGroupSnapshotContent {
+		return &groupsnapshotv1.VolumeGroupSnapshotContent{
+			ObjectMeta: metav1.ObjectMeta{ResourceVersion: rv, Annotations: annotations},
+			Status:     status,
+		}
+	}
+
+	testcases := []struct {
+		name           string
+		old            *groupsnapshotv1.VolumeGroupSnapshotContent
+		new            *groupsnapshotv1.VolumeGroupSnapshotContent
+		expectedResult bool
+	}{
+		{
+			name:           "resync from informer",
+			old:            withMeta("1", nil, nil),
+			new:            withMeta("1", nil, nil),
+			expectedResult: true,
+		},
+		{
+			name: "spec change",
+			old:  withMeta("1", nil, nil),
+			new: &groupsnapshotv1.VolumeGroupSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2"},
+				Spec: groupsnapshotv1.VolumeGroupSnapshotContentSpec{
+					VolumeGroupSnapshotClassName: ptr.To("class"),
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name:           "status change while not ready",
+			old:            withMeta("1", nil, nil),
+			new:            withMeta("2", nil, &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptr.To("handle"), ReadyToUse: ptr.To(false)}),
+			expectedResult: false,
+		},
+		{
+			name:           "readyToUse transition from false to true",
+			old:            withMeta("1", nil, &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr.To(false)}),
+			new:            withMeta("2", nil, &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr.To(true)}),
+			expectedResult: true,
+		},
+		{
+			name:           "readyToUse set on first status update",
+			old:            withMeta("1", nil, nil),
+			new:            withMeta("2", nil, &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr.To(true)}),
+			expectedResult: true,
+		},
+		{
+			name:           "status change after ready",
+			old:            withMeta("1", nil, &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr.To(true)}),
+			new:            withMeta("2", nil, &groupsnapshotv1.VolumeGroupSnapshotContentStatus{ReadyToUse: ptr.To(true), Error: &crdv1.VolumeSnapshotError{Message: ptr.To("error")}}),
+			expectedResult: false,
+		},
+		{
+			name: "finalizer and managed fields change",
+			old:  withMeta("1", nil, nil),
+			new: &groupsnapshotv1.VolumeGroupSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					ResourceVersion: "2",
+					Finalizers:      []string{VolumeGroupSnapshotContentFinalizer},
+					ManagedFields:   []metav1.ManagedFieldsEntry{{Manager: "csi-snapshotter"}},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name:           "sidecar-owned annotation added",
+			old:            withMeta("1", nil, nil),
+			new:            withMeta("2", map[string]string{AnnVolumeGroupSnapshotBeingCreated: "yes"}, nil),
+			expectedResult: false,
+		},
+		{
+			name:           "sidecar-owned annotation removed",
+			old:            withMeta("1", map[string]string{AnnVolumeGroupSnapshotBeingCreated: "yes"}, nil),
+			new:            withMeta("2", nil, nil),
+			expectedResult: false,
+		},
+		{
+			name:           "controller-owned annotation added to object without annotations",
+			old:            withMeta("1", nil, nil),
+			new:            withMeta("2", map[string]string{AnnDeletionGroupSecretRefName: "secret"}, nil),
+			expectedResult: true,
+		},
+		{
+			name:           "controller-owned annotation added",
+			old:            withMeta("1", map[string]string{AnnVolumeGroupSnapshotBeingCreated: "yes"}, nil),
+			new:            withMeta("2", map[string]string{AnnVolumeGroupSnapshotBeingCreated: "yes", AnnVolumeGroupSnapshotBeingDeleted: "yes"}, nil),
+			expectedResult: true,
+		},
+		{
+			name: "deletion timestamp set",
+			old:  withMeta("1", nil, nil),
+			new: &groupsnapshotv1.VolumeGroupSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{ResourceVersion: "2", DeletionTimestamp: &metav1.Time{}},
+			},
+			expectedResult: true,
+		},
+	}
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			if result := ShouldEnqueueGroupContentChange(tc.old, tc.new); result != tc.expectedResult {
 				t.Fatalf("Incorrect result: Expected %v received %v", tc.expectedResult, result)
 			}
 		})
