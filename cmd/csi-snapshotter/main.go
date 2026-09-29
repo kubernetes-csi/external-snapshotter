@@ -59,6 +59,7 @@ import (
 	_ "k8s.io/component-base/logs/json/register"
 	"k8s.io/component-base/metrics/legacyregistry"
 	_ "k8s.io/component-base/metrics/prometheus/clientgo/leaderelection" // register leader election in the default legacy registry
+	_ "k8s.io/component-base/metrics/prometheus/restclient"              // register client-go REST client metrics (incl. rate limiter latency)
 	_ "k8s.io/component-base/metrics/prometheus/workqueue"               // register work queues in the default legacy registry
 
 	clientset "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned"
