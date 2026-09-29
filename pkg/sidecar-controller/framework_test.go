@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/google/go-cmp/cmp"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -575,6 +576,7 @@ func newTestController(kubeClient kubernetes.Interface, clientset clientset.Inte
 		"groupsnapshot",
 		-1,
 		true,
+		true, // supportsSnapshotAccessibility
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](1*time.Millisecond, 1*time.Minute),
 		false,
 		informerFactory.Groupsnapshot().V1().VolumeGroupSnapshotContents(),
@@ -718,6 +720,7 @@ var (
 	classSilver        = "silver"
 	classNonExisting   = "non-existing"
 	defaultClass       = "default-class"
+	topologyClass      = "topology-class"
 	emptySecretClass   = "empty-secret-class"
 	invalidSecretClass = "invalid-secret-class"
 	validSecretClass   = "valid-secret-class"
@@ -910,13 +913,17 @@ type createCall struct {
 	volumeHandle string
 	parameters   map[string]string
 	secrets      map[string]string
+	// expected accessibility_requirements forwarded to the driver, asserted when non-nil
+	expectedAccessibilityRequirements *csi.TopologyRequirement
 	// information to return
 	driverName   string
 	snapshotId   string
 	creationTime time.Time
 	size         int64
 	readyToUse   bool
-	err          error
+	// accessible topology returned from CreateSnapshot (KEP-5943)
+	accessibleTopology []*csi.Topology
+	err                error
 }
 
 // Fake SnapShotter implementation that check that Attach/Detach is called
@@ -931,10 +938,10 @@ type fakeSnapshotter struct {
 	t                 *testing.T
 }
 
-func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, time.Time, int64, bool, error) {
+func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName string, volumeHandle string, parameters map[string]string, snapshotterCredentials map[string]string, accessibilityRequirements *csi.TopologyRequirement) (string, string, time.Time, int64, bool, []*csi.Topology, error) {
 	if f.createCallCounter >= len(f.createCalls) {
 		f.t.Errorf("Unexpected CSI Create Snapshot call: snapshotName=%s, volumeHandle=%v, index: %d, calls: %+v", snapshotName, volumeHandle, f.createCallCounter, f.createCalls)
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("unexpected call")
 	}
 	call := f.createCalls[f.createCallCounter]
 	f.createCallCounter++
@@ -961,9 +968,39 @@ func (f *fakeSnapshotter) CreateSnapshot(ctx context.Context, snapshotName strin
 	}
 
 	if err != nil {
-		return "", "", time.Time{}, 0, false, fmt.Errorf("unexpected call")
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("unexpected call")
 	}
-	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.err
+
+	if call.expectedAccessibilityRequirements != nil && !topologyRequirementEqual(call.expectedAccessibilityRequirements, accessibilityRequirements) {
+		f.t.Errorf("Wrong CSI CreateSnapshot call: snapshotName=%s, expected accessibility_requirements %+v, got %+v", snapshotName, call.expectedAccessibilityRequirements, accessibilityRequirements)
+		return "", "", time.Time{}, 0, false, nil, fmt.Errorf("unexpected create snapshot call")
+	}
+
+	return call.driverName, call.snapshotId, call.creationTime, call.size, call.readyToUse, call.accessibleTopology, call.err
+}
+
+// topologyRequirementEqual compares two TopologyRequirements by their segment
+// maps (Requisite and Preferred), avoiding proto-internal fields.
+func topologyRequirementEqual(a, b *csi.TopologyRequirement) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+	if a == nil {
+		return true
+	}
+	return topologiesEqual(a.Requisite, b.Requisite) && topologiesEqual(a.Preferred, b.Preferred)
+}
+
+func topologiesEqual(a, b []*csi.Topology) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if !reflect.DeepEqual(a[i].GetSegments(), b[i].GetSegments()) {
+			return false
+		}
+	}
+	return true
 }
 
 func (f *fakeSnapshotter) DeleteSnapshot(ctx context.Context, snapshotID string, snapshotterCredentials map[string]string) error {

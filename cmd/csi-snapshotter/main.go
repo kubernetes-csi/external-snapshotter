@@ -246,6 +246,17 @@ func main() {
 		os.Exit(1)
 	}
 
+	supportsSnapshotAccessibility := false
+	if utilfeature.DefaultFeatureGate.Enabled(features.VolumeSnapshotTopology) {
+		tctx, cancel = context.WithTimeout(ctx, *csiTimeout)
+		defer cancel()
+		supportsSnapshotAccessibility, err = supportsSnapshotAccessibilityConstraints(tctx, csiConn)
+		if err != nil {
+			klog.Errorf("error determining if driver supports snapshot accessibility constraints: %v", err)
+			os.Exit(1)
+		}
+	}
+
 	klog.V(2).Infof("Start NewCSISnapshotSideCarController with snapshotter [%s] kubeconfig [%s] csiTimeout [%+v] csiAddress [%s] resyncPeriod [%+v] snapshotNamePrefix [%s] snapshotNameUUIDLength [%d]", driverName, standardflags.Configuration.KubeConfig, *csiTimeout, standardflags.Configuration.CSIAddress, *resyncPeriod, *snapshotNamePrefix, snapshotNameUUIDLength)
 
 	snapShotter := snapshotter.NewSnapshotter(csiConn)
@@ -306,6 +317,7 @@ func main() {
 		*groupSnapshotNamePrefix,
 		*groupSnapshotNameUUIDLength,
 		*extraCreateMetadata,
+		supportsSnapshotAccessibility,
 		workqueue.NewTypedItemExponentialFailureRateLimiter[string](*retryIntervalStart, *retryIntervalMax),
 		enableVolumeGroupSnapshots,
 		volumeGroupSnapshotContentInformer,
@@ -390,6 +402,15 @@ func supportsControllerCreateSnapshot(ctx context.Context, conn *grpc.ClientConn
 	}
 
 	return capabilities[csi.ControllerServiceCapability_RPC_CREATE_DELETE_SNAPSHOT], nil
+}
+
+func supportsSnapshotAccessibilityConstraints(ctx context.Context, conn *grpc.ClientConn) (bool, error) {
+	capabilities, err := csirpc.GetPluginCapabilities(ctx, conn)
+	if err != nil {
+		return false, err
+	}
+
+	return capabilities[csi.PluginCapability_Service_SNAPSHOT_ACCESSIBILITY_CONSTRAINTS], nil
 }
 
 func supportsGroupControllerCreateVolumeGroupSnapshot(ctx context.Context, conn *grpc.ClientConn) (bool, error) {

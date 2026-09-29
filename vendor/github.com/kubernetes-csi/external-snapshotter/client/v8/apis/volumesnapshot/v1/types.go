@@ -232,6 +232,18 @@ type VolumeSnapshotClass struct {
 	// "Delete" means that the VolumeSnapshotContent and its physical snapshot on underlying storage system are deleted.
 	// Required.
 	DeletionPolicy DeletionPolicy `json:"deletionPolicy" protobuf:"bytes,4,opt,name=deletionPolicy"`
+
+	// allowedTopologies restricts the node topologies where snapshots created
+	// using this class are usable from. A snapshot is usable from a location
+	// if volumes created from that snapshot are guaranteed to be accessible
+	// from that location. Each volume plugin defines its own supported
+	// topology specifications. An empty list means there is no topology
+	// restriction. This is passed to the CSI driver as
+	// AccessibilityRequirements in the CreateSnapshotRequest.
+	// This is an alpha field tied to the VolumeSnapshotTopology feature gate
+	// (KEP-5943).
+	// +optional
+	AllowedTopologies []core_v1.TopologySelectorTerm `json:"allowedTopologies,omitempty" protobuf:"bytes,5,rep,name=allowedTopologies"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
@@ -351,6 +363,24 @@ type VolumeSnapshotContentSpec struct {
 	// +optional
 	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="sourceVolumeMode is immutable"
 	SourceVolumeMode *core_v1.PersistentVolumeMode `json:"sourceVolumeMode" protobuf:"bytes,6,opt,name=sourceVolumeMode"`
+
+	// nodeAffinity defines the node topologies from which a volume can
+	// be provisioned using this snapshot as a source. It is populated once from
+	// the CSI driver's CreateSnapshotResponse, which is expected to report the
+	// snapshot's full intended accessibility (including any asynchronously
+	// replicated targets). For WaitForFirstConsumer volume binding, the scheduler
+	// plugin compares these terms against node labels to filter candidate nodes.
+	// For Immediate volume binding, the external-provisioner intersects these
+	// terms with StorageClass.AllowedTopologies to select a compatible
+	// provisioning topology.
+	// This field is mutable so it can be updated out of band (e.g., admin
+	// corrections, or statically provisioned snapshots); the sidecar does not
+	// refresh it after creation. Changes only affect future scheduling and
+	// provisioning.
+	// This is an alpha field tied to the VolumeSnapshotTopology feature gate
+	// (KEP-5943).
+	// +optional
+	NodeAffinity []core_v1.TopologySelectorTerm `json:"nodeAffinity,omitempty" protobuf:"bytes,7,rep,name=nodeAffinity"`
 }
 
 // VolumeSnapshotContentSource represents the CSI source of a snapshot.
