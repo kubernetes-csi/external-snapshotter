@@ -114,6 +114,54 @@ The distributed snapshotting feature is provided to handle snapshot operations f
 
 Other than this, the NODE_NAME environment variable must be set where the CSI snapshotter sidecar is deployed. The value of NODE_NAME should be the name of the node where the sidecar is running.
 
+### Snapshot Topology Webhook
+
+The `VolumeSnapshotTopology` feature gate (alpha, off by default) enables snapshot topology ([KEP-5943](https://github.com/kubernetes/enhancements/issues/5943)). The CSI external-snapshotter sidecar records where a snapshot can be restored in `VolumeSnapshotContent.spec.nodeAffinity`. The optional snapshot topology webhook makes the default kube-scheduler place pods that restore a WaitForFirstConsumer volume from a snapshot only on nodes that satisfy that topology. It works as follows:
+
+* **Pod admission:** when a pod is created, the webhook merges the content topology into the pod's required node affinity. If the topology is not known yet, for example because the snapshot is not bound or its claim does not exist, the webhook adds the `snapshot.storage.k8s.io/topology` scheduling gate instead. The component's controller removes the gate and merges the affinity once the topology is known, or after `--gate-timeout` without it, so a pod that references a claim nobody creates is not gated forever.
+* **Node selection:** a validating webhook rejects the scheduler's `volume.kubernetes.io/selected-node` choice on a claim if the node does not satisfy the content's current topology, so the volume is never provisioned there. The scheduler retries the pod, but it is not told which node was rejected and may pick the same one again.
+* **Topology changes:** `nodeAffinity` is mutable. A change applies to pods created afterwards and to pods that are still gated. A pod that already has the topology in its node affinity keeps it; delete the pod to apply the new topology.
+
+To install:
+
+1. Enable `--feature-gates=VolumeSnapshotTopology=true` on the CSI external-snapshotter sidecar in your CSI driver's deployment.
+2. Install the CRDs and the snapshot controller as described above.
+3. Install the webhook in `kube-system`. With [cert-manager](https://cert-manager.io) installed, run `kubectl kustomize deploy/kubernetes/snapshot-topology-cert-manager | kubectl create -f -`. Otherwise, create the `snapshot-topology-webhook-certs` secret with `deploy/kubernetes/webhook-example/create-cert.sh --service snapshot-topology-webhook --namespace kube-system --secret snapshot-topology-webhook-certs`, run `kubectl kustomize deploy/kubernetes/snapshot-topology | kubectl create -f -`, and set `caBundle` on both webhooks in the `snapshot-topology.snapshot.storage.k8s.io` MutatingWebhookConfiguration and ValidatingWebhookConfiguration.
+
+Both webhooks use `failurePolicy: Ignore`, so an unavailable webhook never blocks pod creation or scheduling. The Deployment runs two replicas with a PodDisruptionBudget, and on SIGTERM a replica reports unready for `--shutdown-delay` before it stops serving, so rollouts and node drains do not bypass the webhooks.
+
+**Limitations:** the following pods have no snapshot topology in their node affinity. The claim webhook still keeps them off nodes that do not satisfy the topology, but the scheduler may retry such nodes before it picks a valid one.
+
+* Pods created while the pod webhook is unavailable.
+* Pods that get their first claim volume from a later mutating webhook. The pod webhook only matches pods that already have a claim or ephemeral volume, and the API server does not reinvoke a webhook it skipped.
+* Pods whose merged node affinity would exceed `--max-affinity-terms`, whose topology exceeds the normalization and merge work budget, or whose topology cannot be merged into their own required node affinity while they are gated. These get a warning or a Warning event.
+* Pods still waiting after `--gate-timeout`, for example because a claim they reference was never created.
+
+To uninstall, keep this order, since `kubectl delete -k` deletes everything at once:
+
+1. `kubectl delete mutatingwebhookconfiguration,validatingwebhookconfiguration snapshot-topology.snapshot.storage.k8s.io`
+2. Wait until no pod has the scheduling gate: `kubectl get pods -A -o json | jq '[.items[] | select(any(.spec.schedulingGates[]?; .name == "snapshot.storage.k8s.io/topology"))] | length'` returns `0`. The controller removes each remaining gate within `--gate-timeout`; restarting the webhook with the feature gate disabled removes them immediately.
+3. Delete the component with the same kustomization you installed it with: `kubectl kustomize deploy/kubernetes/snapshot-topology-cert-manager | kubectl delete -f -` for the cert-manager install, or `kubectl kustomize deploy/kubernetes/snapshot-topology | kubectl delete -f -` otherwise.
+4. Delete the objects the manifests do not own: the leader election lease and the certificate secrets, which cert-manager keeps after their Certificates are deleted: `kubectl -n kube-system delete lease snapshot-topology-controller-leader` and `kubectl -n kube-system delete secret snapshot-topology-webhook-certs snapshot-topology-webhook-ca --ignore-not-found`.
+
+#### Snapshot Topology Webhook Command Line Options
+
+* `--tls-cert-file`, `--tls-private-key-file`, `--port`: the same as for the conversion webhook.
+
+* `--feature-gates=VolumeSnapshotTopology=true`: required. When the gate is off, pods and claims are admitted unchanged, and the controller only removes leftover scheduling gates.
+
+* `--leader-election`: runs the controller only in the elected replica. Every replica serves the webhooks. The `--leader-election-*` options are the same as for the snapshot controller.
+
+* `--shutdown-delay`: how long to keep serving after SIGTERM while reporting unready. Default is 10s.
+
+* `--max-affinity-terms`: maximum number of node selector terms in a pod's merged required node affinity. A pod over the limit is admitted without the snapshot topology, with a warning. Must be positive. Default is 32.
+
+* `--gate-timeout`: how long a pod may stay gated waiting for the topology of its snapshots. After this the gate is removed without the topology, and a Warning event says why. Must be positive. Default is 5m.
+
+* `--kube-api-qps`, `--kube-api-burst`: client rate limits. Defaults are 20 and 50, since restoring many pods at once means one patch per gated pod.
+
+* `--worker-threads`, `--resync-period`, `--retry-interval-start`, `--retry-interval-max`: the same as for the snapshot controller.
+
 ### Volume Group Snapshot Support
 
 The `CSIVolumeGroupSnapshot` feature gate is General Availability (GA) and enabled by default.
