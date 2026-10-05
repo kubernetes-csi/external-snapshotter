@@ -656,7 +656,7 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			newStatus.CreationTime = &createdAt
 			updated = true
 		}
-		if len(newStatus.VolumeSnapshotInfoList) == 0 {
+		if len(newStatus.VolumeSnapshotInfoList) == 0 && len(snapshotList) > 0 {
 			for _, snapshot := range snapshotList {
 				newStatus.VolumeSnapshotInfoList = append(newStatus.VolumeSnapshotInfoList, groupsnapshotv1.VolumeSnapshotInfo{
 					VolumeHandle:   snapshot.SourceVolumeId,

@@ -310,6 +310,11 @@ func TestUpdateGroupSnapshotContentStatusNoUpdate(t *testing.T) {
 	if got != content && (got.Status == nil || got.Status.VolumeGroupSnapshotHandle == nil) {
 		t.Error("expected same object when no update needed")
 	}
+	for _, action := range client.Actions() {
+		if action.GetVerb() == "update" && action.GetSubresource() == "status" {
+			t.Errorf("expected no update when the driver returns no snapshots, got %v", action)
+		}
+	}
 }
 
 // TestCheckandUpdateGroupSnapshotContentStatusOperationSuccess tests GroupSnapshotHandles path when GetGroupSnapshotStatus succeeds.
