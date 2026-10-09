@@ -263,7 +263,7 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 
 	snapshotterCredentials, err := ctrl.GetCredentialsFromAnnotationForGroupSnapshot(groupSnapshotContent)
 	if err != nil {
-		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to get snapshot credentials")
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", fmt.Sprintf("Failed to get snapshot credentials: %s", err.Error()))
 		return fmt.Errorf("failed to get input parameters to delete group snapshot for group snapshot content %s: %q", groupSnapshotContent.Name, err)
 	}
 
@@ -285,14 +285,14 @@ func (ctrl *csiSnapshotSideCarController) deleteCSIGroupSnapshotOperation(groupS
 
 	err = ctrl.handler.DeleteGroupSnapshot(groupSnapshotContent, snapshotIDs, snapshotterCredentials)
 	if err != nil {
-		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to delete group snapshot")
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", fmt.Sprintf("Failed to delete group snapshot: %s", err.Error()))
 		return fmt.Errorf("failed to delete group snapshot %#v, err: %v", groupSnapshotContent.Name, err)
 	}
 	// the group snapshot has been deleted from the underlying storage system, update
 	// group snapshot content status to remove the group snapshot handle etc.
 	newContent, err := ctrl.clearGroupSnapshotContentStatus(groupSnapshotContent.Name)
 	if err != nil {
-		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", "Failed to clear content status")
+		ctrl.eventRecorder.Event(groupSnapshotContent, v1.EventTypeWarning, "GroupSnapshotDeleteError", fmt.Sprintf("Failed to clear content status: %s", err.Error()))
 		return err
 	}
 	// Trigger a re-sync of the group snapshot content, which will continue
