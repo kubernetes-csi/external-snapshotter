@@ -1,0 +1,7 @@
+# Requires cert-manager to be installed.
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../snapshot-topology
+  - certificate.yaml
