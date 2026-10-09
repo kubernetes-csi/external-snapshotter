@@ -53,6 +53,7 @@ type csiSnapshotCommonController struct {
 	clientset                 clientset.Interface
 	client                    kubernetes.Interface
 	eventRecorder             record.EventRecorder
+	eventBroadcaster          record.EventBroadcaster
 	snapshotQueue             workqueue.TypedRateLimitingInterface[string]
 	contentQueue              workqueue.TypedRateLimitingInterface[string]
 	groupSnapshotQueue        workqueue.TypedRateLimitingInterface[string]
@@ -124,12 +125,13 @@ func NewCSISnapshotCommonController(
 	eventRecorder = broadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: fmt.Sprintf("snapshot-controller")})
 
 	ctrl := &csiSnapshotCommonController{
-		clientset:     clientset,
-		client:        client,
-		eventRecorder: eventRecorder,
-		resyncPeriod:  resyncPeriod,
-		snapshotStore: cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
-		contentStore:  cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		clientset:        clientset,
+		client:           client,
+		eventRecorder:    eventRecorder,
+		eventBroadcaster: broadcaster,
+		resyncPeriod:     resyncPeriod,
+		snapshotStore:    cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
+		contentStore:     cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc),
 		snapshotQueue: workqueue.NewTypedRateLimitingQueueWithConfig(snapshotRateLimiter,
 			workqueue.TypedRateLimitingQueueConfig[string]{
 				Name: "snapshot-controller-snapshot"}),
@@ -248,6 +250,7 @@ func NewCSISnapshotCommonController(
 }
 
 func (ctrl *csiSnapshotCommonController) Run(workers int, stopCh <-chan struct{}, wg *sync.WaitGroup) {
+	defer ctrl.eventBroadcaster.Shutdown()
 	defer ctrl.snapshotQueue.ShutDown()
 	defer ctrl.contentQueue.ShutDown()
 	if ctrl.enableVolumeGroupSnapshots {
