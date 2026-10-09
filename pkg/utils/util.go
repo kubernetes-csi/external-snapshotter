@@ -190,6 +190,12 @@ var sidecarControlledContentAnnotations = map[string]struct{}{
 	AnnVolumeSnapshotBeingCreated: {},
 }
 
+// Annotations on VolumeGroupSnapshotContent objects entirely controlled by csi-snapshotter
+// AnnVolumeGroupSnapshotBeingDeleted is applied by the snapshot-controller and thus is not sidecar-owned
+var sidecarControlledGroupContentAnnotations = map[string]struct{}{
+	AnnVolumeGroupSnapshotBeingCreated: {},
+}
+
 // MapContainsKey checks if a given map of string to string contains the provided string.
 func MapContainsKey(m map[string]string, s string) bool {
 	_, r := m[s]
@@ -701,28 +707,59 @@ func ShouldEnqueueContentChange(old *crdv1.VolumeSnapshotContent, new *crdv1.Vol
 	sanitized.ManagedFields = old.ManagedFields
 	sanitized.Finalizers = old.Finalizers
 	// Annotations should cause a sync, except for annotations that csi-snapshotter controls
-	if old.Annotations != nil {
-		// This can happen if the new version has all annotations removed
-		if sanitized.Annotations == nil {
-			sanitized.Annotations = map[string]string{}
-		}
-		for annotation := range sidecarControlledContentAnnotations {
-			if value, ok := old.Annotations[annotation]; ok {
-				sanitized.Annotations[annotation] = value
-			} else {
-				delete(sanitized.Annotations, annotation)
-			}
-		}
-	} else {
-		// Old content has no annotations, so delete any sidecar-controlled annotations present on the new content
-		for annotation := range sidecarControlledContentAnnotations {
-			delete(sanitized.Annotations, annotation)
-		}
-	}
+	sanitized.Annotations = sanitizeSidecarAnnotations(old.Annotations, sanitized.Annotations, sidecarControlledContentAnnotations)
 
 	if equality.Semantic.DeepEqual(old, sanitized) {
 		// The only changes are in the fields we don't care about, so don't enqueue for sync
 		return false
 	}
 	return true
+}
+
+// ShouldEnqueueGroupContentChange indicates whether or not a change to a VolumeGroupSnapshotContent
+// object is a change that should be enqueued for sync. It applies the same sanitization as
+// ShouldEnqueueContentChange, so that the sidecar's own writes do not bypass the workqueue backoff.
+func ShouldEnqueueGroupContentChange(old *groupsnapshotv1.VolumeGroupSnapshotContent, new *groupsnapshotv1.VolumeGroupSnapshotContent) bool {
+	// Always enqueue resyncs, which show up as an update with no change (thus no new version)
+	if old.ResourceVersion == new.ResourceVersion {
+		return true
+	}
+	oldReadyToUse := old.Status != nil && old.Status.ReadyToUse != nil && *old.Status.ReadyToUse
+	newReadyToUse := new.Status != nil && new.Status.ReadyToUse != nil && *new.Status.ReadyToUse
+	if !oldReadyToUse && newReadyToUse {
+		return true
+	}
+
+	sanitized := new.DeepCopy()
+	sanitized.ResourceVersion = old.ResourceVersion
+	sanitized.Status = old.Status
+	sanitized.ManagedFields = old.ManagedFields
+	sanitized.Finalizers = old.Finalizers
+	sanitized.Annotations = sanitizeSidecarAnnotations(old.Annotations, sanitized.Annotations, sidecarControlledGroupContentAnnotations)
+
+	return !equality.Semantic.DeepEqual(old, sanitized)
+}
+
+// sanitizeSidecarAnnotations returns newAnnotations with every sidecar-controlled annotation
+// reset to its value in oldAnnotations.
+func sanitizeSidecarAnnotations(oldAnnotations, newAnnotations map[string]string, sidecarControlled map[string]struct{}) map[string]string {
+	if oldAnnotations == nil {
+		// Old content has no annotations, so delete any sidecar-controlled annotations present on the new content
+		for annotation := range sidecarControlled {
+			delete(newAnnotations, annotation)
+		}
+		return newAnnotations
+	}
+	// This can happen if the new version has all annotations removed
+	if newAnnotations == nil {
+		newAnnotations = map[string]string{}
+	}
+	for annotation := range sidecarControlled {
+		if value, ok := oldAnnotations[annotation]; ok {
+			newAnnotations[annotation] = value
+		} else {
+			delete(newAnnotations, annotation)
+		}
+	}
+	return newAnnotations
 }

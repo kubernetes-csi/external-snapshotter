@@ -149,10 +149,9 @@ func NewCSISnapshotSideCarController(
 			cache.ResourceEventHandlerFuncs{
 				AddFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
 				UpdateFunc: func(oldObj, newObj interface{}) {
-					/*
-						TODO: Determine if we need to skip requeueing in case of CSI driver failure.
-					*/
-					ctrl.enqueueGroupSnapshotContentWork(newObj)
+					if utils.ShouldEnqueueGroupContentChange(oldObj.(*groupsnapshotv1.VolumeGroupSnapshotContent), newObj.(*groupsnapshotv1.VolumeGroupSnapshotContent)) {
+						ctrl.enqueueGroupSnapshotContentWork(newObj)
+					}
 				},
 				DeleteFunc: func(obj interface{}) { ctrl.enqueueGroupSnapshotContentWork(obj) },
 			},
