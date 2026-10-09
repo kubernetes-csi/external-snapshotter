@@ -18,6 +18,7 @@ import (
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/cache"
 )
@@ -119,13 +120,31 @@ func TestShouldDelete(t *testing.T) {
 			content: newContent("test-content", "snap-uuid", "snapName", "desiredHandle", "default", "desiredHandle", "volHandle", crdv1.VolumeSnapshotContentDelete, nil, &defaultSize, false, &timeNowMetav1),
 		},
 		{
-			name:           "If no other cases match, then should not delete",
+			name:           "If no other cases match and content is not bound, then should not delete",
 			expectedReturn: false,
 			// Use an object that does not conform to newContent's logic in order to skip the conditionals inside shouldDelete
 			content: &crdv1.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "test-content",
 					DeletionTimestamp: &timeNowMetav1,
+				},
+			},
+		},
+		{
+			name:           "DeletionTimestamp set with bound content but missing AnnVolumeSnapshotBeingDeleted should still delete",
+			expectedReturn: true,
+			// This simulates the case where common-controller's PATCH to set
+			// AnnVolumeSnapshotBeingDeleted was throttled, but DeletionTimestamp
+			// is set and the content is bound to a VolumeSnapshot.
+			content: &crdv1.VolumeSnapshotContent{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "test-content-throttled",
+					DeletionTimestamp: &timeNowMetav1,
+				},
+				Spec: crdv1.VolumeSnapshotContentSpec{
+					VolumeSnapshotRef: v1.ObjectReference{
+						UID: "snap-uid-123",
+					},
 				},
 			},
 		},
