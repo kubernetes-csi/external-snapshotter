@@ -843,6 +843,14 @@ func (ctrl *csiSnapshotCommonController) getCreateSnapshotInput(snapshot *crdv1.
 		return nil, nil, "", nil, err
 	}
 
+	// The content is handed to the csi-snapshotter sidecar of class.Driver,
+	// so the source PV must have been provisioned by that same driver.
+	if volume.Spec.CSI != nil && volume.Spec.CSI.Driver != class.Driver {
+		err = fmt.Errorf("VolumeSnapshotClass %q has driver %q but the source PV %q is provisioned by driver %q", class.Name, class.Driver, volume.Name, volume.Spec.CSI.Driver)
+		klog.Errorf("getCreateSnapshotInput [%s]: %v", snapshot.Name, err)
+		return nil, nil, "", nil, err
+	}
+
 	// Create VolumeSnapshotContent name
 	contentName := utils.GetDynamicSnapshotContentNameForSnapshot(snapshot)
 
