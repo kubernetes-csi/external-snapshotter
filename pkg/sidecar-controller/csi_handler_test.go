@@ -33,7 +33,7 @@ import (
 type fakeGroupSnapshotter struct {
 	createGroupSnapshotResult func() (driverName, groupSnapshotID string, snapshots []*csi.Snapshot, timestamp time.Time, readyToUse bool, err error)
 	deleteGroupSnapshotErr    error
-	getGroupSnapshotStatus    func() (readyToUse bool, timestamp time.Time, err error)
+	getGroupSnapshotStatus    func() (readyToUse bool, timestamp time.Time, snapshots []*csi.Snapshot, err error)
 }
 
 func (f *fakeGroupSnapshotter) CreateGroupSnapshot(ctx context.Context, groupSnapshotName string, volumeIDs []string, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error) {
@@ -47,11 +47,11 @@ func (f *fakeGroupSnapshotter) DeleteGroupSnapshot(ctx context.Context, groupSna
 	return f.deleteGroupSnapshotErr
 }
 
-func (f *fakeGroupSnapshotter) GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error) {
+func (f *fakeGroupSnapshotter) GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, []*csi.Snapshot, error) {
 	if f.getGroupSnapshotStatus != nil {
 		return f.getGroupSnapshotStatus()
 	}
-	return true, time.Now(), nil
+	return true, time.Now(), nil, nil
 }
 
 func newCSIHandlerWithFakeGroupSnapshotter(f group_snapshotter.GroupSnapshotter) Handler {
@@ -247,7 +247,7 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-1"},
 			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
 		}
-		_, _, err := handler.GetGroupSnapshotStatus(content, nil, nil)
+		_, _, _, err := handler.GetGroupSnapshotStatus(content, nil, nil)
 		if err == nil {
 			t.Fatal("expected error when snapshotIDs is empty")
 		}
@@ -261,7 +261,7 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-2"},
 			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("handle-status")},
 		}
-		ready, ts, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
+		ready, ts, _, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
 		if err != nil {
 			t.Fatalf("GetGroupSnapshotStatus failed: %v", err)
 		}
@@ -282,7 +282,7 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 				},
 			},
 		}
-		ready, _, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
+		ready, _, _, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
 		if err != nil {
 			t.Fatalf("GetGroupSnapshotStatus failed: %v", err)
 		}
@@ -296,7 +296,7 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-4"},
 			Spec:       groupsnapshotv1.VolumeGroupSnapshotContentSpec{Source: groupsnapshotv1.VolumeGroupSnapshotContentSource{}},
 		}
-		_, _, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
+		_, _, _, err := handler.GetGroupSnapshotStatus(content, []string{"snap-1"}, nil)
 		if err == nil {
 			t.Fatal("expected error when handle is missing")
 		}
@@ -307,13 +307,13 @@ func TestGetGroupSnapshotStatus(t *testing.T) {
 
 	t.Run("groupSnapshotter returns error", func(t *testing.T) {
 		handlerErr := newCSIHandlerWithFakeGroupSnapshotter(&fakeGroupSnapshotter{
-			getGroupSnapshotStatus: func() (bool, time.Time, error) { return false, time.Time{}, errors.New("driver list error") },
+			getGroupSnapshotStatus: func() (bool, time.Time, []*csi.Snapshot, error) { return false, time.Time{}, nil, errors.New("driver list error") },
 		})
 		content := &groupsnapshotv1.VolumeGroupSnapshotContent{
 			ObjectMeta: metav1.ObjectMeta{Name: "gsc-status-5"},
 			Status:     &groupsnapshotv1.VolumeGroupSnapshotContentStatus{VolumeGroupSnapshotHandle: ptrString("h")},
 		}
-		_, _, err := handlerErr.GetGroupSnapshotStatus(content, []string{"s1"}, nil)
+		_, _, _, err := handlerErr.GetGroupSnapshotStatus(content, []string{"s1"}, nil)
 		if err == nil {
 			t.Fatal("expected error from driver")
 		}
