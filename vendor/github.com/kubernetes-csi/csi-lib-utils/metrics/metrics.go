@@ -29,6 +29,10 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"k8s.io/component-base/metrics"
+	"k8s.io/component-base/metrics/legacyregistry" // Go runtime & process metrics
+	// Anonymously import for rest client, work queue, leader election, and fifo metrics
+	_ "k8s.io/component-base/metrics/prometheus/clientgo"
+	_ "k8s.io/component-base/metrics/prometheus/version" // kubernetes_build_info metrics
 )
 
 const (
@@ -269,6 +273,9 @@ func NewCSIMetricsManagerWithOptions(driverName string, options ...MetricsManage
 	cmm.registerMetrics()
 	cmm.gatherers = prometheus.Gatherers{
 		cmm.GetRegistry(),
+		// FYI this registry includes additional Go & Kubernetes metrics
+		// from import side-effects. See import comments at top of file.
+		legacyregistry.DefaultGatherer,
 	}
 	return &cmm
 }
@@ -422,13 +429,13 @@ func (cmm *csiMetricsManager) RegisterPprofToServer(s Server) {
 	s.Handle("/debug/pprof/trace", http.HandlerFunc(pprof.Trace))
 }
 
-// VerifyMetricsMatch is a helper function that verifies that the expected and
+// VerifyMetricsMatch is a legacy helper function that verifies that the expected and
 // actual metrics are identical excluding metricToIgnore.
 // This method is only used by tests. Ideally it should be in the _test file,
 // but *_test.go files are compiled into the package only when running go test
 // for that package and this method is used by metrics_test as well as
-// connection_test. If there are more consumers in the future, we can consider
-// moving it to a new, standalone package.
+// connection_test.
+// Deprecated: Will be removed in a future release due to allowing only one ignore string.
 func VerifyMetricsMatch(expectedMetrics, actualMetrics string, metricToIgnore string) error {
 	gotScanner := bufio.NewScanner(strings.NewReader(strings.TrimSpace(actualMetrics)))
 	wantScanner := bufio.NewScanner(strings.NewReader(strings.TrimSpace(expectedMetrics)))
