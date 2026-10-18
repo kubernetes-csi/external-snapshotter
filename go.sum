@@ -105,8 +105,8 @@ github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnr
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/klauspost/compress v1.19.1 h1:VsB4HPswih7mmZ8WleSFQ75c/Ui1M4trX5oAsJnhSlk=
 github.com/klauspost/compress v1.19.1/go.mod h1:cwPg85FWrGar70rWktvGQj8/hthj3wpl0PGDogxkrSQ=
-github.com/kubernetes-csi/csi-lib-utils v0.25.0 h1:uPfcPBYpJ8NyGAzQLo+JWvTHAy3OMmLgCWQuFTJmkWM=
-github.com/kubernetes-csi/csi-lib-utils v0.25.0/go.mod h1:Ks9h3Iy9opBbBZyMbS85MOBxGYXbjPKYbeI2/flMhL8=
+github.com/kubernetes-csi/csi-lib-utils v0.25.1-0.20261005110441-76e421af0a18 h1:/KF23m2HKJUm02mQEQiQ9wL3wKroBwuHyAxZQVBvfEo=
+github.com/kubernetes-csi/csi-lib-utils v0.25.1-0.20261005110441-76e421af0a18/go.mod h1:Ks9h3Iy9opBbBZyMbS85MOBxGYXbjPKYbeI2/flMhL8=
 github.com/kubernetes-csi/csi-test/v5 v5.6.0 h1:fQgB/CRoqTEAtlHwfD0Y785LjQJ/OxNGUE7AHw68VLg=
 github.com/kubernetes-csi/csi-test/v5 v5.6.0/go.mod h1:IXPOop3n6Mlco/6/3nGrE+MTOx3uXiIQVDJh3KBt/DI=
 github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0SNc=
