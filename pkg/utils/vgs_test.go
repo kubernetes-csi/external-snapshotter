@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
@@ -117,6 +118,111 @@ func TestIsVolumeSnapshotGroupMember(t *testing.T) {
 			resultKey := VolumeSnapshotParentGroupKeyFunc(test.snapshot)
 			if resultKey != test.expectedIndexKey {
 				t.Errorf("VolumeSnapshotParentGroupKeyFunc(s) = %v WANTED %v", resultKey, test.expectedIndexKey)
+			}
+		})
+	}
+}
+
+func TestGetVolumeGroupSnapshotParentOwnerReference(t *testing.T) {
+	testCases := []struct {
+		name         string
+		snapshot     *crdv1.VolumeSnapshot
+		expectedName string
+		expectedUID  types.UID
+	}{
+		{
+			name:     "nil snapshot",
+			snapshot: nil,
+		},
+		{
+			name:     "without ownership",
+			snapshot: &crdv1.VolumeSnapshot{},
+		},
+		{
+			name: "right kind in an unrelated API group",
+			snapshot: &crdv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "unrelated.example.com/v1beta1",
+							Kind:       "VolumeGroupSnapshot",
+							Name:       "vgs",
+							UID:        "vgs-uid",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "right API group with an unrelated kind",
+			snapshot: &crdv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "groupsnapshot.storage.k8s.io/v1",
+							Kind:       "VolumeGroupSnapshotClass",
+							Name:       "vgs",
+							UID:        "vgs-uid",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "parent found past an unrelated owner",
+			snapshot: &crdv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "v1",
+							Kind:       "Deployment",
+							Name:       "test",
+						},
+						{
+							APIVersion: "groupsnapshot.storage.k8s.io/v1",
+							Kind:       "VolumeGroupSnapshot",
+							Name:       "vgs",
+							UID:        "vgs-uid",
+						},
+					},
+				},
+			},
+			expectedName: "vgs",
+			expectedUID:  "vgs-uid",
+		},
+		{
+			name: "parent owned by another version of the group snapshot API",
+			snapshot: &crdv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "groupsnapshot.storage.k8s.io/v1beta1",
+							Kind:       "VolumeGroupSnapshot",
+							Name:       "vgs",
+							UID:        "vgs-uid",
+						},
+					},
+				},
+			},
+			expectedName: "vgs",
+			expectedUID:  "vgs-uid",
+		},
+	}
+
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			owner := GetVolumeGroupSnapshotParentOwnerReference(test.snapshot)
+			if test.expectedName == "" {
+				if owner != nil {
+					t.Errorf("GetVolumeGroupSnapshotParentOwnerReference(s) = %v WANTED nil", owner)
+				}
+				return
+			}
+			if owner == nil {
+				t.Fatalf("GetVolumeGroupSnapshotParentOwnerReference(s) = nil WANTED %v", test.expectedName)
+			}
+			if owner.Name != test.expectedName || owner.UID != test.expectedUID {
+				t.Errorf("GetVolumeGroupSnapshotParentOwnerReference(s) = (%v, %v) WANTED (%v, %v)", owner.Name, owner.UID, test.expectedName, test.expectedUID)
 			}
 		})
 	}

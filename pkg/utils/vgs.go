@@ -22,6 +22,7 @@ import (
 	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -29,23 +30,37 @@ import (
 // between volume snapshots and their volume group snapshot owner
 const VolumeSnapshotParentGroupIndex = "ByVolumeGroupSnapshotMembership"
 
-// getVolumeGroupSnapshotParentObjectName returns the name of the parent group snapshot, if present.
-// The second return value is true when the parent object have been found, false otherwise.
-func getVolumeGroupSnapshotParentObjectName(snapshot *crdv1.VolumeSnapshot) string {
+// volumeGroupSnapshotKind is the kind of the VolumeGroupSnapshot objects.
+const volumeGroupSnapshotKind = "VolumeGroupSnapshot"
+
+// GetVolumeGroupSnapshotParentOwnerReference returns the owner reference pointing to
+// the parent group snapshot, or nil when the passed snapshot is not a member of a
+// volume group snapshot.
+// Only the API group is matched, not the version, so that members owned by a
+// previous version of the group snapshot API are still recognized.
+func GetVolumeGroupSnapshotParentOwnerReference(snapshot *crdv1.VolumeSnapshot) *metav1.OwnerReference {
 	if snapshot == nil {
-		return ""
+		return nil
 	}
 
-	apiVersion := fmt.Sprintf(
-		"%s/%s",
-		groupsnapshotv1.SchemeGroupVersion.Group,
-		groupsnapshotv1.SchemeGroupVersion.Version,
-	)
-
-	for _, owner := range snapshot.ObjectMeta.OwnerReferences {
-		if owner.Kind == "VolumeGroupSnapshot" && owner.APIVersion == apiVersion {
-			return owner.Name
+	for i := range snapshot.ObjectMeta.OwnerReferences {
+		owner := &snapshot.ObjectMeta.OwnerReferences[i]
+		if owner.Kind != volumeGroupSnapshotKind {
+			continue
 		}
+		if schema.FromAPIVersionAndKind(owner.APIVersion, owner.Kind).Group == groupsnapshotv1.SchemeGroupVersion.Group {
+			return owner
+		}
+	}
+
+	return nil
+}
+
+// getVolumeGroupSnapshotParentObjectName returns the name of the parent group snapshot,
+// or an empty string when the passed snapshot is not a member of a volume group snapshot.
+func getVolumeGroupSnapshotParentObjectName(snapshot *crdv1.VolumeSnapshot) string {
+	if owner := GetVolumeGroupSnapshotParentOwnerReference(snapshot); owner != nil {
+		return owner.Name
 	}
 
 	return ""
@@ -107,7 +122,7 @@ func BuildVolumeGroupSnapshotOwnerReference(parentGroup *groupsnapshotv1.VolumeG
 			groupsnapshotv1.SchemeGroupVersion.Group,
 			groupsnapshotv1.SchemeGroupVersion.Version,
 		),
-		Kind: "VolumeGroupSnapshot",
+		Kind: volumeGroupSnapshotKind,
 		Name: parentGroup.Name,
 		UID:  parentGroup.UID,
 	}
