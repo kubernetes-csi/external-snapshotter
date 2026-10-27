@@ -389,6 +389,19 @@ func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
 	}
 	snapshot, err := ctrl.snapshotLister.VolumeSnapshots(namespace).Get(name)
 	if err == nil {
+		// A replacement may reuse the key of a deleted snapshot whose PVC cleanup
+		// is still pending. Class and status updates can overwrite snapshotStore,
+		// so finish that cleanup before reconciling the replacement.
+		storedSnapshot, err := ctrl.getSnapshotFromStore(key)
+		if err != nil {
+			return err
+		}
+		if storedSnapshot != nil && storedSnapshot.UID != snapshot.UID {
+			if err := ctrl.checkandRemovePVCFinalizer(storedSnapshot, true); err != nil {
+				return err
+			}
+		}
+
 		// The volume snapshot still exists in informer cache, the event must have
 		// been add/update/sync
 		newSnapshot, err := ctrl.checkAndUpdateSnapshotClass(snapshot)
@@ -427,9 +440,7 @@ func (ctrl *csiSnapshotCommonController) syncSnapshotByKey(key string) error {
 	}
 
 	klog.V(5).Infof("deleting snapshot %q", key)
-	ctrl.deleteSnapshot(snapshot)
-
-	return nil
+	return ctrl.deleteSnapshot(snapshot)
 }
 
 // contentWorker is the main worker for VolumeSnapshotContent.
@@ -585,7 +596,12 @@ func (ctrl *csiSnapshotCommonController) updateContent(content *crdv1.VolumeSnap
 }
 
 // deleteSnapshot runs in worker thread and handles "snapshot deleted" event.
-func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot) {
+func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSnapshot) error {
+	// Recheck PVC protection after the snapshot has left the informer cache.
+	// Keep its source in snapshotStore until cleanup succeeds so errors can retry.
+	if err := ctrl.checkandRemovePVCFinalizer(snapshot, true); err != nil {
+		return err
+	}
 	_ = ctrl.snapshotStore.Delete(snapshot)
 	klog.V(4).Infof("snapshot %q deleted", utils.SnapshotKey(snapshot))
 	driverName, err := ctrl.getSnapshotDriverName(snapshot)
@@ -602,7 +618,7 @@ func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSn
 	}
 	if snapshotContentName == "" {
 		klog.V(5).Infof("deleteSnapshot[%q]: content not bound", utils.SnapshotKey(snapshot))
-		return
+		return nil
 	}
 
 	// sync the content when its snapshot is deleted.  Explicitly sync'ing the
@@ -610,6 +626,7 @@ func (ctrl *csiSnapshotCommonController) deleteSnapshot(snapshot *crdv1.VolumeSn
 	// waiting until the next sync period for its Release.
 	klog.V(5).Infof("deleteSnapshot[%q]: scheduling sync of content %s", utils.SnapshotKey(snapshot), snapshotContentName)
 	ctrl.contentQueue.Add(snapshotContentName)
+	return nil
 }
 
 // deleteContent runs in worker thread and handles "content deleted" event.
