@@ -280,7 +280,7 @@ func TestGetGroupSnapshotStatus_Success(t *testing.T) {
 	gs := NewGroupSnapshotter(conn)
 	ctx := context.Background()
 
-	ready, creationTime, err := gs.GetGroupSnapshotStatus(ctx, "group-id", []string{"snap-1"}, nil)
+	ready, creationTime, _, err := gs.GetGroupSnapshotStatus(ctx, "group-id", []string{"snap-1"}, nil)
 	if err != nil {
 		t.Fatalf("GetGroupSnapshotStatus: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestGetGroupSnapshotStatus_CustomResponse(t *testing.T) {
 	gs := NewGroupSnapshotter(conn)
 	ctx := context.Background()
 
-	ready, creationTime, err := gs.GetGroupSnapshotStatus(ctx, "gid", []string{"s1"}, nil)
+	ready, creationTime, _, err := gs.GetGroupSnapshotStatus(ctx, "gid", []string{"s1"}, nil)
 	if err != nil {
 		t.Fatalf("GetGroupSnapshotStatus: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestGetGroupSnapshotStatus_Error(t *testing.T) {
 	gs := NewGroupSnapshotter(conn)
 	ctx := context.Background()
 
-	ready, creationTime, err := gs.GetGroupSnapshotStatus(ctx, "group-id", []string{"snap-1"}, nil)
+	ready, creationTime, _, err := gs.GetGroupSnapshotStatus(ctx, "group-id", []string{"snap-1"}, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	}

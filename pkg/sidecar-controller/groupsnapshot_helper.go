@@ -798,6 +798,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 	var driverName string
 	var groupSnapshotID string
 	var groupSnapshotCredentials map[string]string
+	var snapshots []*csi.Snapshot
 
 	if groupSnapshotContent.Spec.Source.GroupSnapshotHandles != nil {
 		klog.V(5).Infof("checkandUpdateGroupSnapshotContentStatusOperation: call GetGroupSnapshotStatus for group snapshot which is pre-bound to group snapshot content [%s]", groupSnapshotContent.Name)
@@ -824,7 +825,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 		}
 
 		snapshotIDs := groupSnapshotContent.Spec.Source.GroupSnapshotHandles.VolumeSnapshotHandles
-		readyToUse, creationTime, err = ctrl.handler.GetGroupSnapshotStatus(groupSnapshotContent, snapshotIDs, groupSnapshotCredentials)
+		readyToUse, creationTime, snapshots, err = ctrl.handler.GetGroupSnapshotStatus(groupSnapshotContent, snapshotIDs, groupSnapshotCredentials)
 		if err != nil {
 			klog.Errorf("checkandUpdateGroupSnapshotContentStatusOperation: failed to call get group snapshot status to check whether group snapshot is ready to use %q", err)
 			return groupSnapshotContent, err
@@ -838,8 +839,7 @@ func (ctrl *csiSnapshotSideCarController) checkandUpdateGroupSnapshotContentStat
 			creationTime = time.Now()
 		}
 
-		// TODO: Get a reference to snapshot contents for this volume group snapshot
-		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), []*csi.Snapshot{})
+		updatedContent, err := ctrl.updateGroupSnapshotContentStatus(groupSnapshotContent, groupSnapshotID, readyToUse, metav1.NewTime(creationTime), snapshots)
 		if err != nil {
 			return groupSnapshotContent, err
 		}
