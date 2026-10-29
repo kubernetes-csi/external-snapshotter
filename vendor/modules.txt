@@ -170,7 +170,7 @@ github.com/inconshreveable/mousetrap
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
-# github.com/kubernetes-csi/csi-lib-utils v0.25.0
+# github.com/kubernetes-csi/csi-lib-utils v0.25.1-0.20261005110441-76e421af0a18
 ## explicit; go 1.26.0
 github.com/kubernetes-csi/csi-lib-utils/config
 github.com/kubernetes-csi/csi-lib-utils/connection
@@ -1223,10 +1223,14 @@ k8s.io/component-base/metrics/api/v1
 k8s.io/component-base/metrics/features
 k8s.io/component-base/metrics/internal
 k8s.io/component-base/metrics/legacyregistry
+k8s.io/component-base/metrics/prometheus/clientgo
+k8s.io/component-base/metrics/prometheus/clientgo/fifo
 k8s.io/component-base/metrics/prometheus/clientgo/leaderelection
 k8s.io/component-base/metrics/prometheus/compatversion
 k8s.io/component-base/metrics/prometheus/feature
+k8s.io/component-base/metrics/prometheus/restclient
 k8s.io/component-base/metrics/prometheus/slis
+k8s.io/component-base/metrics/prometheus/version
 k8s.io/component-base/metrics/prometheus/workqueue
 k8s.io/component-base/metrics/prometheusextension
 k8s.io/component-base/metrics/testutil

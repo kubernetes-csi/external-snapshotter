@@ -7,7 +7,7 @@ require (
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/google/go-cmp v0.7.0
-	github.com/kubernetes-csi/csi-lib-utils v0.25.0
+	github.com/kubernetes-csi/csi-lib-utils v0.25.1-0.20261005110441-76e421af0a18
 	github.com/kubernetes-csi/csi-test/v5 v5.6.0
 	github.com/kubernetes-csi/external-snapshotter/client/v8 v8.6.0
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
