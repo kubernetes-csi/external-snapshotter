@@ -292,20 +292,31 @@ func (ctrl *csiSnapshotCommonController) checkandRemoveSnapshotFinalizersAndChec
 	}
 
 	removeGroupFinalizer := false
-	// Block deletion if this snapshot belongs to a group snapshot.
+	groupSnapshotName := ""
 	if snapshot.Status != nil && snapshot.Status.VolumeGroupSnapshotName != nil {
-		groupSnapshot, err := ctrl.groupSnapshotLister.VolumeGroupSnapshots(snapshot.Namespace).Get(*snapshot.Status.VolumeGroupSnapshotName)
-		if err == nil {
+		groupSnapshotName = *snapshot.Status.VolumeGroupSnapshotName
+	}
+	// Deletion can interrupt member initialization before the group name is
+	// written to status. Prefer the owner reference, which also identifies the
+	// original parent if a group with the same name has since been recreated.
+	groupOwner := utils.GetVolumeGroupSnapshotParentOwnerReference(snapshot)
+	if groupOwner != nil {
+		groupSnapshotName = groupOwner.Name
+	}
+	// Block deletion while the parent group snapshot still exists.
+	if groupSnapshotName != "" {
+		groupSnapshot, err := ctrl.groupSnapshotLister.VolumeGroupSnapshots(snapshot.Namespace).Get(groupSnapshotName)
+		if err != nil && !apierrs.IsNotFound(err) {
+			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
+			return err
+		}
+		if err == nil && (groupOwner == nil || groupOwner.UID == "" || groupSnapshot.UID == groupOwner.UID) {
 			msg := fmt.Sprintf("deletion of the individual volume snapshot %s is not allowed as it belongs to group snapshot %s. Deleting the group snapshot will trigger the deletion of all the individual volume snapshots that are part of the group.", utils.SnapshotKey(snapshot), utils.GroupSnapshotKey(groupSnapshot))
 			klog.Error(msg)
 			ctrl.eventRecorder.Event(snapshot, v1.EventTypeWarning, "SnapshotDeletePending", msg)
 			return errors.New(msg)
 		}
-		if !apierrs.IsNotFound(err) {
-			klog.Errorf("failed to delete snapshot %s: %v", utils.SnapshotKey(snapshot), err)
-			return err
-		}
-		// group snapshot API object was deleted.
+		// The original group snapshot API object was deleted.
 		// The VolumeSnapshotInGroupFinalizer can be removed from this snapshot
 		// to trigger deletion.
 		removeGroupFinalizer = true
