@@ -117,6 +117,16 @@ var snapshotClasses = []*crdv1.VolumeSnapshotClass{
 			Kind: "VolumeSnapshotClass",
 		},
 		ObjectMeta: metav1.ObjectMeta{
+			Name: classOtherDriver,
+		},
+		Driver:         otherDriverName,
+		DeletionPolicy: crdv1.VolumeSnapshotContentDelete,
+	},
+	{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "VolumeSnapshotClass",
+		},
+		ObjectMeta: metav1.ObjectMeta{
 			Name:        defaultClass,
 			Annotations: map[string]string{utils.IsDefaultSnapshotClassAnnotation: "true"},
 		},
