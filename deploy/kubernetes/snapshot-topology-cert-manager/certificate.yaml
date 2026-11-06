@@ -1,0 +1,51 @@
+# A long-lived CA avoids caBundle changes on serving-certificate renewal.
+
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: snapshot-topology-webhook-selfsigned
+  namespace: kube-system
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: snapshot-topology-webhook-ca
+  namespace: kube-system
+spec:
+  isCA: true
+  commonName: snapshot-topology-webhook-ca
+  secretName: snapshot-topology-webhook-ca
+  duration: 87600h # 10 years
+  renewBefore: 8760h # 1 year
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: snapshot-topology-webhook-selfsigned
+    kind: Issuer
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: snapshot-topology-webhook-ca
+  namespace: kube-system
+spec:
+  ca:
+    secretName: snapshot-topology-webhook-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: snapshot-topology-webhook
+  namespace: kube-system
+spec:
+  secretName: snapshot-topology-webhook-certs
+  dnsNames:
+    - snapshot-topology-webhook.kube-system.svc
+    - snapshot-topology-webhook.kube-system.svc.cluster.local
+  issuerRef:
+    name: snapshot-topology-webhook-ca
+    kind: Issuer

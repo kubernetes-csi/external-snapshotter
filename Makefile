@@ -14,7 +14,7 @@
 
 .PHONY: all snapshot-controller csi-snapshotter snapshot-conversion-webhook clean test
 
-CMDS=snapshot-controller csi-snapshotter snapshot-conversion-webhook
+CMDS=snapshot-controller csi-snapshotter snapshot-conversion-webhook snapshot-topology-webhook
 all: build
 include release-tools/build.make
 
