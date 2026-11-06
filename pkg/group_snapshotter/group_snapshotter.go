@@ -34,8 +34,9 @@ type GroupSnapshotter interface {
 	// DeleteGroupSnapshot deletes a group snapshot of multiple volumes
 	DeleteGroupSnapshot(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (err error)
 
-	// GetGroupSnapshotStatus returns if a group snapshot is ready to use, its creation time, etc
-	GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error)
+	// GetGroupSnapshotStatus returns if a group snapshot is ready to use, its creation time, and
+	// the individual snapshots that belong to the group, etc
+	GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, []*csi.Snapshot, error)
 }
 
 type groupSnapshot struct {
@@ -92,7 +93,7 @@ func (gs *groupSnapshot) DeleteGroupSnapshot(ctx context.Context, groupSnapshotI
 	return nil
 }
 
-func (gs *groupSnapshot) GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIds []string, snapshotterCredentials map[string]string) (bool, time.Time, error) {
+func (gs *groupSnapshot) GetGroupSnapshotStatus(ctx context.Context, groupSnapshotID string, snapshotIds []string, snapshotterCredentials map[string]string) (bool, time.Time, []*csi.Snapshot, error) {
 	klog.V(5).Infof("CSI GetGroupSnapshotStatus: %s", groupSnapshotID)
 	client := csi.NewGroupControllerClient(gs.conn)
 
@@ -104,9 +105,9 @@ func (gs *groupSnapshot) GetGroupSnapshotStatus(ctx context.Context, groupSnapsh
 
 	rsp, err := client.GetVolumeGroupSnapshot(ctx, &req)
 	if err != nil {
-		return false, time.Time{}, err
+		return false, time.Time{}, nil, err
 	}
 
 	klog.V(5).Infof("CSI GetGroupSnapshot: group snapshot ID [%s] time stamp [%v] snapshots [%v] readyToUse [%v]", rsp.GroupSnapshot.GroupSnapshotId, rsp.GroupSnapshot.CreationTime, rsp.GroupSnapshot.Snapshots, rsp.GroupSnapshot.ReadyToUse)
-	return rsp.GroupSnapshot.ReadyToUse, rsp.GroupSnapshot.CreationTime.AsTime(), nil
+	return rsp.GroupSnapshot.ReadyToUse, rsp.GroupSnapshot.CreationTime.AsTime(), rsp.GroupSnapshot.Snapshots, nil
 }
