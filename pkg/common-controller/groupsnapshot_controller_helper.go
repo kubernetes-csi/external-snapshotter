@@ -1549,7 +1549,7 @@ func (ctrl *csiSnapshotCommonController) processGroupSnapshotWithDeletionTimesta
 	// been updated yet, i.e., failed right after group snapshot content creation.
 	// In this case, use the fixed naming scheme to get the group snapshot content
 	// name and search
-	if groupSnapshotContentName == "" && &groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil {
+	if groupSnapshotContentName == "" && groupSnapshot.Spec.Source.VolumeGroupSnapshotContentName == nil {
 		groupSnapshotContentName = utils.GetDynamicSnapshotContentNameForGroupSnapshot(groupSnapshot)
 	}
 	// find a group snapshot content from cache store, note that it's completely legit

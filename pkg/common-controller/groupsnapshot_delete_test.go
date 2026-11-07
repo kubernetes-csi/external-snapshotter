@@ -123,6 +123,43 @@ func TestDeleteGroupSnapshotSync(t *testing.T) {
 			expectSuccess:  true,
 		},
 		{
+			name: "2-4b - dynamic group snapshot deleted before its status was bound, retention policy set to delete - content is found by its derived name and deleted",
+			initialGroupSnapshots: withGroupSnapshotFinalizers(
+				newGroupSnapshotArray(
+					"group-snap-1-1", "group-snapuid1-1", map[string]string{
+						"app.kubernetes.io/name": "postgresql",
+					},
+					"", classGold, "", &False, nil, nil, false, false, &timeNowMetav1,
+				),
+				utils.VolumeGroupSnapshotBoundFinalizer,
+			),
+			expectedGroupSnapshots: withGroupSnapshotFinalizers(
+				newGroupSnapshotArray(
+					"group-snap-1-1", "group-snapuid1-1", map[string]string{
+						"app.kubernetes.io/name": "postgresql",
+					},
+					"", classGold, "", &False, nil, nil, false, false, &timeNowMetav1,
+				),
+				utils.VolumeGroupSnapshotBoundFinalizer,
+			),
+			initialGroupContents: newGroupSnapshotContentArray(
+				"groupsnapcontent-group-snapuid1-1", "group-snapuid1-1", "group-snap-1-1", "", classGold, []string{
+					"1-pv-handle6-1",
+					"2-pv-handle6-1",
+				}, "", crdv1.VolumeSnapshotContentDelete, nil, false, false,
+			),
+			expectedGroupContents: nil,
+			initialClaims: withClaimLabels(
+				newClaimCoupleArray("claim1-1", "pvc-uid6-1", "1Gi", "volume6-1", v1.ClaimBound, &classGold),
+				map[string]string{
+					"app.kubernetes.io/name": "postgresql",
+				}),
+			initialVolumes: newVolumeCoupleArray("volume6-1", "pv-uid6-1", "pv-handle6-1", "1Gi", "pvc-uid6-1", "claim1-1", v1.VolumeBound, v1.PersistentVolumeReclaimDelete, classGold),
+			errors:         noerrors,
+			test:           testSyncGroupSnapshot,
+			expectSuccess:  true,
+		},
+		{
 			name: "2-4 - pre-provisioned snapshot have been deleted, retention policy set to delete - volume snapshot content will be deleted",
 			initialGroupSnapshots: withGroupSnapshotFinalizers(
 				newGroupSnapshotArray(
