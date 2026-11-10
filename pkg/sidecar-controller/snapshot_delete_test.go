@@ -17,15 +17,19 @@ limitations under the License.
 package sidecar_controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	fake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 )
 
 var (
@@ -375,4 +379,54 @@ func TestDeleteSync(t *testing.T) {
 		},
 	}
 	runSyncContentTests(t, tests, snapshotClasses)
+}
+
+// Directly deleting bound content must not delete storage or remove its finalizer
+// while the VolumeSnapshot is still live and the common controller has not
+// authorized deletion with AnnVolumeSnapshotBeingDeleted.
+func TestDirectContentDeletionWithLiveSnapshot(t *testing.T) {
+	for _, policy := range []crdv1.DeletionPolicy{deletePolicy, retainPolicy} {
+		t.Run(string(policy), func(t *testing.T) {
+			content := newContent("content-direct-delete", "snapshot-uid", "snapshot-live", "snapshot-handle", classGold, "", "volume-handle", policy, nil, nil, true, nil)
+			content.DeletionTimestamp = &timeNowMetav1
+			content.Status.ReadyToUse = &True
+			snapshot := &crdv1.VolumeSnapshot{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      content.Spec.VolumeSnapshotRef.Name,
+					Namespace: content.Spec.VolumeSnapshotRef.Namespace,
+					UID:       content.Spec.VolumeSnapshotRef.UID,
+				},
+				Status: &crdv1.VolumeSnapshotStatus{
+					BoundVolumeSnapshotContentName: &content.Name,
+					ReadyToUse:                     &True,
+				},
+			}
+			client := fake.NewSimpleClientset(content.DeepCopy(), snapshot)
+			// No CSI calls are expected. The existing fake snapshotter fails the
+			// test if DeleteSnapshot (or another CSI operation) is called.
+			ctrl, err := newTestController(kubefake.NewSimpleClientset(), client, nil, t, controllerTest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ctrl.contentStore.Add(content); err != nil {
+				t.Fatal(err)
+			}
+			requeue, err := ctrl.syncContent(content)
+			if err != nil || requeue {
+				t.Fatalf("syncContent returned requeue=%t, err=%v", requeue, err)
+			}
+			for _, action := range client.Actions() {
+				if action.GetVerb() != "get" && action.GetVerb() != "list" && action.GetVerb() != "watch" {
+					t.Errorf("unexpected API mutation: %s %s", action.GetVerb(), action.GetResource().Resource)
+				}
+			}
+			actual, err := client.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), content.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(actual, content) {
+				t.Errorf("content changed without deletion authorization: got %+v, want %+v", actual, content)
+			}
+		})
+	}
 }

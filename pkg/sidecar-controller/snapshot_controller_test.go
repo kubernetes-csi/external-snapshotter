@@ -131,14 +131,13 @@ func TestShouldDelete(t *testing.T) {
 			},
 		},
 		{
-			name:           "DeletionTimestamp set with bound content but missing AnnVolumeSnapshotBeingDeleted should still delete",
-			expectedReturn: true,
-			// This simulates the case where common-controller's PATCH to set
-			// AnnVolumeSnapshotBeingDeleted was throttled, but DeletionTimestamp
-			// is set and the content is bound to a VolumeSnapshot.
+			name:           "DeletionTimestamp set with bound content but missing AnnVolumeSnapshotBeingDeleted must not delete",
+			expectedReturn: false,
+			// A direct content deletion does not authorize deleting a snapshot
+			// that is still in use. The common controller must set the annotation.
 			content: &crdv1.VolumeSnapshotContent{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:              "test-content-throttled",
+					Name:              "test-content-bound",
 					DeletionTimestamp: &timeNowMetav1,
 				},
 				Spec: crdv1.VolumeSnapshotContentSpec{
