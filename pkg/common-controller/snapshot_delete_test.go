@@ -18,12 +18,16 @@ package common_controller
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
+	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	groupstoragelisters "github.com/kubernetes-csi/external-snapshotter/client/v8/listers/volumegroupsnapshot/v1"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/cache"
 )
 
 var class1Parameters = map[string]string{
@@ -354,4 +358,109 @@ func TestDeleteSync(t *testing.T) {
 		},
 	}
 	runSyncTests(t, tests, snapshotClasses, nil)
+}
+
+// TestDeleteGroupSnapshotMemberSync covers deletion before member status has
+// finished initializing, including a member whose content was already removed.
+func TestDeleteGroupSnapshotMemberSync(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		parentUID     string
+		statusGroup   bool
+		noOwner       bool
+		wrongAPIGroup bool
+		nilStatus     bool
+		withContent   bool
+		retainContent bool
+		withSource    bool
+		block         bool
+		keepGroup     bool
+	}{
+		{name: "group-only finalizer and missing content"},
+		{name: "group-only finalizer and existing content", withContent: true},
+		{name: "group-only finalizer and retained content", withContent: true, retainContent: true},
+		{name: "nil member status", nilStatus: true},
+		{name: "live parent blocks deletion", parentUID: "parent-uid", withContent: true, block: true},
+		{name: "live parent blocks source finalizer removal", parentUID: "parent-uid", withSource: true, block: true},
+		{name: "recreated parent does not block deletion", parentUID: "replacement-uid", withContent: true},
+		{name: "recreated parent with initialized status", parentUID: "replacement-uid", statusGroup: true},
+		{name: "source finalizer removed with group finalizer", withSource: true},
+		{name: "status-only membership with deleted parent", noOwner: true, statusGroup: true},
+		{name: "status-only membership with live parent", noOwner: true, statusGroup: true, parentUID: "parent-uid", block: true},
+		{name: "unresolved membership retains group protection", noOwner: true, keepGroup: true},
+		{name: "unrelated API group is not a parent", wrongAPIGroup: true, keepGroup: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			snapshot := newSnapshot("member", "member-uid", "missing-pvc", "", classGold, "", &False, nil, nil, nil, tc.nilStatus, false, &timeNowMetav1)
+			snapshot.Finalizers = []string{utils.VolumeSnapshotInGroupFinalizer}
+			if tc.withSource {
+				snapshot.Finalizers = append(snapshot.Finalizers, utils.VolumeSnapshotAsSourceFinalizer)
+			}
+			groupName := "parent"
+			if tc.statusGroup {
+				snapshot.Status.VolumeGroupSnapshotName = &groupName
+			}
+			if !tc.noOwner {
+				snapshot.OwnerReferences = []metav1.OwnerReference{{
+					APIVersion: groupsnapshotv1.SchemeGroupVersion.String(),
+					Kind:       "VolumeGroupSnapshot", Name: groupName, UID: "parent-uid",
+				}}
+				if tc.wrongAPIGroup {
+					snapshot.OwnerReferences[0].APIVersion = "unrelated.example.com/v1"
+				}
+			}
+			test := controllerTest{
+				name: tc.name, initialSnapshots: []*crdv1.VolumeSnapshot{snapshot},
+				expectedEvents: noevents, expectSuccess: true, test: testSyncSnapshot,
+			}
+			if tc.parentUID != "" {
+				test.initialGroupSnapshots = newGroupSnapshotArray(groupName, tc.parentUID, nil, "", classGold, "", &True, nil, nil, false, false, nil)
+				test.expectedGroupSnapshots = test.initialGroupSnapshots
+			}
+			if tc.withContent {
+				contentName := "member-content"
+				snapshot.Status.BoundVolumeSnapshotContentName = &contentName
+				policy := crdv1.VolumeSnapshotContentDelete
+				if tc.retainContent {
+					policy = crdv1.VolumeSnapshotContentRetain
+				}
+				test.initialContents = newContentArray(contentName, "member-uid", snapshot.Name, "handle", classGold, "", "volume", policy, nil, nil, true)
+				if tc.block {
+					test.expectedContents = test.initialContents
+				} else if tc.retainContent {
+					test.expectedContents = withContentAnnotations([]*crdv1.VolumeSnapshotContent{test.initialContents[0].DeepCopy()}, map[string]string{
+						"snapshot.storage.kubernetes.io/volumesnapshot-being-deleted": "yes",
+					})
+				}
+			}
+			expected := snapshot.DeepCopy()
+			if !tc.block && !tc.keepGroup {
+				expected.Finalizers = nil
+			}
+			test.expectedSnapshots = []*crdv1.VolumeSnapshot{expected}
+			if tc.block {
+				test.expectedEvents = []string{"Warning SnapshotDeletePending"}
+			}
+			test.test = func(ctrl *csiSnapshotCommonController, reactor *snapshotReactor, test controllerTest) error {
+				// The sync harness populates the group store, but the deletion path
+				// reads the informer lister, which needs the same parent objects.
+				indexer := cache.NewIndexer(cache.MetaNamespaceKeyFunc, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+				for _, parent := range test.initialGroupSnapshots {
+					if err := indexer.Add(parent); err != nil {
+						return err
+					}
+				}
+				ctrl.groupSnapshotLister = groupstoragelisters.NewVolumeGroupSnapshotLister(indexer)
+				err := testSyncSnapshot(ctrl, reactor, test)
+				if tc.block {
+					if err == nil {
+						return fmt.Errorf("expected live parent to block member deletion")
+					}
+					return nil
+				}
+				return err
+			}
+			runSyncTests(t, []controllerTest{test}, snapshotClasses, nil)
+		})
+	}
 }
