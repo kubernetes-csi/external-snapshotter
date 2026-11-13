@@ -61,15 +61,17 @@ const controllerUpdateFailMsg = "snapshot controller failed to update"
 func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnapshotContent) (requeue bool, err error) {
 	klog.V(5).Infof("synchronizing VolumeSnapshotContent[%s]", content.Name)
 
+	_, groupSnapshotMember := content.Annotations[utils.VolumeGroupSnapshotHandleAnnotation]
 	if ctrl.shouldDelete(content) {
 		klog.V(4).Infof("VolumeSnapshotContent[%s]: the policy is %s", content.Name, content.Spec.DeletionPolicy)
+		hasSnapshotHandle := content.Spec.Source.SnapshotHandle != nil ||
+			(content.Status != nil && content.Status.SnapshotHandle != nil)
+		hasGroupSnapshotHandle := groupSnapshotMember ||
+			(content.Status != nil && content.Status.VolumeGroupSnapshotHandle != nil)
 		if content.Spec.DeletionPolicy == crdv1.VolumeSnapshotContentDelete &&
-			content.Status != nil && content.Status.SnapshotHandle != nil && content.Status.VolumeGroupSnapshotHandle == nil {
-			// issue a CSI deletion call if the snapshot does not belong to volumegroupsnapshot
-			// and it has not been deleted yet from underlying storage system.
-			// Note that the deletion snapshot operation will update content SnapshotHandle
-			// to nil upon a successful deletion. At this
-			// point, the finalizer on content should NOT be removed to avoid leaking.
+			hasSnapshotHandle && !hasGroupSnapshotHandle {
+			// Pre-provisioned content can be deleted before its status is initialized.
+			// Its immutable spec handle also allows idempotent retries after status is cleared.
 			var err error
 			content, err = ctrl.deleteCSISnapshot(content)
 			if err != nil {
@@ -90,7 +92,6 @@ func (ctrl *csiSnapshotSideCarController) syncContent(content *crdv1.VolumeSnaps
 
 	// Create snapshot calling the CSI driver only if it is a dynamic
 	// provisioning for an independent snapshot.
-	_, groupSnapshotMember := content.Annotations[utils.VolumeGroupSnapshotHandleAnnotation]
 	if content.Spec.Source.VolumeHandle != nil && content.Status == nil && !groupSnapshotMember {
 		klog.V(5).Infof("syncContent: Call CreateSnapshot for content %s", content.Name)
 		return ctrl.createSnapshot(content)

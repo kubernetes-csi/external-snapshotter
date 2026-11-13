@@ -17,15 +17,21 @@ limitations under the License.
 package sidecar_controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 	"time"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	fake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
 )
 
 var (
@@ -390,4 +396,152 @@ func TestDeleteSync(t *testing.T) {
 		},
 	}
 	runSyncContentTests(t, tests, snapshotClasses)
+}
+
+func TestDeletePreProvisionedContentWithoutStatus(t *testing.T) {
+	const handle = "existing-snapshot"
+	for _, tc := range []struct {
+		name        string
+		status      *crdv1.VolumeSnapshotContentStatus
+		policy      crdv1.DeletionPolicy
+		annotations map[string]string
+		deleteError error
+		wantDelete  bool
+	}{
+		{name: "nil status", policy: deletePolicy, wantDelete: true},
+		{name: "empty status", status: &crdv1.VolumeSnapshotContentStatus{}, policy: deletePolicy, wantDelete: true},
+		{name: "delete failure", policy: deletePolicy, deleteError: errors.New("delete denied"), wantDelete: true},
+		{name: "retain", policy: retainPolicy},
+		{name: "group annotation", policy: deletePolicy, annotations: map[string]string{utils.VolumeGroupSnapshotHandleAnnotation: "group-snapshot"}},
+		{name: "group annotation with initialized status", policy: deletePolicy, annotations: map[string]string{utils.VolumeGroupSnapshotHandleAnnotation: "group-snapshot"}, status: &crdv1.VolumeSnapshotContentStatus{SnapshotHandle: toStringPointer(handle)}},
+		{name: "group status", policy: deletePolicy, status: &crdv1.VolumeSnapshotContentStatus{VolumeGroupSnapshotHandle: toStringPointer("group-snapshot")}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			content := newContent("temporary-content", "", "dummy", "", "", handle, "", tc.policy, nil, nil, true, &timeNowMetav1)
+			content.Status = tc.status
+			content.Annotations = tc.annotations
+			client := fake.NewSimpleClientset(content.DeepCopy())
+			ctrl, err := newTestController(kubefake.NewSimpleClientset(), client, nil, t, controllerTest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			defer ctrl.contentQueue.ShutDown()
+			snapshotter := &fakeSnapshotter{t: t}
+			if tc.wantDelete {
+				snapshotter.deleteCalls = []deleteCall{{snapshotID: handle, err: tc.deleteError}}
+			}
+			ctrl.handler = NewCSIHandler(snapshotter, nil, time.Second, "snapshot", -1, "groupsnapshot", -1)
+			client.PrependReactor("patch", "volumesnapshotcontents", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				if tc.wantDelete && (snapshotter.deleteCallCounter == 0 || tc.deleteError != nil) {
+					t.Error("finalizer patch attempted without successful CSI deletion")
+				}
+				return false, nil, nil
+			})
+
+			requeue, syncErr := ctrl.syncContent(content)
+			wantError := tc.deleteError != nil
+			if (syncErr != nil) != wantError || requeue != wantError {
+				t.Fatalf("requeue=%t error=%v, want failure/requeue=%t", requeue, syncErr, wantError)
+			}
+			wantCalls := 0
+			if tc.wantDelete {
+				wantCalls = 1
+			}
+			if snapshotter.deleteCallCounter != wantCalls {
+				t.Errorf("CSI delete calls=%d, want %d", snapshotter.deleteCallCounter, wantCalls)
+			}
+			stored, err := client.SnapshotV1().VolumeSnapshotContents().Get(context.Background(), content.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if protected := slices.Contains(stored.Finalizers, utils.VolumeSnapshotContentFinalizer); protected != wantError {
+				t.Errorf("protection finalizer present=%t, want %t", protected, wantError)
+			}
+		})
+	}
+}
+
+func TestPreProvisionedContentRequiresDeletionAuthorization(t *testing.T) {
+	for _, bound := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bound=%t", bound), func(t *testing.T) {
+			content := newContent("content", "", "dummy", "snapshot", "", "snapshot", "", deletePolicy, nil, nil, true, nil)
+			content.Status.ReadyToUse = &True
+			if bound {
+				content.Spec.VolumeSnapshotRef.UID = "live-snapshot-uid"
+				content.DeletionTimestamp = &timeNowMetav1
+			}
+			client := fake.NewSimpleClientset(content.DeepCopy())
+			ctrl, err := newTestController(kubefake.NewSimpleClientset(), client, nil, t, controllerTest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ctrl.contentQueue.ShutDown()
+			requeue, err := ctrl.syncContent(content)
+			if err != nil || requeue {
+				t.Fatalf("requeue=%t error=%v", requeue, err)
+			}
+			if actions := client.Actions(); len(actions) != 0 {
+				t.Errorf("unauthorized deletion must not mutate content: %v", actions)
+			}
+		})
+	}
+}
+
+func TestDeletePreProvisionedContentRetriesAfterAPIFailure(t *testing.T) {
+	const handle = "existing-snapshot"
+	for _, verb := range []string{"update", "patch"} {
+		t.Run(verb, func(t *testing.T) {
+			content := newContent("temporary-content", "", "dummy", handle, "", handle, "", deletePolicy, nil, nil, true, &timeNowMetav1)
+			content.Annotations = nil
+			client := fake.NewSimpleClientset(content.DeepCopy())
+			ctrl, err := newTestController(kubefake.NewSimpleClientset(), client, nil, t, controllerTest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ctrl.contentQueue.ShutDown()
+			snapshotter := &fakeSnapshotter{
+				t:           t,
+				deleteCalls: []deleteCall{{snapshotID: handle}, {snapshotID: handle}},
+			}
+			ctrl.handler = NewCSIHandler(snapshotter, nil, time.Second, "snapshot", -1, "groupsnapshot", -1)
+			attempts := 0
+			client.PrependReactor(verb, "volumesnapshotcontents", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				attempts++
+				if attempts == 1 {
+					return true, nil, errors.New("injected API failure")
+				}
+				return false, nil, nil
+			})
+
+			requeue, err := ctrl.syncContent(content)
+			if err == nil || !requeue {
+				t.Fatalf("expected API failure and retry, got requeue=%t error=%v", requeue, err)
+			}
+			stored, err := client.SnapshotV1().VolumeSnapshotContents().Get(context.Background(), content.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Contains(stored.Finalizers, utils.VolumeSnapshotContentFinalizer) {
+				t.Fatal("API failure must leave the protection finalizer")
+			}
+			if verb == "patch" && stored.Status.SnapshotHandle != nil {
+				t.Fatal("status handle must have been cleared before the failed finalizer patch")
+			}
+			requeue, err = ctrl.syncContent(stored)
+			if err != nil || requeue {
+				t.Fatalf("retry failed: requeue=%t error=%v", requeue, err)
+			}
+			stored, err = client.SnapshotV1().VolumeSnapshotContents().Get(context.Background(), content.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if slices.Contains(stored.Finalizers, utils.VolumeSnapshotContentFinalizer) {
+				t.Error("retry did not remove the protection finalizer")
+			}
+			if snapshotter.deleteCallCounter != 2 {
+				t.Errorf("CSI delete calls=%d, want 2 idempotent calls", snapshotter.deleteCallCounter)
+			}
+		})
+	}
 }
