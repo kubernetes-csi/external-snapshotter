@@ -36,7 +36,7 @@ type Handler interface {
 	DeleteSnapshot(content *crdv1.VolumeSnapshotContent, snapshotterCredentials map[string]string) error
 	GetSnapshotStatus(content *crdv1.VolumeSnapshotContent, snapshotterListCredentials map[string]string) (bool, time.Time, int64, string, error)
 	CreateGroupSnapshot(content *groupsnapshotv1.VolumeGroupSnapshotContent, parameters map[string]string, snapshotterCredentials map[string]string) (string, string, []*csi.Snapshot, time.Time, bool, error)
-	GetGroupSnapshotStatus(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error)
+	GetGroupSnapshotStatus(groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, []*csi.Snapshot, error)
 	DeleteGroupSnapshot(content *groupsnapshotv1.VolumeGroupSnapshotContent, SnapshotID []string, snapshotterCredentials map[string]string) error
 }
 
@@ -188,13 +188,13 @@ func (handler *csiHandler) DeleteGroupSnapshot(content *groupsnapshotv1.VolumeGr
 	return handler.groupSnapshotter.DeleteGroupSnapshot(ctx, groupSnapshotHandle, snapshotIDs, snapshotterCredentials)
 }
 
-func (handler *csiHandler) GetGroupSnapshotStatus(content *groupsnapshotv1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, error) {
+func (handler *csiHandler) GetGroupSnapshotStatus(content *groupsnapshotv1.VolumeGroupSnapshotContent, snapshotIDs []string, snapshotterCredentials map[string]string) (bool, time.Time, []*csi.Snapshot, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), handler.timeout)
 	defer cancel()
 
 	// NOTE: snapshotIDs are required for GetGroupSnapshotStatus
 	if len(snapshotIDs) == 0 {
-		return false, time.Time{}, fmt.Errorf("cannot list group snapshot %s. No snapshots found in the group snapshot content", content.Name)
+		return false, time.Time{}, nil, fmt.Errorf("cannot list group snapshot %s. No snapshots found in the group snapshot content", content.Name)
 	}
 	var groupSnapshotHandle string
 	var err error
@@ -203,15 +203,15 @@ func (handler *csiHandler) GetGroupSnapshotStatus(content *groupsnapshotv1.Volum
 	} else if content.Spec.Source.GroupSnapshotHandles != nil {
 		groupSnapshotHandle = content.Spec.Source.GroupSnapshotHandles.VolumeGroupSnapshotHandle
 	} else {
-		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: groupSnapshotHandle is missing", content.Name)
+		return false, time.Time{}, nil, fmt.Errorf("failed to list group snapshot for group snapshot content %s: groupSnapshotHandle is missing", content.Name)
 	}
 
-	csiSnapshotStatus, timestamp, err := handler.groupSnapshotter.GetGroupSnapshotStatus(ctx, groupSnapshotHandle, snapshotIDs, snapshotterCredentials)
+	csiSnapshotStatus, timestamp, snapshots, err := handler.groupSnapshotter.GetGroupSnapshotStatus(ctx, groupSnapshotHandle, snapshotIDs, snapshotterCredentials)
 	if err != nil {
-		return false, time.Time{}, fmt.Errorf("failed to list group snapshot for group snapshot content %s: %q", content.Name, err)
+		return false, time.Time{}, nil, fmt.Errorf("failed to list group snapshot for group snapshot content %s: %q", content.Name, err)
 	}
 
-	return csiSnapshotStatus, timestamp, nil
+	return csiSnapshotStatus, timestamp, snapshots, nil
 }
 
 func (handler *csiHandler) makeGroupSnapshotName(groupSnapshotUID string) (string, error) {
