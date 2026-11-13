@@ -286,6 +286,41 @@ func TestUpdateGroupSnapshotContentStatusExistingStatus(t *testing.T) {
 	}
 }
 
+// TestUpdateGroupSnapshotContentStatusMemberReadiness tests that member readiness follows later driver responses.
+func TestUpdateGroupSnapshotContentStatusMemberReadiness(t *testing.T) {
+	handle := "group-handle"
+	created := metav1.NewTime(metav1.Now().Time)
+	content := newGroupSnapshotContent(
+		"member-ready", "uid", "snap", testNamespace,
+		"", "class-a", []string{"vol-1", "vol-2"},
+		v1.VolumeSnapshotContentDelete, nil, false, nil,
+	)
+	content.Status = &groupsnapshotv1.VolumeGroupSnapshotContentStatus{
+		VolumeGroupSnapshotHandle: &handle,
+		ReadyToUse:                ptr(false),
+		CreationTime:              &created,
+		VolumeSnapshotInfoList: []groupsnapshotv1.VolumeSnapshotInfo{
+			{VolumeHandle: "vol-1", SnapshotHandle: "snap-1", ReadyToUse: ptr(false)},
+			{VolumeHandle: "vol-2", SnapshotHandle: "snap-2", ReadyToUse: ptr(false)},
+		},
+	}
+	client := fake.NewSimpleClientset(content)
+	ctrl := &csiSnapshotSideCarController{clientset: client}
+	snapList := []*csi.Snapshot{
+		{SnapshotId: "snap-1", SourceVolumeId: "vol-1", ReadyToUse: true},
+		{SnapshotId: "snap-2", SourceVolumeId: "vol-2", ReadyToUse: true},
+	}
+	got, err := ctrl.updateGroupSnapshotContentStatus(content, handle, true, created, snapList)
+	if err != nil {
+		t.Fatalf("updateGroupSnapshotContentStatus failed: %v", err)
+	}
+	for _, info := range got.Status.VolumeSnapshotInfoList {
+		if info.ReadyToUse == nil || !*info.ReadyToUse {
+			t.Errorf("expected member %s to be ready, got %v", info.SnapshotHandle, info.ReadyToUse)
+		}
+	}
+}
+
 // TestUpdateGroupSnapshotContentStatusNoUpdate tests when nothing changes (updated=false).
 func TestUpdateGroupSnapshotContentStatusNoUpdate(t *testing.T) {
 	handle := "same-handle"
