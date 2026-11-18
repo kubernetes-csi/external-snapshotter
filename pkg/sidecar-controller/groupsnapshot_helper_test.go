@@ -70,7 +70,7 @@ type fakeGroupSnapshotHandler struct {
 	createGroupSnapshotErr    error
 	createGroupSnapshotResult func() (driverName, groupSnapshotID string, snapshots []*csi.Snapshot, creationTime time.Time, readyToUse bool, err error)
 	getGroupSnapshotStatusErr error
-	getGroupSnapshotStatus    func() (readyToUse bool, creationTime time.Time, err error)
+	getGroupSnapshotStatus    func() (readyToUse bool, creationTime time.Time, snapshots []*csi.Snapshot, err error)
 	deleteGroupSnapshotErr    error
 }
 
@@ -92,14 +92,14 @@ func (f *fakeGroupSnapshotHandler) CreateGroupSnapshot(_ *groupsnapshotv1.Volume
 	}
 	return "driver", "group-id", nil, time.Now(), true, nil
 }
-func (f *fakeGroupSnapshotHandler) GetGroupSnapshotStatus(_ *groupsnapshotv1.VolumeGroupSnapshotContent, _ []string, _ map[string]string) (bool, time.Time, error) {
+func (f *fakeGroupSnapshotHandler) GetGroupSnapshotStatus(_ *groupsnapshotv1.VolumeGroupSnapshotContent, _ []string, _ map[string]string) (bool, time.Time, []*csi.Snapshot, error) {
 	if f.getGroupSnapshotStatusErr != nil {
-		return false, time.Time{}, f.getGroupSnapshotStatusErr
+		return false, time.Time{}, nil, f.getGroupSnapshotStatusErr
 	}
 	if f.getGroupSnapshotStatus != nil {
 		return f.getGroupSnapshotStatus()
 	}
-	return true, time.Now(), nil
+	return true, time.Now(), nil, nil
 }
 func (f *fakeGroupSnapshotHandler) DeleteGroupSnapshot(_ *groupsnapshotv1.VolumeGroupSnapshotContent, _ []string, _ map[string]string) error {
 	return f.deleteGroupSnapshotErr
@@ -342,6 +342,51 @@ func TestCheckandUpdateGroupSnapshotContentStatusOperationSuccess(t *testing.T) 
 	}
 }
 
+// TestCheckandUpdateGroupSnapshotContentStatusOperationPopulatesVolumeSnapshotInfoList
+// verifies that for a pre-provisioned group snapshot content (spec.source.groupSnapshotHandles
+// set), the member snapshots returned by the CSI driver are propagated into
+// status.volumeSnapshotInfoList.
+func TestCheckandUpdateGroupSnapshotContentStatusOperationPopulatesVolumeSnapshotInfoList(t *testing.T) {
+	content := newGroupSnapshotContentWithHandles(
+		"check-info-list", "uid", "snap", testNamespace,
+		"group-h", []string{"snap-1", "snap-2"}, "", // no class so no credentials path
+		v1.VolumeSnapshotContentDelete, nil, false, nil,
+	)
+	content.Spec.VolumeGroupSnapshotClassName = nil
+	client := fake.NewSimpleClientset(content)
+	store := cache.NewStore(cache.DeletionHandlingMetaNamespaceKeyFunc)
+	ctrl := &csiSnapshotSideCarController{
+		clientset:                 client,
+		groupSnapshotContentStore: store,
+		handler: &fakeGroupSnapshotHandler{
+			getGroupSnapshotStatus: func() (bool, time.Time, []*csi.Snapshot, error) {
+				return true, time.Now(), []*csi.Snapshot{
+					{SnapshotId: "snap-1", SourceVolumeId: "vol-1", ReadyToUse: true, SizeBytes: 1024},
+					{SnapshotId: "snap-2", SourceVolumeId: "vol-2", ReadyToUse: true, SizeBytes: 2048},
+				}, nil
+			},
+		},
+		eventRecorder: record.NewFakeRecorder(10),
+	}
+	got, err := ctrl.checkandUpdateGroupSnapshotContentStatusOperation(content)
+	if err != nil {
+		t.Fatalf("checkandUpdateGroupSnapshotContentStatusOperation failed: %v", err)
+	}
+	if got.Status == nil {
+		t.Fatal("expected status to be set")
+	}
+	if len(got.Status.VolumeSnapshotInfoList) != 2 {
+		t.Fatalf("expected 2 entries in status.volumeSnapshotInfoList, got %d: %+v", len(got.Status.VolumeSnapshotInfoList), got.Status.VolumeSnapshotInfoList)
+	}
+	byHandle := map[string]string{}
+	for _, info := range got.Status.VolumeSnapshotInfoList {
+		byHandle[info.SnapshotHandle] = info.VolumeHandle
+	}
+	if byHandle["snap-1"] != "vol-1" || byHandle["snap-2"] != "vol-2" {
+		t.Errorf("unexpected volumeSnapshotInfoList contents: %+v", got.Status.VolumeSnapshotInfoList)
+	}
+}
+
 // TestCheckandUpdateGroupSnapshotContentStatusSuccess tests the outer function success path (store update).
 func TestCheckandUpdateGroupSnapshotContentStatusSuccess(t *testing.T) {
 	content := newGroupSnapshotContentWithHandles(
@@ -387,8 +432,8 @@ func TestCheckandUpdateGroupSnapshotContentStatusNotReadyRequeues(t *testing.T) 
 		clientset:                 client,
 		groupSnapshotContentStore: store,
 		handler: &fakeGroupSnapshotHandler{
-			getGroupSnapshotStatus: func() (bool, time.Time, error) {
-				return false, time.Now(), nil
+			getGroupSnapshotStatus: func() (bool, time.Time, []*csi.Snapshot, error) {
+				return false, time.Now(), nil, nil
 			},
 		},
 		eventRecorder: record.NewFakeRecorder(10),
