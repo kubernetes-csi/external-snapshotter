@@ -513,9 +513,9 @@ func NeedToAddGroupSnapshotContentFinalizer(groupSnapshotContent *groupsnapshotv
 }
 
 // IsSnapshotDeletionCandidate checks if a volume snapshot deletionTimestamp
-// is set and any finalizer is on the snapshot.
+// is set and any snapshot protection finalizer is on the snapshot.
 func IsSnapshotDeletionCandidate(snapshot *crdv1.VolumeSnapshot) bool {
-	return snapshot.ObjectMeta.DeletionTimestamp != nil && (slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer) || slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer))
+	return snapshot.ObjectMeta.DeletionTimestamp != nil && (slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotAsSourceFinalizer) || slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotBoundFinalizer) || slices.Contains(snapshot.ObjectMeta.Finalizers, VolumeSnapshotInGroupFinalizer))
 }
 
 // IsGroupSnapshotDeletionCandidate checks if a volume group snapshot deletionTimestamp
