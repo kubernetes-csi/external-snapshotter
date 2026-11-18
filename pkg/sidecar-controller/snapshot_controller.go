@@ -614,7 +614,7 @@ func (ctrl *csiSnapshotSideCarController) clearVolumeContentStatus(
 	}
 	newContent, err := ctrl.clientset.SnapshotV1().VolumeSnapshotContents().UpdateStatus(context.TODO(), content, metav1.UpdateOptions{})
 	if err != nil {
-		return content, newControllerUpdateError(contentName, err.Error())
+		return content, newControllerUpdateError(contentName, err)
 	}
 	return newContent, nil
 }
@@ -688,7 +688,7 @@ func (ctrl *csiSnapshotSideCarController) updateSnapshotContentStatus(
 
 		newContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset, "status")
 		if err != nil {
-			return contentObj, newControllerUpdateError(content.Name, err.Error())
+			return contentObj, newControllerUpdateError(content.Name, err)
 		}
 		return newContent, nil
 	}
@@ -713,16 +713,22 @@ var _ error = controllerUpdateError{}
 
 type controllerUpdateError struct {
 	message string
+	err     error
 }
 
-func newControllerUpdateError(name, message string) error {
+func newControllerUpdateError(name string, err error) error {
 	return controllerUpdateError{
-		message: fmt.Sprintf("%s %s on API server: %s", controllerUpdateFailMsg, name, message),
+		message: fmt.Sprintf("%s %s on API server: %s", controllerUpdateFailMsg, name, err.Error()),
+		err:     err,
 	}
 }
 
 func (e controllerUpdateError) Error() string {
 	return e.message
+}
+
+func (e controllerUpdateError) Unwrap() error {
+	return e.err
 }
 
 func (ctrl *csiSnapshotSideCarController) GetCredentialsFromAnnotation(content *crdv1.VolumeSnapshotContent) (map[string]string, error) {
@@ -773,7 +779,7 @@ func (ctrl csiSnapshotSideCarController) removeContentFinalizer(content *crdv1.V
 
 	updatedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
 	if err != nil {
-		return newControllerUpdateError(content.Name, err.Error())
+		return newControllerUpdateError(content.Name, err)
 	}
 
 	klog.V(5).Infof("Removed protection finalizer from volume snapshot content %s", updatedContent.Name)
@@ -842,7 +848,7 @@ func (ctrl *csiSnapshotSideCarController) setAnnVolumeSnapshotBeingCreated(conte
 
 	patchedContent, err := utils.PatchVolumeSnapshotContent(content, patches, ctrl.clientset)
 	if err != nil {
-		return content, newControllerUpdateError(content.Name, err.Error())
+		return content, newControllerUpdateError(content.Name, err)
 	}
 	// update content if update is successful
 	content = patchedContent
@@ -874,7 +880,7 @@ func (ctrl csiSnapshotSideCarController) removeAnnVolumeSnapshotBeingCreated(con
 
 	updatedContent, err := utils.PatchVolumeSnapshotContent(contentClone, patches, ctrl.clientset)
 	if err != nil {
-		return content, newControllerUpdateError(content.Name, err.Error())
+		return content, newControllerUpdateError(content.Name, err)
 	}
 
 	klog.V(5).Infof("Removed VolumeSnapshotBeingCreated annotation from volume snapshot content %s", content.Name)
