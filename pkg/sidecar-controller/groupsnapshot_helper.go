@@ -668,6 +668,15 @@ func (ctrl *csiSnapshotSideCarController) updateGroupSnapshotContentStatus(
 			}
 			updated = true
 		}
+		for _, snapshot := range snapshotList {
+			for i := range newStatus.VolumeSnapshotInfoList {
+				info := &newStatus.VolumeSnapshotInfoList[i]
+				if info.SnapshotHandle == snapshot.SnapshotId && (info.ReadyToUse == nil || *info.ReadyToUse != snapshot.ReadyToUse) {
+					info.ReadyToUse = &snapshot.ReadyToUse
+					updated = true
+				}
+			}
+		}
 	}
 
 	if updated {
