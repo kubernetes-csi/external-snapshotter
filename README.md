@@ -10,7 +10,7 @@ The volume group snapshot feature supports CSI v1.10.0 and higher, and have been
 
 With the promotion of Volume Snapshot to GA, the feature is enabled by default on standard Kubernetes deployments and cannot be turned off.
 
-The Volume Group Snapshot feature is disabled by default, and can be enabled using a command line option. For more information on how to enable it, see the [usage section](https://github.com/kubernetes-csi/external-snapshotter#usage) of this guide.
+Starting with external-snapshotter v8.7.0, the `CSIVolumeGroupSnapshot` feature gate is enabled by default. Using volume group snapshots requires the Volume Group Snapshot CRDs and a CSI driver that supports group snapshots. For details, see [Volume Group Snapshot Support](#volume-group-snapshot-support).
 
 Blog post for the Snapshot GA feature can be found [here](https://kubernetes.io/blog/2020/12/10/kubernetes-1.20-volume-snapshot-moves-to-ga/).
 
