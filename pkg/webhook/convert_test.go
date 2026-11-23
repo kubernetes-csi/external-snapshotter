@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"k8s.io/apimachinery/pkg/api/equality"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"sigs.k8s.io/yaml"
 )
@@ -79,6 +80,78 @@ func TestFromBeta2ToBeta1(t *testing.T) {
 				t.Errorf("unexpected result %v vs %v", string(fromJSON), string(toJSON))
 			}
 		})
+	}
+}
+
+func TestConvertGroupSnapshotCRDToAndFromV1(t *testing.T) {
+	testCases := []struct {
+		name        string
+		fromFile    string
+		fromVersion string
+		toFile      string
+		toVersion   string
+	}{
+		{
+			name:        "v1 to v1beta2 leaves the object unchanged",
+			fromFile:    "testdata/v1beta2_to_v1beta1/annotation_status_v1beta2.yaml",
+			fromVersion: v1Version,
+			toFile:      "testdata/v1beta2_to_v1beta1/annotation_status_v1beta2.yaml",
+			toVersion:   v1beta2Version,
+		},
+		{
+			name:        "v1beta2 to v1 leaves the object unchanged",
+			fromFile:    "testdata/v1beta2_to_v1beta1/annotation_status_v1beta2.yaml",
+			fromVersion: v1beta2Version,
+			toFile:      "testdata/v1beta2_to_v1beta1/annotation_status_v1beta2.yaml",
+			toVersion:   v1Version,
+		},
+		{
+			name:        "v1 to v1beta1 converts as v1beta2 does",
+			fromFile:    "testdata/v1beta2_to_v1beta1/annotation_status_v1beta2.yaml",
+			fromVersion: v1Version,
+			toFile:      "testdata/v1beta2_to_v1beta1/annotation_status_v1beta1.yaml",
+			toVersion:   v1beta1Version,
+		},
+		{
+			name:        "v1beta1 to v1 converts as it does to v1beta2",
+			fromFile:    "testdata/v1beta1_to_v1beta2/annotation_status_v1beta1.yaml",
+			fromVersion: v1beta1Version,
+			toFile:      "testdata/v1beta1_to_v1beta2/annotation_status_v1beta2.yaml",
+			toVersion:   v1Version,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			from := fromFile(t, tc.fromFile)
+			from.SetAPIVersion(tc.fromVersion)
+
+			to := fromFile(t, tc.toFile)
+			to.SetAPIVersion(tc.toVersion)
+
+			converted, status := convertGroupSnapshotCRD(from, tc.toVersion)
+			if status.Status != metav1.StatusSuccess {
+				t.Fatalf("conversion from %q to %q failed: %v", tc.fromVersion, tc.toVersion, status.Message)
+			}
+
+			// The API version is changed by the framework, here we emulate it
+			converted.SetAPIVersion(tc.toVersion)
+
+			if !equality.Semantic.DeepEqual(converted, to) {
+				convertedJSON, _ := json.MarshalIndent(converted, "", "  ")
+				toJSON, _ := json.MarshalIndent(to, "", "  ")
+				t.Errorf("unexpected result %v vs %v", string(convertedJSON), string(toJSON))
+			}
+		})
+	}
+}
+
+func TestConvertGroupSnapshotCRDRejectsUnknownVersion(t *testing.T) {
+	from := fromFile(t, "testdata/v1beta2_to_v1beta1/annotation_status_v1beta2.yaml")
+
+	_, status := convertGroupSnapshotCRD(from, "groupsnapshot.storage.k8s.io/v2")
+	if status.Status != metav1.StatusFailure {
+		t.Fatalf("expected conversion to an unknown version to fail, got %q", status.Status)
 	}
 }
 
