@@ -434,6 +434,16 @@ func (ctrl *csiSnapshotCommonController) syncUnreadyGroupSnapshot(ctx context.Co
 			return fmt.Errorf("group snapshot %s is bound, but VolumeGroupSnapshotContent %s is not bound to the VolumeGroupSnapshot correctly, %v", uniqueGroupSnapshotName, groupSnapshotContent.Name, err)
 		}
 
+		// Create individual VolumeSnapshot and VolumeSnapshotContent resources for the
+		// pre-provisioned group snapshot content, once the sidecar controller has
+		// populated status.volumeSnapshotInfoList with the member snapshots.
+		newGroupSnapshotContent, err = ctrl.createSnapshotsForGroupSnapshotContent(ctx, newGroupSnapshotContent, groupSnapshot)
+		if err != nil {
+			klog.V(4).Infof("createSnapshotsForGroupSnapshotContent[%s]: failed to create snapshots and snapshotcontents for group snapshot %v: %v",
+				newGroupSnapshotContent.Name, groupSnapshot.Name, err.Error())
+			return err
+		}
+
 		// update group snapshot status
 		klog.V(5).Infof("syncUnreadyGroupSnapshot [%s]: trying to update group snapshot status", utils.GroupSnapshotKey(groupSnapshot))
 		if _, err = ctrl.updateGroupSnapshotStatus(groupSnapshot, newGroupSnapshotContent); err != nil {
@@ -549,16 +559,21 @@ func (ctrl *csiSnapshotCommonController) getGroupSnapshotSecret(
 	groupSnapshot *groupsnapshotv1.VolumeGroupSnapshot,
 	groupSnapshotContent *groupsnapshotv1.VolumeGroupSnapshotContent,
 ) (*v1.SecretReference, error) {
-	if groupSnapshot.Spec.VolumeGroupSnapshotClassName == nil {
+	className := groupSnapshot.Spec.VolumeGroupSnapshotClassName
+	if className == nil {
+		// Pre-provisioned VolumeGroupSnapshotContent carries the class name in its spec.
+		className = groupSnapshotContent.Spec.VolumeGroupSnapshotClassName
+	}
+	if className == nil {
 		return nil, fmt.Errorf(
 			"getGroupSnapshotSecret: internal error: cannot find reference to volume group snapshot class")
 	}
 
-	groupSnapshotClass, err := ctrl.groupSnapshotClassLister.Get(*groupSnapshot.Spec.VolumeGroupSnapshotClassName)
+	groupSnapshotClass, err := ctrl.groupSnapshotClassLister.Get(*className)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"getGroupSnapshotSecret: failed to get volume snapshot class %s: %q",
-			*groupSnapshot.Spec.VolumeGroupSnapshotClassName, err)
+			*className, err)
 	}
 
 	groupSnapshotSecret, err := utils.GetGroupSnapshotSecretReference(
