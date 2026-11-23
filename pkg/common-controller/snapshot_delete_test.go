@@ -17,13 +17,20 @@ limitations under the License.
 package common_controller
 
 import (
+	"context"
 	"errors"
+	"reflect"
 	"testing"
 
 	crdv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumesnapshot/v1"
+	fake "github.com/kubernetes-csi/external-snapshotter/client/v8/clientset/versioned/fake"
 	"github.com/kubernetes-csi/external-snapshotter/v8/pkg/utils"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kubefake "k8s.io/client-go/kubernetes/fake"
+	clienttesting "k8s.io/client-go/testing"
 )
 
 var class1Parameters = map[string]string{
@@ -354,4 +361,100 @@ func TestDeleteSync(t *testing.T) {
 		},
 	}
 	runSyncTests(t, tests, snapshotClasses, nil)
+}
+
+// A failed annotation PATCH must not mutate the cached content or allow a later
+// reconciliation to delete content without first persisting the annotation.
+func TestSnapshotDeletionRetriesAnnotationPatch(t *testing.T) {
+	for _, withAnnotations := range []bool{false, true} {
+		name := "nil annotations"
+		if withAnnotations {
+			name = "existing annotations"
+		}
+		t.Run(name, func(t *testing.T) {
+			content := newContent("content-patch-retry", "snapshot-uid", "snapshot-delete", "snapshot-handle", classGold, "snapshot-handle", "", deletePolicy, nil, nil, true, true)
+			if withAnnotations {
+				content.Annotations = map[string]string{"example.com/keep": "unchanged"}
+			}
+			original := content.DeepCopy()
+			snapshot := newSnapshot("snapshot-delete", "snapshot-uid", "", content.Name, classGold, content.Name, &True, nil, nil, nil, false, true, &timeNowMetav1)
+			client := fake.NewSimpleClientset(content.DeepCopy(), snapshot.DeepCopy())
+			ctrl, err := newTestController(kubefake.NewSimpleClientset(), client, nil, t, controllerTest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ctrl.contentStore.Add(content); err != nil {
+				t.Fatal(err)
+			}
+			patchAttempts, deleteAttempts := 0, 0
+			client.PrependReactor("patch", "volumesnapshotcontents", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				patchAttempts++
+				if patchAttempts == 1 {
+					return true, nil, apierrors.NewTooManyRequests("injected annotation patch failure", 0)
+				}
+				return false, nil, nil
+			})
+			client.PrependReactor("delete", "volumesnapshotcontents", func(action clienttesting.Action) (bool, runtime.Object, error) {
+				deleteAttempts++
+				obj, err := client.Tracker().Get(crdv1.SchemeGroupVersion.WithResource("volumesnapshotcontents"), "", content.Name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				stored := obj.(*crdv1.VolumeSnapshotContent)
+				if patchAttempts != 2 || stored.Annotations[utils.AnnVolumeSnapshotBeingDeleted] != "yes" {
+					t.Errorf("content deletion attempted before annotation was persisted: patches=%d, annotations=%v", patchAttempts, stored.Annotations)
+				}
+				if withAnnotations && stored.Annotations["example.com/keep"] != "unchanged" {
+					t.Errorf("unrelated annotation lost: %v", stored.Annotations)
+				}
+				return false, nil, nil
+			})
+
+			if err := ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, content, true); err == nil {
+				t.Fatal("expected the first reconciliation to fail on the annotation patch")
+			}
+			if patchAttempts != 1 || deleteAttempts != 0 {
+				t.Fatalf("after failed patch: patches=%d, deletes=%d; want 1, 0", patchAttempts, deleteAttempts)
+			}
+			if !reflect.DeepEqual(content, original) {
+				t.Fatalf("failed patch mutated original content: got %+v, want %+v", content, original)
+			}
+			cached, found, err := ctrl.contentStore.GetByKey(content.Name)
+			if err != nil || !found {
+				t.Fatalf("get cached content: found=%t, err=%v", found, err)
+			}
+			if !reflect.DeepEqual(cached, original) {
+				t.Fatalf("failed patch mutated cached content: got %+v, want %+v", cached, original)
+			}
+			persisted, err := client.SnapshotV1().VolumeSnapshotContents().Get(context.TODO(), content.Name, metav1.GetOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(persisted, original) {
+				t.Fatalf("failed patch changed persisted content: got %+v, want %+v", persisted, original)
+			}
+
+			// Retry using the exact cached object, without an informer refresh.
+			if err := ctrl.checkandRemoveSnapshotFinalizersAndCheckandDeleteContent(snapshot, cached.(*crdv1.VolumeSnapshotContent), true); err != nil {
+				t.Fatalf("retry failed: %v", err)
+			}
+			if patchAttempts != 2 || deleteAttempts != 1 {
+				t.Fatalf("after retry: patches=%d, deletes=%d; want 2, 1", patchAttempts, deleteAttempts)
+			}
+			if !reflect.DeepEqual(content, original) {
+				t.Errorf("successful retry mutated original cached object: got %+v, want %+v", content, original)
+			}
+			cached, found, err = ctrl.contentStore.GetByKey(content.Name)
+			if err != nil || !found {
+				t.Fatalf("get updated cached content: found=%t, err=%v", found, err)
+			}
+			updated := cached.(*crdv1.VolumeSnapshotContent)
+			if updated.Annotations[utils.AnnVolumeSnapshotBeingDeleted] != "yes" {
+				t.Errorf("successful patch not reflected in cache: %v", updated.Annotations)
+			}
+			if withAnnotations && updated.Annotations["example.com/keep"] != "unchanged" {
+				t.Errorf("unrelated annotation lost from cache: %v", updated.Annotations)
+			}
+		})
+	}
 }
