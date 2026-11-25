@@ -19,6 +19,7 @@ package common_controller
 import (
 	"context"
 	"fmt"
+	"slices"
 	"testing"
 
 	groupsnapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v8/apis/volumegroupsnapshot/v1"
@@ -56,6 +57,104 @@ func newHelperSetup(t *testing.T) *helperSetup {
 	}
 	reactor := newSnapshotReactor(kube, client, ctrl, nil, nil, nil)
 	return &helperSetup{ctrl: ctrl, reactor: reactor, client: client, kube: kube}
+}
+
+func TestGetClaimsFromVolumeGroupSnapshot(t *testing.T) {
+	primary := metav1.LabelSelectorRequirement{
+		Key:      "role",
+		Operator: metav1.LabelSelectorOpIn,
+		Values:   []string{"primary"},
+	}
+	tests := []struct {
+		name      string
+		selector  *metav1.LabelSelector
+		want      []string
+		wantError bool
+	}{
+		{
+			name: "expressions",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{primary},
+			},
+			want: []string{"mysql-primary", "postgres-primary"},
+		},
+		{
+			name: "labels and expressions",
+			selector: &metav1.LabelSelector{
+				MatchLabels:      map[string]string{"engine": "postgres"},
+				MatchExpressions: []metav1.LabelSelectorRequirement{primary},
+			},
+			want: []string{"postgres-primary"},
+		},
+		{
+			name:     "labels",
+			selector: &metav1.LabelSelector{MatchLabels: map[string]string{"engine": "postgres"}},
+			want:     []string{"postgres-primary", "postgres-replica"},
+		},
+		{
+			name:     "empty selector",
+			selector: &metav1.LabelSelector{},
+			want:     []string{"mysql-primary", "postgres-primary", "postgres-replica"},
+		},
+		{
+			name: "invalid selector",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{Key: "role", Operator: metav1.LabelSelectorOpIn},
+				},
+			},
+			wantError: true,
+		},
+		{
+			name:      "missing selector",
+			wantError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := kubefake.NewSimpleClientset(
+				&v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
+					Name: "postgres-primary", Namespace: testNamespace,
+					Labels: map[string]string{"engine": "postgres", "role": "primary"},
+				}},
+				&v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
+					Name: "postgres-replica", Namespace: testNamespace,
+					Labels: map[string]string{"engine": "postgres", "role": "replica"},
+				}},
+				&v1.PersistentVolumeClaim{ObjectMeta: metav1.ObjectMeta{
+					Name: "mysql-primary", Namespace: testNamespace,
+					Labels: map[string]string{"engine": "mysql", "role": "primary"},
+				}},
+			)
+			ctrl := &csiSnapshotCommonController{client: client}
+			snapshot := makeTestGroupSnapshot("test-snapshot", testNamespace, "test-uid")
+			snapshot.Spec.Source.Selector = tt.selector
+
+			claims, err := ctrl.getClaimsFromVolumeGroupSnapshot(snapshot)
+			if tt.wantError {
+				if err == nil {
+					t.Fatal("expected a selector error")
+				}
+				if len(client.Actions()) != 0 {
+					t.Fatalf("queried PVCs after selector validation failed: %v", client.Actions())
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("selecting PVCs: %v", err)
+			}
+
+			names := make([]string, 0, len(claims))
+			for _, claim := range claims {
+				names = append(names, claim.Name)
+			}
+			slices.Sort(names)
+			if !slices.Equal(names, tt.want) {
+				t.Errorf("selected PVCs %v, want %v", names, tt.want)
+			}
+		})
+	}
 }
 
 // --- object builder helpers ---

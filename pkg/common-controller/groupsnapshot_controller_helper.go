@@ -221,9 +221,15 @@ func (ctrl *csiSnapshotCommonController) getVolumesFromVolumeGroupSnapshot(group
 // getClaimsFromVolumeGroupSnapshot is a helper function to get a list of PVCs from VolumeGroupSnapshot.
 func (ctrl *csiSnapshotCommonController) getClaimsFromVolumeGroupSnapshot(groupSnapshot *groupsnapshotv1.VolumeGroupSnapshot) ([]v1.PersistentVolumeClaim, error) {
 	labelSelector := groupSnapshot.Spec.Source.Selector
+	if labelSelector == nil {
+		return nil, fmt.Errorf("group snapshot %s has no PVC label selector", utils.GroupSnapshotKey(groupSnapshot))
+	}
+	selector, err := metav1.LabelSelectorAsSelector(labelSelector)
+	if err != nil {
+		return nil, fmt.Errorf("invalid PVC label selector for group snapshot %s: %w", utils.GroupSnapshotKey(groupSnapshot), err)
+	}
 
-	// Get PVC that has group snapshot label applied.
-	pvcList, err := ctrl.client.CoreV1().PersistentVolumeClaims(groupSnapshot.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: labels.Set(labelSelector.MatchLabels).String()})
+	pvcList, err := ctrl.client.CoreV1().PersistentVolumeClaims(groupSnapshot.Namespace).List(context.TODO(), metav1.ListOptions{LabelSelector: selector.String()})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list PVCs with label selector %s: %q", metav1.FormatLabelSelector(labelSelector), err)
 	}
